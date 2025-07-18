@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: Apache-2.0
+hedera:
+  initContainers:
+    - name: init-hedera-node
+      image: busybox:stable-musl
+      command: ["sh", "-c", "cp -r /etc /data-saved"]
+      volumeMounts:
+        - name: hgcapp-data-saved
+          mountPath: /data-saved
+  nodes:
+    - name: node1
+      nodeId: 0
+      accountId: 0.0.3
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node2
+      nodeId: 1
+      accountId: 0.0.4
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node3
+      nodeId: 2
+      accountId: 0.0.5
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node4
+      nodeId: 3
+      accountId: 0.0.6
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node5
+      nodeId: 4
+      accountId: 0.0.7
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node6
+      nodeId: 5
+      accountId: 0.0.8
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+    - name: node7
+      nodeId: 6
+      accountId: 0.0.9
+      root:
+        resources:
+          requests:
+            cpu: 18
+            memory: 256Gi
+          limits:
+            cpu: 22
+            memory: 256Gi
+defaults:
+  sidecars:
+    recordStreamUploader:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 150m
+          memory: 400Mi
+    eventStreamUploader:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 150m
+          memory: 400Mi
+    recordStreamSidecarUploader:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 150m
+          memory: 400Mi
+    blockstreamUploader:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 150m
+          memory: 400Mi
+  root:
+    resources:
+      requests:
+        cpu: 18
+        memory: 256Gi
+      limits:
+        cpu: 22
+        memory: 256Gi
+    extraEnv:
+      - name: JAVA_OPTS
+        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=64g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser"
+      - name: JAVA_HEAP_MIN
+        value: "32g"
+      - name: JAVA_HEAP_MAX
+        value: "118g"
+      - name: MALLOC_ARENA_MAX
+        value: "4"
+minio-server:
+  tenant:
+    pools:
+      - servers: 1
+        name: pool-1
+        volumesPerServer: 1
+        size: 500Gi
+        storageClassName: local-path
+        nodeSelector:
+          solo.hashgraph.io/role: "auxiliary-services"
+          solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+          solo.hashgraph.io/network-id: "%NETWORK_ID%"
+        tolerations:
+          - key: "solo.hashgraph.io/role"
+            operator: "Equal"
+            value: "auxiliary-services"
+            effect: "NoSchedule"
+          - key: "solo.hashgraph.io/owner"
+            operator: "Equal"
+            value: "%NETWORK_OWNER%"
+            effect: "NoSchedule"
+          - key: "solo.hashgraph.io/network-id"
+            operator: "Equal"
+            value: "%NETWORK_ID%"
+            effect: "NoSchedule"
+        resources:
+          requests:
+            cpu: 0
+            memory: 0
+          limits:
+            cpu: 0
+            memory: 0
+deployment:
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector:
+    solo.hashgraph.io/role: "consensus-node"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "consensus-node"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+haproxyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+envoyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"

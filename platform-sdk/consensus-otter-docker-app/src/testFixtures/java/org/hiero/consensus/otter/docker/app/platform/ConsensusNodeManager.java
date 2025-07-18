@@ -6,6 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -18,7 +19,6 @@ import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
@@ -33,7 +33,6 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -79,17 +78,13 @@ public class ConsensusNodeManager {
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
-            @Nullable final Map<String, String> overriddenProperties) {
+            @NonNull final Map<String, String> overriddenProperties) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
-        if (overriddenProperties != null) {
-            overriddenProperties.forEach(configurationBuilder::withValue);
-        }
-        final Configuration platformConfig = configurationBuilder.getOrCreateConfig();
+        final Configuration platformConfig = createConfiguration(overriddenProperties);
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
