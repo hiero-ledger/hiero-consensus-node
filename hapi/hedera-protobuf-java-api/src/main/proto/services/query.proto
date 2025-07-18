@@ -57,7 +57,7 @@ import "services/token_get_nft_infos.proto";
 
 import "services/get_account_details.proto";
 
-import "services/clpr_get_ledger_configuration.proto";
+import "interledger/clpr_get_ledger_configuration.proto";
 
 /**
  * A query transaction.<br/>

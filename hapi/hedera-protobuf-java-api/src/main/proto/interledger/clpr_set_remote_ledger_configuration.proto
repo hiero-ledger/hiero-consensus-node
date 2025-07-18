@@ -19,7 +19,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
-import "services/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 
 /**

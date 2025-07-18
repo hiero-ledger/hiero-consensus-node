@@ -53,7 +53,7 @@ import "services/schedule_get_info.proto";
 
 import "services/get_account_details.proto";
 
-import "services/clpr_get_ledger_configuration.proto";
+import "interledger/clpr_get_ledger_configuration.proto";
 
 /**
  * A single query response.

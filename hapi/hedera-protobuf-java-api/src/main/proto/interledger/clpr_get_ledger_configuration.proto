@@ -21,7 +21,7 @@ option java_multiple_files = true;
 import "services/basic_types.proto";
 import "services/query_header.proto";
 import "services/response_header.proto";
-import "services/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 /**
  * Query for the CLPR Ledger Configuration matching the given ledger id,
