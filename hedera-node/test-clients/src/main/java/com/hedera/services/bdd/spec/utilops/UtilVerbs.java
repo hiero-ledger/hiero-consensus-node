@@ -2751,7 +2751,7 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
-    private static final class DurationConverter implements ConfigConverter<Duration> {
+    public static final class DurationConverter implements ConfigConverter<Duration> {
 
         /**
          * Regular expression for parsing durations. Looks for a number (with our without a decimal) followed by a unit.
@@ -2787,7 +2787,7 @@ public class UtilVerbs {
          * @return a Duration
          * @throws IllegalArgumentException if there is a problem parsing the string
          */
-        private static Duration parseDuration(final String str) {
+        public static Duration parseDuration(final String str) {
 
             final Matcher matcher = DURATION_REGEX.matcher(str);
 
