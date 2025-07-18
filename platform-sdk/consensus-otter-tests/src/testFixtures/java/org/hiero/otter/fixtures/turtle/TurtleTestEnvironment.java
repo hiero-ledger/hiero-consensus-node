@@ -87,8 +87,14 @@ public class TurtleTestEnvironment implements TestEnvironment {
         timeManager.addTimeTickReceiver(network);
     }
 
+    /**
+     * Checks if the Turtle test environment supports the given capabilities.
+     *
+     * @param requiredCapabilities the list of capabilities required by the test
+     * @return {@code true} if the Turtle test environment supports the required capabilities, {@code false} otherwise
+     */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
-        return false;
+        return requiredCapabilities.isEmpty();
     }
 
     /**

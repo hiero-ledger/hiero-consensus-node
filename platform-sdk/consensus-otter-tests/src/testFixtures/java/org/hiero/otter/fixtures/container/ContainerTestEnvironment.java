@@ -30,6 +30,12 @@ public class ContainerTestEnvironment implements TestEnvironment {
         network = new ContainerNetwork(timeManager, transactionGenerator);
     }
 
+    /**
+     * Checks if the container test environment supports the given capabilities.
+     *
+     * @param requiredCapabilities the list of capabilities required by the test
+     * @return {@code true} if the container test environment supports the required capabilities, {@code false} otherwise
+     */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
         return CAPABILITIES.containsAll(requiredCapabilities);
     }
