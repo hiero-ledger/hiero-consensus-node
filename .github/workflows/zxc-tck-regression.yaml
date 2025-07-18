@@ -64,7 +64,16 @@ jobs:
         with:
           path: platform-sdk/regression
           repository: hiero-ledger/hiero-sdk-tck
-          fetch-depth: "1"
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout Latest Tag (TCK)
+        run: |
+          cd platform-sdk/regression
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest TCK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -72,7 +81,16 @@ jobs:
         with:
           path: platform-sdk/sdk-server
           repository: hiero-ledger/hiero-sdk-js
-          fetch-depth: "1"
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout Latest Tag (JS-SDK)
+        run: |
+          cd platform-sdk/sdk-server
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest JS-SDK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
 
       # Set up Java Environment
       - name: Setup Java
@@ -113,7 +131,17 @@ jobs:
       - name: Install NodeJS Dependencies (sdk-server)
         id: start-sdk-server
         run: |
-          pnpm add @hashgraph/sdk@^2.63.0-beta.1 long@^5.2.3 @hashgraph/proto@^2.17.0-beta.1
+          # Extract package versions from the parent package.json
+          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
+          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
+          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
+
+          echo "Using SDK version: $SDK_VERSION"
+          echo "Using long version: $LONG_VERSION"
+          echo "Using proto version: $PROTO_VERSION"
+
+          # Install with the extracted versions
+          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
