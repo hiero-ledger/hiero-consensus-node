@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -120,18 +121,22 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                // Find an available port
-                int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                try {
-                    server.start();
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to start simulated block node on port " + port, e);
-                }
-                logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                addSimulatorNode(entry.getKey(), null);
             }
         }
+    }
+
+    public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        // Find an available port
+        int port = findAvailablePort();
+        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+        }
+        logger.info("Started shared simulated block node @ localhost:{}", port);
+        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
