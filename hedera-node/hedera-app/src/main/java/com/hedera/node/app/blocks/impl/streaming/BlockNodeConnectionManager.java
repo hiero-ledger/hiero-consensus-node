@@ -42,8 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -153,11 +151,6 @@ public class BlockNodeConnectionManager {
      * Flag that indicates if streaming to block nodes is enabled. This flag is set once upon startup and cannot change.
      */
     private final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
-
-    /**
-     * Lock
-     */
-    private final ReadWriteLock connectionStateLock = new ReentrantReadWriteLock();
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -347,7 +340,6 @@ public class BlockNodeConnectionManager {
         logger.info("[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
 
         activeConnectionRef.compareAndSet(connection, null); // if this was the active connection, remove it
-
         connection.updateConnectionState(ConnectionState.CONNECTING);
 
         // Schedule the first attempt using the connectionExecutor
@@ -440,21 +432,17 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        connectionStateLock.readLock().lock();
-        try {
-            final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
-            if (selectedNode == null) {
-                logger.warn("No block nodes found for attempted streaming");
-                return false;
-            }
+        final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
 
-            logger.debug(
-                    "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
-            // If we selected a node, schedule the connection attempt.
-            connectToNode(selectedNode, force);
-        } finally {
-            connectionStateLock.readLock().unlock();
+        if (selectedNode == null) {
+            logger.warn("No block nodes found for attempted streaming");
+            return false;
         }
+
+        logger.debug("Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+        // If we selected a node, schedule the connection attempt.
+        connectToNode(selectedNode, force);
+
         return true;
     }
 
@@ -692,14 +680,6 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * @return
-     */
-    @NonNull
-    public ReadWriteLock acquireConnectionLock() {
-        return connectionStateLock;
-    }
-
-    /**
      * Set the flag to indicate the current active connection should "jump" to the specified block.
      *
      * @param blockNumberToJumpTo the block number to jump to
@@ -752,7 +732,6 @@ public class BlockNodeConnectionManager {
                 return;
             }
 
-            connectionStateLock.writeLock().lock();
             try {
                 logger.debug("[{}] Running connection task...", connection);
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
@@ -795,9 +774,7 @@ public class BlockNodeConnectionManager {
 
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
                     // we were able to elevate this connection to the new active one
-
                     connection.updateConnectionState(ConnectionState.ACTIVE);
-
                     final long blockToJumpTo =
                             blockNumber != null ? blockNumber : blockBufferService.getLowestUnackedBlockNumber();
                     jumpTargetBlock.set(blockToJumpTo);
@@ -820,8 +797,6 @@ public class BlockNodeConnectionManager {
             } catch (final Exception e) {
                 logger.warn("[{}] Failed to establish connection to block node; will schedule a retry", connection);
                 reschedule();
-            } finally {
-                connectionStateLock.writeLock().unlock();
             }
         }
 

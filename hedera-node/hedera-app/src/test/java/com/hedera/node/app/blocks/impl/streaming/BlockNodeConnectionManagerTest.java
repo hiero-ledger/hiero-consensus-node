@@ -40,9 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -119,9 +117,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private ScheduledExecutorService executorService;
 
-    private Lock readLock;
-    private Lock writeLock;
-
     @BeforeEach
     void beforeEach() {
         final ConfigProvider configProvider = createConfigProvider();
@@ -130,8 +125,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         executorService = mock(ScheduledExecutorService.class);
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
-        readLock = new ReentrantReadWriteLock().readLock();
-        writeLock = new ReentrantReadWriteLock().writeLock();
 
         resetMocks();
     }
