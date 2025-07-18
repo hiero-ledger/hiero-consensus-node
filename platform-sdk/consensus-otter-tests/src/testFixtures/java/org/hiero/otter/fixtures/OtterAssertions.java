@@ -198,6 +198,11 @@ public class OtterAssertions extends Assertions {
         return MultipleNodePcesResultsAssert.assertThat(actual);
     }
 
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeReconnectResult}.
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return an assertion for the given {@link SingleNodeReconnectResult}
+     */
     @NonNull
     public static SingleNodeReconnectResultsAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
         return SingleNodeReconnectResultsAssert.assertThat(actual);

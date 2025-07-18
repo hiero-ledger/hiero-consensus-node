@@ -32,7 +32,7 @@ public class SingleNodeReconnectResultsAssert extends
      *
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
-    public SingleNodeReconnectResultsAssert noReconnects() {
+    public SingleNodeReconnectResultsAssert hasNoReconnects() {
         isNotNull();
         if (actual.numSuccessfulReconnects() > 0 || actual.numFailedReconnects() > 0) {
             failWithMessage("Expected no reconnects but found <%d> successful and <%d> failed reconnects",
