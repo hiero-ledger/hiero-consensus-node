@@ -353,4 +353,62 @@ public class BlockNodeSimulatorSuite {
                 waitForActive(byNodeId(0), Duration.ofSeconds(30)),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {0, 1, 2, 3}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {1, 0, 2, 3}),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {1, 2, 0, 3}),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {1, 2, 3, 0})
+            })
+    @Order(7)
+    final Stream<DynamicTest> genesisBlockBufferSaturation() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        return hapiTest(
+                blockNodeSimulator(0).shutDownImmediately(),
+                blockNodeSimulator(1).shutDownImmediately(),
+                blockNodeSimulator(2).shutDownImmediately(),
+                blockNodeSimulator(3).shutDownImmediately(),
+                doingContextual(spec -> time.set(Instant.now())),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofMinutes(6),
+                        Duration.ofMinutes(6),
+                        "Block buffer is saturated; backpressure is being enabled",
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
+                doingContextual(spec -> {
+                    try {
+                        // Have the test-client wait while every node is saturated
+                        Thread.sleep(60000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                blockNodeSimulator(0).startImmediately(),
+                blockNodeSimulator(1).startImmediately(),
+                blockNodeSimulator(2).startImmediately(),
+                blockNodeSimulator(3).startImmediately(),
+                waitForActive(allNodes(), Duration.ofSeconds(60)));
+    }
 }

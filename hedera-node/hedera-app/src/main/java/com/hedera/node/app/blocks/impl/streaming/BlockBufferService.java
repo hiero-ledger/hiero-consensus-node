@@ -670,15 +670,6 @@ public class BlockBufferService {
      * @param latestPruneResult the latest pruning result
      */
     private void enableBackPressure(final PruneResult latestPruneResult) {
-        logger.warn(
-                "Block buffer is saturated; backpressure is being enabled "
-                        + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
-                latestPruneResult.idealMaxBufferSize,
-                latestPruneResult.numBlocksChecked,
-                latestPruneResult.numBlocksPruned,
-                latestPruneResult.numBlocksPendingAck,
-                latestPruneResult.saturationPercent);
-
         CompletableFuture<Boolean> oldCf;
         CompletableFuture<Boolean> newCf;
 
@@ -688,6 +679,14 @@ public class BlockBufferService {
             if (oldCf == null || oldCf.isDone()) {
                 // If the existing future is null or is completed, we need to create a new one
                 newCf = new CompletableFuture<>();
+                logger.warn(
+                        "Block buffer is saturated; backpressure is being enabled "
+                                + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
+                        latestPruneResult.idealMaxBufferSize,
+                        latestPruneResult.numBlocksChecked,
+                        latestPruneResult.numBlocksPruned,
+                        latestPruneResult.numBlocksPendingAck,
+                        latestPruneResult.saturationPercent);
             } else {
                 // If the existing future is not null and not completed, re-use it
                 newCf = oldCf;
