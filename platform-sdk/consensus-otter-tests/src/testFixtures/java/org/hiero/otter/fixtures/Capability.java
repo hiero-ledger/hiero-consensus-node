@@ -9,5 +9,10 @@ public enum Capability {
     /**
      * The test requires the ability to reconnect a node to the network.
      */
-    RECONNECT
+    RECONNECT,
+
+    /**
+     * The test requires the ability to build up back pressure in the wiring model.
+     */
+    BACK_PRESSURE,
 }
