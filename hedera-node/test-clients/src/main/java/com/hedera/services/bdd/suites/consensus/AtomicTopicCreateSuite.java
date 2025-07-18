@@ -335,7 +335,7 @@ public class AtomicTopicCreateSuite {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        .hasPrecheck(INVALID_SIGNATURE),
                 // But contracts without admin keys will get INVALID_SIGNATURE (can't sign!)
                 atomicBatch(createTopic("NotToBe")
                                 .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
@@ -359,7 +359,7 @@ public class AtomicTopicCreateSuite {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        .hasPrecheck(INVALID_SIGNATURE),
                 atomicBatch(createTopic("testTopic")
                                 .payingWith("payer")
                                 .adminKeyName("adminKey")

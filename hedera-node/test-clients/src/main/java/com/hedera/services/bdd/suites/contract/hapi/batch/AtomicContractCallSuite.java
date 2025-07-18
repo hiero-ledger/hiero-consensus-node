@@ -584,7 +584,7 @@ public class AtomicContractCallSuite {
                                 .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -1821,7 +1821,7 @@ public class AtomicContractCallSuite {
                                     .refusingEthConversion()
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
+                            .hasPrecheck(INVALID_SIGNATURE);
                     allRunFor(spec, assertionWithOnlyOneKey);
 
                     final var assertionWithBothKeys = atomicBatch(contractCall(

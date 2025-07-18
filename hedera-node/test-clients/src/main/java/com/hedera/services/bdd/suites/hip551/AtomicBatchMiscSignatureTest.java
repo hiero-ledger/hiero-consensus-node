@@ -115,7 +115,7 @@ public class AtomicBatchMiscSignatureTest {
                                             .batchKey("batchOperator")
                                             .hasKnownStatus(INVALID_PAYER_SIGNATURE))
                             .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                            .hasPrecheck(INVALID_SIGNATURE));
         }
     }
 
