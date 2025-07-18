@@ -33,6 +33,6 @@ import "block/stream/trace/smart_contract_service.proto";
  */
 message TraceData {
   oneof data {
-    EVMTraceData evm_trace_data = 1;
+    EvmTraceData evm_trace_data = 1;
   }
 }

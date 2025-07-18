@@ -179,7 +179,7 @@ message EvmTransactionLog {
  * 4. Events logged during the transaction.
  * 5. Full error message, if any, produced by the contract call.
  */
-message EVMTraceData {
+message EvmTraceData {
     /**
      * The initcode executed for an internal contract creation.
      */

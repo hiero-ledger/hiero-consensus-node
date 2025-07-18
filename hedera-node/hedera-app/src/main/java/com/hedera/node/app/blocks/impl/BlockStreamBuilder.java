@@ -27,7 +27,7 @@ import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
-import com.hedera.hapi.block.stream.trace.EVMTraceData;
+import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
@@ -594,7 +594,7 @@ public class BlockStreamBuilder
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
         if (slotUsages != null || contractActions != null || initcode != null || logs != null) {
-            final var builder = EVMTraceData.newBuilder();
+            final var builder = EvmTraceData.newBuilder();
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
                 if (traceExplicitWrites) {
