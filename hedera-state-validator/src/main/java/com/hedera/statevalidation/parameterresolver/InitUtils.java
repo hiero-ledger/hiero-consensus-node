@@ -202,45 +202,40 @@ public class InitUtils {
                 var service = registration.service();
                 var serviceName = service.getServiceName();
                 log.debug("Registering schemas for service {}", serviceName);
-                var registry =
-                        new MerkleSchemaRegistry(
-                                ConstructableRegistry.getInstance(),
-                                serviceName,
-                                CONFIGURATION,
-                                new SchemaApplications()) {
-                            @SuppressWarnings({"rawtypes", "unchecked"})
-                            @Override
-                            public SchemaRegistry register(Schema schema) {
-                                schema.statesToCreate().forEach((def) -> {
-                                    if (!def.onDisk()) {
-                                        return;
-                                    }
-                                    final var md = new StateMetadata<>(serviceName, schema, def);
-                                    final var label = StateMetadata.computeLabel(serviceName, def.stateKey());
-                                    if (TABLES_TO_EXCLUDE.contains(label)) {
-                                        return;
-                                    }
-                                    MerkleDbTableConfig tableConfig = tableConfigByNames.get(label);
-                                    final var keySerializer = new OnDiskKeySerializer<>(
-                                            md.onDiskKeySerializerClassId(),
-                                            md.onDiskKeyClassId(),
-                                            md.stateDefinition().keyCodec());
-                                    final var valueSerializer = new OnDiskValueSerializer<>(
-                                            md.onDiskValueSerializerClassId(),
-                                            md.onDiskValueClassId(),
-                                            md.stateDefinition().valueCodec());
-                                    final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
-                                    final var vm = new VirtualMap(label, ds, CONFIGURATION);
-                                    virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
-                                            label,
-                                            (MerkleDbDataSource) vm.getDataSource(),
-                                            vm,
-                                            keySerializer,
-                                            valueSerializer));
-                                });
-                                return null;
+                var registry = new MerkleSchemaRegistry(serviceName, new SchemaApplications()) {
+                    @SuppressWarnings({"rawtypes", "unchecked"})
+                    @Override
+                    public SchemaRegistry register(Schema schema) {
+                        schema.statesToCreate().forEach((def) -> {
+                            if (!def.onDisk()) {
+                                return;
                             }
-                        };
+                            final var md = new StateMetadata<>(serviceName, schema, def);
+                            final var label = StateMetadata.computeLabel(serviceName, def.stateKey());
+                            if (TABLES_TO_EXCLUDE.contains(label)) {
+                                return;
+                            }
+                            MerkleDbTableConfig tableConfig = tableConfigByNames.get(label);
+                            final var keySerializer = new OnDiskKeySerializer<>(
+                                    md.onDiskKeySerializerClassId(),
+                                    md.onDiskKeyClassId(),
+                                    md.stateDefinition().keyCodec());
+                            final var valueSerializer = new OnDiskValueSerializer<>(
+                                    md.onDiskValueSerializerClassId(),
+                                    md.onDiskValueClassId(),
+                                    md.stateDefinition().valueCodec());
+                            final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
+                            final var vm = new VirtualMap(label, ds, CONFIGURATION);
+                            virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
+                                    label,
+                                    (MerkleDbDataSource) vm.getDataSource(),
+                                    vm,
+                                    keySerializer,
+                                    valueSerializer));
+                        });
+                        return null;
+                    }
+                };
 
                 service.registerSchemas(registry);
             } catch (Exception e) {

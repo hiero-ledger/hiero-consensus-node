@@ -73,8 +73,7 @@ public final class ServicesRegistryImpl implements ServicesRegistry {
         final var serviceName = service.getServiceName();
 
         logger.debug("Registering schemas for service {}", serviceName);
-        final var registry =
-                new MerkleSchemaRegistry(constructableRegistry, serviceName, bootstrapConfig, new SchemaApplications());
+        final var registry = new MerkleSchemaRegistry(serviceName, new SchemaApplications());
         service.registerSchemas(registry);
 
         entries.add(new Registration(service, registry));
