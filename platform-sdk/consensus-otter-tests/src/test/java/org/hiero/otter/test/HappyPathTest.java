@@ -46,7 +46,7 @@ public class HappyPathTest {
 
         network.start();
 
-        // Wait for two minutes
+        // Wait for 30 seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
