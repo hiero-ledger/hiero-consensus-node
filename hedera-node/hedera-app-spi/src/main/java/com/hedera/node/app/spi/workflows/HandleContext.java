@@ -22,6 +22,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -128,6 +129,24 @@ public interface HandleContext {
          */
         public void putMetadata(@NonNull final Type type, @NonNull final Object value) {
             metadata.put(type, value);
+        }
+
+        /**
+         * Retrieves the metadata value associated with the given key.
+         *
+         * @param type the metadata key
+         * @param javaType the Java type of the metadata value
+         * @return the metadata value, if present
+         */
+        public <T> @Nullable T getMetadataIfPresent(@NonNull final Type type, @NonNull final Class<T> javaType) {
+            requireNonNull(type);
+            requireNonNull(javaType);
+            final var v = metadata.get(type);
+            if (v == null) {
+                return null;
+            } else {
+                return javaType.cast(v);
+            }
         }
 
         /**

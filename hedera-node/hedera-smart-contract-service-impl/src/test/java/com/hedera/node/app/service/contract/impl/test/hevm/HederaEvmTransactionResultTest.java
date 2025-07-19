@@ -20,12 +20,9 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NONCES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OUTPUT_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_REVERT_REASON;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TWO_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.WEI_NETWORK_GAS_PRICE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenConfigInFrame;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenDefaultConfigInFrame;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenFrameStack;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -43,10 +40,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -60,9 +54,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HederaEvmTransactionResultTest {
     @Mock
     private MessageFrame frame;
-
-    @Mock
-    private Deque<MessageFrame> stack;
 
     @Mock
     private ProxyWorldUpdater proxyWorldUpdater;
@@ -146,11 +137,7 @@ class HederaEvmTransactionResultTest {
 
     @Test
     void givenAccessTrackerIncludesFullContractStorageChangesAndNonNullNoncesOnSuccess() {
-        givenFrameWithAllSidecarsEnabled();
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
-        final var pendingWrites = List.of(TWO_STORAGE_ACCESSES);
-        given(proxyWorldUpdater.pendingStorageUpdates()).willReturn(pendingWrites);
-        given(accessTracker.getReadsMergedWith(pendingWrites)).willReturn(SOME_STORAGE_ACCESSES);
+        givenFrameStack(frame);
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
@@ -179,18 +166,12 @@ class HederaEvmTransactionResultTest {
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
 
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
         assertEquals(SUCCESS, result.finalStatus());
     }
 
     @Test
     void givenEthTxDataIncludesSpecialFields() {
-        givenFrameWithAllSidecarsEnabled();
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
-        final var pendingWrites = List.of(TWO_STORAGE_ACCESSES);
-        given(proxyWorldUpdater.pendingStorageUpdates()).willReturn(pendingWrites);
-        given(accessTracker.getReadsMergedWith(pendingWrites)).willReturn(SOME_STORAGE_ACCESSES);
+        givenFrameStack(frame);
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
@@ -225,39 +206,7 @@ class HederaEvmTransactionResultTest {
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
 
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
         assertEquals(SUCCESS, result.finalStatus());
-    }
-
-    @Test
-    void givenAccessTrackerIncludesReadStorageAccessesOnlyOnFailure() {
-        givenFrameWithAllSidecarsEnabled();
-        given(accessTracker.getJustReads()).willReturn(SOME_STORAGE_ACCESSES);
-        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
-
-        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
-
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
-    }
-
-    @Test
-    void withoutAccessTrackerReturnsNullStateChanges() {
-        givenFrameWithoutSidecars();
-        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
-        given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
-
-        final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2,
-                SENDER_ID,
-                CALLED_CONTRACT_ID,
-                CALLED_CONTRACT_EVM_ADDRESS,
-                frame,
-                tracer,
-                entityIdFactory);
-
-        assertNull(result.stateChanges());
     }
 
     @Test
@@ -308,27 +257,17 @@ class HederaEvmTransactionResultTest {
         assertEquals(SOME_REVERT_REASON.toString(), protoResult.errorMessage());
     }
 
-    private void givenFrameWithDegenerateStack() {
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        given(stack.isEmpty()).willReturn(true);
-    }
-
     private void givenFrameWithDefaultConfigNoAccessTracker() {
-        givenDefaultConfigInFrame(frame);
-        doReturn(null).when(frame).getContextVariable(TRACKER_CONTEXT_VARIABLE);
+        givenFrameStack(frame);
     }
 
     private void givenFrameWithAllSidecarsEnabled() {
-        givenDefaultConfigInFrame(frame);
+        givenFrameStack(frame);
         doReturn(accessTracker).when(frame).getContextVariable(TRACKER_CONTEXT_VARIABLE);
     }
 
     private void givenFrameWithoutSidecars() {
-        givenConfigInFrame(
-                frame,
-                HederaTestConfigBuilder.create()
-                        .withValue("contracts.sidecars", "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE")
-                        .getOrCreateConfig());
+        givenFrameStack(frame);
         doReturn(null).when(frame).getContextVariable(TRACKER_CONTEXT_VARIABLE);
     }
 }

@@ -28,14 +28,11 @@ import "services/contract_types.proto";
  * the original transaction.
  */
 message CallContractOutput {
-    // Preview block streams used this field for sidecars
-    reserved 1;
-
     /**
      * An EVM transaction result. Contains just the information not already
      * externalized in the matching transaction body.
      */
-    proto.EvmTransactionResult evm_transaction_result = 2;
+    proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 /**
@@ -45,14 +42,11 @@ message CallContractOutput {
  * the original transaction.
  */
 message CreateContractOutput {
-    // Preview block streams used this field for sidecars
-    reserved 1;
-
     /**
      * An EVM transaction result. Contains just the information not already
      * externalized in the matching transaction body.
      */
-    proto.EvmTransactionResult evm_transaction_result = 2;
+    proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 // no evm exec, only modified entity
@@ -96,31 +90,19 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
-   // Preview block streams used these fields for sidecars and verbose
-   // contract function results
-   reserved 2,3,4;
-
-    /**
-     * If the associated Ethereum transaction required hydrating its
-     * call data from a file, the Keccak256 hash of the transaction.
-     * <p>
-     * If the Ethereum transaction was inline, this field SHALL NOT be set.
-     */
-    bytes ethereum_hash = 1;
-
-    oneof txn_result {
+    oneof transaction_result {
         /**
          * An EVM transaction result for an Ethereum transaction executed as a
          * call. Contains just the information not already externalized in the
          * matching transaction body.
          */
-        proto.EvmTransactionResult evm_call_transaction_result = 5;
+        proto.EvmTransactionResult evm_call_transaction_result = 1;
 
         /**
          * An EVM transaction result for an Ethereum transaction executed as a
          * create. Contains just the information not already externalized in the
          * matching transaction body.
          */
-        proto.EvmTransactionResult evm_create_transaction_result = 6;
+        proto.EvmTransactionResult evm_create_transaction_result = 2;
     }
 }

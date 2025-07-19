@@ -10,7 +10,7 @@ import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStaki
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.newNodeStakeUpdateBuilder;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.readableNonZeroHistory;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -188,7 +188,7 @@ public class EndOfStakingPeriodUpdater {
                 END_OF_PERIOD_MEMO);
         log.info("Exporting:\n{}", nodeStakes);
         return context.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE)
-                .transaction(transactionWith(syntheticNodeStakeUpdateTxn.build()))
+                .signedTx(signedTxWith(syntheticNodeStakeUpdateTxn.build()))
                 .memo(END_OF_PERIOD_MEMO)
                 .exchangeRate(exchangeRates)
                 .status(SUCCESS);

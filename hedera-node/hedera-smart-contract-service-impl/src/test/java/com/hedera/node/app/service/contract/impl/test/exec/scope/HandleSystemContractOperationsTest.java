@@ -24,8 +24,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleSystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -163,7 +163,7 @@ class HandleSystemContractOperationsTest {
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CRYPTO_TRANSFER))
                 .willReturn(streamBuilder);
-        given(streamBuilder.transaction(any())).willReturn(streamBuilder);
+        given(streamBuilder.signedTx(any())).willReturn(streamBuilder);
         given(streamBuilder.status(any())).willReturn(streamBuilder);
 
         final var preemptedBuilder =
@@ -175,10 +175,10 @@ class HandleSystemContractOperationsTest {
 
     @Test
     void externalizeSuccessfulResultWithTransactionBodyTest() {
-        var transaction = Transaction.newBuilder()
-                .body(TransactionBody.newBuilder()
+        var transaction = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
-                        .build())
+                        .build()))
                 .build();
         var contractFunctionResult = SystemContractUtils.successResultOfZeroValueTraceable(
                 0,
@@ -197,7 +197,7 @@ class HandleSystemContractOperationsTest {
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
                 .willReturn(streamBuilder);
-        given(streamBuilder.transaction(transaction)).willReturn(streamBuilder);
+        given(streamBuilder.signedTx(transaction)).willReturn(streamBuilder);
         given(streamBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(streamBuilder);
         given(streamBuilder.contractCallResult(contractFunctionResult)).willReturn(streamBuilder);
 
@@ -210,7 +210,7 @@ class HandleSystemContractOperationsTest {
 
     @Test
     void syntheticTransactionForHtsCallTest() {
-        assertNotNull(subject.syntheticTransactionForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
+        assertNotNull(subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
     }
 
     @Test

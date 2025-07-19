@@ -53,7 +53,7 @@ public interface Savepoint extends BuilderSink {
     StreamBuilder createBuilder(
             @NonNull ReversingBehavior reversingBehavior,
             @NonNull HandleContext.TransactionCategory txnCategory,
-            @NonNull StreamBuilder.TransactionCustomizer customizer,
+            @NonNull StreamBuilder.SignedTxCustomizer customizer,
             @NonNull StreamMode streamMode,
             boolean isBaseBuilder);
 

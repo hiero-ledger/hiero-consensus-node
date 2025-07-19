@@ -930,6 +930,7 @@ public class TokenCreateSpecs {
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN_KEY)
                                 .signedBy(PAYER)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER, ADMIN_KEY))
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         /* treasury must sign */
                         tokenCreate("shouldntWorkEither")

@@ -101,16 +101,17 @@ public class SubmissionManager {
      * Submit a transaction to the {@link Platform}. If the transaction is an unchecked submit, we ignored the given tx
      * bytes and send in the other bytes.
      *
-     * @param txBody  the {@link TransactionBody} that should be submitted to the platform
-     * @param txBytes the bytes of the data that should be submitted (the full transaction bytes as received from gRPC)
+     * @param txBody the {@link TransactionBody} that should be submitted to the platform
+     * @param serializedSignedTx the bytes of the data that should be submitted
      * @throws NullPointerException if one of the arguments is {@code null}
-     * @throws PreCheckException    if the transaction could not be submitted
+     * @throws PreCheckException if the transaction could not be submitted
      */
-    public void submit(@NonNull final TransactionBody txBody, @NonNull final Bytes txBytes) throws PreCheckException {
+    public void submit(@NonNull final TransactionBody txBody, @NonNull final Bytes serializedSignedTx)
+            throws PreCheckException {
         requireNonNull(txBody);
-        requireNonNull(txBytes);
+        requireNonNull(serializedSignedTx);
 
-        Bytes payload = txBytes;
+        Bytes payload = serializedSignedTx;
 
         // Unchecked submits are a mechanism to inject transaction to the system, that bypass all
         // pre-checks. This is used in tests to check the reaction to illegal input.

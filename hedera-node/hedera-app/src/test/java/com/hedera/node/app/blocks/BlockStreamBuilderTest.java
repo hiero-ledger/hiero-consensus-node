@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,17 +23,17 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.List;
@@ -50,13 +51,14 @@ public class BlockStreamBuilderTest {
     public static final long TRANSACTION_FEE = 6846513L;
     public static final int ENTROPY_NUMBER = 87372879;
     public static final String MEMO = "Yo Memo";
-    private Transaction transaction = Transaction.newBuilder()
-            .body(TransactionBody.newBuilder()
+    private final SignedTransaction signedTx = SignedTransaction.newBuilder()
+            .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
-                    .build())
+                    .memo("ABCDEFG")
+                    .transactionFee(123)
+                    .build()))
             .build();
     private @Mock TransactionID transactionID;
-    private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -66,7 +68,6 @@ public class BlockStreamBuilderTest {
     private @Mock AccountAmount accountAmount;
     private @Mock ResponseCodeEnum status;
     private @Mock ExchangeRateSet exchangeRate;
-    private @Mock ContractStateChanges contractStateChanges;
     private @Mock AccountID accountID;
 
     @Test
@@ -75,7 +76,7 @@ public class BlockStreamBuilderTest {
                 .assessedCustomFees(List.of(assessedCustomFee))
                 .functionality(HederaFunctionality.CRYPTO_TRANSFER);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -92,7 +93,7 @@ public class BlockStreamBuilderTest {
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyBytes(prngBytes);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -104,7 +105,7 @@ public class BlockStreamBuilderTest {
         } else {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyNumber(ENTROPY_NUMBER);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -118,15 +119,15 @@ public class BlockStreamBuilderTest {
 
     @Test
     void testBlockItemsWithTraceAndOutput() {
-        final var usages =
-                List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
+        final var usages = List.of(new ContractSlotUsage(
+                ContractID.DEFAULT, new OneOf<>(WRITTEN_SLOT_KEYS, List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
         final var evmTxResult = EvmTransactionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -148,7 +149,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -176,25 +177,22 @@ public class BlockStreamBuilderTest {
     }
 
     private void validateTransactionBlockItems(final List<BlockItem> blockItems) {
-        final var txnBlockItem = blockItems.get(0);
-        assertTrue(txnBlockItem.hasEventTransaction());
-        assertEquals(
-                Transaction.PROTOBUF.toBytes(transaction),
-                txnBlockItem.eventTransaction().applicationTransactionOrThrow());
+        final var txnBlockItem = blockItems.getFirst();
+        assertTrue(txnBlockItem.hasSignedTransaction());
+        assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
     }
 
     private BlockStreamBuilder createBaseBuilder() {
         final List<TokenTransferList> tokenTransferLists = List.of(tokenTransfer);
         final List<AccountAmount> paidStakingRewards = List.of(accountAmount);
-        return new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
                 .status(status)
                 .consensusTimestamp(CONSENSUS_TIME)
                 .parentConsensus(PARENT_CONSENSUS_TIME)
                 .exchangeRate(exchangeRate)
                 .scheduleRef(scheduleRef)
                 .transactionFee(TRANSACTION_FEE)
-                .transaction(transaction)
-                .transactionBytes(transactionBytes)
+                .signedTx(signedTx)
                 .transactionID(transactionID)
                 .memo(MEMO)
                 .transactionFee(TRANSACTION_FEE)

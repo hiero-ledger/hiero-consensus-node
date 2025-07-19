@@ -18,7 +18,6 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
@@ -211,7 +210,9 @@ public class HollowAccountCompletionsTest {
                 .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                 .build();
         final TransactionInfo txnInfo = new TransactionInfo(
-                Transaction.newBuilder().body(txnBody).build(),
+                SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                        .build(),
                 txnBody,
                 SignatureMap.DEFAULT,
                 transactionBytes,
@@ -243,7 +244,9 @@ public class HollowAccountCompletionsTest {
                 .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                 .build();
         final TransactionInfo txnInfo = new TransactionInfo(
-                Transaction.newBuilder().body(txnBody).build(),
+                SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                        .build(),
                 txnBody,
                 SignatureMap.DEFAULT,
                 transactionBytes,

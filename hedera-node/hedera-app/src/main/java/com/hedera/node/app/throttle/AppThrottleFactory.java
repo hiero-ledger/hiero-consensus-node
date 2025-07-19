@@ -6,9 +6,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
@@ -76,7 +76,7 @@ public class AppThrottleFactory implements Throttle.Factory {
                     @NonNull final Instant now) {
                 return !throttleAccumulator.checkAndEnforceThrottle(
                         new TransactionInfo(
-                                Transaction.DEFAULT,
+                                SignedTransaction.DEFAULT,
                                 body,
                                 TransactionID.DEFAULT,
                                 payerId,

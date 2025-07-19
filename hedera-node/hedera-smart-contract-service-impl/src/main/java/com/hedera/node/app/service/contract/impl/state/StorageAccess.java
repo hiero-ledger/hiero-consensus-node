@@ -40,13 +40,6 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
     }
 
     /**
-     * Returns the value as a {@link Bytes} object, trimmed of leading zeros.
-     */
-    public @NonNull Bytes trimmedWrittenValueBytesOrThrow() {
-        return tuweniToPbjBytes(requireNonNull(writtenValue).toBytes().trimLeadingZeros());
-    }
-
-    /**
      * Creates a new read access.
      *
      * @param key the key being read
@@ -76,6 +69,14 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
      */
     public boolean isRemoval() {
         return writtenValue != null && writtenValue.isZero() && !value.isZero();
+    }
+
+    /**
+     * Returns true if this access represents a logical change that would be externalized
+     * in a legacy state changes sidecar.
+     */
+    public boolean isLogicalChange() {
+        return isUpdate() && !isZeroIntoEmptySlot();
     }
 
     /**

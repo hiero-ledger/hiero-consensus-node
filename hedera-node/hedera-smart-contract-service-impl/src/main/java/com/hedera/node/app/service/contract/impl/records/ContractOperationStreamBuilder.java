@@ -1,24 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.records;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A {@code StreamBuilder} specialization for tracking the side effects of any transaction related to contracts.
@@ -33,6 +42,14 @@ import java.util.Set;
  * transaction.
  */
 public interface ContractOperationStreamBuilder extends DeleteCapableTransactionStreamBuilder {
+    /**
+     * Sets the predicate the builder will expose to downstream clients producing {@link MapUpdateChange}s
+     * in the block stream, to check if a particular storage update changed just {@code prev}/{@code next}
+     * pointers but was logically identical to the previous value.
+     * @return this
+     */
+    ContractOperationStreamBuilder testForIdenticalKeys(@NonNull Predicate<Object> test);
+
     /**
      * Sets the transaction fee.
      *
@@ -60,23 +77,44 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * Updates this record builder to include the standard contract fields from the given outcome.
      *
      * @param outcome the EVM transaction outcome
+     * @param context the handle context
      * @return this updated builder
      */
-    default ContractOperationStreamBuilder withCommonFieldsSetFrom(@NonNull final CallOutcome outcome) {
+    default ContractOperationStreamBuilder withCommonFieldsSetFrom(
+            @NonNull final CallOutcome outcome, @NonNull final HandleContext context) {
+        requireNonNull(outcome);
+        requireNonNull(context);
         if (outcome.actions() != null) {
             // (FUTURE) Remove after switching to block stream
             addContractActions(new ContractActions(outcome.actions()), false);
             // No-op for the RecordStreamBuilder
             addActions(outcome.actions());
         }
-        // (FUTURE) Remove after switching to block stream
-        if (outcome.hasStateChanges()) {
-            addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
+        if (outcome.hasTxStorageUsage()) {
+            final var txStorageUsage = outcome.txStorageUsageOrThrow();
+            final var storageAccesses = txStorageUsage.accesses();
+            // (FUTURE) Remove this check after switching to block stream
+            final var streamMode = context.configuration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .streamMode();
+            if (streamMode != BLOCKS && !storageAccesses.isEmpty()) {
+                addContractStateChanges(requireNonNull(asPbjStateChanges(storageAccesses)), false);
+            }
+            final boolean traceExplicitWrites = !txStorageUsage.hasChangedKeys();
+            if (streamMode != RECORDS) {
+                addContractSlotUsages(requireNonNull(asPbjSlotUsages(storageAccesses, traceExplicitWrites)));
+            }
+            if (!traceExplicitWrites) {
+                final var changedKeys = txStorageUsage.changedKeysOrThrow();
+                testForIdenticalKeys(o -> {
+                    if (o instanceof SlotKey slotKey) {
+                        return !changedKeys.contains(slotKey);
+                    }
+                    return false;
+                });
+            }
         }
         // No-ops for the RecordStreamBuilder
-        if (outcome.hasSlotUsages()) {
-            addContractSlotUsages(outcome.slotUsagesOrThrow());
-        }
         if (outcome.hasLogs()) {
             addLogs(outcome.logsOrThrow());
         }
@@ -127,7 +165,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
-    ContractOperationStreamBuilder addInitcode(@NonNull ContractInitcode initcode);
+    ContractOperationStreamBuilder addInitcode(@NonNull ExecutedInitcode initcode);
 
     /**
      * Updates this record builder to include contract state changes.

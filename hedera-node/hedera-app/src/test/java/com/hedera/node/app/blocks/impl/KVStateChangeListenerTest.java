@@ -79,7 +79,7 @@ class KVStateChangeListenerTest {
     @Test
     void testResetStateChanges() {
         listener.mapUpdateChange(STATE_ID, KEY, VALUE);
-        listener.reset();
+        listener.reset(null);
 
         List<StateChange> stateChanges = listener.getStateChanges();
         assertTrue(stateChanges.isEmpty());

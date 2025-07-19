@@ -79,7 +79,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.Uninterruptable;
@@ -697,16 +696,11 @@ public class RepeatableHip1064Tests {
     private static Optional<TransactionParts> findFirst(
             @NonNull final Block b, @NonNull final HederaFunctionality function) {
         return b.items().stream()
-                .filter(BlockItem::hasEventTransaction)
-                .map(BlockItem::eventTransactionOrThrow)
-                .map(t -> TransactionParts.from(t.applicationTransactionOrThrow()))
+                .filter(BlockItem::hasSignedTransaction)
+                .map(BlockItem::signedTransactionOrThrow)
+                .map(TransactionParts::from)
                 .filter(parts -> parts.function() == function)
                 .findFirst();
-    }
-
-    static SpecOperation exposeLatestBlockNumber(LongConsumer cb, Duration after) {
-        return exposeLatestBlock(
-                b -> cb.accept(b.items().getFirst().blockHeaderOrThrow().number()), after);
     }
 
     static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {

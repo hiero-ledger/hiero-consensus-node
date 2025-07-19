@@ -43,6 +43,7 @@ import com.hedera.hapi.node.network.NetworkGetExecutionTimeQuery;
 import com.hedera.hapi.node.network.NetworkGetExecutionTimeResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
@@ -157,6 +158,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                 TransactionID.newBuilder().accountID(ALICE.accountID()).build();
         txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
         final var payment = Transaction.newBuilder().body(txBody).build();
+        final var signedPayment = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txBody))
+                .build();
         serializedPayment = Transaction.PROTOBUF.toBytes(payment);
         final var queryHeader = QueryHeader.newBuilder().payment(payment).build();
         final var query = Query.newBuilder()
@@ -172,7 +176,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         final var signatureMap = SignatureMap.newBuilder().build();
         transactionInfo = new TransactionInfo(
-                payment, txBody, signatureMap, payment.signedTransactionBytes(), CRYPTO_TRANSFER, serializedPayment);
+                signedPayment, txBody, signatureMap, signedPayment.bodyBytes(), CRYPTO_TRANSFER, serializedPayment);
         doAnswer(invocationOnMock -> {
                     final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
                     result.setThrottleUsages(List.of());

@@ -164,7 +164,7 @@ class BlockStateTest {
 
     @Test
     void testGetRequest_notFound() {
-        final PublishStreamRequest req = block.getRequest(10);
+        final var req = block.getRequest(10);
         assertThat(req).isNull();
     }
 

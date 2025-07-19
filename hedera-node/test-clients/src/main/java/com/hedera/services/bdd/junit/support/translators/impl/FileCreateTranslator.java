@@ -38,6 +38,10 @@ public class FileCreateTranslator implements BlockTransactionPartsTranslator {
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var createdNum = baseTranslator.nextCreatedNum(FILE);
+                        if (createdNum > 1000) {
+                            baseTranslator.setFile(
+                                    createdNum, parts.body().fileCreateOrThrow().contents());
+                        }
                         final var iter = remainingStateChanges.listIterator();
                         while (iter.hasNext()) {
                             final var stateChange = iter.next();

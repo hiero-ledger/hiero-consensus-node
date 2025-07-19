@@ -731,6 +731,17 @@ message MapUpdateChange {
      * This field is REQUIRED.
      */
     MapChangeValue value = 2;
+
+    /**
+     * If true, the new mapping is identical _by value_ to the old one
+     * for purposes of business logic; the change is being made for
+     * other reasons, such as to update the `next`/`prev` pointers in
+     * a doubly-linked list.<br/>
+     * This can, for example, let a stream consumer reconstruct the
+     * state changes made by a contract operation without needing an
+     * additional list of changed keys.
+     */
+    bool identical = 3;
 }
 
 /**
