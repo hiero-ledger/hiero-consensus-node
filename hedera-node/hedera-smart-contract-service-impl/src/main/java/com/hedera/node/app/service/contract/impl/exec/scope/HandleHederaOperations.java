@@ -259,6 +259,29 @@ public class HandleHederaOperations implements HederaOperations {
         gasChargingEvents.add(new GasChargingEvent(GasChargingAction.REFUND, payerId, amount, false));
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resetGasChargingEvents() {
+        gasChargingEvents.clear();
+    }
+
+    @Override
+    public boolean hasGasChargingEvents() {
+        return !gasChargingEvents.isEmpty();
+    }
+
+    @Override
+    public boolean hasRefundGasFeeEvents() {
+        for (final var event : gasChargingEvents) {
+            if (event.action() == GasChargingAction.REFUND) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
         requireNonNull(feeChargingContext);

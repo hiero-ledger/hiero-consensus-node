@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.gas;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging.ONE_HBAR_IN_TINYBARS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAX_GAS_ALLOWANCE;
@@ -13,6 +14,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCall;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithGasLimit;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +34,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +71,9 @@ class CustomGasChargingTest {
 
     @Mock
     private ContractOperationStreamBuilder recordBuilder;
+
+    @Mock
+    private FeeCharging.Context feeChargingContext;
 
     @BeforeEach
     void setUp() {
@@ -368,30 +375,89 @@ class CustomGasChargingTest {
     }
 
     @Test
-    void chargeGasForAbortedTransaction() {
+    void possiblyChargeGasForAbortedTransaction() {
         givenWellKnownIntrinsicGasCost();
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
         given(sender.getBalance()).willReturn(Wei.of(100_000_000));
-        subject.chargeGasForAbortedTransaction(
+        subject.possiblyChargeGasForAbortedTransaction(
                 SENDER_ID,
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater)
-                .collectGasFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
+        verify(worldUpdater).collectGasFee(SENDER_ID, 100000000L, false);
     }
 
     @Test
-    void chargeGasForAbortedTransactionChargesMax() {
+    void possiblyChargeGasForAbortedTransactionChargesMax() {
         givenExcessiveIntrinsicGasCost(false);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
         given(sender.getBalance()).willReturn(Wei.of(100_000_000));
-        subject.chargeGasForAbortedTransaction(
+        subject.possiblyChargeGasForAbortedTransaction(
                 SENDER_ID,
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
         verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
+    }
+
+    @Test
+    void possiblyChargeGasForAbortedTransactionDoNotCharge() {
+        givenExcessiveIntrinsicGasCost(false);
+        given(worldUpdater.hasGasChargingEvents()).willReturn(true);
+
+        final var result = subject.possiblyChargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownHapiCall());
+        assertEquals(0, result);
+    }
+
+    @Test
+    void possiblyChargeGasForAbortedTransactionChargeForContractCall() {
+        givenWellKnownIntrinsicGasCost(false);
+        given(worldUpdater.hasGasChargingEvents()).willReturn(true);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
+        given(sender.getBalance()).willReturn(Wei.of(100_000_000));
+
+        final var result = subject.possiblyChargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownHapiCall().withException(new ResourceExhaustedException(THROTTLED_AT_CONSENSUS)));
+        assertEquals(TestHelpers.INTRINSIC_GAS, result);
+    }
+
+    @Test
+    void possiblyChargeGasForAbortedTransactionChargeForEthereumTransaction() {
+        givenWellKnownIntrinsicGasCost(false);
+        given(worldUpdater.hasGasChargingEvents()).willReturn(true);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
+        given(sender.getBalance()).willReturn(Wei.of(100_000_000));
+
+        final var result = subject.possiblyChargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownRelayedHapiCall(100).withException(new ResourceExhaustedException(THROTTLED_AT_CONSENSUS)));
+        assertEquals(TestHelpers.INTRINSIC_GAS, result);
+    }
+
+    @Test
+    void possiblyChargeGasForAbortedTransactionChargeForEthereumTransactionAndKnownRelayAccount() {
+        givenWellKnownIntrinsicGasCost(false);
+        given(worldUpdater.hasGasChargingEvents()).willReturn(true);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(sender);
+        given(worldUpdater.getHederaAccount(RELAYER_ID)).willReturn(relayer);
+        given(sender.getBalance()).willReturn(Wei.of(100_000_000));
+        given(relayer.getBalance()).willReturn(Wei.of(100_000_000));
+
+        final var result = subject.possiblyChargeGasForAbortedTransaction(
+                SENDER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownRelayedHapiCall(100).withException(new ResourceExhaustedException(THROTTLED_AT_CONSENSUS)));
+        assertEquals(TestHelpers.INTRINSIC_GAS, result);
     }
 
     private void givenWellKnownIntrinsicGasCost() {

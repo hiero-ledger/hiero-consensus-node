@@ -162,6 +162,22 @@ public interface HederaOperations {
     void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
+     * Resets the gas charging events, because in some exceptional cases (e.g. ops duration throttle reached)
+     * we want to just charge intrinsic gas rather than replaying all the gas collection/refund events.
+     */
+    void resetGasChargingEvents();
+
+    /**
+     * Returns whether there are any gas charging events in this scope.
+     */
+    boolean hasGasChargingEvents();
+
+    /**
+     * Returns whether any of the gas charging events in this scope are refunds.
+     */
+    boolean hasRefundGasFeeEvents();
+
+    /**
      * Replays gas charging (and possible refunding) in the given context.
      */
     void replayGasChargingIn(FeeCharging.Context feeChargingContext);

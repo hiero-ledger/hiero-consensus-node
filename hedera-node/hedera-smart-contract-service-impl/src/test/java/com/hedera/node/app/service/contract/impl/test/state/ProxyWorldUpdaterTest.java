@@ -17,6 +17,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static org.hyperledger.besu.datatypes.Address.ALTBN128_ADD;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -498,5 +499,25 @@ class ProxyWorldUpdaterTest {
     void currentExchangeRateTest() {
         subject.currentExchangeRate();
         verify(systemContractOperations).currentExchangeRate();
+    }
+
+    @Test
+    void infoAboutGasChargingEventsTests() {
+
+        given(hederaOperations.hasGasChargingEvents()).willReturn(false);
+        given(hederaOperations.hasRefundGasFeeEvents()).willReturn(false);
+
+        assertFalse(subject::hasGasChargingEvents);
+        assertFalse(subject::hasRefundGasFeeEvents);
+
+        given(hederaOperations.hasGasChargingEvents()).willReturn(true);
+
+        assertTrue(subject::hasGasChargingEvents);
+        assertFalse(subject::hasRefundGasFeeEvents);
+
+        given(hederaOperations.hasRefundGasFeeEvents()).willReturn(true);
+
+        assertTrue(subject::hasGasChargingEvents);
+        assertTrue(subject::hasRefundGasFeeEvents);
     }
 }

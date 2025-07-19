@@ -126,7 +126,7 @@ public record HederaEvmTransaction(
                 this.chainId,
                 this.value,
                 this.gasLimit,
-                this.offeredGasPrice,
+                0, // In the case of an exception
                 this.maxGasAllowance,
                 this.hapiCreation,
                 exception);
