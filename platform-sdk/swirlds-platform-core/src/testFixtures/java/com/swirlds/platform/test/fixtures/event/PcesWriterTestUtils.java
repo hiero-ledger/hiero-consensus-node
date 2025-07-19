@@ -81,8 +81,8 @@ public class PcesWriterTestUtils {
     /**
      * Perform verification on a stream written by a {@link DefaultInlinePcesWriter}.
      *
-     * @param events             the events that were written to the stream
-     * @param platformContext    the platform context
+     * @param events the events that were written to the stream
+     * @param platformContext the platform context
      * @param truncatedFileCount the expected number of truncated files
      */
     public static void verifyStream(
@@ -97,7 +97,8 @@ public class PcesWriterTestUtils {
             lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
-        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(platformContext, pcesDirectory, 0, false);
+        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(), platformContext.getRecycleBin(), pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);

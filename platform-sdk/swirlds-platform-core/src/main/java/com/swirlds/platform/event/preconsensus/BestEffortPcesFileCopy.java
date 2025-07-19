@@ -42,12 +42,12 @@ public final class BestEffortPcesFileCopy {
      * fail as a result. This method retries several times if a failure is encountered. Success is not guaranteed, but
      * success or failure is atomic and will not throw an exception.
      *
-     * @param platformContext      the platform context
-     * @param selfId               the id of this node
+     * @param platformContext the platform context
+     * @param selfId the id of this node
      * @param destinationDirectory the directory where the state is being written
-     * @param lowerBound           the lower bound of events that are not ancient, with respect to the state that is
-     *                             being written
-     * @param round                the round of the state that is being written
+     * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
+     * written
+     * @param round the round of the state that is being written
      */
     public static void copyPcesFilesRetryOnFailure(
             @NonNull final PlatformContext platformContext,
@@ -107,11 +107,11 @@ public final class BestEffortPcesFileCopy {
      * real production states and streams, in the short term. In the longer term we should consider alternate and
      * cleaner strategies.
      *
-     * @param platformContext      the platform context
-     * @param selfId               the id of this node
+     * @param platformContext the platform context
+     * @param selfId the id of this node
      * @param destinationDirectory the directory where the PCES files should be written
-     * @param lowerBound           the lower bound of events that are not ancient, with respect to the state that is
-     *                             being written
+     * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
+     * written
      */
     private static void copyPcesFiles(
             @NonNull final PlatformContext platformContext,
@@ -141,9 +141,9 @@ public final class BestEffortPcesFileCopy {
      * Get the preconsensus files that we need to copy to a state. We need any file that has a matching origin and that
      * contains non-ancient events (w.r.t. the state).
      *
-     * @param allFiles   all PCES files on disk
+     * @param allFiles all PCES files on disk
      * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
-     *                   written
+     * written
      * @return the list of files to copy
      */
     @NonNull
@@ -193,7 +193,7 @@ public final class BestEffortPcesFileCopy {
     /**
      * Gather all PCES files on disk.
      *
-     * @param selfId          the id of this node
+     * @param selfId the id of this node
      * @param platformContext the platform context
      * @return a list of all PCES files on disk
      */
@@ -201,7 +201,8 @@ public final class BestEffortPcesFileCopy {
     private static List<PcesFile> gatherPcesFilesOnDisk(
             @NonNull final NodeId selfId, @NonNull final PlatformContext platformContext) throws IOException {
         final List<PcesFile> allFiles = new ArrayList<>();
-        final Path preconsensusEventStreamDirectory = PcesUtilities.getDatabaseDirectory(platformContext, selfId);
+        final Path preconsensusEventStreamDirectory =
+                PcesUtilities.getDatabaseDirectory(platformContext.getConfiguration(), selfId);
         try (final Stream<Path> stream = Files.walk(preconsensusEventStreamDirectory)) {
             stream.filter(Files::isRegularFile).forEach(path -> {
                 try {
@@ -239,7 +240,7 @@ public final class BestEffortPcesFileCopy {
     /**
      * Copy a list of preconsensus event files into a directory.
      *
-     * @param filesToCopy     the files to copy
+     * @param filesToCopy the files to copy
      * @param pcesDestination the directory where the files should be copied
      */
     private static void copyPcesFileList(@NonNull final List<PcesFile> filesToCopy, @NonNull final Path pcesDestination)

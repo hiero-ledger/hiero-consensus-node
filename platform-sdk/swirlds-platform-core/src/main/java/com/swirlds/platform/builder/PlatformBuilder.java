@@ -413,12 +413,13 @@ public final class PlatformBuilder {
 
         final PcesFileTracker initialPcesFiles;
         try {
-            final Path databaseDirectory = getDatabaseDirectory(platformContext, selfId);
+            final Path databaseDirectory = getDatabaseDirectory(platformContext.getConfiguration(), selfId);
 
             // When we perform the migration to using birth round bounding, we will need to read
             // the old type and start writing the new type.
             initialPcesFiles = PcesFileReader.readFilesFromDisk(
-                    platformContext,
+                    platformContext.getConfiguration(),
+                    platformContext.getRecycleBin(),
                     databaseDirectory,
                     initialState.get().getRound(),
                     preconsensusEventStreamConfig.permitGaps());

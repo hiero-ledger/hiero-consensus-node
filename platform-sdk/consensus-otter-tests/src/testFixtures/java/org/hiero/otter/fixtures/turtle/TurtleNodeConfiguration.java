@@ -20,8 +20,6 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final String outputDirectory;
-
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
      *
@@ -30,8 +28,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
      */
     public TurtleNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
-        super(lifeCycleSupplier);
-        this.outputDirectory = outputDirectory.toString();
+        super(lifeCycleSupplier, outputDirectory);
         setTurtleSpecificOverrides();
     }
 

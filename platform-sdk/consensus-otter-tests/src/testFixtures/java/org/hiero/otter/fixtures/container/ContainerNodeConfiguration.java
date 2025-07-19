@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -18,9 +19,11 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
      * Constructor for the {@link ContainerNodeConfiguration} class.
      *
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
+     * @param outputDirectory the directory where the node output will be stored
      */
-    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
-        super(lifecycleSupplier);
+    public ContainerNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
+        super(lifecycleSupplier, outputDirectory);
     }
 
     /**
@@ -32,7 +35,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the overridden properties for this node configuration.
      */
     @NonNull
     public Map<String, String> overriddenProperties() {

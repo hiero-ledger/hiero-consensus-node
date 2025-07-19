@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,8 +12,8 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 
 /**
- * This class contains examples that are used in the documentation. If you change the examples, please make sure
- * to update the documentation accordingly. This is done in an effort to ensure that the examples are up-to-date.
+ * This class contains examples that are used in the documentation. If you change the examples, please make sure to
+ * update the documentation accordingly. This is done in an effort to ensure that the examples are up-to-date.
  */
 class DocExamplesTest {
 
@@ -34,10 +33,8 @@ class DocExamplesTest {
         // 4. Wait 30 seconds while the network is running
         timeManager.waitFor(Duration.ofSeconds(30));
 
-        // 5. Verify consensus was reached
-        assertThat(network.getConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+        // 5. Verify consensus was reached and advanced past round 2
+        assertThat(network.getConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
 
         // 6. Check for no error-level log messages
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
