@@ -23,12 +23,10 @@ public class DefaultLongAccumulator extends AbstractMetric implements LongAccumu
 
     public DefaultLongAccumulator(@NonNull final Config config) {
         super(config);
-        final long initialValue = config.getInitialValue();
-        final LongSupplier configInitializer = config.getInitializer();
 
-        this.accumulator = config.getAccumulator();
-        this.initializer = configInitializer != null ? configInitializer : () -> initialValue;
-        this.container = new AtomicLong(this.initializer.getAsLong());
+        accumulator = config.getAccumulator();
+        initializer = config.getInitializer();
+        container = new AtomicLong(this.initializer.getAsLong());
     }
 
     /**
@@ -76,10 +74,7 @@ public class DefaultLongAccumulator extends AbstractMetric implements LongAccumu
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

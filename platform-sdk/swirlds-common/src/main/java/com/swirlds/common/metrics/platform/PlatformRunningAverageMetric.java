@@ -2,7 +2,6 @@
 package com.swirlds.common.metrics.platform;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.common.metrics.statistics.StatsRunningAverage;
@@ -31,7 +30,8 @@ public class PlatformRunningAverageMetric extends AbstractDistributionMetric imp
     @SuppressWarnings("removal")
     public PlatformRunningAverageMetric(final RunningAverageMetric.Config config, final Time time) {
         super(config, config.getHalfLife());
-        this.runningAverage = new StatsRunningAverage(halfLife, time);
+
+        runningAverage = new StatsRunningAverage(config.getHalfLife(), time);
     }
 
     /**
@@ -60,17 +60,5 @@ public class PlatformRunningAverageMetric extends AbstractDistributionMetric imp
     @Override
     public double get() {
         return runningAverage.getWeightedMean();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("halfLife", halfLife)
-                .append("value", get())
-                .toString();
     }
 }
