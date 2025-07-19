@@ -575,6 +575,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                     case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
+
+            // Add trace data for batch inner (or inner child) transaction fields, that are normally computed by state
+            // changes
+            final boolean addAdditionalTraceData = baseBuilder.functionality() == ATOMIC_BATCH;
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();
@@ -584,12 +588,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
                 case BLOCKS ->
-                    requireNonNull(outputs).add(((BlockStreamBuilder) builder).build(builder == baseBuilder));
+                    requireNonNull(outputs)
+                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, addAdditionalTraceData));
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
                     requireNonNull(outputs)
-                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder));
+                            .add(pairedBuilder
+                                    .blockStreamBuilder()
+                                    .build(builder == baseBuilder, addAdditionalTraceData));
                 }
             }
         }
