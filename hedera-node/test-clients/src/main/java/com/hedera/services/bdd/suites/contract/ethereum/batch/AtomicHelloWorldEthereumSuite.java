@@ -704,7 +704,7 @@ public class AtomicHelloWorldEthereumSuite {
                                 .maxFeePerGas(50L)
                                 .maxPriorityGas(2L)
                                 .gasLimit(1_000_000L)
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),

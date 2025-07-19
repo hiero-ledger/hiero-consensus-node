@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -405,7 +406,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .expiring(expiration.get() + THREE_MONTHS_IN_SECONDS)
                                 .blankMemo()
                                 .via(baseTxn)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_EXPIRATION_TIME))
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)

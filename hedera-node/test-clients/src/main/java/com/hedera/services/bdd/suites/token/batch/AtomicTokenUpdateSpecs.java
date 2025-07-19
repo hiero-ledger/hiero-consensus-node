@@ -337,7 +337,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .name(tooLongName)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_NAME_TOO_LONG)
+                                .hasKnownStatus(TOKEN_NAME_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -353,7 +353,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .symbol(tooLongSymbol)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_SYMBOL_TOO_LONG)
+                                .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

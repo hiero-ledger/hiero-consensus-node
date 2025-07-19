@@ -50,6 +50,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
@@ -62,11 +63,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -118,9 +123,12 @@ public class AtomicBatchNegativeTest {
                     newKeyNamed(newKey),
                     atomicBatch(
                                     cryptoUpdate(sender).key(newKey).batchKey(sender),
-                                    cryptoDelete(sender).batchKey(sender),
+                                    cryptoDelete(sender)
+                                            .signedByPayerAnd(newKey)
+                                            .batchKey(sender),
                                     cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
-                                            .batchKey(sender))
+                                            .batchKey(sender)
+                                            .hasKnownStatus(ACCOUNT_DELETED))
                             .payingWith(sender)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -144,11 +152,10 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
             final var batchOperator = "batchOperator";
             final var innerTxnPayer = "innerPayer";
-            final var innerTxnId = "innerId";
             // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
             final var innerTxn = cryptoCreate("foo")
                     .balance(ONE_HBAR)
-                    .txnId(innerTxnId)
+                    .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer)
                     .signedBy(DEFAULT_PAYER);
@@ -156,7 +163,6 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
                     cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                     // Since the inner txn is signed by DEFAULT_PAYER, it should fail
                     atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(INVALID_SIGNATURE));
         }
@@ -173,7 +179,8 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
+                    .payingWith(innerTxnPayer)
+                    .hasKnownStatus(INVALID_TRANSACTION_START);
             final var validStart = Timestamp.newBuilder()
                     .setSeconds(Instant.now().getEpochSecond() + 1000)
                     .setNanos(1)
@@ -248,7 +255,8 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(cryptoCreate(innerId)
                                     .txnId(innerId)
                                     .validDurationSecs(-1)
-                                    .batchKey("batchOperator"))
+                                    .batchKey("batchOperator")
+                                    .hasKnownStatus(INVALID_TRANSACTION_DURATION))
                             .payingWith("batchOperator")
                             .hasPrecheck(INVALID_TRANSACTION_DURATION));
         }
@@ -262,7 +270,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     usableTxnIdNamed("successfulBatch").payerId("batchOperator"),
                     usableTxnIdNamed("failingBatch").payerId("batchOperator"),
-                    cryptoCreate("sender").balance(0L),
+                    cryptoCreate("sender").balance(ONE_HBAR),
                     cryptoCreate("receiver"),
 
                     // successful batch duplication
@@ -279,8 +287,7 @@ public class AtomicBatchNegativeTest {
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
-                            .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                            .payingWith("batchOperator"),
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
@@ -343,7 +350,8 @@ public class AtomicBatchNegativeTest {
                     contractCreate(contract).gas(1_000_000),
                     atomicBatch(contractCall(contract, function, payload)
                                     .gas(2000001)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED))
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -686,13 +694,15 @@ public class AtomicBatchNegativeTest {
                                             .batchKey("Alice")
                                             .fee(ONE_HBAR)
                                             .payingWith("Bob")
-                                            .signedBy("Bob"),
+                                            .signedBy("Bob")
+                                            .hasKnownStatus(REVERTED_SUCCESS),
                                     // will fail because receiver is not associated with ftC
                                     cryptoTransfer(TokenMovement.moving(1, "ftC")
                                                     .between("Bob", "receiver"))
                                             .batchKey("Alice")
                                             .payingWith("Bob")
-                                            .signedBy("Bob"))
+                                            .signedBy("Bob")
+                                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                             .payingWith("Alice")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
@@ -953,7 +963,6 @@ public class AtomicBatchNegativeTest {
                                     .payingWith(RELAYER)
                                     .nonce(0)
                                     .gasLimit(gasLimit)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .via("ethCall")
                                     .batchKey("batchOperator"))
                             .payingWith("batchOperator"),

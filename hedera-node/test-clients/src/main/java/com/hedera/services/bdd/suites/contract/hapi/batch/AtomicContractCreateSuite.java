@@ -214,7 +214,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedAccountId("0.0.0")
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -223,7 +223,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedNodeId(-1L)
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -237,7 +237,7 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .payingWith("bankrupt")
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -421,13 +421,13 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(TxnUtils.nAscii(101))
-                                .hasPrecheck(MEMO_TOO_LONG)
+                                .hasKnownStatus(MEMO_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(ZERO_BYTE_MEMO)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

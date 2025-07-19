@@ -117,7 +117,8 @@ public class AtomicBatchEthereumCallKeysTest {
                                         adminKey.get())
                                 .via("creationWithoutTopLevelSig")
                                 .gas(5_000_000L)
-                                .sending(100 * ONE_HBAR))
+                                .sending(100 * ONE_HBAR)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Next verify we succeed when using the top-level SignatureMap to
                 // sign with the admin key
