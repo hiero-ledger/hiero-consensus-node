@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -110,10 +111,14 @@ public class CreatePrecompileSuite {
     private static final String ADMIN_KEY = "adminKey";
     private static final String TOKEN_MISC_OPERATIONS_CONTRACT = "TokenMiscOperations";
     private static final String CREATE_FUNGIBLE_TOKEN_WITH_KEYS_AND_EXPIRY_FUNCTION = "createTokenWithKeysAndExpiry";
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     // TEST-001
@@ -184,6 +189,123 @@ public class CreatePrecompileSuite {
                                                 .parseHex(res.toString().substring(2))));
                                     })
                                     .hasKnownStatus(SUCCESS),
+                            newKeyNamed(TOKEN_CREATE_CONTRACT_AS_KEY).shape(CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)),
+                            newKeyNamed(tokenCreateContractAsKeyDelegate)
+                                    .shape(DELEGATE_CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)));
+                }),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        getContractInfo(TOKEN_CREATE_CONTRACT)
+                                .has(ContractInfoAsserts.contractWith().autoRenewAccountId(ACCOUNT))
+                                .logged(),
+                        getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords().logged(),
+                        getAccountBalance(ACCOUNT).logged(),
+                        getAccountBalance(TOKEN_CREATE_CONTRACT).logged(),
+                        getContractInfo(TOKEN_CREATE_CONTRACT).logged(),
+                        childRecordsCheck(
+                                FIRST_CREATE_TXN,
+                                ResponseCodeEnum.SUCCESS,
+                                TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS),
+                                TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS),
+                                TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
+                        sourcing(() ->
+                                getAccountInfo(ACCOUNT_TO_ASSOCIATE).logged().hasTokenRelationShipCount(1)),
+                        sourcing(() -> getTokenInfo(String.valueOf(createTokenNum.get()))
+                                .logged()
+                                .hasTokenType(TokenType.FUNGIBLE_COMMON)
+                                .hasSymbol(TOKEN_SYMBOL)
+                                .hasName(TOKEN_NAME)
+                                .hasDecimals(8)
+                                .hasTotalSupply(100)
+                                .hasEntityMemo(MEMO)
+                                .hasTreasury(ACCOUNT)
+                                // Token doesn't inherit contract's auto-renew
+                                // account if set in tokenCreate
+                                .hasAutoRenewAccount(ACCOUNT)
+                                .hasAutoRenewPeriod(AUTO_RENEW_PERIOD)
+                                .hasSupplyType(TokenSupplyType.INFINITE)
+                                .searchKeysGlobally()
+                                .hasAdminKey(ED25519KEY)
+                                .hasKycKey(ED25519KEY)
+                                .hasFreezeKey(ECDSA_KEY)
+                                .hasWipeKey(ECDSA_KEY)
+                                .hasSupplyKey(TOKEN_CREATE_CONTRACT_AS_KEY)
+                                .hasFeeScheduleKey(tokenCreateContractAsKeyDelegate)
+                                .hasPauseKey(CONTRACT_ADMIN_KEY)
+                                .hasPauseStatus(TokenPauseStatus.Unpaused)),
+                        cryptoDelete(ACCOUNT).hasKnownStatus(ACCOUNT_IS_TREASURY))));
+    }
+
+    // TEST-001
+    @HapiTest
+    final Stream<DynamicTest> atomicFungibleTokenCreateHappyPath() {
+        final var tokenCreateContractAsKeyDelegate = "tokenCreateContractAsKeyDelegate";
+        final var createTokenNum = new AtomicLong();
+        final AtomicReference<byte[]> ed2551Key = new AtomicReference<>();
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP256K1),
+                newKeyNamed(CONTRACT_ADMIN_KEY),
+                cryptoCreate(ACCOUNT_TO_ASSOCIATE),
+                uploadInitCode(TOKEN_CREATE_CONTRACT),
+                cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
+                contractCreate(TOKEN_CREATE_CONTRACT)
+                        .autoRenewAccountId(ACCOUNT)
+                        .adminKey(CONTRACT_ADMIN_KEY)
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER),
+                newKeyNamed(THRESHOLD_KEY)
+                        .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT)))
+                        .exposingKeyTo(k -> ed2551Key.set(k.getThresholdKey()
+                                .getKeys()
+                                .getKeys(0)
+                                .getEd25519()
+                                .toByteArray())),
+                cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
+                cryptoUpdate(ACCOUNT_TO_ASSOCIATE).key(THRESHOLD_KEY),
+                withOpContext((spec, opLog) -> {
+                    spec.registry()
+                            .saveKey(
+                                    ED25519KEY,
+                                    spec.registry()
+                                            .getKey(THRESHOLD_KEY)
+                                            .getThresholdKey()
+                                            .getKeys()
+                                            .getKeys(0));
+                    allRunFor(
+                            spec,
+                            atomicBatch(contractCall(
+                                                    TOKEN_CREATE_CONTRACT,
+                                                    CREATE_FUNGIBLE_TOKEN_WITH_KEYS_AND_EXPIRY_FUNCTION,
+                                                    HapiParserUtil.asHeadlongAddress(asAddress(
+                                                            spec.registry().getAccountID(ACCOUNT))),
+                                                    ed2551Key.get(),
+                                                    spec.registry()
+                                                            .getKey(ECDSA_KEY)
+                                                            .getECDSASecp256K1()
+                                                            .toByteArray(),
+                                                    HapiParserUtil.asHeadlongAddress(asAddress(
+                                                            spec.registry().getContractId(TOKEN_CREATE_CONTRACT))),
+                                                    HapiParserUtil.asHeadlongAddress(asAddress(
+                                                            spec.registry().getContractId(TOKEN_CREATE_CONTRACT))),
+                                                    HapiParserUtil.asHeadlongAddress(asAddress(
+                                                            spec.registry().getAccountID(ACCOUNT))),
+                                                    AUTO_RENEW_PERIOD,
+                                                    HapiParserUtil.asHeadlongAddress(asAddress(
+                                                            spec.registry().getAccountID(ACCOUNT_TO_ASSOCIATE))))
+                                            .via(FIRST_CREATE_TXN)
+                                            .gas(GAS_TO_OFFER)
+                                            .sending(DEFAULT_AMOUNT_TO_SEND)
+                                            .payingWith(ACCOUNT)
+                                            .signedBy(THRESHOLD_KEY)
+                                            .refusingEthConversion()
+                                            .exposingResultTo(result -> {
+                                                log.info(EXPLICIT_CREATE_RESULT, result[0]);
+                                                final var res = (Address) result[0];
+                                                createTokenNum.set(numberOfLongZero(HexFormat.of()
+                                                        .parseHex(res.toString().substring(2))));
+                                            })
+                                            .hasKnownStatus(SUCCESS)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR),
                             newKeyNamed(TOKEN_CREATE_CONTRACT_AS_KEY).shape(CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)),
                             newKeyNamed(tokenCreateContractAsKeyDelegate)
                                     .shape(DELEGATE_CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)));
