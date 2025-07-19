@@ -244,7 +244,7 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(60, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -304,6 +304,44 @@ public class BlockNodeSimulatorSuite {
                         blockNodePriorities = {0, 1})
             })
     @Order(5)
+    final Stream<DynamicTest> node0StatusApiTest() {
+        final AtomicReference<Instant> startTime = new AtomicReference<>(Instant.now());
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                blockNodeSimulator(0).shutDownImmediately(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        startTime::get,
+                        Duration.of(60, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "Server status for node localhost:%s: firstAvailableBlock=-1, lastAvailableBlock=-1",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Block node localhost:%s is behind but block 0 is available in buffer. Will jump to this block.",
+                                portNumbers.get(1)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1})
+            })
+    @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
@@ -342,7 +380,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
