@@ -85,7 +85,7 @@ Consumes Roster via different utility classes:
 - SyncGossipModular: creates a PeerInfo object out of each RosterEntry. The used roster is the current roster.
 - IssDetector: Requires the node's weight. Requires the roster's total weight. receives the current roster
 - DefaultBranchReporter: Requires the node's weight. Requires iterating over the list of nodes in the roster. The used roster is the current roster.
-- ConsensusImpl: Number of participants and each participant's weight. stronglySeeP uses an index instead of nodeId's to retrieve the paticipant's weight. The used roster is the current roster.
+- ConsensusImpl: Number of participants and each participant's weight. stronglySeeP uses an index instead of nodeId's to retrieve the participant's weight. The used roster is the current roster.
 - Platform#getCurrentRoster() a method that is only used in tests and test applications and should be removed
   - SwirldsStateManagerTests: number of entries in the roster
   - WinTabAddresses: iterate over the roster entries, needs id, host, name, port.
@@ -108,65 +108,156 @@ Consumes Roster via different utility classes:
 
 ## Proposed changes
 
-### OPTION 1:
+![roster-data-all.png](roster-data-all.png)
 
-- unify naming: activeRoster and currentRoster are used interchangeably.
-- unify nullability criteria in all methods (some return null other exception)
-- Remove RosterRetriever
-- `RosterHistory` becomes a mutable class. Its responsibility is to hold all the roster history provided to us by updates from the app, tracks which roster applies to each round.
-  It offers a new operation to add a roster round relationship to the tracked elements.
-- Platform code does not use `Roster` or `RosterHistory` directly, all components and code will use a specific instance of an object implementing `RosterDataMap`
-- `RosterDataMap` is a generic interface. Exposes an operation that returns the specific data types translations (e.g.: Certificates or PeerInfo) from a Roster object given a round and a nodeId.
-- Implement 3 subtypes of `RosterDataMap`:
-  - PeerInfoMap: return all the information related to gossip endpoints
-  - CertificateMap: return the certificate associated to the public gossip key
-  - WeightInfoMap: return the weight of each node in the roster
-  - IndexMap: return the index of a particular node in the roster. The index is
-- `RosterDataMap` Implementation details:
-  - it doesn't need to hold every roster for every round, it can register the first round and assume that every round after that until the next element applies the same roster.
-  - Every instance will hold a reference to a `RosterHistory` to retrieve the right roster for a round.
-  - Roster data map wraps `RosterHistory`'s operation that allows to add a roster-round relationship.
-- `RosterUtils` become deprecated
-- Platform does not receive a `currentRoster` or a `previousRoster` anymore, it receives a list of Round Roster pairs that every component will apply to its own reference of a `RosterDataMap` by injecting a value through the wiring framework.
-- Platform does not use `ReadableRosterStore` anymore.
-- neither `RosterHistory` nor any of the `RosterDataMap` instances are thread safe.
-- IssMetrics: use the weightMap
-- DefaultEventSignatureValidator: use the certificate map
-- DefaultSignedStateValidator: use the peerInfoMap
-- ConsensusRound/StreamedRound: Don't expose the roster anymore.
-- UptimeTracker / ISSTestingToolConsensusStateEventHandler use the weight map
-- SyncGossipModular: use the peerInfoMap
-- IssDetector: use the weight map
-- DefaultBranchReporter: use the weight map
-- ConsensusImpl: the most challenging component. requires the index map, do we need to have a map per round?
-- About replacing the current roster, Ideally all the usages of rosters provide the round that applies, but some parts of the code don't have access to the current round.
-  - we can achieve this by injecting the event-window in each component, and include additional logic in the RosterHistory to determine which roster should be the current roster.
-  - as it's done currently: assume that the current roster is the newest recorded roster in the history.
+### New Abstractions
 
-![roster.png](roster.png)
+* `RosterData` class:
+  Encapsulates roster information as an immutable data structure:
+  Provides nodeIds(), weight(NodeId), getTotalWeight(), size(), index(NodeId), and lookup utilities.
+  Implements equality, hashing, JSON serialization, and utility methods for integration.
 
-### OPTION 2:
+* `RosterDataEntry` record: Immutable record representing a single node's details like weight, gossip certificate, and endpoints.
 
-- unify naming: activeRoster and currentRoster are used interchangeably.
-- unify nullability criteria in all methods (some return null other exception)
-- Remove RosterRetriever
-- `RosterHistory` becomes a mutable class. Its responsibility is to hold all the roster history provided to us by updates from the app, tracks which roster applies to each round.
-  It offers a new operation to add a roster round relationship to the tracked elements.
-- Create `RosterData` class as a POJO data object internally using a map to facilitate the retrieval of the information in a roster
-- `RosterHistory` returns `RosterData` in all operations
-- Platform code does not use `Roster` but uses `RosterHistory` directly, all components will have a local instance of the history.
-- Each component that needs it, have a RosterData to X transformation and caching implemented locally
-- Platform does not receive a `currentRoster` or a `previousRoster` anymore, it receives a list of Round Roster pairs that every component will apply to its own reference of a `RosterHistory` by injecting a value through the wiring framework.
-- Platform does not use `ReadableRosterStore` anymore.
+* `RosterHistory`: Tracks the history of rosters across rounds and allows retrieval based on round numbers or hashes. A replacement for `org.hiero.consensus.roster.RosterHistory`.
+  It will be mutable, it will return RosterData objects, it will allow components to maintain their own history and manage its updates, it will cache values.
 
-![img_6.png](img_6.png)
+* `CustomRosterDataMap`: roster data map with custom transformation support and caching.
 
-### Pros & Cons
+* `WeighMap`: Specialized CustomRosterDataMap providing fast access to node weights by node and round.
 
-+ (-) Include an event window injection in components that use the roster-history could create a link from consensus to other components that would violate our future module relationships
-- (-) High Memory footprint as every component will need their own instance caches.
-- (-) The logic of the `ReadableRosterStore` is duplicated in `RosterHistory`
-- (-) potential need to include more wires to inject the event-window.
-+ (+) OPTION 1: Eliminate intermediate classes and clutter code by making each component cache only the instance they will be working with.
-+ (+) OPTION 2: Fewer classes to maintain
-+ (-) OPTION 2: Duplicate logic as every component needs to mantain caches that are similar
+* `CertificateMap`: Specialized CustomRosterDataMap providing cached X509Certificate instances by node and round
+
+### Change all uses of `Roster` to `RosterData`
+
+To provide a unified abstraction (`RosterData`) that simplifies interaction with roster contents while hiding the
+underlying roster proto objects, the following code will be updated to stop using `Roster`
+
+#### Components
+
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
+* `com.swirlds.platform.ConsensusImpl`
+* `com.swirlds.platform.gossip.SyncGossipModular`
+* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
+* `com.swirlds.platform.event.branching.DefaultBranchReporter`
+
+after this change, `ConsensusImpl` will not require an node-to-roster-index map anymore and will be able to use the roterData index operation with the same O(1) complexity
+
+#### Platform support code
+
+* `com.swirlds.platform.builder.PlatformBuilder`
+* `com.swirlds.platform.system.Platform`
+* `com.swirlds.platform.ReconnectStateLoader`
+* `com.swirlds.platform.state.address.RosterMetrics`
+* `com.swirlds.platform.recovery.internal.EventStreamRoundIterator`
+* `com.swirlds.platform.recovery.internal.StreamedRound`
+* `com.swirlds.platform.uptime.UptimeTracker`
+
+#### TipsetEventCreator support code:
+
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetWeightCalculator`
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetTracker`
+* `org.hiero.consensus.event.creator.impl.tipset.Tipset`
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetMetrics`
+
+#### ConsensusImpl support code:
+
+* `com.swirlds.platform.consensus.ConsensusRounds`
+* `org.hiero.consensus.model.hashgraph.ConsensusRound`
+* `org.hiero.consensus.model.hashgraph.Round`
+
+#### SyncGossipModular support code
+
+* `com.swirlds.platform.Utilities`
+* `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
+
+#### DefaultSignedStateValidator support code
+
+* `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
+* `com.swirlds.platform.state.signed.SignedStateValidator`
+* `com.swirlds.platform.state.signed.SignedState`
+* `com.swirlds.platform.state.signed.SignedStateInfo`
+* `com.swirlds.platform.state.signed.SignedStateValidationData`
+* `com.swirlds.platform.metrics.IssMetrics`
+
+### Replace all uses to the mutable & cachable version of `RosterHistory`
+
+This version of the RosterHistory is a de-facto singleton created once and shared with all the components that are using it.
+
+#### Components
+
+`com.swirlds.platform.event.validation.EventSignatureValidator`
+`com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
+
+#### Platform support code
+
+* `com.swirlds.platform.wiring.PlatformWiring`
+* `com.swirlds.platform.ReconnectStateLoader`
+* `com.swirlds.platform.builder.PlatformBuilder`
+* `com.swirlds.platform.builder.PlatformBuildingBlocks`
+
+### Platform components will not receive a `RosterData` directly but access it through `RosterHistory`
+
+This version of the RosterHistory is a de-facto singleton created once and shared with all the components that are using it.
+All components that require a roster will use the getCurrentRoster method. At this stage, these components will not search the roster by round.
+* `com.swirlds.platform.event.branching.DefaultBranchReporter`
+* `com.swirlds.platform.ConsensusImpl`
+* `com.swirlds.platform.state.iss.DefaultIssDetector`
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
+* `com.swirlds.platform.gossip.SyncGossipModular`
+
+### State validation and signatures will use a roster `RosterHistory`
+
+* `com.swirlds.platform.state.signed.SignedState`
+* `com.swirlds.platform.ReconnectStateLoader`
+* `com.swirlds.platform.reconnect.ReconnectLearnerFactory`
+* `com.swirlds.platform.reconnect.ReconnectLearner`
+  Open question, how will we do with the rounds?? as these are not components that can process event windows.
+
+### Modify components to use CustomRosterDataMap
+
+- SyncGossipModular: Should use a CustomRosterDataMap that allows to create PeerInfo instances
+- IssDetector: Should use a `WeighMap`
+- DefaultBranchReporter: Should use a `WeighMap`
+
+### Platform components will provide an input wire to update the `RosterHistory`
+
+An input wire will accept a list of RoundRosterPair, a list of Hash and a List of Roster and the components will update their instance internal state. Nobody will call this method yet.
+
+#### Components
+
+* `com.swirlds.platform.event.branching.DefaultBranchReporter`
+* `com.swirlds.platform.ConsensusImpl`
+* `com.swirlds.platform.state.iss.DefaultIssDetector`
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
+* `com.swirlds.platform.gossip.SyncGossipModular`
+* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
+
+#### Platform support code
+
+* com.swirlds.platform.wiring.PlatformWiring: will expose a method to update the roster history that will know all reference to the previously added input wires and inject the new values to each component. Nobody will call this method yet.
+
+### each component will have its own copy of `RosterHistory`
+
+RosterHistory is removed from platformBuildingBlocks, each component will instance its own copy. Previous to the initialization, when building the platform will inject a list of RoundRosterPair, a list of Hash and a List of Roster provided by the application to each component using the newly added method in `PlatformWiring`
+
+### Platform components will provide an input wire to update the `EventWindow`
+
+* `com.swirlds.platform.state.iss.DefaultIssDetector`
+
+### Modify `EventWindow` updates
+
+The following components, when processing an `EventWindow` updates will:
+a) clean all the expired references from the `RosterHistory`
+b) register the new current round to replace RosterHistory.getCurrentRoster() with RosterHistory.getRosterForRound(round)
+c) ConsensusRound/StreamedRound: Should not expose the roster anymore.
+
+* `com.swirlds.platform.event.branching.DefaultBranchReporter`
+* `com.swirlds.platform.ConsensusImpl`
+* `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
+* `com.swirlds.platform.gossip.SyncGossipModular`
+* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
+
+Open question:
+- What about ConsensusImpl? which round should it use to get a roster from the history?, is the one producing the eventWindows.
+-  `com.swirlds.platform.state.iss.DefaultIssDetector` doesn't process event windows but it seems that it should just for this purpose, or can we use any interal data to do the cleaning.
