@@ -11,6 +11,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -45,6 +46,11 @@ public class BlockStreamMetrics {
     private LongGauge oldestUnacknowledgedBlockTimeGauge;
     private LongGauge latestAcknowledgedBlockNumberGauge;
     private DoubleGauge blockBufferSaturationGauge;
+
+    // Map to track acknowledgement latency metrics per block node
+    private final Map<String, DoubleGauge> acknowledgementLatencyGauges = new ConcurrentHashMap<>();
+    // Map to track high latency events per block node
+    private final Map<String, Counter> highLatencyCounters = new ConcurrentHashMap<>();
 
     @Inject
     public BlockStreamMetrics(@NonNull final Metrics metrics, @NonNull final NodeInfo selfNodeInfo) {
@@ -253,5 +259,46 @@ public class BlockStreamMetrics {
         if (blockBufferSaturationGauge != null) {
             blockBufferSaturationGauge.set(saturation);
         }
+    }
+
+    /**
+     * Records the latency for a block acknowledgement from a specific block node.
+     *
+     * @param nodeAddress the block node address
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordAcknowledgementLatency(@NonNull final String nodeAddress, final long latencyMs) {
+        requireNonNull(nodeAddress, "nodeAddress must not be null");
+
+        // Get or create a gauge for this specific block node
+        final long localNodeId = selfNodeInfo.nodeId();
+        final String metricName = "blockNodeLatency_" + nodeAddress + "_node" + localNodeId;
+        final DoubleGauge latencyGauge = acknowledgementLatencyGauges.computeIfAbsent(nodeAddress, address -> {
+            return metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, metricName)
+                    .withDescription("Latency (ms) for block acknowledgements from block node " + address));
+        });
+
+        // Update the gauge with the current latency
+        latencyGauge.set(latencyMs);
+    }
+
+    /**
+     * Records a high latency event for a specific block node.
+     *
+     * @param nodeAddress the block node address
+     */
+    public void recordHighLatencyEvent(@NonNull final String nodeAddress) {
+        requireNonNull(nodeAddress, "nodeAddress must not be null");
+
+        // Get or create a counter for this specific block node
+        final long localNodeId = selfNodeInfo.nodeId();
+        final String metricName = "highLatencyEvents_" + nodeAddress + "_node" + localNodeId;
+        final Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(nodeAddress, address -> {
+            return metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
+                    .withDescription("Count of high latency events from block node " + address));
+        });
+
+        // Increment the counter
+        highLatencyCounter.increment();
     }
 }
