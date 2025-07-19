@@ -3,6 +3,7 @@ package com.swirlds.metrics.api;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * A single metric that is monitored here.
@@ -118,6 +119,16 @@ public interface Metric {
      */
     @NonNull
     Object get(@NonNull final ValueType valueType);
+
+    /**
+     * Take entries of the current values and return them. If the functionality of this {@code Metric} requires
+     * it to be reset in regular intervals, it is done automatically after the snapshot was generated. The list of
+     * {@code ValueTypes} will always be in the same order.
+     *
+     * @return the list of {@code ValueTypes} with their current values
+     */
+    @NonNull
+    List<Snapshot.SnapshotEntry> takeSnapshot();
 
     /**
      * This method resets a {@code Metric}. It is for example called after startup to ensure that the startup time is
