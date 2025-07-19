@@ -4,7 +4,9 @@ package org.hiero.otter.fixtures.container;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 
 /**
@@ -12,7 +14,14 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
 
-    private final Map<String, String> publicOverriddenProperties = Collections.unmodifiableMap(overriddenProperties);
+    /**
+     * Constructor for the {@link ContainerNodeConfiguration} class.
+     *
+     * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
+     */
+    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
+        super(lifecycleSupplier);
+    }
 
     /**
      * {@inheritDoc}
@@ -22,8 +31,11 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
         return this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     public Map<String, String> overriddenProperties() {
-        return publicOverriddenProperties;
+        return Collections.unmodifiableMap(overriddenProperties);
     }
 }

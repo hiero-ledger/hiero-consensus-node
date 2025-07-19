@@ -2,8 +2,10 @@
 package org.hiero.consensus.otter.docker.app;
 
 import com.google.protobuf.Empty;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -15,6 +17,7 @@ import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -40,7 +43,11 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     /** Executor service for handling the dispatched messages */
     private final ExecutorService executor;
 
+    /** The ID of the node that this instance represents */
+    private NodeId selfId;
+
     /** Manages the consensus nodes and platform lifecycle */
+    @Nullable
     private ConsensusNodeManager nodeManager;
 
     /** Handles outgoing messages, may get called from different threads/callbacks */
@@ -56,6 +63,14 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         this.executor = Objects.requireNonNull(executor, "executor cannot be null");
     }
 
+    @Override
+    public synchronized void init(
+            @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        this.selfId = ProtobufConverter.toPbj(request.getSelfId());
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
     /**
      * Starts the communication channel with the platform using the provided {@link StartRequest}.
      * <p>
@@ -69,6 +84,13 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        // before starting the consensus node, the container must be initialized which sets the selfId
+        if (selfId == null) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription("DockerApp not initialized yet")
+                    .asRuntimeException());
+            return;
+        }
         if (nodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             return;
@@ -80,7 +102,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
 
         try {
             nodeManager = new ConsensusNodeManager(
-                    ProtobufConverter.toPbj(request.getSelfId()),
+                    selfId,
                     ProtobufConverter.toPbj(request.getVersion()),
                     ProtobufConverter.toPbj(request.getRoster()),
                     KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
@@ -124,12 +146,6 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      */
     private static boolean isInvalidRequest(
             final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
-        if (request.getSelfId().getId() < 0) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("selfId must be positive")
-                    .asRuntimeException());
-            return true;
-        }
         if (!request.hasVersion()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("version has to be specified")
@@ -159,9 +175,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
         if (nodeManager == null) {
-            responseObserver.onError(Status.FAILED_PRECONDITION
-                    .withDescription("Application not started yet")
-                    .asRuntimeException());
+            sendNodeNotInitializeError(responseObserver);
             return;
         }
 
@@ -187,9 +201,19 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        if (nodeManager == null) {
+            sendNodeNotInitializeError(responseObserver);
+            return;
+        }
         nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
+    }
+
+    private void sendNodeNotInitializeError(@NonNull final StreamObserver<?> responseObserver) {
+        responseObserver.onError(Status.FAILED_PRECONDITION
+                .withDescription("Application not started yet")
+                .asRuntimeException());
     }
 
     /**
@@ -202,10 +226,14 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      */
     @Override
     public synchronized void killImmediately(
-            final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+            @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
+                nodeManager = null;
+            }
+            if (dispatcher != null) {
+                dispatcher.shutdown();
             }
 
             responseObserver.onNext(Empty.getDefaultInstance());
