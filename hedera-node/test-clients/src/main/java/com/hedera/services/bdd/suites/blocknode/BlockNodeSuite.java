@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -37,16 +37,16 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This suite is for testing with the block node simulator.
+ * This suite class tests the behaviour of consensus node to block node communication.
  */
-@Tag(BLOCK_NODE_SIMULATOR)
+@Tag(BLOCK_NODE)
 @OrderedInIsolation
-public class BlockNodeSimulatorSuite {
+public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -63,14 +63,14 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(0)
+    @Order(1)
     final Stream<DynamicTest> node0StreamingBufferFull() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -80,10 +80,10 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -103,7 +103,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {3},
                         blockNodePriorities = {0}),
             })
-    @Order(1)
+    @Order(2)
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -120,7 +120,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(2)
+    @Order(3)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -128,7 +128,7 @@ public class BlockNodeSimulatorSuite {
                 doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -147,10 +147,10 @@ public class BlockNodeSimulatorSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -158,7 +158,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3})
             })
-    @Order(3)
+    @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -171,11 +171,11 @@ public class BlockNodeSimulatorSuite {
                 }),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(), // Pri 0
+                blockNode(0).shutDownImmediately(), // Pri 0
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.getFirst()),
                         String.format(
@@ -194,11 +194,11 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).shutDownImmediately(), // Pri 1
+                blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(1)),
                         String.format(
@@ -217,11 +217,11 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(2).shutDownImmediately(), // Pri 2
+                blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(2)),
                         String.format(
@@ -240,11 +240,11 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(3)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).startImmediately(),
+                blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(25, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -272,7 +272,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -283,7 +283,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(4)
+    @Order(5)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -303,14 +303,14 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1})
             })
-    @Order(5)
+    @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).updateSendingBlockAcknowledgements(false),
+                blockNode(0).updateSendingBlockAcknowledgements(false),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
@@ -342,14 +342,14 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -362,7 +362,7 @@ public class BlockNodeSimulatorSuite {
                     LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(20));
                 }),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNodeSimulator(0).startImmediately(),
+                blockNode(0).startImmediately(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
@@ -387,7 +387,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1})
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
