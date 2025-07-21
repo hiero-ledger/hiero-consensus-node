@@ -3,7 +3,7 @@
 # Define Global Build Arguments
 #
 ########################################################################################################################
-ARG UBUNTU_TAG="noble-20250714"
+ARG UBUNTU_TAG="bookworm-20250630-slim"
 ARG S6_OVERLAY_VERSION="3.1.6.2"
 ARG SOURCE_DATE_EPOCH="0"
 
@@ -12,7 +12,7 @@ ARG SOURCE_DATE_EPOCH="0"
 # Setup Ephemeral Java Downloader Layer
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS java-builder-interim
+FROM debian:${UBUNTU_TAG} AS java-builder-interim
 # Define Build Arguments
 ARG SOURCE_DATE_EPOCH
 
@@ -85,7 +85,7 @@ COPY --from=java-builder-interim / /
 # Setup S6 Overlay Base Layer
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS s6-overlay-interim
+FROM debian:${UBUNTU_TAG} AS s6-overlay-interim
 # Define Build Arguments
 ARG SOURCE_DATE_EPOCH
 ARG S6_OVERLAY_VERSION
