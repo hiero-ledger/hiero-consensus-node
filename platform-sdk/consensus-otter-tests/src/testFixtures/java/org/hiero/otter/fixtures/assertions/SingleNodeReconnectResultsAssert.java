@@ -64,7 +64,7 @@ public class SingleNodeReconnectResultsAssert
      */
     public SingleNodeReconnectResultsAssert hasMaximumFailedReconnects(final int maximum) {
         isNotNull();
-        if (actual.numFailedReconnects() > maximum) {
+        if (actual.numFailedReconnects() >= maximum) {
             failWithMessage(
                     "Expected maximum failed reconnects to be <%d> but found <%d>",
                     maximum, actual.numFailedReconnects());
