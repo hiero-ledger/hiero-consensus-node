@@ -48,6 +48,7 @@ import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
@@ -71,6 +72,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
+    private final ContainerMarkerFileObserver markerFileObserver;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
 
     /**
@@ -93,6 +95,7 @@ public class ContainerNode extends AbstractNode implements Node {
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
+        this.markerFileObserver = new ContainerMarkerFileObserver(selfId)
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
         container = new ContainerImage(dockerImage, network, selfId);
@@ -219,6 +222,15 @@ public class ContainerNode extends AbstractNode implements Node {
     @NonNull
     public SingleNodePcesResult getPcesResult() {
         throw new UnsupportedOperationException("Not implemented yet!");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeMarkerFileResult getMarkerFileResult() {
+        return null;
     }
 
     /**

@@ -61,6 +61,7 @@ import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
@@ -84,6 +85,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
+    private final TurtleMarkerFileObserver markerFileObserver;
     private final AsyncNodeActions asyncNodeActions = new TurtleAsyncNodeActions();
 
     private PlatformContext platformContext;
@@ -131,6 +133,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
+            this.markerFileObserver = new TurtleMarkerFileObserver(selfId);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -268,6 +271,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public SingleNodeMarkerFileResult getMarkerFileResult() {
+        return markerFileObserver;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void tick(@NonNull final Instant now) {
         if (lifeCycle == RUNNING) {
             assert model != null; // model must be initialized if lifeCycle is STARTED
@@ -303,6 +315,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == RUNNING) {
+            markerFileObserver.stopObserving();
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             platform.destroy();
             platformStatus = null;
@@ -320,6 +333,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
         setupGlobalMetrics(currentConfiguration);
+
+        markerFileObserver.startObserving(currentConfiguration);
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();

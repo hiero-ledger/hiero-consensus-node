@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 
@@ -17,6 +18,7 @@ import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
  *
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
+@SuppressWarnings("unused")
 public interface Network {
 
     /**
@@ -169,10 +171,19 @@ public interface Network {
     MultipleNodePcesResults getPcesResults();
 
     /**
+     * Gets the marker file results of all nodes that are currently in the network.
+     *
+     * @return the marker file results of the nodes
+     */
+    @NonNull
+    MultipleNodeMarkerFileResults getMarkerFileResults();
+
+    /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
      * its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
+     * @return {@code true} if the node is behind by node weight, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
@@ -183,6 +194,7 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @param fraction the fraction of peers to consider for the behind check
+     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
