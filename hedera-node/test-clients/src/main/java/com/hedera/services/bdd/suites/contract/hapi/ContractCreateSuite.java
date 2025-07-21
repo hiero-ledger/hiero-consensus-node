@@ -94,7 +94,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -128,7 +127,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@Tag(TestTags.ADHOC)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractCreateSuite {
 
