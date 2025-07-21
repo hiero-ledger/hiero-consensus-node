@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -43,7 +44,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Order(10)
+@Order(-1)
 @Tag(INTEGRATION)
 @TargetEmbeddedMode(REPEATABLE)
 public class CongestionPricingTest {
@@ -54,9 +55,8 @@ public class CongestionPricingTest {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"contracts.maxGasPerSec", "fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
-    final Stream<DynamicTest> canUpdateMultipliersDynamically() {
+    Stream<DynamicTest> canUpdateGasThrottleMultipliersDynamically() {
         final var contract = "Multipurpose";
-        final var tmpMinCongestionPeriod = "1";
 
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
@@ -65,6 +65,7 @@ public class CongestionPricingTest {
         final var gasToOffer = 200_000L;
 
         return hapiTest(
+                sleepForSeconds(666),
                 overriding("contracts.maxGasPerSec", "15_000_000"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
@@ -77,15 +78,11 @@ public class CongestionPricingTest {
                         .via("cheapCall"),
                 getTxnRecord("cheapCall")
                         .providingFeeTo(normalFee -> {
-                            log.info("Normal fee is {}", normalFee);
+                            log.info("Normal ContractCall fee is {}", normalFee);
                             normalPrice.set(normalFee);
                         })
                         .logged(),
-                overridingTwo(
-                        "fees.percentCongestionMultipliers",
-                        "1,7x",
-                        "fees.minCongestionPeriod",
-                        tmpMinCongestionPeriod),
+                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 new SysFileOverrideOp(
                         THROTTLES, () -> resourceAsString("testSystemFiles/artificial-limits-congestion.json")),
                 sleepFor(2_000),
@@ -111,20 +108,20 @@ public class CongestionPricingTest {
                         .via("pricyCall"),
                 getReceipt("pricyCall").logged(),
                 getTxnRecord("pricyCall").payingWith(GENESIS).providingFeeTo(congestionFee -> {
-                    log.info("Congestion fee is {}", congestionFee);
+                    log.info("Congestion ContractCall fee is {}", congestionFee);
                     sevenXPrice.set(congestionFee);
                 }),
                 withOpContext((spec, opLog) -> Assertions.assertEquals(
                         7.0,
                         (1.0 * sevenXPrice.get()) / normalPrice.get(),
                         0.1,
-                        "~7x multiplier should be in affect!")));
+                        "~7x multiplier should be in effect")));
     }
 
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
-    final Stream<DynamicTest> canUpdateMultipliersDynamically2() {
+    Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
 
@@ -132,10 +129,10 @@ public class CongestionPricingTest {
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
-                        .via("cheapCall"),
-                getTxnRecord("cheapCall")
+                        .via("normalTransfer"),
+                getTxnRecord("normalTransfer")
                         .providingFeeTo(normalFee -> {
-                            log.info("Normal fee is {}", normalFee);
+                            log.info("Normal fee for transfer is {}", normalFee);
                             normalPrice.set(normalFee);
                         })
                         .logged(),
@@ -155,15 +152,15 @@ public class CongestionPricingTest {
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(CIVILIAN_ACCOUNT)
-                        .via("pricyCall"),
-                getTxnRecord("pricyCall").payingWith(GENESIS).providingFeeTo(congestionFee -> {
-                    log.info("Congestion fee is {}", congestionFee);
+                        .via("congestedTransfer"),
+                getTxnRecord("congestedTransfer").payingWith(GENESIS).providingFeeTo(congestionFee -> {
+                    log.info("Congestion fee for transfer is {}", congestionFee);
                     sevenXPrice.set(congestionFee);
                 }),
                 withOpContext((spec, opLog) -> Assertions.assertEquals(
                         7.0,
                         (1.0 * sevenXPrice.get()) / normalPrice.get(),
                         0.1,
-                        "~7x multiplier should be in affect!")));
+                        "~7x multiplier should be in effect")));
     }
 }
