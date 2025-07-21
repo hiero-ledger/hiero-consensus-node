@@ -41,7 +41,7 @@ message ClprGetLedgerConfigurationQuery {
    * If this field is absent, the CLPR configuration for the
    * ledger answering the query is returned.
    */
-  com.hedera.hapi.node.interledger.clpr.state.ClprLedgerId ledger_id = 2;
+  com.hedera.hapi.node.interledger.state.clpr.ClprLedgerId ledger_id = 2;
 }
 
 /**
@@ -66,5 +66,5 @@ message ClprGetLedgerConfigurationResponse {
    * This value may be absent if there does not exist
    * a ledger configuration for the given ledger id.
    */
-  com.hedera.hapi.node.interledger.clpr.state.ClprLedgerConfiguration ledger_configuration = 2;
+  com.hedera.hapi.node.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 2;
 }

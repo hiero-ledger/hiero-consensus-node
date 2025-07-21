@@ -30,5 +30,5 @@ message ClprSetRemoteLedgerConfigurationTransactionBody {
   /**
    * The ledger configuration to set.
    */
-  com.hedera.hapi.node.interledger.clpr.state.ClprLedgerConfiguration ledger_configuration = 1;
+  com.hedera.hapi.node.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
 }
