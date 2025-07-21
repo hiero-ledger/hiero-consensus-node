@@ -259,6 +259,29 @@ public class CustomFeeSpecs {
         return builder.build();
     }
 
+    static CustomFeeLimit builtCustomFeeLimit(String account, long amount, HapiSpec spec) {
+        final var accountId =
+                isIdLiteral(account) ? asAccount(account) : spec.registry().getAccountID(account);
+        return CustomFeeLimit.newBuilder()
+                .setAccountId(accountId)
+                .addFees(FixedFee.newBuilder().setAmount(amount).build())
+                .build();
+    }
+
+    static CustomFeeLimit builtCustomFeeLimitHts(String account, String token, long amount, HapiSpec spec) {
+        final var accountId =
+                isIdLiteral(account) ? asAccount(account) : spec.registry().getAccountID(account);
+        final var denomId =
+                isIdLiteral(token) ? asToken(token) : spec.registry().getTokenID(token);
+        return CustomFeeLimit.newBuilder()
+                .setAccountId(accountId)
+                .addFees(FixedFee.newBuilder()
+                        .setDenominatingTokenId(denomId)
+                        .setAmount(amount)
+                        .build())
+                .build();
+    }
+
     public static Function<HapiSpec, FixedFee> hbarLimit(long amount) {
         return spec -> FixedFee.newBuilder().setAmount(amount).build();
     }

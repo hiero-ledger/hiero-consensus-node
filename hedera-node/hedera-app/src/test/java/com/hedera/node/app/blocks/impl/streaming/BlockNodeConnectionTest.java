@@ -29,6 +29,8 @@ import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Queue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -43,7 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
-
+    private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle eosTimestampsHandle;
 
     static {
@@ -64,6 +66,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private final String grpcEndpoint = "foo";
     private StreamObserver<PublishStreamRequest> requestObserver;
+    private ScheduledExecutorService executorService;
 
     @BeforeEach
     void beforeEach() {
@@ -74,9 +77,17 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         grpcServiceClient = mock(GrpcServiceClient.class);
         metrics = mock(BlockStreamMetrics.class);
         requestObserver = mock(StreamObserver.class);
+        executorService = mock(ScheduledExecutorService.class);
 
         connection = new BlockNodeConnection(
-                configProvider, nodeConfig, connectionManager, stateManager, grpcServiceClient, metrics, grpcEndpoint);
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                stateManager,
+                grpcServiceClient,
+                metrics,
+                grpcEndpoint,
+                executorService);
 
         lenient().doReturn(requestObserver).when(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
@@ -106,6 +117,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(preUpdateState).isEqualTo(ConnectionState.UNINITIALIZED);
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
+        // Verify task was scheduled to periodically reset the stream
+        verify(executorService)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        eq(ONCE_PER_DAY_MILLIS), // initial delay
+                        eq(ONCE_PER_DAY_MILLIS), // period
+                        eq(TimeUnit.MILLISECONDS));
+
         final ConnectionState postUpdateState = connection.getConnectionState();
         assertThat(postUpdateState).isEqualTo(ConnectionState.ACTIVE);
     }
@@ -114,6 +133,15 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testHandleStreamError() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Verify task was scheduled to periodically reset the stream
+        verify(executorService)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        eq(ONCE_PER_DAY_MILLIS), // initial delay
+                        eq(ONCE_PER_DAY_MILLIS), // period
+                        eq(TimeUnit.MILLISECONDS));
+
         // do a quick sanity check on the state
         final ConnectionState preState = connection.getConnectionState();
         assertThat(preState).isEqualTo(ConnectionState.ACTIVE);
@@ -205,6 +233,24 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(stateManager);
         verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void testScheduleStreamResetTask() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Verify task was scheduled to periodically reset the stream
+        verify(executorService)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        eq(ONCE_PER_DAY_MILLIS), // initial delay
+                        eq(ONCE_PER_DAY_MILLIS), // period
+                        eq(TimeUnit.MILLISECONDS));
+
+        verifyNoMoreInteractions(executorService);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
@@ -494,6 +540,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
+        // Verify task was scheduled to periodically reset the stream
+        verify(executorService)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        eq(ONCE_PER_DAY_MILLIS), // initial delay
+                        eq(ONCE_PER_DAY_MILLIS), // period
+                        eq(TimeUnit.MILLISECONDS));
+
         connection.close();
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
@@ -511,6 +565,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         doThrow(new RuntimeException("oh no!")).when(requestObserver).onCompleted();
         connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Verify task was scheduled to periodically reset the stream
+        verify(executorService)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        eq(ONCE_PER_DAY_MILLIS), // initial delay
+                        eq(ONCE_PER_DAY_MILLIS), // period
+                        eq(TimeUnit.MILLISECONDS));
 
         connection.close();
 
