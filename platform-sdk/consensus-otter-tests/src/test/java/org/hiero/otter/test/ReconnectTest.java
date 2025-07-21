@@ -16,6 +16,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import java.time.Duration;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -33,7 +34,7 @@ public class ReconnectTest {
     private static final long ROUNDS_EXPIRED = 10L;
 
     @Disabled("Disabled until the container networks are fully supported")
-    @OtterTest
+    @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -79,6 +80,10 @@ public class ReconnectTest {
 
         // Validations
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+
+        assertThat(nodeToReconnect.getReconnectResults())
+                .hasNoFailedReconnects()
+                .hasExactSuccessfulReconnects(1);
 
         assertThat(network.getConsensusResults())
                 .haveEqualCommonRounds()

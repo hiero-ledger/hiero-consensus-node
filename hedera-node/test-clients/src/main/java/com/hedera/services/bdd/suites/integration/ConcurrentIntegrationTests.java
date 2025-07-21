@@ -53,6 +53,7 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -189,7 +190,8 @@ public class ConcurrentIntegrationTests {
                                                         "operator",
                                                         nftTwo.treasury().name()))
                                         .batchKey("operator")
-                                        .payingWith("operator"))
+                                        .payingWith("operator")
+                                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED))
                         .signedByPayerAnd("operator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountRecords("operator").exposingTo(records -> {

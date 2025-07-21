@@ -38,7 +38,7 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
 public final class DockerManager extends TestControlGrpc.TestControlImplBase {
 
     /** Logger */
-    private static final Logger LOGGER = LogManager.getLogger(DockerManager.class);
+    private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** Executor service for handling the dispatched messages */
     private final ExecutorService executor;
@@ -84,6 +84,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        log.info("Received start request: {}", request);
         // before starting the consensus node, the container must be initialized which sets the selfId
         if (selfId == null) {
             responseObserver.onError(Status.FAILED_PRECONDITION
@@ -126,7 +127,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
 
             nodeManager.start();
         } catch (final Exception e) {
-            LOGGER.error("Unexpected error while starting grpc server", e);
+            log.error("Unexpected error while starting grpc server", e);
             if (dispatcher != null) {
                 dispatcher.shutdown();
             }
@@ -174,6 +175,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     public synchronized void submitTransaction(
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
+        log.debug("Received submit transaction request: {}", request);
         if (nodeManager == null) {
             sendNodeNotInitializeError(responseObserver);
             return;
@@ -201,6 +203,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info("Received synthetic bottleneck request: {}", request);
         if (nodeManager == null) {
             sendNodeNotInitializeError(responseObserver);
             return;
@@ -227,6 +230,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void killImmediately(
             @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info("Received kill request: {}", request);
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
