@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.interledger.clpr;
+
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.Response;
+import com.hedera.hapi.node.transaction.TransactionResponse;
+import com.hedera.pbj.runtime.RpcMethodDefinition;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+class ClprServiceDefinitionTest {
+
+    @Test
+    void checkBasePath() {
+        Assertions.assertThat(ClprServiceDefinition.INSTANCE.basePath())
+                .isEqualTo("org.hiero.hapi.interledger.clpr.ClprService");
+    }
+
+    @Test
+    void methodsDefined() {
+        final var methods = ScheduleServiceDefinition.INSTANCE.methods();
+        Assertions.assertThat(methods)
+                .containsExactlyInAnyOrder(
+                        new RpcMethodDefinition<>("setRemoteLedgerConfiguration", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
+    }
+}
