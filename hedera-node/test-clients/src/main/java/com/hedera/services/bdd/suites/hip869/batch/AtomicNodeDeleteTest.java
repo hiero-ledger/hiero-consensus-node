@@ -140,9 +140,8 @@ public class AtomicNodeDeleteTest {
                                 .hasKnownStatus(INSUFFICIENT_TX_FEE)
                                 .via("failedDeletion")
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord("failedDeletion").logged(),
+                        .hasPrecheck(INSUFFICIENT_TX_FEE)
+                        .payingWith(BATCH_OPERATOR),
                 // Submit with several signatures and the price should increase
                 atomicBatch(nodeDelete("node100")
                                 .fee(ONE_HBAR)

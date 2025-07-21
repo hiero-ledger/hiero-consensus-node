@@ -527,11 +527,10 @@ public class AtomicNodeCreateTest {
                                         gossipCertificates.getFirst().getEncoded())
                                 .fee(1)
                                 .hasKnownStatus(INSUFFICIENT_TX_FEE)
-                                .via("nodeCreationFailed")
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord("nodeCreationFailed").logged(),
+                        .via("nodeCreationFailed")
+                        .hasPrecheck(INSUFFICIENT_TX_FEE)
+                        .payingWith(BATCH_OPERATOR),
                 nodeCreate("ntb")
                         .adminKey(ED_25519_KEY)
                         .description(description)
@@ -554,8 +553,8 @@ public class AtomicNodeCreateTest {
                                 .hasKnownStatus(INSUFFICIENT_TX_FEE)
                                 .via("multipleSigsCreation")
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_TX_FEE)
+                        .payingWith(BATCH_OPERATOR));
     }
 
     @HapiTest
