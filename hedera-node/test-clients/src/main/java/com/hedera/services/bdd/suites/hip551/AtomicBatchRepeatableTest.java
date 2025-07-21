@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -17,13 +18,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -56,25 +56,26 @@ public class AtomicBatchRepeatableTest {
                         "staking.perHbarRewardRate", "1",
                         "staking.rewardBalanceThreshold", "0"),
                 // Fund the rewards account
-                cryptoTransfer(TokenMovement.movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
+                cryptoTransfer(movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
                 newKeyNamed(operatorKey),
                 cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
                 // Create an account that will receive staking rewards
                 cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+                cryptoCreate("receiverWithSigReq").receiverSigRequired(true),
                 // Accumulate some staking rewards
                 waitUntilStartOfNextStakingPeriod(1),
                 atomicBatch(
                                 // Trigger staking rewards for the "receivesRewardsAcct" account
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+                                cryptoTransfer(movingHbar(1).between(operatorAcct, receivesRewardsAcct))
                                         .payingWith(operatorAcct)
                                         .batchKey(operatorKey)
                                         .via("stakingTriggered"),
                                 // Intentionally fail the inner transaction to roll back the batch
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
-                                        .payingWith(receivesRewardsAcct)
-                                        .signedBy(operatorKey)
+                                cryptoTransfer(movingHbar(1).between(operatorAcct, "receiverWithSigReq"))
+                                        .payingWith(operatorAcct)
+                                        .signedBy(operatorAcct)
                                         .batchKey(operatorKey)
-                                        .hasKnownStatus(INVALID_PAYER_SIGNATURE))
+                                        .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith(operatorAcct)
                         .signedBy(operatorKey)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -83,7 +84,7 @@ public class AtomicBatchRepeatableTest {
                 getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
                 // Trigger staking again, but allow it to succeed
                 waitUntilStartOfNextStakingPeriod(1),
-                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+                atomicBatch(cryptoTransfer(movingHbar(1).between(operatorAcct, receivesRewardsAcct))
                                 .payingWith(operatorAcct)
                                 .batchKey(operatorKey))
                         .via("batchSuccess")
