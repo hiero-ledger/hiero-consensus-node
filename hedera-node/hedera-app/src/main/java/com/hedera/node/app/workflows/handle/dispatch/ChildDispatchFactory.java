@@ -7,7 +7,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
+import static com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel.YES;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId.NO;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Collections.emptyMap;
@@ -286,7 +288,11 @@ public class ChildDispatchFactory {
                 null,
                 null,
                 category);
-        final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
+        // Charge as top-level transactions if the category is BATCH_INNER.
+        final var childFees = category == BATCH_INNER
+                ? dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId, YES)
+                : dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
+
         final var congestionMultiplier = feeManager.congestionMultiplierFor(
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
         if (congestionMultiplier > 1) {

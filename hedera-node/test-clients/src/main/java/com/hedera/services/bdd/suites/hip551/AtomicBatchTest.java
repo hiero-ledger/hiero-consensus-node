@@ -23,9 +23,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
@@ -77,6 +79,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -89,8 +92,10 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.RunnableOp;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -630,6 +635,123 @@ public class AtomicBatchTest {
                     validateChargedUsd("batchTxn", 0.001),
                     validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5),
                     validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5));
+        }
+
+        @Nested
+        @DisplayName("Fees remain the same inside of batch")
+        class FeesRemainSameInsideOfBatch {
+
+            static final String OPERATOR = "batchOperator";
+            static final String OWNER = "owner";
+            static final String SPENDER = "spender";
+            static final String SPENDER_2 = "spender2";
+            static final String MEMO =
+                    "Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo Memo";
+
+            @HapiTest
+            @DisplayName("Compare base fee")
+            public Stream<DynamicTest> compareBaseFee() {
+                final AtomicLong expectedFee = new AtomicLong();
+                final AtomicLong feeInBatch = new AtomicLong();
+                return hapiTest(
+                        cryptoCreate(OPERATOR),
+                        cryptoCreate(OWNER),
+                        cryptoCreate(SPENDER),
+                        cryptoCreate(SPENDER_2),
+                        atomicBatch(cryptoApproveAllowance()
+                                        .payingWith(OWNER)
+                                        .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                        .blankMemo()
+                                        .batchKey(OPERATOR)
+                                        .via("cryptoAllowanceInBatch"))
+                                .payingWith(OPERATOR),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER_2, 100L)
+                                .blankMemo()
+                                .via("cryptoAllowance"),
+                        getTxnRecord("cryptoAllowance")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> expectedFee.set(r.getTransactionFee())),
+                        getTxnRecord("cryptoAllowanceInBatch")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> feeInBatch.set(r.getTransactionFee())),
+                        verifyEqualFees(expectedFee, feeInBatch, 0.5));
+            }
+
+            @HapiTest
+            @DisplayName("Compare fee when transaction memo is set")
+            public Stream<DynamicTest> compareFeeWithMemo() {
+                final AtomicLong expectedFee = new AtomicLong();
+                final AtomicLong feeInBatch = new AtomicLong();
+                return hapiTest(
+                        cryptoCreate(OPERATOR),
+                        cryptoCreate(OWNER),
+                        cryptoCreate(SPENDER),
+                        cryptoCreate(SPENDER_2),
+                        atomicBatch(cryptoApproveAllowance()
+                                        .payingWith(OWNER)
+                                        .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                        .memo(MEMO)
+                                        .batchKey(OPERATOR)
+                                        .via("cryptoAllowanceInBatch"))
+                                .payingWith(OPERATOR),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER_2, 100L)
+                                .memo(MEMO)
+                                .via("cryptoAllowance"),
+                        getTxnRecord("cryptoAllowance")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> expectedFee.set(r.getTransactionFee())),
+                        getTxnRecord("cryptoAllowanceInBatch")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> feeInBatch.set(r.getTransactionFee())),
+                        verifyEqualFees(expectedFee, feeInBatch, 0.5));
+            }
+
+            @HapiTest
+            @DisplayName("Compare fee when payer's key is a list")
+            public Stream<DynamicTest> compareWithPayersKeyList() {
+                final AtomicLong expectedFee = new AtomicLong();
+                final AtomicLong feeInBatch = new AtomicLong();
+                return hapiTest(
+                        cryptoCreate(OPERATOR),
+                        cryptoCreate(OWNER),
+                        cryptoCreate(SPENDER),
+                        cryptoCreate(SPENDER_2),
+                        newKeyNamed("ownerKey").shape(SigControl.threshSigs(3, ON, ON, ON, ON, ON, ON, ON)),
+                        cryptoUpdate(OWNER).key("ownerKey"),
+                        atomicBatch(cryptoApproveAllowance()
+                                        .payingWith(OWNER)
+                                        .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                        .memo(MEMO)
+                                        .batchKey(OPERATOR)
+                                        .via("cryptoAllowanceInBatch"))
+                                .payingWith(OPERATOR),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER_2, 100L)
+                                .memo(MEMO)
+                                .via("cryptoAllowance"),
+                        getTxnRecord("cryptoAllowance")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> expectedFee.set(r.getTransactionFee())),
+                        getTxnRecord("cryptoAllowanceInBatch")
+                                .loggingOnlyFee()
+                                .exposingTo(r -> feeInBatch.set(r.getTransactionFee())),
+                        verifyEqualFees(expectedFee, feeInBatch, 0.5));
+            }
+
+            private RunnableOp verifyEqualFees(AtomicLong expectedFee, AtomicLong feeInBatch, double percentDeviation) {
+                return verify(() -> assertEquals(
+                        expectedFee.get(),
+                        feeInBatch.get(),
+                        expectedFee.get() * percentDeviation / 100,
+                        () -> String.format(
+                                "Expected in-batch fee to be <%d +/- 5%%>, was" + " <%d>!",
+                                expectedFee.get(), feeInBatch.get())));
+            }
         }
     }
 

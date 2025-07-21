@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTR
 import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -26,11 +27,13 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.AutoAssociateTraceData;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -578,6 +581,7 @@ public class BlockStreamBuilder
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
+        final boolean includeAdditionalTraceData = batchStateChanges != null;
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != BATCH_INNER) {
@@ -667,6 +671,29 @@ public class BlockStreamBuilder
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
+
+        // Add trace data for batch inner transaction fields, that are normally computed by state changes
+        if (includeAdditionalTraceData) {
+            // automatic token association trace data
+            if (!automaticTokenAssociations.isEmpty() && TOKEN_UPDATE.equals(functionality)) {
+                final var builder = AutoAssociateTraceData.newBuilder()
+                        .automaticTokenAssociations(
+                                automaticTokenAssociations.getLast().accountId());
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().autoAssociateTraceData(builder))
+                        .build());
+            }
+            // message submit trace data
+            if (sequenceNumber > 0 || runningHash != Bytes.EMPTY) {
+                final var builder = SubmitMessageTraceData.newBuilder()
+                        .sequenceNumber(sequenceNumber)
+                        .runningHash(runningHash);
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().submitMessageTraceData(builder))
+                        .build());
+            }
+        }
+
         if (!stateChanges.isEmpty() || topLevel) {
             blockItems.add(BlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
@@ -756,7 +783,7 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public StreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+    public BlockStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
         this.serializedSignedTx = serializedSignedTx;
         return this;
     }

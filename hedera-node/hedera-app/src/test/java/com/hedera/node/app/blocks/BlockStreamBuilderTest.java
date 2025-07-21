@@ -2,13 +2,16 @@
 package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,6 +25,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -58,6 +62,7 @@ public class BlockStreamBuilderTest {
                     .transactionFee(123)
                     .build()))
             .build();
+    private final Bytes signedTxBytes = SignedTransaction.PROTOBUF.toBytes(signedTx);
     private @Mock TransactionID transactionID;
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
@@ -145,6 +150,46 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
+    void testBlockItemsWithAdditionalAutomaticTokenAssociationTraceData() {
+        final var association = TokenAssociation.newBuilder()
+                .tokenId(TokenID.newBuilder().tokenNum(1L))
+                .accountId(AccountID.newBuilder().accountNum(2L))
+                .build();
+
+        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_UPDATE);
+        // set additional trace data
+        itemsBuilder.addAutomaticTokenAssociation(association);
+        final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
+
+        final var traceItem = blockItems.get(2);
+        assertThat(traceItem.hasTraceData()).isTrue();
+        final var trace = traceItem.traceDataOrThrow();
+
+        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
+        final var autoAssociateTraceData = trace.autoAssociateTraceData();
+        assertThat(autoAssociateTraceData).isNotNull();
+        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
+                .isEqualTo(2);
+    }
+
+    @Test
+    void testBlockItemsWithAdditionalSubmitMsgTraceData() {
+        final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
+        // set additional trace data
+        itemsBuilder.topicSequenceNumber(66);
+        final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
+
+        final var traceItem = blockItems.get(2);
+        assertThat(traceItem.hasTraceData()).isTrue();
+        final var trace = traceItem.traceDataOrThrow();
+
+        assertThat(trace.hasSubmitMessageTraceData()).isTrue();
+        final var submitMessageTraceData = trace.submitMessageTraceData();
+        assertThat(submitMessageTraceData).isNotNull();
+        assertThat(submitMessageTraceData.sequenceNumber()).isEqualTo(66);
+    }
+
+    @Test
     void testBlockItemsWithCreateAccountOutput() {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
@@ -201,5 +246,11 @@ public class BlockStreamBuilderTest {
                 .addAutomaticTokenAssociation(tokenAssociation)
                 .paidStakingRewards(paidStakingRewards)
                 .congestionMultiplier(10L);
+    }
+
+    private BlockStreamBuilder createEmptyBuilder() {
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes);
     }
 }

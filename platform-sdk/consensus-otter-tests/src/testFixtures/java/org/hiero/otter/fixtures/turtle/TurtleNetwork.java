@@ -196,6 +196,8 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         for (final TurtleNode node : nodes) {
             node.destroy();
         }
-        executorService.shutdownNow();
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
     }
 }
