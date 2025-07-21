@@ -107,7 +107,7 @@ public class ContainerNode extends AbstractNode implements Node {
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle, outputDirectory);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
         final String savedStateDirectory = nodeConfiguration
                 .current()

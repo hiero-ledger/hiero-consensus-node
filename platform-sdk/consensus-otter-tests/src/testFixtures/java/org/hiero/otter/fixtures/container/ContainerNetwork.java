@@ -65,7 +65,7 @@ public class ContainerNetwork extends AbstractNetwork {
     /**
      * Constructor for {@link ContainerNetwork}.
      *
-     * @param timeManager          the time manager to use
+     * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
      */
     public ContainerNetwork(
@@ -142,9 +142,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        final List<ContainerNode> nodeList = roster.rosterEntries().stream()
-                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
-                .sorted(Comparator.comparing(NodeId::id))
+        final List<ContainerNode> nodeList = sortedNodeIds.stream()
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
         nodes.addAll(nodeList);

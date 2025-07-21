@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -22,7 +21,6 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
         implements NodeConfiguration<T> {
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
-    protected final String outputDirectory;
 
     private final Supplier<LifeCycle> lifecycleSupplier;
 
@@ -32,10 +30,8 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node, used to determine if
      * modifying the configuration is allowed
      */
-    protected AbstractNodeConfiguration(
-            @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
+    protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
-        this.outputDirectory = outputDirectory.toString();
     }
 
     /**

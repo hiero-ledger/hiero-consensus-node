@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.platform.config.BasicConfig_;
@@ -20,6 +22,8 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
+    private final String outputDirectory;
+
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
      *
@@ -28,7 +32,8 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
      */
     public TurtleNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
-        super(lifeCycleSupplier, outputDirectory);
+        super(lifeCycleSupplier);
+        this.outputDirectory = requireNonNull(outputDirectory).toString();
         setTurtleSpecificOverrides();
     }
 
