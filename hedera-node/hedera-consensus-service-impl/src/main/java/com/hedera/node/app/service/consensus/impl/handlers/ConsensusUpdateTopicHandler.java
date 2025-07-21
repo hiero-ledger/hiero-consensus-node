@@ -61,6 +61,7 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -116,13 +117,14 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         // We create a threshold key that contains both keys,
         // and require that the transaction is signed by at least one of them.
         if (onlyExtendsSubmitKey(op)) {
-            final var keyList = KeyList.newBuilder();
+            final var keys = new ArrayList<Key>();
             if (topic.hasSubmitKey()) {
-                keyList.keys(topic.submitKeyOrThrow());
+                keys.add(topic.submitKeyOrThrow());
             }
             if (topic.hasAdminKey()) {
-                keyList.keys(topic.adminKeyOrThrow());
+                keys.add(topic.adminKeyOrThrow());
             }
+            final var keyList = KeyList.newBuilder().keys(keys);
             final var thresholdKey =
                     ThresholdKey.newBuilder().keys(keyList.build()).threshold(1);
             final var submitOrAdminThresholdKey =

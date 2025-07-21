@@ -487,4 +487,18 @@ public class TopicUpdateSuite {
                 updateTopic(topic).adminKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
                 getTopicInfo(topic).hasNoAdminKey().hasNoSubmitKey());
     }
+
+    @HapiTest
+    final Stream<DynamicTest> updateOnlySubmitKeySignWithSubmitWithAdminKeyPresent() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasNoSubmitKey());
+    }
 }
