@@ -55,7 +55,7 @@ on:
 
 env:
   LC_ALL: C.UTF-8
-  LATITUDE_NAMESPACE_PREFIX: solo-sdpt-n
+  NAMESPACE_PREFIX: solo-sdpt-n
   DEFAULT_NAMESPACE: AdHoc5
   DEFAULT_HEDERAVERSION: main
   timeout_6h_limit: 330
