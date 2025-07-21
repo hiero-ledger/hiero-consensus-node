@@ -213,6 +213,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                         "tokenAssociate",
                                         accountAddress.get(),
                                         fungibleAddress.get())
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .payingWith(ACCOUNT)
                                 .via("fungibleTokenAssociate")
                                 .gas(GAS_TO_OFFER))
@@ -241,7 +242,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                         ASSOCIATE_CONTRACT, "tokenAssociate", accountAddress.get(), nftAddress.get())
                                 .payingWith(ACCOUNT)
                                 .via("nonFungibleTokenAssociate")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "nonFungibleTokenAssociate",
@@ -275,7 +277,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                         })
                                 .payingWith(ACCOUNT)
                                 .via("multipleTokensAssociate")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "multipleTokensAssociate",
@@ -310,7 +313,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                                 fungibleAddress.get())
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateFungibleTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
                         "nestedAssociateFungibleTxn",
@@ -345,7 +349,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                                 fungibleAddress.get())
                                         .payingWith(ACCOUNT)
                                         .via("associateTokenToContractFails")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
                         "associateTokenToContractFails",

@@ -24,6 +24,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -266,7 +267,15 @@ public class ContainerNode extends AbstractNode implements Node {
      * effects.
      */
     // ignoring the Empty answer from destroyContainer
-    void destroy() {
+    void destroy() throws IOException {
+        // copy logs from container to the local filesystem
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
+        Files.createDirectories(logPath);
+        Files.deleteIfExists(logPath.resolve("swirlds.log"));
+        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
+        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
+        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
@@ -385,6 +394,7 @@ public class ContainerNode extends AbstractNode implements Node {
         @Override
         @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            log.info("Starting synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
@@ -397,6 +407,7 @@ public class ContainerNode extends AbstractNode implements Node {
         @Override
         @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void stopSyntheticBottleneck() {
+            log.info("Stopping synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
@@ -407,6 +418,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
+        log.info("Received platform status change from {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;
