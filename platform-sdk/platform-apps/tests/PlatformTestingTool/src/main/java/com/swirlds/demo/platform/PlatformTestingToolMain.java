@@ -74,6 +74,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
@@ -117,7 +118,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * writes them to the screen, and also saves them to disk in a comma separated value (.csv) file.
  * Each transaction consists of an optional sequence number and random bytes.
  */
-public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolState> {
+public class PlatformTestingToolMain extends SwirldMainWithTransactionPool<PlatformTestingToolState> {
 
     /**
      * use this for all logging

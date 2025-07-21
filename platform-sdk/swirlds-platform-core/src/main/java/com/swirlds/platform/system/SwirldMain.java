@@ -10,12 +10,14 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
+public interface SwirldMain<T extends MerkleNodeState> extends Runnable,
+        TransactionSupplier {
 
     /**
      * Get configuration types to be registered.

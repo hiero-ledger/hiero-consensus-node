@@ -89,6 +89,7 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Main entry point.
@@ -169,6 +170,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     @Override
     public @NonNull Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
         return hedera.encodeSystemTransaction(transaction);
+    }
+
+    @Override
+    public @NotNull List<Bytes> getTransactions() {
+        return hederaOrThrow().getTransactions();
     }
 
     /**

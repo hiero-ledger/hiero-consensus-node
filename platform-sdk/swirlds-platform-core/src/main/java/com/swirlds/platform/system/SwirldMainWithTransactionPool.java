@@ -5,12 +5,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
-public abstract class SwirldMainWithTransactionPool<T extends MerkleNodeState> implements SwirldMain<T>,
-        TransactionSupplier {
+public abstract class SwirldMainWithTransactionPool<T extends MerkleNodeState> implements SwirldMain<T> {
 
     private TransactionPoolNexus transactionPoolNexus;
 

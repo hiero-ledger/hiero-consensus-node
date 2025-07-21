@@ -34,6 +34,7 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -50,7 +51,7 @@ import org.hiero.consensus.model.node.NodeId;
  * also saves them to disk in a comma separated value (.csv) file. Each transaction is 100 random bytes. So
  * StatsSigningDemoState.handleTransaction doesn't actually do anything.
  */
-public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTestingToolState> {
+public class StatsSigningTestingToolMain extends SwirldMainWithTransactionPool<StatsSigningTestingToolState> {
     // the first four come from the parameters in the config.txt file
 
     public static final byte SYSTEM_TRANSACTION_MARKER = 0;

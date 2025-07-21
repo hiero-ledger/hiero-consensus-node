@@ -19,7 +19,7 @@ import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.TransactionConfig;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

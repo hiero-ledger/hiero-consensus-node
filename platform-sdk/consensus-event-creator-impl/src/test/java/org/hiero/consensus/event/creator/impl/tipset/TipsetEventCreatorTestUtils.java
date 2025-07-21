@@ -35,7 +35,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;

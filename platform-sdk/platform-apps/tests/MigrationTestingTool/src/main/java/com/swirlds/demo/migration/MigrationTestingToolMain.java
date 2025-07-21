@@ -16,6 +16,7 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
@@ -33,7 +34,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * <p>
  * Command line arguments: Seed(long), TransactionsPerNode(int)
  */
-public class MigrationTestingToolMain implements SwirldMain<MigrationTestingToolState> {
+public class MigrationTestingToolMain extends SwirldMainWithTransactionPool<MigrationTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
