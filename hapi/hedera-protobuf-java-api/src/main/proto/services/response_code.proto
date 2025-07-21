@@ -1765,9 +1765,4 @@ enum ResponseCodeEnum {
      * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
      */
     NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
-
-    /**
-     * A CLPR state proof failed to be verified.
-     */
-    CLPR_STATE_PROOF_FAILED_VERIFICATION = 401;
 }

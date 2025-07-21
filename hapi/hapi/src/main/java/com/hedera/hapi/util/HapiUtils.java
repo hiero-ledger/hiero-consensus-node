@@ -257,7 +257,7 @@ public class HapiUtils {
             case TRANSACTION_GET_RECEIPT -> HederaFunctionality.TRANSACTION_GET_RECEIPT;
             case TRANSACTION_GET_RECORD -> HederaFunctionality.TRANSACTION_GET_RECORD;
             case TRANSACTION_GET_FAST_RECORD -> HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
-            case CLPR_LEDGER_CONFIGURATION, UNSET -> throw new UnknownHederaFunctionality();
+            case GET_CLPR_LEDGER_CONFIGURATION, UNSET -> throw new UnknownHederaFunctionality();
         };
     }
 

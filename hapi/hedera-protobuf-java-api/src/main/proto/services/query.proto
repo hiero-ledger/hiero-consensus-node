@@ -233,6 +233,6 @@ message Query {
         /**
          * Get CLPR ledger configuration for the given ledger id.
          */
-        com.hedera.hapi.node.interledger.clpr.ClprGetLedgerConfigurationQuery clpr_ledger_configuration = 59;
+        org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery get_clpr_ledger_configuration = 59;
     }
 }

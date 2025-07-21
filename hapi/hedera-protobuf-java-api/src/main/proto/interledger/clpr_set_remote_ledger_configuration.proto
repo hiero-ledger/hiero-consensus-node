@@ -11,11 +11,11 @@
  */
 syntax = "proto3";
 
-package com.hedera.hapi.node.interledger.clpr;
+package org.hiero.hapi.interledger.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hederahashgraph.api.proto.java";
-// <<<pbj.java_package = "com.hedera.hapi.node.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
@@ -30,5 +30,5 @@ message ClprSetRemoteLedgerConfigurationTransactionBody {
   /**
    * The ledger configuration to set.
    */
-  com.hedera.hapi.node.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
 }

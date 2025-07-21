@@ -10,13 +10,13 @@
  */
 syntax = "proto3";
 
-package com.hedera.hapi.node.interledger.state.clpr;
+package org.hiero.hapi.interledger.state.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/basic_types.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
-// <<<pbj.java_package = "com.hedera.hapi.node.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "org.hiero.hapi.interledger.state.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 

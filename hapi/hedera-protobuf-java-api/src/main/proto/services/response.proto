@@ -240,6 +240,6 @@ message Response {
          * A response for a query requesting the clpr ledger configuration
          * for a specific ledger id.
          */
-        com.hedera.hapi.node.interledger.clpr.ClprGetLedgerConfigurationResponse clpr_ledger_configuration = 159;
+        org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse clpr_ledger_configuration = 159;
     }
 }
