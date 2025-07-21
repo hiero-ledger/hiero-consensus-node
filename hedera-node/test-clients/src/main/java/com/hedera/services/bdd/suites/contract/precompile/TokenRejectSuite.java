@@ -34,7 +34,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_TOKEN_REFERENCE_LIST;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
@@ -206,8 +205,8 @@ public class TokenRejectSuite {
                                         .payingWith(ACCOUNT_1)
                                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
                                         .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .payingWith(BATCH_OPERATOR))),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN_A, 1L)
                         .hasAccountID(ALT_TOKEN_TREASURY)
                         .hasNoSpender(),
