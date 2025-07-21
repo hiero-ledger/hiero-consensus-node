@@ -10,7 +10,7 @@
  */
 syntax = "proto3";
 
-package com.hedera.hapi.node.interledger.clpr.state;
+package com.hedera.hapi.node.interledger.state.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/basic_types.proto";
