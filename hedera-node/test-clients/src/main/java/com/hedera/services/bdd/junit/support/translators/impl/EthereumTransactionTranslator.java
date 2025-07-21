@@ -73,7 +73,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     }
                                                 }
                                                 if (parts.status() == SUCCESS
-                                                        && (parts.isTopLevel() || parts.inBatch())) {
+                                                        && (parts.isTopLevel() || parts.isInnerBatchTxn())) {
                                                     mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                                     baseTranslator.addCreatedIdsTo(
                                                             derivedBuilder, remainingStateChanges);
@@ -107,7 +107,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     }
                                                 }
                                                 if (parts.status() == SUCCESS) {
-                                                    if (parts.isTopLevel() || parts.inBatch()) {
+                                                    if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                                         // If all sidecars are disabled and there were no logs for a
                                                         // top-level creation,
                                                         // for parity we still need to fill in the result with empty

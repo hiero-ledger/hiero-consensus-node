@@ -89,7 +89,7 @@ public record HandleOutput(
             HandleWorkflow.initializeBuilderInfo(failInvalidBuilder, parentTxn.txnInfo(), exchangeRates)
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
-            outputs.add(failInvalidBuilder.build(true));
+            outputs.add(failInvalidBuilder.build(true, false));
             cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
         } else {
             blockRecordSource = null;
