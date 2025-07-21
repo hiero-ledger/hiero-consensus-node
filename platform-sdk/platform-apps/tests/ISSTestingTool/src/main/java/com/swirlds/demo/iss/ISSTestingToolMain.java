@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,7 +32,7 @@ import org.hiero.consensus.model.notification.IssNotification;
  * peers stop gossiping. Therefore, we can validate that a scheduled log error doesn't occur, due to consensus coming to
  * a halt, even if an ISS isn't detected.
  */
-public class ISSTestingToolMain extends SwirldMainWithTransactionPool<ISSTestingToolState> {
+public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 

@@ -31,7 +31,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
@@ -52,7 +51,7 @@ import org.hiero.consensus.model.node.NodeId;
  * screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction is 100
  * random bytes. So StatsDemoState.handleTransaction doesn't actually do anything.
  */
-public class StatsDemoMain extends SwirldMainWithTransactionPool<StatsDemoState> {
+public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
 
     /** should this run with no windows? */

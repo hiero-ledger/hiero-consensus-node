@@ -128,8 +128,7 @@ public final class PlatformBuilder {
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
     private Function<StateSignatureTransaction, Bytes> systemTransactionEncoder;
-    private BooleanSupplier pendingSystemTransactionCheck;
-    private TransactionSupplier transactionSupplier;
+    private ExecutionCallback executionCallback;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -312,17 +311,10 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    public PlatformBuilder withPendingSystemTransactionCheck(
-            @NonNull final BooleanSupplier pendingSystemTransactionCheck) {
+    public PlatformBuilder withExecutionCallback(
+            @NonNull final ExecutionCallback executionCallback) {
         throwIfAlreadyUsed();
-        this.pendingSystemTransactionCheck = Objects.requireNonNull(pendingSystemTransactionCheck);
-        return this;
-    }
-
-    public PlatformBuilder withTransactionSupplier(
-            @NonNull final TransactionSupplier transactionSupplier) {
-        throwIfAlreadyUsed();
-        this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
+        this.executionCallback = Objects.requireNonNull(executionCallback);
         return this;
     }
 
@@ -510,7 +502,7 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 randomBuilder,
-                pendingSystemTransactionCheck,
+                executionCallback::hasBufferedSignatureTransactions,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,
@@ -525,7 +517,7 @@ public final class PlatformBuilder {
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
-                transactionSupplier);
+                executionCallback::getTransactions);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

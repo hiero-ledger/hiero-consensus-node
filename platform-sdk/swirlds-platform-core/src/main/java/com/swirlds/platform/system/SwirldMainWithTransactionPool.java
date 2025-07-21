@@ -1,41 +1,41 @@
 package com.swirlds.platform.system;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.builder.ExecutionCallback;
 import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
-import org.hiero.consensus.model.node.NodeId;
 
-public abstract class SwirldMainWithTransactionPool<T extends MerkleNodeState> implements SwirldMain<T> {
+public abstract class SwirldMainWithTransactionPool<T extends MerkleNodeState> implements ExecutionCallback {
 
-    private TransactionPoolNexus transactionPoolNexus;
 
-    @NonNull
-    @Override
-    public List<Bytes> getTransactions() {
-        return List.of();
-    }
+    private final TransactionPoolNexus transactionPoolNexus;
+    private final SwirldMain<T> swirldMain;
 
-    @NonNull
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return null;
-    }
-
-    @Override
-    public void init(@NonNull final Platform platform, @NonNull final NodeId selfId) {
+    public SwirldMainWithTransactionPool(final SwirldMain<T> swirldMain, final PlatformContext context) {
+        this.swirldMain = swirldMain;
         transactionPoolNexus = new TransactionPoolNexus(
-                platform.getContext().getConfiguration(),
-                platform.getContext().getMetrics(),
-                platform.getContext().getTime()
-        );
+                context.getConfiguration(),
+                context.getMetrics(),
+                context.getTime());
     }
 
     @NonNull
-    public TransactionPoolNexus getTransactionPool() {
-        return transactionPoolNexus;
+    public List<Bytes> getTransactions() {
+        return transactionPoolNexus.getTransactions();
+    }
+
+    public void submitApplicationTransaction(@NonNull final Bytes transaction) {
+        transactionPoolNexus.submitApplicationTransaction(transaction);
+    }
+
+    public void submitSystemTransaction(@NonNull final Bytes transaction) {
+        transactionPoolNexus.submitTransaction(transaction, true);
+    }
+
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPoolNexus.hasBufferedSignatureTransactions();
     }
 }

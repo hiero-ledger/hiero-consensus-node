@@ -11,7 +11,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,7 +27,7 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * A testing app for guaranteeing proper handling of transactions after a restart
  */
-public class ConsistencyTestingToolMain extends SwirldMainWithTransactionPool<ConsistencyTestingToolState> {
+public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolMain.class);
 

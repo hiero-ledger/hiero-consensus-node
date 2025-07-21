@@ -26,7 +26,6 @@ import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +41,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * into a busy loop (checking once a second) to see when the state gets the transaction. When it does, it
  * prints it, too.
  */
-public class HelloSwirldDemoMain extends SwirldMainWithTransactionPool<HelloSwirldDemoState> {
+public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
 
     static {
         try {

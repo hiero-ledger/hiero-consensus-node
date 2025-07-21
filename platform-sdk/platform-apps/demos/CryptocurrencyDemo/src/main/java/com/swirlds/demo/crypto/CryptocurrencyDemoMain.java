@@ -27,7 +27,6 @@ import com.swirlds.platform.Browser;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.SwirldMainWithTransactionPool;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
@@ -43,7 +42,7 @@ import org.hiero.consensus.model.node.NodeId;
  * ask or a bid on a stock, offering to sell or buy, respectively, a single share at a random price between 1 and 127
  * cents (inclusive).
  */
-public class CryptocurrencyDemoMain extends SwirldMainWithTransactionPool<CryptocurrencyDemoState> {
+public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoState> {
 
     static {
         try {
