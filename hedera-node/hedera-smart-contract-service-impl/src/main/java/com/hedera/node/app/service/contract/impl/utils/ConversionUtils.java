@@ -3,8 +3,6 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
-import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
@@ -43,7 +41,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -70,6 +67,12 @@ public class ConversionUtils {
 
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+
+    private static volatile EvmReferenceResolver evmReferenceResolver = new DefaultEvmReferenceResolver();
+
+    public static void setEvmReferenceResolver(@NonNull final EvmReferenceResolver resolver) {
+        evmReferenceResolver = requireNonNull(resolver);
+    }
 
     private ConversionUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -466,20 +469,11 @@ public class ConversionUtils {
     public static long accountNumberForEvmReference(
             @NonNull final com.esaulpaugh.headlong.abi.Address address,
             @NonNull final HederaNativeOperations nativeOperations) {
-        final var explicit = explicitFromHeadlong(address);
-        final var number = maybeMissingNumberOf(explicit, nativeOperations);
-        if (number == MISSING_ENTITY_NUMBER) {
-            return MISSING_ENTITY_NUMBER;
-        } else {
-            final var account = nativeOperations.getAccount(
-                    nativeOperations.entityIdFactory().newAccountId(number));
-            if (account == null || account.deleted()) {
-                return MISSING_ENTITY_NUMBER;
-            } else if (!Arrays.equals(explicit, explicitAddressOf(account))) {
-                return NON_CANONICAL_REFERENCE_NUMBER;
-            }
-            return number;
+        final var resolver = evmReferenceResolver;
+        if (resolver == null) {
+            throw new IllegalStateException("EvmReferenceResolver must be explicitly set before use");
         }
+        return resolver.resolve(address, nativeOperations);
     }
 
     /**
@@ -839,7 +833,7 @@ public class ConversionUtils {
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
-    private static long maybeMissingNumberOf(
+    public static long maybeMissingNumberOf(
             @NonNull final byte[] explicit, @NonNull final HederaNativeOperations nativeOperations) {
         if (isLongZeroAddress(explicit)) {
             return longFrom(
