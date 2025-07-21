@@ -72,7 +72,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
-        linker = new ConsensusLinker(platformContext, selfId);
+        linker = new ConsensusLinker(platformContext);
         futureEventBuffer =
                 new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         roundsNonAncient = platformContext

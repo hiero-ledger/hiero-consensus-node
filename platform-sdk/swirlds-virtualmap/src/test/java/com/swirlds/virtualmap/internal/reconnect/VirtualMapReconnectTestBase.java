@@ -35,6 +35,8 @@ import com.swirlds.virtualmap.test.fixtures.TestValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -133,28 +135,32 @@ public abstract class VirtualMapReconnectTestBase {
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap<TestKey, TestValue> copy = teacherMap.copy();
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
-        try {
-            for (int i = 0; i < attempts; i++) {
-                try {
-                    final var node =
-                            MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-                    node.release();
-                    assertEquals(attempts - 1, i, "We should only succeed on the last try");
-                    final VirtualRoot root = learnerMap.getRight();
-                    assertTrue(root.isHashed(), "Learner root node must be hashed");
-                } catch (Exception e) {
-                    if (i == attempts - 1) {
-                        fail("We did not expect an exception on this reconnect attempt!", e);
+
+        withSuppressedErr(() -> {
+            try {
+                for (int i = 0; i < attempts; i++) {
+                    try {
+                        final var node =
+                                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                        node.release();
+                        assertEquals(attempts - 1, i, "We should only succeed on the last try");
+                        final VirtualRoot root = learnerMap.getRight();
+                        assertTrue(root.isHashed(), "Learner root node must be hashed");
+
+                    } catch (Exception e) {
+                        if (i == attempts - 1) {
+                            fail("We did not expect an exception on this reconnect attempt!", e);
+                        }
+                        teacherBuilder.nextAttempt();
+                        learnerBuilder.nextAttempt();
                     }
-                    teacherBuilder.nextAttempt();
-                    learnerBuilder.nextAttempt();
                 }
+            } finally {
+                teacherTree.release();
+                learnerTree.release();
+                copy.release();
             }
-        } finally {
-            teacherTree.release();
-            learnerTree.release();
-            copy.release();
-        }
+        });
     }
 
     protected static final class BrokenBuilder implements VirtualDataSourceBuilder {
@@ -358,6 +364,28 @@ public abstract class VirtualMapReconnectTestBase {
 
         if (learnerMap.getReservationCount() > 0) {
             learnerMap.release();
+        }
+    }
+
+    /**
+     * Temporarily suppresses System.err output while executing a runnable.
+     * Used to reduce expected error output.
+     *
+     * @param runnable the operation to execute with suppressed error output
+     */
+    private static void withSuppressedErr(Runnable runnable) {
+        PrintStream originalErr = System.err;
+        PrintStream nullStream = new PrintStream(new OutputStream() {
+            @Override
+            public void write(int b) {
+                // Discard output
+            }
+        });
+        try {
+            System.setErr(nullStream);
+            runnable.run();
+        } finally {
+            System.setErr(originalErr);
         }
     }
 }
