@@ -44,6 +44,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -54,6 +56,7 @@ import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -378,6 +381,58 @@ public class ApproveAllowanceSuite {
                                                 .forFunction(FunctionType.HAPI_ALLOWANCE)
                                                 .withStatus(SUCCESS)
                                                 .withAllowance(2)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicHtsTokenAllowanceWithFailingFollowingOp() {
+        final var theSpender = SPENDER;
+        final var allowanceTxn = ALLOWANCE_TX;
+
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, theSpender, 2L)
+                        .via("baseApproveTxn")
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(
+                                        contractCall(
+                                                        HTS_APPROVE_ALLOWANCE_CONTRACT,
+                                                        "htsAllowance",
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getAccountID(OWNER))),
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getAccountID(theSpender))))
+                                                .payingWith(OWNER)
+                                                .via(allowanceTxn)
+                                                .batchKey(BATCH_OPERATOR),
+                                        cryptoTransfer(TokenMovement.movingHbar(10000 * ONE_HUNDRED_HBARS)
+                                                        .between(OWNER, theSpender))
+                                                .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                getTxnRecord(allowanceTxn).andAllChildRecords(),
+                childRecordsCheck(allowanceTxn, REVERTED_SUCCESS, recordWith().status(REVERTED_SUCCESS)));
     }
 
     @HapiTest
