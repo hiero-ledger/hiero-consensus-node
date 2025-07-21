@@ -55,7 +55,7 @@ RUN set -eux; \
             ;; \
         esac; \
     curl -LfsSo /tmp/openjdk.tar.gz ${BINARY_URL}; \
-    echo "${ESUM} */tmp/openjdk.tar.gz" | sha256sum -c -; \
+    echo "${ESUM} /tmp/openjdk.tar.gz" | sha256sum -t -c -; \
     mkdir -p /usr/local/java; \
     tar --extract \
     	      --file /tmp/openjdk.tar.gz \
@@ -123,8 +123,8 @@ RUN set -eux; \
         esac; \
     curl -sSLo /tmp/s6-overlay-noarch.tar.xz ${NOARCH_BINARY_URL}; \
     curl -sSLo /tmp/s6-overlay-arch.tar.xz ${ARCH_BINARY_URL}; \
-    echo "${NOARCH_PKG_ESUM} */tmp/s6-overlay-noarch.tar.xz" | sha256sum -c -; \
-    echo "${ARCH_PKG_ESUM} */tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; \
+    echo "${NOARCH_PKG_ESUM} /tmp/s6-overlay-noarch.tar.xz" | sha256sum -t -c -; \
+    echo "${ARCH_PKG_ESUM} /tmp/s6-overlay-arch.tar.xz" | sha256sum -t -c -; \
     tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz; \
     tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
     rm -f /tmp/s6-overlay-noarch.tar.xz; \
