@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
@@ -13,6 +12,7 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -193,6 +193,10 @@ public class ReconnectLearner {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+
+        // make sure that the state is hashed
+        currentState.getRoot().getHash();
+
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,
@@ -204,8 +208,11 @@ public class ReconnectLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(stateRootFunction, synchronizer.getRoot(), platformContext.getMetrics());
+        MerkleNodeState merkleNodeState;
+        final VirtualMap virtualMap = (VirtualMap) synchronizer.getRoot();
+        final Metrics metrics = platformContext.getMetrics();
+        virtualMap.registerMetrics(metrics);
+        merkleNodeState = stateRootFunction.apply(virtualMap);
 
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),

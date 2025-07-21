@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -27,11 +27,11 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -77,14 +77,12 @@ public class TestingAppStateInitializer {
     }
 
     /**
-     * Register the class IDs for the {@link MerkleStateRoot} and its required children, specifically those
+     * Register the class IDs, specifically those
      * used by the {@link PlatformStateService} and {@code RosterService}.
      */
     public static void registerMerkleStateRootClassIds() {
         try {
             ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             registry.registerConstructable(
@@ -213,7 +211,8 @@ public class TestingAppStateInitializer {
     private static void initializeServiceState(
             MerkleNodeState state, StateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
         switch (state) {
-            case MerkleStateRoot<?> ignored -> state.putServiceStateIfAbsent(md, nodeSupplier);
+            case MerkleStateRoot<?> ignored ->
+                ((MerkleStateRoot) state).putServiceStateIfAbsent(md, nodeSupplier, n -> {});
             case VirtualMapState<?> ignored -> state.initializeState(md);
             default ->
                 throw new IllegalStateException(

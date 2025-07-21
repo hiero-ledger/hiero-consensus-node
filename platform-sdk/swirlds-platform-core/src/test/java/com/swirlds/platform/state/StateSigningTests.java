@@ -3,8 +3,8 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,7 +27,7 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -77,10 +76,8 @@ class StateSigningTests {
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setCalculateHash(true)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         // Randomize roster order
@@ -180,9 +177,7 @@ class StateSigningTests {
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -277,9 +272,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -364,10 +357,8 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                .setState(new TestVirtualMapState())
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -386,8 +377,8 @@ class StateSigningTests {
 
         assertTrue(signedState.isComplete());
 
-        final Hash newHash = randomHash();
-        signedState.getState().setHash(newHash);
+        changeStateHashRandomly(signedState);
+
         signedState.pruneInvalidSignatures();
 
         assertEquals(0, sigSet.size());
@@ -410,9 +401,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -482,9 +471,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -534,9 +521,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
-                .setCalculateHash(true)
                 .build();
 
         assertFalse(signedState.isComplete());

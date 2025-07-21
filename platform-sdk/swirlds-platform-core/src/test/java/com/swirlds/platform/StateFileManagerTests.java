@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
@@ -10,7 +9,6 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNA
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static java.nio.file.Files.exists;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,9 +22,7 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
@@ -46,9 +42,8 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.test.fixtures.state.BlockingState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -151,13 +146,9 @@ class StateFileManagerTests {
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
-                TestHederaVirtualMapState::new,
-                TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
+                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
+        signedState.getState().getRoot().getHash();
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertNotSame(signedState, originalState, "deserialized object should not be the same");
@@ -195,40 +186,6 @@ class StateFileManagerTests {
         } else {
             assertNull(stateSavingResult, "If unsuccessful, should return null");
         }
-    }
-
-    @Test
-    @DisplayName("Save Fatal Signed State")
-    void saveFatalSignedState() throws InterruptedException, IOException {
-        final SignedState signedState =
-                new RandomSignedStateGenerator().setUseBlockingState(true).build();
-
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
-        signedState.markAsStateToSave(FATAL_ERROR);
-        makeImmutable(signedState);
-        hashState((signedState.getState()));
-        ((BlockingState) signedState.getState()).enableBlockingSerialization();
-
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setInterruptableRunnable(
-                        () -> manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test"))))
-                .build(true);
-
-        // State writing should be synchronized. So we shouldn't be able to finish until we unblock.
-        MILLISECONDS.sleep(10);
-        // shouldn't be finished yet
-        assertTrue(thread.isAlive(), "thread should still be blocked");
-
-        ((BlockingState) signedState.getState()).unblockSerialization();
-        thread.join(1000);
-
-        final Path stateDirectory = testDirectory.resolve("fatal").resolve("node1234_round" + signedState.getRound());
-        // Disabling hash validation as hashes would not be the same in this test because of the migration, explanation:
-        // Saving MerkleStateRoot
-        // Reading state -> calling `.migrate()` methods -> `MerkleStateRoot.migrate()` returns `VirtualMap`
-        // => different hash
-        validateSavingOfState(signedState, stateDirectory);
     }
 
     @Test
@@ -361,7 +318,7 @@ class StateFileManagerTests {
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            TestHederaVirtualMapState::new,
+                                            TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))
                                     .reservedSignedState()
@@ -480,9 +437,8 @@ class StateFileManagerTests {
         }
     }
 
-    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
     private static void hashState(MerkleNodeState state) {
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
+        state.getRoot().getHash();
     }
 
     private static void makeImmutable(SignedState signedState) {

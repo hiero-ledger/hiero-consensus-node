@@ -465,7 +465,11 @@ public class SignedState {
     @Override
     public String toString() {
         return "SS(round: %d, sigs: %d/%s, hash: %s)"
-                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), state.getHash());
+                .formatted(
+                        getRound(),
+                        signingWeight,
+                        RosterUtils.computeTotalWeight(getRoster()),
+                        state.isHashed() ? state.getHash() : "not hashed");
     }
 
     /**

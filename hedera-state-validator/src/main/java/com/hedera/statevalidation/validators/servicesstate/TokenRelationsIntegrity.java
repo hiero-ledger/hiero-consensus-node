@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
@@ -20,7 +21,6 @@ import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -40,8 +40,8 @@ public class TokenRelationsIntegrity {
 
     @Test
     void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
-        final MerkleStateRoot servicesState =
-                (MerkleStateRoot) deserializedState.reservedSignedState().get().getState();
+        final HederaVirtualMapState servicesState = (HederaVirtualMapState)
+                deserializedState.reservedSignedState().get().getState();
 
         VirtualMap tokenRelsVm = null;
 
