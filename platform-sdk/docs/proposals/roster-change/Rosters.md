@@ -258,6 +258,9 @@ c) ConsensusRound/StreamedRound: Should not expose the roster anymore.
 * `com.swirlds.platform.gossip.SyncGossipModular`
 * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
 
-Open question:
-- What about ConsensusImpl? which round should it use to get a roster from the history?, is the one producing the eventWindows.
--  `com.swirlds.platform.state.iss.DefaultIssDetector` doesn't process event windows but it seems that it should just for this purpose, or can we use any interal data to do the cleaning.
+## Open questions:
+
+- `ConsensusImpl`: which round should it use to get a roster from the history? Can it use the event's birth round?
+- `DefaultIssDetector` doesn't process event windows, but it seems that it should just for this purpose, or can we use any internal data to do the cleaning?.
+- `SyncGossipModular` doesn't process event windows, how it accesses rounds to retrieve information from the history? Should this be handled in DAB as it should also handle connections to new peers..
+- `TipsetEventCreator`: Tipset objects store `roster` objects, what should happen with old tips when we update the history? should they be recalculated?
