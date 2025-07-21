@@ -80,6 +80,10 @@ public class ReconnectTest {
         // Validations
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
 
+        assertThat(nodeToReconnect.getReconnectResults())
+                .hasNoFailedReconnects()
+                .hasExactSuccessfulReconnects(1);
+
         assertThat(network.getConsensusResults())
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(5));
