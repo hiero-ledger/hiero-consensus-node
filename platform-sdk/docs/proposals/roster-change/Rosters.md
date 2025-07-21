@@ -198,8 +198,9 @@ This version of the RosterHistory is a de-facto singleton created once and share
 
 ### Platform components will not receive a `RosterData` directly but access it through `RosterHistory`
 
-This version of the RosterHistory is a de-facto singleton created once and shared with all the components that are using it.
-All components that require a roster will use the getCurrentRoster method. At this stage, these components will not search the roster by round.
+Components needing a `RosterData` will receive a `RosterHistory` instance instead. They will have their own `RosterHistory` in order to avoid making that class thread-safe.
+Also to make it compatible with the current approach in which every component has a copy of the necessary data.
+During this stage, all components that require a roster will use the `getCurrentRoster` method and components will not search the roster by round.
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`
 * `com.swirlds.platform.ConsensusImpl`
 * `com.swirlds.platform.state.iss.DefaultIssDetector`
@@ -212,7 +213,7 @@ All components that require a roster will use the getCurrentRoster method. At th
 * `com.swirlds.platform.ReconnectStateLoader`
 * `com.swirlds.platform.reconnect.ReconnectLearnerFactory`
 * `com.swirlds.platform.reconnect.ReconnectLearner`
-  Open question, how will we do with the rounds?? as these are not components that can process event windows.
+
 
 ### Modify components to use CustomRosterDataMap
 
@@ -220,9 +221,11 @@ All components that require a roster will use the getCurrentRoster method. At th
 - IssDetector: Should use a `WeighMap`
 - DefaultBranchReporter: Should use a `WeighMap`
 
-### Platform components will provide an input wire to update the `RosterHistory`
+### Platform components will provide an api to update the `RosterHistory`
 
-An input wire will accept a list of RoundRosterPair, a list of Hash and a List of Roster and the components will update their instance internal state. Nobody will call this method yet.
+Platform will provide an api that accepts a list of RoundRosterPair and a List of Roster and the components will update their instance internal state. 
+Nobody will call this method yet.
+`PlatformWire` will receive the call and inject the new values into each of the components using the `RosterHistory`
 
 #### Components
 
@@ -264,3 +267,4 @@ c) ConsensusRound/StreamedRound: Should not expose the roster anymore.
 - `DefaultIssDetector` doesn't process event windows, but it seems that it should just for this purpose, or can we use any internal data to do the cleaning?.
 - `SyncGossipModular` doesn't process event windows, how it accesses rounds to retrieve information from the history? Should this be handled in DAB as it should also handle connections to new peers..
 - `TipsetEventCreator`: Tipset objects store `roster` objects, what should happen with old tips when we update the history? should they be recalculated?
+- How will the `StateValidation` process receive the rounds to validate? as these are not components that can process event windows.
