@@ -88,11 +88,11 @@ public class ScheduleNativeCall extends AbstractCall {
 
         final var status = recordBuilder.status();
         if (status != SUCCESS) {
-            return gasOnly(revertResult(status, gasRequirement), status, false);
+            return gasOnly(revertResult(status, gasRequirement), status, isViewCall);
         } else {
             final var encodedRes = RC_AND_ADDRESS_ENCODER.encode(
                     Tuple.of((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.scheduleID())));
-            return gasOnly(successResult(encodedRes, gasRequirement, recordBuilder), status, false);
+            return gasOnly(successResult(encodedRes, gasRequirement, recordBuilder), status, isViewCall);
         }
     }
 
