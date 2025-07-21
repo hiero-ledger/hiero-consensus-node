@@ -19,6 +19,9 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +36,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -44,11 +48,14 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -68,7 +75,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final ManagedChannel channel;
     private final TestControlGrpc.TestControlBlockingStub blockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
-    private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
+    private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
 
@@ -92,8 +99,8 @@ public class ContainerNode extends AbstractNode implements Node {
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
-        //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
@@ -102,6 +109,12 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
+
+        final InitRequest initRequest = InitRequest.newBuilder()
+                .setSelfId(ProtobufConverter.fromPbj(selfId))
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        blockingStub.init(initRequest);
     }
 
     private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
@@ -215,13 +228,28 @@ public class ContainerNode extends AbstractNode implements Node {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public @NotNull SingleNodeReconnectResult getReconnectResults() {
+        return new SingleNodeReconnectResultImpl(selfId, getPlatformStatusResults(), getLogResult());
+    }
+
+    /**
      * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    // ignoring the Empty answer from destroyContainer
-    void destroy() {
+    void destroy() throws IOException {
+        // copy logs from container to the local filesystem
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
+        Files.createDirectories(logPath);
+        Files.deleteIfExists(logPath.resolve("swirlds.log"));
+        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
+        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
+        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
@@ -259,7 +287,6 @@ public class ContainerNode extends AbstractNode implements Node {
             log.info("Starting node {}...", selfId);
 
             final StartRequest startRequest = StartRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.fromPbj(selfId))
                     .setRoster(ProtobufConverter.fromPbj(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                     .setVersion(ProtobufConverter.fromPbj(version))
@@ -290,16 +317,14 @@ public class ContainerNode extends AbstractNode implements Node {
                      * client receives an INTERNAL error. This is expected and must *not* fail the test.
                      * Only report unexpected errors that occur while the node is still running.
                      */
-                    if (lifeCycle == RUNNING) {
-                        if (!isExpectedError(error)) {
-                            final String message = String.format("gRPC error from node %s", selfId);
-                            fail(message, error);
-                        }
+                    if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
+                        final String message = String.format("gRPC error from node %s", selfId);
+                        fail(message, error);
                     }
                 }
 
                 private static boolean isExpectedError(final @NonNull Throwable error) {
-                    if (error instanceof StatusRuntimeException sre) {
+                    if (error instanceof final StatusRuntimeException sre) {
                         final Code code = sre.getStatus().getCode();
                         return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
                     }
@@ -341,7 +366,10 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            log.info("Starting synthetic bottleneck on node {}", selfId);
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
                     .build());
@@ -351,7 +379,10 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void stopSyntheticBottleneck() {
+            log.info("Stopping synthetic bottleneck on node {}", selfId);
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
                     .build());
@@ -361,6 +392,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
+        log.info("Received platform status change from {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;
