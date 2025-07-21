@@ -66,28 +66,6 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
     }
 
     /**
-     * Constructor overload to modify the presetTxnId property.
-     *
-     * @param attempt the attempt to translate to a dispatching
-     * @param syntheticBody the synthetic body to dispatch
-     * @param dispatchGasCalculator the dispatch gas calculator to use
-     */
-    public DispatchForResponseCodeHssCall(
-            @NonNull final HssCallAttempt attempt,
-            @Nullable final TransactionBody syntheticBody,
-            @NonNull final DispatchGasCalculator dispatchGasCalculator,
-            @NonNull final Set<Key> authorizingKeys,
-            @NonNull final DispatchOptions.UsePresetTxnId usePresetTxnId) {
-        super(attempt.systemContractGasCalculator(), attempt.enhancement(), false);
-        this.senderId = attempt.addressIdConverter().convertSender(attempt.senderAddress());
-        this.syntheticBody = syntheticBody;
-        this.verificationStrategy = attempt.defaultVerificationStrategy();
-        this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
-        this.authorizingKeys = authorizingKeys;
-        this.usePresetTxnId = usePresetTxnId;
-    }
-
-    /**
      * More general constructor, for cases where perhaps a custom {@link VerificationStrategy} is needed.
      *
      * @param enhancement the enhancement to use
