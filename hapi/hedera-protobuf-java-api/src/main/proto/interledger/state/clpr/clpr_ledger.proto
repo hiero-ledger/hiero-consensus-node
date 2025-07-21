@@ -10,13 +10,13 @@
  */
 syntax = "proto3";
 
-package proto;
+package com.hedera.hapi.node.interledger.clpr.state;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/basic_types.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
-// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "com.hedera.hapi.node.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 
@@ -57,7 +57,7 @@ message ClprEndpoint {
   /**
    * A CLPR network endpoint.
    */
-  ServiceEndpoint endpoint = 1;
+  proto.ServiceEndpoint endpoint = 1;
   /**
    * The signing certificate for the endpoint.
    */

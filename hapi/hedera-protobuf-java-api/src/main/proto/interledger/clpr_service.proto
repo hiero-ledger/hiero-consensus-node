@@ -11,11 +11,11 @@
  */
 syntax = "proto3";
 
-package proto;
+package com.hedera.hapi.node.interledger.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hederahashgraph.service.proto.java";
-// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "com.hedera.hapi.node.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
 
 import "services/query.proto";
 import "services/response.proto";
@@ -35,18 +35,18 @@ service ClprService {
      * than what is currently in the state, this has no effect.
      * <p>
      * The request body MUST be a
-     * [ClprSetRemoteLedgerConfigurationTransactionBody](#proto.ClprSetRemoteLedgerConfigurationTransactionBody)
+     * [ClprSetRemoteLedgerConfigurationTransactionBody](#com.hedera.hapi.node.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody)
      */
-    rpc setRemoteLedgerConfiguration (Transaction) returns (TransactionResponse);
+    rpc setRemoteLedgerConfiguration (proto.Transaction) returns (proto.TransactionResponse);
 
     /**
      * Retrieves the CLPR ledger configuration of this ledger or for a
      * remote ledger whose configuration has been set.
      * <p>
      * The request body MUST be a
-     * [ClprGetLedgerConfigurationQuery](#proto.ClprGetLedgerConfigurationQuery)<br/>
+     * [ClprGetLedgerConfigurationQuery](#ClprGetLedgerConfigurationQuery)<br/>
      * The response body SHALL be a
-     * [ClprGetLedgerConfigurationResponse](#proto.ClprGetLedgerConfigurationResponse)
+     * [ClprGetLedgerConfigurationResponse](#com.hedera.hapi.node.interledger.clpr.ClprGetLedgerConfigurationResponse)
      */
-    rpc getLedgerConfiguration (Query) returns (Response);
+    rpc getLedgerConfiguration (proto.Query) returns (proto.Response);
 }
