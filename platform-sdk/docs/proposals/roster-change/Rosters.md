@@ -214,7 +214,6 @@ During this stage, all components that require a roster will use the `getCurrent
 * `com.swirlds.platform.reconnect.ReconnectLearnerFactory`
 * `com.swirlds.platform.reconnect.ReconnectLearner`
 
-
 ### Modify components to use CustomRosterDataMap
 
 - SyncGossipModular: Should use a CustomRosterDataMap that allows to create PeerInfo instances
@@ -223,7 +222,7 @@ During this stage, all components that require a roster will use the `getCurrent
 
 ### Platform components will provide an api to update the `RosterHistory`
 
-Platform will provide an api that accepts a list of RoundRosterPair and a List of Roster and the components will update their instance internal state. 
+Platform will provide an api that accepts a list of RoundRosterPair and a List of Roster and the components will update their instance internal state.
 Nobody will call this method yet.
 `PlatformWire` will receive the call and inject the new values into each of the components using the `RosterHistory`
 
@@ -256,15 +255,15 @@ b) register the new current round to replace RosterHistory.getCurrentRoster() wi
 c) ConsensusRound/StreamedRound: Should not expose the roster anymore.
 
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`
-* `com.swirlds.platform.ConsensusImpl`
+* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
 * `com.swirlds.platform.gossip.SyncGossipModular`
-* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
 
 ## Open questions:
 
-- `ConsensusImpl`: which round should it use to get a roster from the history? Can it use the event's birth round?
+- `ConsensusImpl`: which round should it use to get a roster from the history? Can it use the event's birth round? When should it clean old references from the history?
 - `DefaultIssDetector` doesn't process event windows, but it seems that it should just for this purpose, or can we use any internal data to do the cleaning?.
 - `SyncGossipModular` doesn't process event windows, how it accesses rounds to retrieve information from the history? Should this be handled in DAB as it should also handle connections to new peers..
 - `TipsetEventCreator`: Tipset objects store `roster` objects, what should happen with old tips when we update the history? should they be recalculated?
 - How will the `StateValidation` process receive the rounds to validate? as these are not components that can process event windows.
+- What property in the eventWindow should be used as round to retrieve the roster from history?
