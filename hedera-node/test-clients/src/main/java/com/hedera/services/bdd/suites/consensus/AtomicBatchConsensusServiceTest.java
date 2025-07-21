@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -297,22 +298,18 @@ public class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     final Stream<DynamicTest> createTopicWithAutorenewAccountNotSignedByPayerFailsInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
-        long PAYER_BALANCE = 1_999_999_999L;
-
         return hapiTest(
                 cryptoCreate("batchOperator").balance(ONE_HBAR),
                 cryptoCreate("autoRenewAccount"),
-                cryptoCreate("payer").balance(PAYER_BALANCE),
+                cryptoCreate("payer"),
                 atomicBatch(createTopic("testTopic")
                                 .autoRenewAccountId("autoRenewAccount")
                                 .payingWith("payer")
                                 .signedBy("autoRenewAccount")
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
-                        .via("batchTxn")
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
     }
 
     @HapiTest
@@ -397,8 +394,8 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -426,13 +423,11 @@ public class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     final Stream<DynamicTest> topicCreateWithContractWithAdminKeyForAutoRenewAccountNotSignedByPayerFailsInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
-        long PAYER_BALANCE = 1_999_999_999L;
         final var contractWithAdminKey = "nonCryptoAccount";
 
         return hapiTest(
                 cryptoCreate("batchOperator").balance(ONE_HBAR),
-                cryptoCreate("payer").balance(PAYER_BALANCE),
+                cryptoCreate("payer"),
                 newKeyNamed("contractAdminKey"),
                 createDefaultContract(contractWithAdminKey).adminKey("contractAdminKey"),
                 atomicBatch(createTopic("testTopic")
@@ -441,9 +436,8 @@ public class AtomicBatchConsensusServiceTest {
                                 .signedBy(contractWithAdminKey)
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
-                        .via("batchTxn")
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
     }
 
     @HapiTest
@@ -496,13 +490,10 @@ public class AtomicBatchConsensusServiceTest {
     @HapiTest
     final Stream<DynamicTest>
             topicCreateWithAdminKeyWithContractWithAdminKeyForAutoRenewAccountNotSignByPayerFailsInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
-        long PAYER_BALANCE = 1_999_999_999L;
         final var contractWithAdminKey = "nonCryptoAccount";
-
         return hapiTest(
                 cryptoCreate("batchOperator").balance(ONE_HBAR),
-                cryptoCreate("payer").balance(PAYER_BALANCE),
+                cryptoCreate("payer"),
                 newKeyNamed("contractAdminKey"),
                 newKeyNamed("adminKey"),
                 createDefaultContract(contractWithAdminKey).adminKey("contractAdminKey"),
@@ -513,9 +504,8 @@ public class AtomicBatchConsensusServiceTest {
                                 .signedBy("adminKey", contractWithAdminKey)
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
-                        .via("batchTxn")
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
     }
 
     @HapiTest
@@ -633,22 +623,18 @@ public class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     final Stream<DynamicTest> topicDeleteNotSignedByPayerFailedInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
-        long PAYER_BALANCE = 1_999_999_999L;
-
         return hapiTest(
                 cryptoCreate("batchOperator").balance(ONE_HBAR),
                 newKeyNamed("adminKey"),
-                cryptoCreate("payer").balance(PAYER_BALANCE),
+                cryptoCreate("payer"),
                 createTopic("testTopic").adminKeyName("adminKey"),
                 atomicBatch(deleteTopic("testTopic")
                                 .payingWith("payer")
                                 .signedBy("adminKey")
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
-                        .via("batchTxn")
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
     }
 
     @HapiTest
