@@ -365,7 +365,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
                                 .via(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(SIGNER))
+                                .payingWith(SIGNER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // verify that the total supply of the tokens is not affected
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
@@ -410,7 +411,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                                 new long[0])
                                         .via(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                                         .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER))
+                                        .payingWith(SIGNER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
@@ -451,7 +453,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                                 new long[0])
                                         .via(TOKEN_HAS_NO_UPDATED_KEY)
                                         .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER))
+                                        .payingWith(SIGNER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
@@ -476,7 +479,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                                         .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER))
+                                        .payingWith(SIGNER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
@@ -515,7 +519,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                                         .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER))
+                                        .payingWith(SIGNER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
@@ -551,7 +556,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(TOKEN_HAS_NO_UPDATED_KEY)
                                         .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER))
+                                        .payingWith(SIGNER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
@@ -582,7 +588,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         serialNumber1)
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
@@ -622,7 +629,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         serialNumber1)
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(SIGNER))
+                                .payingWith(SIGNER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
@@ -652,7 +660,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         new long[0])
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
@@ -681,7 +690,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         new long[0])
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(SIGNER))
+                                .payingWith(SIGNER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
@@ -807,6 +817,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                                     serialNumbers)
                                             .alsoSigningWithFullPrefix(ALICE, THRESHOLD_KEY)
                                             .gas(GAS_TO_OFFER)
+                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                             .via("contractCallTxn"))
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED));
                 }),

@@ -64,7 +64,9 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {
         return hapiTest(
-                atomicBatch(updateTopic("0.0.1").hasPrecheck(INVALID_TOPIC_ID).batchKey(BATCH_OPERATOR))
+                atomicBatch(updateTopic("0.0.1")
+                                .hasKnownStatus(INVALID_TOPIC_ID)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
@@ -248,8 +250,17 @@ public class AtomicTopicUpdateSuite {
                         .adminKey("newAdminKey")
                         .autoRenewAccountId("newAutoRenewAccount")
                         .signedBy(signers)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR);
+        final var successfulTopicUpdate = atomicBatch(updateTopic("testTopic")
+                        .payingWith("payer")
+                        .adminKey("newAdminKey")
+                        .autoRenewAccountId("newAutoRenewAccount")
+                        .signedBy("payer", "oldAdminKey", "newAdminKey", "newAutoRenewAccount")
+                        .batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
 
         return hapiTest(
                 newKeyNamed("oldAdminKey"),
@@ -270,9 +281,7 @@ public class AtomicTopicUpdateSuite {
                 updateTopicSignedBy
                         .apply(new String[] {"payer", "newAdminKey", "newAutoRenewAccount"})
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                updateTopicSignedBy
-                        .apply(new String[] {"payer", "oldAdminKey", "newAdminKey", "newAutoRenewAccount"})
-                        .hasKnownStatus(SUCCESS),
+                successfulTopicUpdate,
                 getTopicInfo("testTopic")
                         .logged()
                         .hasAdminKey("newAdminKey")

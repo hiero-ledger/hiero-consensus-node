@@ -152,7 +152,7 @@ public class PlatformComponentBuilder {
      * Constructor.
      *
      * @param blocks the build context for the platform under construction, contains all data needed to construct
-     *               platform components
+     * platform components
      */
     public PlatformComponentBuilder(@NonNull final PlatformBuildingBlocks blocks) {
         this.blocks = Objects.requireNonNull(blocks);
@@ -704,7 +704,8 @@ public class PlatformComponentBuilder {
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
                         blocks.platformContext(),
                         blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(blocks.platformContext(), blocks.selfId()),
+                        PcesUtilities.getDatabaseDirectory(
+                                blocks.platformContext().getConfiguration(), blocks.selfId()),
                         blocks.initialState().get().getRound());
                 inlinePcesWriter = new DefaultInlinePcesWriter(
                         blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
