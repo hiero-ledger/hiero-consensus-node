@@ -18,6 +18,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
      * Constructor for the {@link ContainerNodeConfiguration} class.
      *
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
+     * @param outputDirectory the directory where the node output will be stored
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
@@ -32,7 +33,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the overridden properties for this node configuration.
      */
     @NonNull
     public Map<String, String> overriddenProperties() {
