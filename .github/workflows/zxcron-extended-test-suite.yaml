@@ -34,7 +34,7 @@ jobs:
       xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
-      xts-info: ${{ steps.check-tags-exist.output.xts-info }}
+      xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
