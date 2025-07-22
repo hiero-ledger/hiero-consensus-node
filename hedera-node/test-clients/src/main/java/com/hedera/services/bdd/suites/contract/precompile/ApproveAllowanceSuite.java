@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -42,6 +44,9 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -50,6 +55,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -58,14 +65,17 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@HapiTestLifecycle
 public class ApproveAllowanceSuite {
 
     public static final String CONTRACTS_PERMITTED_DELEGATE_CALLERS = "contracts.permittedDelegateCallers";
@@ -86,6 +96,12 @@ public class ApproveAllowanceSuite {
     private static final String APPROVE_SIGNATURE = "Approval(address,address,uint256)";
     private static final String APPROVE_FOR_ALL_SIGNATURE = "ApprovalForAll(address,address,bool)";
     public static final String CALL_TO = "callTo";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+    }
 
     @HapiTest
     final Stream<DynamicTest> nftAutoCreationIncludeAllowanceCheck() {
@@ -634,5 +650,59 @@ public class ApproveAllowanceSuite {
                 expectGrantedApproval
                         ? getAccountDetails(callee).has(accountDetailsWith().tokenAllowancesCount(1))
                         : getAccountDetails(callee).has(accountDetailsWith().tokenAllowancesCount(0)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicHtsTokenAllowanceWithFailingFollowingOp() {
+        final var batchOperator = "batchOperator";
+        final var theSpender = "spender";
+
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(batchOperator),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, theSpender, 2L)
+                        .via("baseApproveTxn")
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(
+                                        contractCall(
+                                                        HTS_APPROVE_ALLOWANCE_CONTRACT,
+                                                        "htsAllowance",
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getAccountID(OWNER))),
+                                                        asHeadlongAddress(asAddress(
+                                                                spec.registry().getAccountID(theSpender))))
+                                                .payingWith(OWNER)
+                                                .via(ALLOWANCE_TX)
+                                                .batchKey(batchOperator),
+                                        cryptoTransfer(movingHbar(10000 * ONE_HUNDRED_HBARS)
+                                                        .between(OWNER, theSpender))
+                                                .batchKey(batchOperator)
+                                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE))
+                                .payingWith(batchOperator)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                getTxnRecord(ALLOWANCE_TX).andAllChildRecords(),
+                childRecordsCheck(ALLOWANCE_TX, REVERTED_SUCCESS, recordWith().status(REVERTED_SUCCESS)));
     }
 }
