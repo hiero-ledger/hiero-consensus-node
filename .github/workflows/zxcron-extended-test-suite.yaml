@@ -122,6 +122,8 @@ jobs:
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
             echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### XTS Information" >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
             git tag -d "${XTS_CANDIDATE_TAG}"
