@@ -177,7 +177,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
         log.debug("Received submit transaction request: {}", request);
         if (nodeManager == null) {
-            sendNodeNotInitializeError(responseObserver);
+            setApplicationNotStartedResponse(responseObserver);
             return;
         }
 
@@ -205,7 +205,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Received synthetic bottleneck request: {}", request);
         if (nodeManager == null) {
-            sendNodeNotInitializeError(responseObserver);
+            setApplicationNotStartedResponse(responseObserver);
             return;
         }
         nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
@@ -213,7 +213,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         responseObserver.onCompleted();
     }
 
-    private void sendNodeNotInitializeError(@NonNull final StreamObserver<?> responseObserver) {
+    private void setApplicationNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
         responseObserver.onError(Status.FAILED_PRECONDITION
                 .withDescription("Application not started yet")
                 .asRuntimeException());

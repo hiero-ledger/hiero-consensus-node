@@ -262,7 +262,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext);
+        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
     }
 
     /**

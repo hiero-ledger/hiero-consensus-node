@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.assertj.core.api.Fail.fail;
+
+import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import org.hiero.otter.fixtures.Capability;
@@ -27,7 +32,16 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * Constructor for the {@link ContainerTestEnvironment} class.
      */
     public ContainerTestEnvironment() {
-        network = new ContainerNetwork(timeManager, transactionGenerator);
+        final Path rootOutputDirectory = Path.of("build", "container");
+        try {
+            if (Files.exists(rootOutputDirectory)) {
+                FileUtils.deleteDirectory(rootOutputDirectory);
+            }
+            Files.createDirectories(rootOutputDirectory);
+        } catch (final IOException ex) {
+            fail("Failed to delete directory: {}", rootOutputDirectory, ex);
+        }
+        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
     }
 
     /**
