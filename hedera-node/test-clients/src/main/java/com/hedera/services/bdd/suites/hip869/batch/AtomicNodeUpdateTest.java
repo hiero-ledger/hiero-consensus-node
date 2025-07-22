@@ -97,7 +97,7 @@ public class AtomicNodeUpdateTest {
     @DisplayName("cannot update a missing nodeid")
     final Stream<DynamicTest> updateMissingNodeFail() {
         return hapiTest(
-                atomicBatch(nodeUpdate("100").hasPrecheck(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
+                atomicBatch(nodeUpdate("100").hasKnownStatus(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
@@ -111,7 +111,9 @@ public class AtomicNodeUpdateTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeDelete("testNode"),
-                atomicBatch(nodeUpdate("testNode").hasPrecheck(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
+                atomicBatch(nodeUpdate("testNode")
+                                .hasKnownStatus(INVALID_NODE_ID)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
@@ -162,7 +164,7 @@ public class AtomicNodeUpdateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeUpdate("testNode")
                                 .accountId("0.0.100")
-                                .hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
+                                .hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -370,7 +372,7 @@ public class AtomicNodeUpdateTest {
                 atomicBatch(nodeUpdate("ntb")
                                 .payingWith("payer")
                                 .accountId("0.0.1000")
-                                .hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
+                                .hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
                                 .fee(ONE_HBAR)
                                 .via("updateNode")
                                 .batchKey(BATCH_OPERATOR))
@@ -499,7 +501,7 @@ public class AtomicNodeUpdateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeUpdate("testNode")
                                 .signedBy(ADDRESS_BOOK_CONTROL)
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

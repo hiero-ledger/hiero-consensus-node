@@ -247,7 +247,7 @@ public class AtomicNodeDeleteTest {
                 atomicBatch(nodeDelete("testNode")
                                 .payingWith("payer")
                                 .signedBy("payerKey")
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
