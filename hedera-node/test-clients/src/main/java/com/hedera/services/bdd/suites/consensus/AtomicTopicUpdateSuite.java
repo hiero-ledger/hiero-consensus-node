@@ -46,7 +46,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
-// This test cases are direct copies of TopicUpdateSuite\. The difference here is that
+// This test cases are direct copies of TopicUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 public class AtomicTopicUpdateSuite {
@@ -63,12 +63,10 @@ public class AtomicTopicUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {
-        return hapiTest(
-                atomicBatch(updateTopic("0.0.1")
-                                .hasKnownStatus(INVALID_TOPIC_ID)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+        return hapiTest(atomicBatch(
+                        updateTopic("0.0.1").hasKnownStatus(INVALID_TOPIC_ID).batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
