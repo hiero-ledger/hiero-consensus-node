@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -426,8 +427,10 @@ public class ApproveAllowanceSuite {
                                                 .payingWith(OWNER)
                                                 .via(allowanceTxn)
                                                 .batchKey(BATCH_OPERATOR),
+                                        // Failing operation
                                         cryptoTransfer(TokenMovement.movingHbar(10000 * ONE_HUNDRED_HBARS)
                                                         .between(OWNER, theSpender))
+                                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                                 .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
