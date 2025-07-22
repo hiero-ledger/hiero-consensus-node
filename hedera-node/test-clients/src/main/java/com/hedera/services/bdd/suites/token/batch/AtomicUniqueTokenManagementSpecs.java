@@ -37,6 +37,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.METADATA_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
@@ -53,7 +54,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -332,7 +332,7 @@ public class AtomicUniqueTokenManagementSpecs {
                 .then(atomicBatch(
                                 burnToken(NFT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
                                         .via(BURN_TXN)
-                                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                         .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -483,7 +483,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101)))
-                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .hasKnownStatus(METADATA_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -503,7 +503,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101), metadataOfLength(1)))
-                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .hasKnownStatus(METADATA_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -523,7 +523,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT))
-                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -760,7 +760,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                         NFT,
                                         ACCOUNT,
                                         LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
-                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
