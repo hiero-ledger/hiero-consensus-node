@@ -33,5 +33,4 @@ public interface SingleNodeMarkerFileResult {
      * @param subscriber the subscriber that will receive the marker file updates
      */
     void subscribe(@NonNull MarkerFileSubscriber subscriber);
-
 }

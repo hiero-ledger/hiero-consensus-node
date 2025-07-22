@@ -19,7 +19,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeMarkerFileResultsContinuousAssert
         extends AbstractMultipleNodeContinuousAssertion<
-        MultipleNodeMarkerFileResultsContinuousAssert, MultipleNodeMarkerFileResults> {
+                MultipleNodeMarkerFileResultsContinuousAssert, MultipleNodeMarkerFileResults> {
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeMarkerFileResults}.
@@ -51,8 +51,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyMarkerFile()) {
-                failWithMessage(
-                        "Expected no marker file, but node %s has %s", nodeId, markerFileStatus);
+                failWithMessage("Expected no marker file, but node %s has %s", nodeId, markerFileStatus);
             }
         });
     }
@@ -66,8 +65,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoCoinRoundMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasCoinRoundMarkerFile()) {
-                failWithMessage(
-                        "Expected no coin round marker file, but node %s wrote one", nodeId);
+                failWithMessage("Expected no coin round marker file, but node %s wrote one", nodeId);
             }
         });
     }
@@ -81,8 +79,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoSuperMajorityMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoSuperMajorityMarkerFile()) {
-                failWithMessage(
-                        "Expected no no-super-majority marker file, but node %s wrote one", nodeId);
+                failWithMessage("Expected no no-super-majority marker file, but node %s wrote one", nodeId);
             }
         });
     }
@@ -96,8 +93,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoJudgesMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoJudgesMarkerFile()) {
-                failWithMessage(
-                        "Expected no no-judges marker file, but node %s wrote one", nodeId);
+                failWithMessage("Expected no no-judges marker file, but node %s wrote one", nodeId);
             }
         });
     }
@@ -111,8 +107,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoConsensusExceptionMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasConsensusExceptionMarkerFile()) {
-                failWithMessage(
-                        "Expected no consensus exception marker file, but node %s wrote one", nodeId);
+                failWithMessage("Expected no consensus exception marker file, but node %s wrote one", nodeId);
             }
         });
     }
@@ -126,8 +121,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyISSMarkerFile()) {
-                failWithMessage(
-                        "Expected no ISS marker file, but node %s has: {}", nodeId, markerFileStatus);
+                failWithMessage("Expected no ISS marker file, but node %s has: {}", nodeId, markerFileStatus);
             }
         });
     }
@@ -139,12 +133,12 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFilesOfType(
-            @NonNull final IssType issType) {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFilesOfType(@NonNull final IssType issType) {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasISSMarkerFileOfType(issType)) {
                 failWithMessage(
-                        "Expected no ISS marker file of type '%s', but node %s has: %s", issType, nodeId, markerFileStatus);
+                        "Expected no ISS marker file of type '%s', but node %s has: %s",
+                        issType, nodeId, markerFileStatus);
             }
         });
     }

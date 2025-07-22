@@ -18,5 +18,4 @@ public interface MarkerFileSubscriber {
      * @return {@link SubscriberAction#UNSUBSCRIBE} to unsubscribe, {@link SubscriberAction#CONTINUE} to continue
      */
     SubscriberAction onNewMarkerFile(@NonNull NodeId nodeId, @NonNull MarkerFilesStatus status);
-
 }

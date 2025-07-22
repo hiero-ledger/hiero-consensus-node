@@ -32,8 +32,7 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return an assertion for the given {@link MultipleNodeMarkerFileResults}
      */
     @NonNull
-    public static MultipleNodeMarkerFileResultsAssert assertThat(
-            @Nullable final MultipleNodeMarkerFileResults actual) {
+    public static MultipleNodeMarkerFileResultsAssert assertThat(@Nullable final MultipleNodeMarkerFileResults actual) {
         return new MultipleNodeMarkerFileResultsAssert(actual);
     }
 

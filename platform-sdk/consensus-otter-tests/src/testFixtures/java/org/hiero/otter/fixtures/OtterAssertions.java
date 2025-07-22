@@ -8,11 +8,11 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
-import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
@@ -235,8 +235,7 @@ public class OtterAssertions extends Assertions {
      * @return an assertion for the given {@link SingleNodeMarkerFileResult}
      */
     @NonNull
-    public static SingleNodeMarkerFileResultAssert assertThat(
-            @Nullable final SingleNodeMarkerFileResult actual) {
+    public static SingleNodeMarkerFileResultAssert assertThat(@Nullable final SingleNodeMarkerFileResult actual) {
         return SingleNodeMarkerFileResultAssert.assertThat(actual);
     }
 
@@ -259,8 +258,7 @@ public class OtterAssertions extends Assertions {
      * @return an assertion for the given {@link MultipleNodeMarkerFileResults}
      */
     @NonNull
-    public static MultipleNodeMarkerFileResultsAssert assertThat(
-            @Nullable final MultipleNodeMarkerFileResults actual) {
+    public static MultipleNodeMarkerFileResultsAssert assertThat(@Nullable final MultipleNodeMarkerFileResults actual) {
         return MultipleNodeMarkerFileResultsAssert.assertThat(actual);
     }
 

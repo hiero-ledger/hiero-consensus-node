@@ -343,11 +343,9 @@ public class ContainerNode extends AbstractNode implements Node {
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
                         case CONSENSUS_ROUNDS ->
                             resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
-                        default -> {
-                            final String message = String.format(
-                                    "Received unknown message type from node %s: %s", selfId, value.getEventCase());
-                            throw new RuntimeException(message);
-                        }
+                        case MARKER_FILE_ADDED ->
+                            resultsCollector.addMarkerFiles(
+                                    value.getMarkerFileAdded().getMarkerFileNameList());
                     }
                 }
 

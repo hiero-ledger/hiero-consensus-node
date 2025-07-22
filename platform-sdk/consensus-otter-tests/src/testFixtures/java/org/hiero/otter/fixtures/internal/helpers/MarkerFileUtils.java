@@ -1,10 +1,9 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.helpers;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
-import static java.util.Objects.requireNonNull;
 
-import com.swirlds.platform.ConsensusImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -13,8 +12,8 @@ import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import org.hiero.consensus.model.notification.IssNotification.IssType;
-import org.hiero.otter.fixtures.result.MarkerFilesStatus;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Helper class that observes marker files for a specific node.
@@ -54,14 +53,13 @@ public class MarkerFileUtils {
     /**
      * Evaluate the watchKey and return the last known status of marker files.
      *
-     * @param oldStatus the previous status of marker files
      * @param watchKey the watch key to evaluate
      * @return the last known status of marker files
      */
     @NonNull
-    public static MarkerFilesStatus evaluateWatchKey(@NonNull final MarkerFilesStatus oldStatus, @NonNull final WatchKey watchKey) {
-        MarkerFilesStatus currentStatus = requireNonNull(oldStatus);
-        for (final WatchEvent<?> event: watchKey.pollEvents()) {
+    public static List<String> evaluateWatchKey(@NonNull final WatchKey watchKey) {
+        final List<String> result = new ArrayList<>();
+        for (final WatchEvent<?> event : watchKey.pollEvents()) {
             final WatchEvent.Kind<?> kind = event.kind();
 
             // An OVERFLOW event can occur if events are lost or discarded.
@@ -73,26 +71,9 @@ public class MarkerFileUtils {
             // The filename is the context of the event.
             if (event.context() instanceof final Path path) {
                 final String fileName = path.getFileName().toString();
-                currentStatus = switch (fileName) {
-                    case ConsensusImpl.COIN_ROUND_MARKER_FILE -> currentStatus.withCoinRoundMarkerFile();
-                    case ConsensusImpl.NO_SUPER_MAJORITY_MARKER_FILE ->
-                            currentStatus.withNoSuperMajorityMarkerFile();
-                    case ConsensusImpl.NO_JUDGES_MARKER_FILE -> currentStatus.withNoJudgesMarkerFile();
-                    case ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE ->
-                            currentStatus.withConsensusExceptionMarkerFile();
-                    default -> {
-                        try {
-                            // Check if the file is an ISS marker file
-                            final IssType issType = IssType.valueOf(IssType.class, fileName);
-                            yield currentStatus.withISSMarkerFile(issType);
-                        } catch (final IllegalArgumentException ex) {
-                            // not a known marker file
-                            yield currentStatus;
-                        }
-                    }
-                };
+                result.add(fileName);
             }
         }
-        return currentStatus;
+        return result;
     }
 }

@@ -131,8 +131,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFileOfType(
-            @NonNull final IssType issType) {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFileOfType(@NonNull final IssType issType) {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasISSMarkerFileOfType(issType)) {
                 failWithMessage("Expected no ISS marker file of type %s, but one was written", issType);
@@ -140,7 +139,8 @@ public class SingleNodeMarkerFileResultContinuousAssert
         });
     }
 
-    private SingleNodeMarkerFileResultContinuousAssert checkContinuously(@NonNull final Consumer<MarkerFilesStatus> check) {
+    private SingleNodeMarkerFileResultContinuousAssert checkContinuously(
+            @NonNull final Consumer<MarkerFilesStatus> check) {
         isNotNull();
 
         final MarkerFileSubscriber subscriber = (nodeId, markerFilesStatus) -> switch (state) {

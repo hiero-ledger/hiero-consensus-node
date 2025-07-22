@@ -30,8 +30,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return an assertion for the given {@link SingleNodeMarkerFileResult}
      */
     @NonNull
-    public static SingleNodeMarkerFileResultAssert assertThat(
-            @Nullable final SingleNodeMarkerFileResult actual) {
+    public static SingleNodeMarkerFileResultAssert assertThat(@Nullable final SingleNodeMarkerFileResult actual) {
         return new SingleNodeMarkerFileResultAssert(actual);
     }
 

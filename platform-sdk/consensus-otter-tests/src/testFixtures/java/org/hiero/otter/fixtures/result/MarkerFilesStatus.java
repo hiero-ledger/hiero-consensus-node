@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.platform.ConsensusImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 
@@ -18,8 +21,8 @@ public class MarkerFilesStatus {
     private final boolean hasConsensusExceptionMarkerFile;
     private final EnumSet<IssType> issMarkerFiles;
 
-    public static final MarkerFilesStatus INITIAL_STATUS = new MarkerFilesStatus(
-            false, false, false, false, EnumSet.noneOf(IssType.class));
+    public static final MarkerFilesStatus INITIAL_STATUS =
+            new MarkerFilesStatus(false, false, false, false, EnumSet.noneOf(IssType.class));
 
     /**
      * Creates a new instance of {@link MarkerFilesStatus}.
@@ -49,8 +52,11 @@ public class MarkerFilesStatus {
      * @return {@code true} if the node wrote any marker file, {@code false} otherwise
      */
     public boolean hasAnyMarkerFile() {
-        return hasCoinRoundMarkerFile() || hasNoSuperMajorityMarkerFile() || hasNoJudgesMarkerFile()
-                || hasConsensusExceptionMarkerFile() || hasAnyISSMarkerFile();
+        return hasCoinRoundMarkerFile()
+                || hasNoSuperMajorityMarkerFile()
+                || hasNoJudgesMarkerFile()
+                || hasConsensusExceptionMarkerFile()
+                || hasAnyISSMarkerFile();
     }
 
     /**
@@ -111,61 +117,27 @@ public class MarkerFilesStatus {
     }
 
     /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the coin round marker file status set to {@code true}.
+     * Returns a new instance of {@link MarkerFilesStatus} with the specified marker files added to this instance.
      *
-     * @return a new {@link MarkerFilesStatus} with the updated status
+     * @param markerFileNames the list of marker file names to set
+     * @return a new {@link MarkerFilesStatus} with the updated marker file names
      */
-    @NonNull
-    public MarkerFilesStatus withCoinRoundMarkerFile() {
-        return new MarkerFilesStatus(true, hasNoSuperMajorityMarkerFile, hasNoJudgesMarkerFile,
-                hasConsensusExceptionMarkerFile, issMarkerFiles);
-    }
-
-    /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the no-super-majority marker file status set to {@code true}.
-     *
-     * @return a new {@link MarkerFilesStatus} with the updated status
-     */
-    @NonNull
-    public MarkerFilesStatus withNoSuperMajorityMarkerFile() {
-        return new MarkerFilesStatus(hasCoinRoundMarkerFile, true, hasNoJudgesMarkerFile,
-                hasConsensusExceptionMarkerFile, issMarkerFiles);
-    }
-
-    /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the no-judges marker file status set to {@code true}.
-     *
-     * @return a new {@link MarkerFilesStatus} with the updated status
-     */
-    @NonNull
-    public MarkerFilesStatus withNoJudgesMarkerFile() {
-        return new MarkerFilesStatus(hasCoinRoundMarkerFile, hasNoSuperMajorityMarkerFile, true,
-                hasConsensusExceptionMarkerFile, issMarkerFiles);
-    }
-
-    /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the consensus exception marker file status set to {@code true}.
-     *
-     * @return a new {@link MarkerFilesStatus} with the updated status
-     */
-    @NonNull
-    public MarkerFilesStatus withConsensusExceptionMarkerFile() {
-        return new MarkerFilesStatus(hasCoinRoundMarkerFile, hasNoSuperMajorityMarkerFile, hasNoJudgesMarkerFile,
-                true, issMarkerFiles);
-    }
-
-    /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the specified ISS marker file type added.
-     *
-     * @param issType the type of ISS marker file to add
-     * @return a new {@link MarkerFilesStatus} with the updated status
-     * @throws NullPointerException if {@code issType} is {@code null}
-     */
-    @NonNull
-    public MarkerFilesStatus withISSMarkerFile(@NonNull final IssType issType) {
+    public MarkerFilesStatus withMarkerFiles(final List<String> markerFileNames) {
         final EnumSet<IssType> newIssMarkerFiles = EnumSet.copyOf(issMarkerFiles);
-        newIssMarkerFiles.add(issType);
-        return new MarkerFilesStatus(hasCoinRoundMarkerFile, hasNoSuperMajorityMarkerFile,
-                hasNoJudgesMarkerFile, hasConsensusExceptionMarkerFile, newIssMarkerFiles);
+        for (final String markerFileName : markerFileNames) {
+            try {
+                newIssMarkerFiles.add(IssType.valueOf(markerFileName));
+            } catch (final IllegalArgumentException e) {
+                // ignore if the marker file name is not a valid IssType
+            }
+        }
+        return new MarkerFilesStatus(
+                this.hasCoinRoundMarkerFile || markerFileNames.contains(ConsensusImpl.COIN_ROUND_MARKER_FILE),
+                this.hasNoSuperMajorityMarkerFile
+                        || markerFileNames.contains(ConsensusImpl.NO_SUPER_MAJORITY_MARKER_FILE),
+                this.hasNoJudgesMarkerFile || markerFileNames.contains(ConsensusImpl.NO_JUDGES_MARKER_FILE),
+                this.hasConsensusExceptionMarkerFile
+                        || markerFileNames.contains(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE),
+                newIssMarkerFiles);
     }
 }

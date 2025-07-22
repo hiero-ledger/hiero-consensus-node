@@ -15,7 +15,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
-import java.io.IOException;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;

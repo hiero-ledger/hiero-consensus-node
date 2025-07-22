@@ -147,17 +147,16 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Set a new status of marker files for the node.
+     * Add new marker files to the collector.
      *
-     * @param markerFilesStatus the new status of marker files
+     * @param markerFileNames the names of the new marker files
      */
-    public void setMarkerFilesStatus(@NonNull final MarkerFilesStatus markerFilesStatus) {
+    public void addMarkerFiles(@NonNull final List<String> markerFileNames) {
         requireNonNull(markerFilesStatus);
-        if (!destroyed) {
-            this.markerFilesStatus = markerFilesStatus;
-            markerFileSubscribers.removeIf(
-                    subscriber -> subscriber.onNewMarkerFile(nodeId, markerFilesStatus)
-                            == SubscriberAction.UNSUBSCRIBE);
+        if (!destroyed && !markerFileNames.isEmpty()) {
+            this.markerFilesStatus = markerFilesStatus.withMarkerFiles(markerFileNames);
+            markerFileSubscribers.removeIf(subscriber ->
+                    subscriber.onNewMarkerFile(nodeId, markerFilesStatus) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 

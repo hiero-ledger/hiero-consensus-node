@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
@@ -9,9 +10,9 @@ import java.nio.file.Path;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Instant;
-import java.util.function.Consumer;
+import java.util.List;
 import org.hiero.otter.fixtures.internal.helpers.MarkerFileUtils;
-import org.hiero.otter.fixtures.result.MarkerFilesStatus;
+import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.turtle.TurtleTimeManager.TimeTickReceiver;
 
 /**
@@ -20,21 +21,18 @@ import org.hiero.otter.fixtures.turtle.TurtleTimeManager.TimeTickReceiver;
  */
 public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
-    private final Consumer<MarkerFilesStatus> statusUpdateCallback;
+    private final NodeResultsCollector resultsCollector;
 
     @Nullable
     private WatchService watchService;
 
-    private MarkerFilesStatus status = MarkerFilesStatus.INITIAL_STATUS;
-
     /**
      * Creates a new instance of {@link TurtleMarkerFileObserver}.
      *
-     * @param statusUpdateCallback the callback to invoke when the status of marker files changes
+     * @param resultsCollector the {@link NodeResultsCollector} that collects the results
      */
-    public TurtleMarkerFileObserver(
-            final Consumer<MarkerFilesStatus> statusUpdateCallback) {
-        this.statusUpdateCallback = requireNonNull(statusUpdateCallback);
+    public TurtleMarkerFileObserver(@NonNull final NodeResultsCollector resultsCollector) {
+        this.resultsCollector = requireNonNull(resultsCollector);
     }
 
     /**
@@ -65,17 +63,15 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
     @Override
     public void tick(@NonNull final Instant now) {
         if (watchService == null) {
-            return; // WatchService is not initialized yet
+            return; // WatchService is not set up
         }
 
         try {
             final WatchKey key = watchService.poll();
             if (key.isValid()) {
-                final MarkerFilesStatus newStatus = MarkerFileUtils.evaluateWatchKey(status, key);
-                if (newStatus != status) {
-                    status = newStatus;
-                    statusUpdateCallback.accept(status);
-                }
+                final List<String> newMarkerFiles = MarkerFileUtils.evaluateWatchKey(key);
+                resultsCollector.addMarkerFiles(newMarkerFiles);
+                key.reset();
                 return;
             }
         } catch (final ClosedWatchServiceException e) {

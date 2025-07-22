@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
