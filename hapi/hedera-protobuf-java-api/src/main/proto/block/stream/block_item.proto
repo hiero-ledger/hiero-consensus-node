@@ -28,7 +28,6 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "services/transaction_contents.proto";
 import "block/stream/block_proof.proto";
 import "block/stream/record_file_item.proto";
 import "block/stream/input/event_metadata.proto";
