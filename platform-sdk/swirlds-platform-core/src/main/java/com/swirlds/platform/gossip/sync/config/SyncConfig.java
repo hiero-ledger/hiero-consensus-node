@@ -48,14 +48,14 @@ import java.time.Duration;
  * @param rpcIdleDispatchPollTimeout         how long should gossip rpc mechanism wait between dispatch actions if no
  *                                           events are ready to be processed (for example synchronization start)
  * @param fairMaxConcurrentSyncs             maximum number of concurrent syncs running after which we won't initiate
- *                                           any more outgoing syncs (but can accept incoming ones) if set <= 0,
+ *                                           any more outgoing syncs (but can accept incoming ones) if set &lt;= 0,
  *                                           disabled entire fair sync logic (syncs will always be initiated if no other
- *                                           reasons block them) if set &gt; 0 and &lte; 1, this number is set as a ratio of
+ *                                           reasons block them) if set &gt; 0 and &lt;= 1, this number is set as a ratio of
  *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
  *                                           as limit of concurrent syncs
  * @param fairMinimalRoundRobinSize          minimal number of synchronizations which happened in the past and are not
  *                                           currently running which has to be breached before sync against same peer
- *                                           can be considered if set &gt; 0 and &lte; 1, this number is set as a ratio of
+ *                                           can be considered if set &gt; 0 and &lt;= 1, this number is set as a ratio of
  *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
  *                                           as minimal round robin size
  */
