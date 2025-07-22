@@ -12,6 +12,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 
 /**
  * Interface representing a network of nodes.
@@ -169,6 +170,14 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
+
+    /**
+     * Gets the results related to node reconnects of all nodes that are currently in the network.
+     *
+     * @return the results of node reconnects
+     */
+    @NonNull
+    MultipleNodeReconnectResults getReconnectResults();
 
     /**
      * Gets the marker file results of all nodes that are currently in the network.

@@ -85,6 +85,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -580,7 +581,7 @@ public class AtomicContractCallSuite {
                                 .via(PAY_TXN)
                                 .payingWith(ACCOUNT)
                                 .sending(ONE_HBAR)
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -1816,7 +1817,7 @@ public class AtomicContractCallSuite {
                                             BigInteger.valueOf(10L))
                                     .payingWith(ACC)
                                     .signedBy(PAYER_KEY)
-                                    .hasPrecheck(INVALID_SIGNATURE)
+                                    .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                     .refusingEthConversion()
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
