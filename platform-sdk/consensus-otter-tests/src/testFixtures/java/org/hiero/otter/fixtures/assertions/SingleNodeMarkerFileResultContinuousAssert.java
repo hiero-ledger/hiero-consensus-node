@@ -46,7 +46,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteAnyMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasAnyMarkerFile()) {
                 failWithMessage("Expected no marker files, but found %s", markerFilesStatus);
@@ -60,7 +60,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteCoinRoundMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoCoinRoundMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasCoinRoundMarkerFile()) {
                 failWithMessage("Expected no coin round marker file, but one was written");
@@ -74,7 +74,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteNoSuperMajorityMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoNoSuperMajorityMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasNoSuperMajorityMarkerFile()) {
                 failWithMessage("Expected no no-super-majority marker file, but one was written");
@@ -88,7 +88,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteNoJudgesMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoNoJudgesMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasNoJudgesMarkerFile()) {
                 failWithMessage("Expected no no-judges marker file, but one was written");
@@ -102,7 +102,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteConsensusExceptionMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoWriteConsensusExceptionMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasConsensusExceptionMarkerFile()) {
                 failWithMessage("Expected no consensus exception marker file, but one was written");
@@ -116,7 +116,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteAnyISSMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasAnyISSMarkerFile()) {
                 failWithMessage("Expected no ISS marker file, but found: %s", markerFilesStatus);
@@ -131,7 +131,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert doesNotWriteISSMarkerFileOfType(
+    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFileOfType(
             @NonNull final IssType issType) {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasISSMarkerFileOfType(issType)) {

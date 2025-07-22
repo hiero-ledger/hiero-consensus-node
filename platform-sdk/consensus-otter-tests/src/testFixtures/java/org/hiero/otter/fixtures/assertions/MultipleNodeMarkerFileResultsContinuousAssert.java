@@ -48,7 +48,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteAnyMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyMarkerFile()) {
                 failWithMessage(
@@ -63,7 +63,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteCoinRoundMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoCoinRoundMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasCoinRoundMarkerFile()) {
                 failWithMessage(
@@ -78,7 +78,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteNoSuperMajorityMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoSuperMajorityMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoSuperMajorityMarkerFile()) {
                 failWithMessage(
@@ -93,7 +93,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteNoJudgesMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoJudgesMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoJudgesMarkerFile()) {
                 failWithMessage(
@@ -108,7 +108,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteConsensusExceptionMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoConsensusExceptionMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasConsensusExceptionMarkerFile()) {
                 failWithMessage(
@@ -123,7 +123,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteAnyIssMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyISSMarkerFile()) {
                 failWithMessage(
@@ -139,7 +139,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert doNotWriteIssMarkerFilesOfType(
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFilesOfType(
             @NonNull final IssType issType) {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasISSMarkerFileOfType(issType)) {

@@ -43,11 +43,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveAnyMarkerFiles() {
+    public MultipleNodeMarkerFileResultsAssert haveNoMarkerFiles() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveAnyMarkerFile();
+            OtterAssertions.assertThat(result).hasNoMarkerFile();
         }
 
         return this;
@@ -59,11 +59,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveCoinRoundMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoCoinRoundMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveCoinRoundMarkerFile();
+            OtterAssertions.assertThat(result).hasNoCoinRoundMarkerFile();
         }
 
         return this;
@@ -75,11 +75,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveNoSuperMajorityMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoNoSuperMajorityMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveNoSuperMajorityMarkerFile();
+            OtterAssertions.assertThat(result).hasNoNoSuperMajorityMarkerFile();
         }
 
         return this;
@@ -91,11 +91,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveNoJudgesMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoNoJudgesMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveNoJudgesMarkerFile();
+            OtterAssertions.assertThat(result).hasNoNoJudgesMarkerFile();
         }
 
         return this;
@@ -107,11 +107,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveConsensusExceptionMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoConsensusExceptionMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveConsensusExceptionMarkerFile();
+            OtterAssertions.assertThat(result).hasNoConsensusExceptionMarkerFile();
         }
 
         return this;
@@ -123,11 +123,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveAnyISSMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoISSMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveAnyISSMarkerFile();
+            OtterAssertions.assertThat(result).hasNoISSMarkerFile();
         }
 
         return this;
@@ -140,11 +140,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert doNotHaveISSMarkerFileOfType(@NonNull final IssType issType) {
+    public MultipleNodeMarkerFileResultsAssert haveNoISSMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).doesNotHaveISSMarkerFileOfType(issType);
+            OtterAssertions.assertThat(result).hasNoISSMarkerFileOfType(issType);
         }
 
         return this;

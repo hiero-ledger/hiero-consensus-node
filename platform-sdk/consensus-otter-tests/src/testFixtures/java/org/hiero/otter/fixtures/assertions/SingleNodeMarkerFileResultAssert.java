@@ -41,7 +41,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveAnyMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoMarkerFile() {
         isNotNull();
 
         if (actual.status().hasAnyMarkerFile()) {
@@ -57,7 +57,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveCoinRoundMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoCoinRoundMarkerFile() {
         isNotNull();
 
         if (actual.status().hasCoinRoundMarkerFile()) {
@@ -73,7 +73,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveNoSuperMajorityMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoNoSuperMajorityMarkerFile() {
         isNotNull();
 
         if (actual.status().hasNoSuperMajorityMarkerFile()) {
@@ -89,7 +89,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveNoJudgesMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoNoJudgesMarkerFile() {
         isNotNull();
 
         if (actual.status().hasNoJudgesMarkerFile()) {
@@ -105,7 +105,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveConsensusExceptionMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoConsensusExceptionMarkerFile() {
         isNotNull();
 
         if (actual.status().hasConsensusExceptionMarkerFile()) {
@@ -121,7 +121,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveAnyISSMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNoISSMarkerFile() {
         isNotNull();
 
         if (actual.status().hasAnyISSMarkerFile()) {
@@ -138,7 +138,7 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert doesNotHaveISSMarkerFileOfType(@NonNull final IssType issType) {
+    public SingleNodeMarkerFileResultAssert hasNoISSMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
         if (actual.status().hasISSMarkerFileOfType(issType)) {
