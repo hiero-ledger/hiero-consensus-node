@@ -120,7 +120,7 @@ public class AutoAccountCreationSuite {
     public static final String LAZY_MEMO = "";
     public static final String VALID_ALIAS = "validAlias";
     private static final String PAYER = "payer";
-    private static final String TRANSFER_TXN = "transferTxn";
+    public static final String TRANSFER_TXN = "transferTxn";
     private static final String ALIAS = "alias";
     private static final String PAYER_1 = "payer1";
     private static final String ALIAS_2 = "alias2";
@@ -135,7 +135,7 @@ public class AutoAccountCreationSuite {
     public static final String PARTY = "party";
     private static final String COUNTERPARTY = "counterparty";
 
-    private static final String CIVILIAN = "somebody";
+    public static final String CIVILIAN = "somebody";
     public static final String TOKEN_A_CREATE = "tokenACreateTxn";
 
     private static final String TOKEN_B_CREATE = "tokenBCreateTxn";
