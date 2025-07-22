@@ -11,6 +11,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * Interface representing a node in the network.
@@ -215,4 +216,11 @@ public interface Node {
      */
     @NonNull
     SingleNodePcesResult getPcesResult();
+
+    /**
+     * Gets the results of any reconnects this node performed.
+     * @return the reconnect results of the node
+     */
+    @NonNull
+    SingleNodeReconnectResult getReconnectResults();
 }

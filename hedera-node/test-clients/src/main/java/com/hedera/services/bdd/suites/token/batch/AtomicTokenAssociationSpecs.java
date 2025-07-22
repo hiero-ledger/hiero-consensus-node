@@ -136,7 +136,7 @@ public class AtomicTokenAssociationSpecs {
                 atomicBatch(tokenAssociate(unknownID, VANILLA_TOKEN)
                                 .fee(DEFAULT_FEE)
                                 .signedBy(DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_ACCOUNT_ID)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
@@ -545,7 +545,7 @@ public class AtomicTokenAssociationSpecs {
     final Stream<DynamicTest> dissociateHasExpectedSemantics() {
         return hapiTest(flattened(
                 basicKeysAndTokens(),
-                tokenCreate("tkn1"),
+                tokenCreate("tkn1").treasury(TOKEN_TREASURY),
                 cryptoCreate("misc"),
                 atomicBatch(tokenDissociate(TOKEN_TREASURY, "tkn1")
                                 .hasKnownStatus(ACCOUNT_IS_TREASURY)
