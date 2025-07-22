@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
-import org.hiero.otter.fixtures.internal.result.MarkerFilesStatusImpl;
 
 /**
  * A data structure that holds the status of marker files for a node.
@@ -19,9 +18,18 @@ public class MarkerFilesStatus {
     private final boolean hasConsensusExceptionMarkerFile;
     private final EnumSet<IssType> issMarkerFiles;
 
-    public static final MarkerFilesStatus INITIAL_STATUS = new MarkerFilesStatusImpl(
+    public static final MarkerFilesStatus INITIAL_STATUS = new MarkerFilesStatus(
             false, false, false, false, EnumSet.noneOf(IssType.class));
 
+    /**
+     * Creates a new instance of {@link MarkerFilesStatus}.
+     *
+     * @param hasCoinRoundMarkerFile indicates if the node wrote a coin round marker file
+     * @param hasNoSuperMajorityMarkerFile indicates if the node wrote a no-super-majority marker file
+     * @param hasNoJudgesMarkerFile indicates if the node wrote a no-judges marker file
+     * @param hasConsensusExceptionMarkerFile indicates if the node has a consensus exception marker file
+     * @param issMarkerFiles the set of ISS marker files written by the node
+     */
     public MarkerFilesStatus(
             final boolean hasCoinRoundMarkerFile,
             final boolean hasNoSuperMajorityMarkerFile,

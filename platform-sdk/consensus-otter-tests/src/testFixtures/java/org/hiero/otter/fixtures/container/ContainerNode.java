@@ -52,6 +52,7 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
@@ -84,7 +85,6 @@ public class ContainerNode extends AbstractNode implements Node {
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final ContainerMarkerFileObserver markerFileObserver;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
 
     /**
@@ -95,6 +95,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
+     * @param outputDirectory the directory where the node's output will be stored
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -109,7 +110,6 @@ public class ContainerNode extends AbstractNode implements Node {
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.markerFileObserver = new ContainerMarkerFileObserver(selfId)
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
         final String savedStateDirectory = nodeConfiguration
@@ -118,7 +118,6 @@ public class ContainerNode extends AbstractNode implements Node {
                 .savedStateDirectory()
                 .toString();
 
-        //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
@@ -270,7 +269,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodeMarkerFileResult getMarkerFileResult() {
-        return null;
+        return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 
     /**
@@ -279,14 +278,18 @@ public class ContainerNode extends AbstractNode implements Node {
      * effects.
      */
     // ignoring the Empty answer from destroyContainer
-    void destroy() throws IOException {
-        // copy logs from container to the local filesystem
-        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
-        Files.createDirectories(logPath);
-        Files.deleteIfExists(logPath.resolve("swirlds.log"));
-        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
-        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
-        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+    void destroy() {
+        try {
+            // copy logs from container to the local filesystem
+            final Path logPath = Path.of("build", "container", "node-" + selfId.id());
+            Files.createDirectories(logPath);
+            Files.deleteIfExists(logPath.resolve("swirlds.log"));
+            container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
+            Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
+            container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy logs from container", e);
+        }
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);

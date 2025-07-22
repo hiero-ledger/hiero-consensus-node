@@ -1,38 +1,62 @@
 package org.hiero.otter.fixtures.turtle;
 
-import com.hedera.hapi.platform.state.NodeId;
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.ClosedWatchServiceException;
+import java.nio.file.Path;
 import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.time.Instant;
-import org.hiero.otter.fixtures.internal.result.AbstractMarkerFileObserver;
+import java.util.function.Consumer;
+import org.hiero.otter.fixtures.internal.helpers.MarkerFileUtils;
+import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.turtle.TurtleTimeManager.TimeTickReceiver;
 
 /**
  * An observer that watches for marker files written by a Turtle node.
  * It checks for new marker files on each time tick, thus making this check deterministic.
  */
-public class TurtleMarkerFileObserver extends AbstractMarkerFileObserver implements TimeTickReceiver {
+public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
-    private enum State { OBSERVING, STOPPED }
+    private final Consumer<MarkerFilesStatus> statusUpdateCallback;
 
-    private State state = State.STOPPED;
+    @Nullable
+    private WatchService watchService;
+
+    private MarkerFilesStatus status = MarkerFilesStatus.INITIAL_STATUS;
 
     /**
-     * Constructs a new {@link AbstractMarkerFileObserver} for the given node ID.
+     * Creates a new instance of {@link TurtleMarkerFileObserver}.
      *
-     * @param nodeId the ID of the node to observe
+     * @param statusUpdateCallback the callback to invoke when the status of marker files changes
      */
-    public TurtleMarkerFileObserver(@NonNull final NodeId nodeId) {
-        super(nodeId);
+    public TurtleMarkerFileObserver(
+            final Consumer<MarkerFilesStatus> statusUpdateCallback) {
+        this.statusUpdateCallback = requireNonNull(statusUpdateCallback);
     }
 
     /**
-     * {@inheritDoc}
+     * Starts observing the given directory for marker files.
+     *
+     * @param markerFilesDir the directory to observe for marker files
      */
-    @Override
-    protected void doStartObserving() {
-        state = State.OBSERVING;
+    public void startObserving(@NonNull final Path markerFilesDir) {
+        if (watchService != null) {
+            throw new IllegalStateException("Already observing marker files");
+        }
+        watchService = MarkerFileUtils.startObserving(markerFilesDir);
+    }
+
+    /**
+     * Stops observing the file system for marker files.
+     */
+    public void stopObserving() {
+        if (watchService != null) {
+            MarkerFileUtils.stopObserving(watchService);
+        }
+        watchService = null;
     }
 
     /**
@@ -40,20 +64,23 @@ public class TurtleMarkerFileObserver extends AbstractMarkerFileObserver impleme
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        if (state == State.STOPPED) {
-            return; // Do not process ticks if the observer is stopped
+        if (watchService == null) {
+            return; // WatchService is not initialized yet
         }
 
-        assert watchService != null;
         try {
             final WatchKey key = watchService.poll();
             if (key.isValid()) {
-                evaluateWatchKey(key);
-            } else {
-                state = State.STOPPED;
+                final MarkerFilesStatus newStatus = MarkerFileUtils.evaluateWatchKey(status, key);
+                if (newStatus != status) {
+                    status = newStatus;
+                    statusUpdateCallback.accept(status);
+                }
+                return;
             }
         } catch (final ClosedWatchServiceException e) {
-            state = State.OBSERVING;
+            // ignore
         }
+        watchService = null;
     }
 }

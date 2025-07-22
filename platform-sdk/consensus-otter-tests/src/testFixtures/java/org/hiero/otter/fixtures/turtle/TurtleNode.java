@@ -31,6 +31,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -58,6 +59,7 @@ import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -134,7 +136,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
-            this.markerFileObserver = new TurtleMarkerFileObserver(selfId);
+            this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector::setMarkerFilesStatus);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -284,7 +286,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeMarkerFileResult getMarkerFileResult() {
-        return markerFileObserver;
+        return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 
     /**
@@ -301,6 +303,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
             }
         }
+
+        markerFileObserver.tick(now);
     }
 
     /**
@@ -345,7 +349,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         setupGlobalMetrics(currentConfiguration);
 
-        markerFileObserver.startObserving(currentConfiguration);
+        final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
+        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
+        if (markerFilesDir != null) {
+            markerFileObserver.startObserving(markerFilesDir);
+        }
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
