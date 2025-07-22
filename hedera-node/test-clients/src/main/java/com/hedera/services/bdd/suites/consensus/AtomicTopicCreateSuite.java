@@ -34,6 +34,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -331,14 +332,14 @@ public class AtomicTopicCreateSuite {
                 atomicBatch(createTopic("testTopic")
                                 .payingWith("payer")
                                 .signedBy("wrongKey")
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INVALID_SIGNATURE),
                 // But contracts without admin keys will get INVALID_SIGNATURE (can't sign!)
                 atomicBatch(createTopic("NotToBe")
                                 .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
-                                .hasKnownStatusFrom(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -355,7 +356,7 @@ public class AtomicTopicCreateSuite {
                                 .payingWith("payer")
                                 .autoRenewAccountId("autoRenewAccount")
                                 .signedBy("autoRenewAccount")
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INVALID_SIGNATURE),

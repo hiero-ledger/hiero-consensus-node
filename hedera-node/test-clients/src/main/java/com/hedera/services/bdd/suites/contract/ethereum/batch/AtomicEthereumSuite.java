@@ -576,7 +576,7 @@ public class AtomicEthereumSuite {
                                 .fee(810000000L)
                                 .maxGasAllowance(0L)
                                 .nonce(999L)
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(WRONG_NONCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
