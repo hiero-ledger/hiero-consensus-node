@@ -4,9 +4,12 @@ package com.swirlds.demo.consistency;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -19,7 +22,6 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.utility.NonCryptographicHashing;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -52,7 +54,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
 
     /**
      * The number of rounds handled by this app. Is incremented each time
-     * {@link ConsistencyTestingToolConsensusStateEventHandler#onHandleConsensusRound(Round, ConsistencyTestingToolState, Consumer < ScopedSystemTransaction < StateSignatureTransaction >>)} is called. Note that this may not actually equal the round
+     * {@link ConsistencyTestingToolConsensusStateEventHandler#onHandleConsensusRound(Round, ConsistencyTestingToolState, Consumer)} is called. Note that this may not actually equal the round
      * number, since we don't call {@link ConsistencyTestingToolConsensusStateEventHandler#onHandleConsensusRound(Round, ConsistencyTestingToolState, Consumer<ScopedSystemTransaction<StateSignatureTransaction>>)} for rounds with no events.
      *
      * <p>
@@ -172,7 +174,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     }
 
     private void processRound(Round round) {
-        stateLong = NonCryptographicHashing.hash64(stateLong, round.getRoundNum());
+        stateLong = hash64(stateLong, round.getRoundNum());
         transactionHandlingHistory.processRound(ConsistencyTestingToolRound.fromRound(round, stateLong));
         setChild(STATE_LONG_INDEX, new StringLeaf(Long.toString(stateLong)));
     }
@@ -214,7 +216,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
             logger.error(EXCEPTION.getMarker(), "Transaction {} was not prehandled.", transactionContents);
         }
 
-        stateLong = NonCryptographicHashing.hash64(stateLong, transactionContents);
+        stateLong = hash64(stateLong, transactionContents);
         setChild(STATE_LONG_INDEX, new StringLeaf(Long.toString(stateLong)));
     }
 
@@ -261,5 +263,10 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     @Override
     protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
+    }
+
+    @Override
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+        return this;
     }
 }

@@ -138,7 +138,13 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile, platformStateFacade, platformContext)
+                        signedStateFile,
+                        (virtualMap) -> {
+                            https: // github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                            throw new UnsupportedOperationException();
+                        },
+                        platformStateFacade,
+                        platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
@@ -188,8 +194,8 @@ public final class EventRecoveryWorkflow {
             final PcesFile preconsensusEventFile = PcesFile.of(
                     Instant.now(),
                     0,
-                    recoveredState.judge().getGeneration(),
-                    recoveredState.judge().getGeneration(),
+                    recoveredState.judge().getBirthRound(),
+                    recoveredState.judge().getBirthRound(),
                     recoveredState.state().get().getRound(),
                     resultingStateDirectory);
             final PcesFileWriterType type = platformContext

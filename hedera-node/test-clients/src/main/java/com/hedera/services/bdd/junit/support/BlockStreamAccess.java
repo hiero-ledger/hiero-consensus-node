@@ -15,9 +15,9 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -56,7 +56,9 @@ public enum BlockStreamAccess {
      */
     public List<Block> readBlocks(@NonNull final Path path) {
         try {
-            return orderedBlocksFrom(path).stream().map(this::blockFrom).toList();
+            return orderedBlocksFrom(path).stream()
+                    .map(BlockStreamAccess::blockFrom)
+                    .toList();
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);
@@ -155,7 +157,7 @@ public enum BlockStreamAccess {
             @NonNull final String serviceName,
             @NonNull final String stateKey) {
         final AtomicReference<V> lastValue = new AtomicReference<>();
-        final var stateId = BlockImplUtils.stateIdFor(serviceName, stateKey);
+        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         stateChangesForState(blocks, stateId)
                 .filter(StateChange::hasSingletonUpdate)
                 .map(StateChange::singletonUpdateOrThrow)
@@ -183,7 +185,7 @@ public enum BlockStreamAccess {
             @NonNull final String serviceName,
             @NonNull final String stateKey) {
         final Map<K, V> upToDate = new HashMap<>();
-        final var stateId = BlockImplUtils.stateIdFor(serviceName, stateKey);
+        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         blocks.forEach(block -> block.items().stream()
                 .filter(BlockItem::hasStateChanges)
                 .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
@@ -202,14 +204,12 @@ public enum BlockStreamAccess {
         return upToDate;
     }
 
-    private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
-        return blocks.stream().flatMap(block -> block.items().stream()
-                .filter(BlockItem::hasStateChanges)
-                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
-                .filter(change -> change.stateId() == stateId));
-    }
-
-    private Block blockFrom(@NonNull final Path path) {
+    /**
+     * Reads a single block from the given path.
+     * @param path the path to read the block from
+     * @return the block
+     */
+    public static Block blockFrom(@NonNull final Path path) {
         final var fileName = path.getFileName().toString();
         try {
             if (fileName.endsWith(".gz")) {
@@ -224,7 +224,14 @@ public enum BlockStreamAccess {
         }
     }
 
-    private List<Path> orderedBlocksFrom(@NonNull final Path path) throws IOException {
+    private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
+        return blocks.stream().flatMap(block -> block.items().stream()
+                .filter(BlockItem::hasStateChanges)
+                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                .filter(change -> change.stateId() == stateId));
+    }
+
+    private static List<Path> orderedBlocksFrom(@NonNull final Path path) throws IOException {
         try (final var stream = Files.walk(path)) {
             return stream.filter(BlockStreamAccess::isBlockFile)
                     .sorted(comparing(BlockStreamAccess::extractBlockNumber))
@@ -232,7 +239,12 @@ public enum BlockStreamAccess {
         }
     }
 
-    private static boolean isBlockFile(@NonNull final Path path) {
+    /**
+     * Checks if the given path is a block file.
+     * @param path the path to check
+     * @return true if the path is a block file, false otherwise
+     */
+    public static boolean isBlockFile(@NonNull final Path path) {
         if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
             return false;
         }

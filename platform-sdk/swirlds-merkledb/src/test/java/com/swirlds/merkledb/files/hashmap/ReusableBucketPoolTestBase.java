@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
-import com.swirlds.virtualmap.serialize.KeySerializer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
@@ -41,7 +39,6 @@ abstract class ReusableBucketPoolTestBase {
     @Test
     @DisplayName("Basic get / release bucket")
     void basicGetRelease() {
-        final KeySerializer<ExampleLongKeyFixedSize> serializer = new ExampleLongKeyFixedSize.Serializer();
         final ReusableBucketPool pool = createPool(2);
         final Bucket bucket1 = pool.getBucket();
         Assertions.assertNotNull(bucket1);

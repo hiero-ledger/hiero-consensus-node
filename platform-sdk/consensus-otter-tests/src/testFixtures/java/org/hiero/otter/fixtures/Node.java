@@ -11,6 +11,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * Interface representing a node in the network.
@@ -37,6 +38,40 @@ public interface Node {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     void killImmediately() throws InterruptedException;
+
+    /**
+     * Start a synthetic bottleneck on the node.
+     *
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * <p>Equivalent to calling {@link #startSyntheticBottleneck(Duration)} with a delay of 100 milliseconds.
+     * @see #startSyntheticBottleneck(Duration)
+     */
+    default void startSyntheticBottleneck() {
+        startSyntheticBottleneck(Duration.ofMillis(100));
+    }
+
+    /**
+     * Start a synthetic bottleneck on the node.
+     *
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * @param delayPerRound the duration to sleep on the handle thread after processing each round
+     * @see #startSyntheticBottleneck()
+     */
+    void startSyntheticBottleneck(@NonNull Duration delayPerRound);
+
+    /**
+     * Stop the synthetic bottleneck on the node.
+     *
+     * <p>This method stops the delay in processing rounds of consensus that was started by
+     * {@link #startSyntheticBottleneck(Duration)}.
+     * @see #startSyntheticBottleneck(Duration)
+     * @see #startSyntheticBottleneck()
+     */
+    void stopSyntheticBottleneck();
 
     /**
      * Start the node.
@@ -79,6 +114,12 @@ public interface Node {
     NodeId selfId();
 
     /**
+     * Gets the weight of the node. This value is always non-negative.
+     * @return the weight
+     */
+    long weight();
+
+    /**
      * Returns the status of the platform while the node is running or {@code null} if not.
      *
      * @return the status of the platform
@@ -92,7 +133,34 @@ public interface Node {
      * @return {@code true} if the node is active, {@code false} otherwise
      */
     default boolean isActive() {
-        return platformStatus() == PlatformStatus.ACTIVE;
+        return isInStatus(PlatformStatus.ACTIVE);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#CHECKING}.
+     *
+     * @return {@code true} if the node is checking, {@code false} otherwise
+     */
+    default boolean isChecking() {
+        return isInStatus(PlatformStatus.CHECKING);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#BEHIND}.
+     *
+     * @return {@code true} if the node is behind, {@code false} otherwise
+     */
+    default boolean isBehind() {
+        return isInStatus(PlatformStatus.BEHIND);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@code status}.
+     *
+     * @return {@code true} if the node is in the supplied status, {@code false} otherwise
+     */
+    default boolean isInStatus(@NonNull final PlatformStatus status) {
+        return platformStatus() == status;
     }
 
     /**
@@ -148,4 +216,11 @@ public interface Node {
      */
     @NonNull
     SingleNodePcesResult getPcesResult();
+
+    /**
+     * Gets the results of any reconnects this node performed.
+     * @return the reconnect results of the node
+     */
+    @NonNull
+    SingleNodeReconnectResult getReconnectResults();
 }
