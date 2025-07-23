@@ -15,6 +15,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -68,6 +69,6 @@ public class AdapterUtils {
                 Map.entry(
                         new ProtoBytes(Bytes.wrap(FIRST_TOKEN_SENDER_LITERAL_ALIAS.toByteArray())),
                         toPbj(FIRST_TOKEN_SENDER)));
-        return new MapWritableKVState<>(ALIASES_KEY, wellKnownAliases);
+        return new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY, wellKnownAliases);
     }
 }

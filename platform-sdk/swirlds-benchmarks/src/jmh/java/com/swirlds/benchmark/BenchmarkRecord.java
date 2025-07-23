@@ -67,8 +67,9 @@ public class BenchmarkRecord extends BenchmarkValue {
         super.deserialize(inputStream, dataVersion);
     }
 
-    public static int getSerializedSize() {
-        return Long.BYTES + BenchmarkValue.getSerializedSize();
+    @Override
+    public int getSizeInBytes() {
+        return Long.BYTES + super.getSizeInBytes();
     }
 
     @Override
