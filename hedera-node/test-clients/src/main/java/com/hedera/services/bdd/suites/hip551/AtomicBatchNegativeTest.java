@@ -1033,7 +1033,7 @@ public class AtomicBatchNegativeTest {
     }
 
     /**
-     * Rollback contract emitted logs on fail
+     * Rollback contract emitted logs on fail.
      * @return hapi test
      */
     @HapiTest
