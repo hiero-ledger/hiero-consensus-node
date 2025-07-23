@@ -12,14 +12,16 @@ import org.junit.jupiter.api.Test;
 class ReadableQueueStateBaseTest<E> extends StateTestBase {
     @Test
     void stateKey() {
-        final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+        final var subject =
+                ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
         assertThat(subject.getStateKey()).isEqualTo("FAKE_KEY");
     }
 
     @Test
     void peekIsNullWhenEmpty() {
         // Given an empty queue
-        final var subject = ListReadableQueueState.builder("FAKE_STATE").build();
+        final var subject =
+                ListReadableQueueState.builder("FAKE_NAME", "FAKE_STATE").build();
 
         // When we peek
         final var element = subject.peek();

@@ -9,7 +9,6 @@ import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.NO_OP_METRICS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
@@ -309,7 +308,6 @@ class DiskStartupNetworksTest {
                 currentVersion,
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
-                NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,

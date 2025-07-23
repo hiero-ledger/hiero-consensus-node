@@ -3,9 +3,8 @@ package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -16,8 +15,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * A bare-bones implementation of {@link VirtualRoot} that doesn't do much of anything.
  */
 @ConstructableIgnored
-public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends PartialMerkleLeaf
-        implements VirtualRoot<K, V>, MerkleLeaf {
+public final class NoOpVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleLeaf {
 
     /**
      * Transform this object into an immutable one.
@@ -43,7 +41,7 @@ public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue>
     }
 
     @Override
-    public NoOpVirtualRoot<K, V> copy() {
+    public NoOpVirtualRoot copy() {
         return null;
     }
 
@@ -80,12 +78,12 @@ public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue>
     public void computeHash() {}
 
     @Override
-    public RecordAccessor<K, V> detach() {
+    public RecordAccessor detach() {
         return null;
     }
 
     @Override
-    public void snapshot(final Path destination) {}
+    public void snapshot(@NonNull final Path destination) {}
 
     @Override
     public boolean isDetached() {
@@ -93,7 +91,7 @@ public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue>
     }
 
     @Override
-    public boolean isRegisteredToPipeline(final VirtualPipeline<K, V> pipeline) {
+    public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
         return true;
     }
 
