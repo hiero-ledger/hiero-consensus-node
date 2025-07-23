@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
@@ -137,26 +137,26 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return an assertion for the given {@link SingleNodePlatformStatusResults}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultAssert assertThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return SingleNodePlatformStatusResultAssert.assertThat(actual);
     }
 
     /**
-     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResults}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultContinuousAssert assertContinuouslyThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return SingleNodePlatformStatusResultContinuousAssert.assertContinuouslyThat(actual);
     }
 
