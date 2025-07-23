@@ -44,7 +44,8 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasAnyMarkerFile()) {
-            failWithMessage("Expected no marker files, but node %s wrote at least one: %s", actual.nodeId(), actual.status());
+            failWithMessage(
+                    "Expected no marker files, but node %s wrote at least one: %s", actual.nodeId(), actual.status());
         }
 
         return this;
@@ -124,7 +125,9 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasAnyISSMarkerFile()) {
-            failWithMessage("Expected no ISS marker files, but node %s wrote at least one: %s", actual.nodeId(), actual.status());
+            failWithMessage(
+                    "Expected no ISS marker files, but node %s wrote at least one: %s",
+                    actual.nodeId(), actual.status());
         }
 
         return this;

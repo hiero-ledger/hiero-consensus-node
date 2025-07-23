@@ -51,7 +51,8 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyMarkerFile()) {
-                failWithMessage("Expected no marker file, but node %s wrote at least one: %s", nodeId, markerFileStatus);
+                failWithMessage(
+                        "Expected no marker file, but node %s wrote at least one: %s", nodeId, markerFileStatus);
             }
         });
     }
@@ -121,7 +122,8 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasAnyISSMarkerFile()) {
-                failWithMessage("Expected no ISS marker file, but node %s wrote at least one: %s", nodeId, markerFileStatus);
+                failWithMessage(
+                        "Expected no ISS marker file, but node %s wrote at least one: %s", nodeId, markerFileStatus);
             }
         });
     }
@@ -136,9 +138,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFilesOfType(@NonNull final IssType issType) {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasISSMarkerFileOfType(issType)) {
-                failWithMessage(
-                        "Expected no ISS marker file of type '%s', but node %s wrote one",
-                        issType, nodeId);
+                failWithMessage("Expected no ISS marker file of type '%s', but node %s wrote one", issType, nodeId);
             }
         });
     }
