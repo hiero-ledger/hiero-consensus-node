@@ -38,9 +38,9 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
 
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.getLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.getPlatformStatusResults())
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newPlatformStatusResults())
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
 
@@ -50,13 +50,13 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(network.getConsensusResults())
+        assertThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(10));
 
-        assertThat(network.getPlatformStatusResults())
+        assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }
 }

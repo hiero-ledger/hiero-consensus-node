@@ -51,7 +51,7 @@ public class ReconnectTest {
                     .set(ConsensusConfig_.ROUNDS_EXPIRED, String.valueOf(ROUNDS_EXPIRED));
         });
 
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();
 
         // Wait for thirty seconds minutes
@@ -62,9 +62,9 @@ public class ReconnectTest {
         nodeToReconnect.killImmediately();
 
         // Verify that the node was healthy prior to being killed
-        assertThat(nodeToReconnect.getPlatformStatusResults())
+        assertThat(nodeToReconnect.newPlatformStatusResult())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-        nodeToReconnect.getPlatformStatusResults().clear();
+        nodeToReconnect.newPlatformStatusResult().clear();
 
         // Wait for the node we just killed to fall behind
         if (!timeManager.waitForCondition(
@@ -79,22 +79,20 @@ public class ReconnectTest {
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(nodeToReconnect.getReconnectResults())
-                .hasNoFailedReconnects()
-                .hasExactSuccessfulReconnects(1);
+        assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.getConsensusResults())
+        assertThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(5));
 
         // All non-reconnected nodes should go through the normal status progression
-        assertThat(network.getPlatformStatusResults().suppressingNode(nodeToReconnect))
+        assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         // The reconnected node should have gone through the reconnect status progression since restarting
-        assertThat(nodeToReconnect.getPlatformStatusResults())
+        assertThat(nodeToReconnect.newPlatformStatusResult())
                 .hasSteps(target(ACTIVE)
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
     }
