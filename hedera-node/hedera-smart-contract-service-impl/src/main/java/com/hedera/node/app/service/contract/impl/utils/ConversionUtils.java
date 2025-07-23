@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
-import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
@@ -44,7 +43,6 @@ import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -66,9 +64,6 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
  */
 public class ConversionUtils {
-    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES =
-            new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
-
     /** The standard length as long of an address in Ethereum.*/
     public static final long EVM_ADDRESS_LENGTH_AS_LONG = 20L;
     /** The standard length of an address in Ethereum.*/
@@ -371,7 +366,7 @@ public class ConversionUtils {
                         .slotReads(reads)
                         .build());
             } else {
-                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), IMPLICIT_WRITES, reads));
+                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), null, reads));
             }
         }
         return slotUsages;

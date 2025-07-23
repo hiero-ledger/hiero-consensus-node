@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
@@ -18,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -37,7 +37,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.List;
@@ -125,7 +124,7 @@ public class BlockStreamBuilderTest {
     @Test
     void testBlockItemsWithTraceAndOutput() {
         final var usages = List.of(new ContractSlotUsage(
-                ContractID.DEFAULT, new OneOf<>(WRITTEN_SLOT_KEYS, List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
+                ContractID.DEFAULT, new WrittenSlotKeys(List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
         final var evmTxResult = EvmTransactionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)

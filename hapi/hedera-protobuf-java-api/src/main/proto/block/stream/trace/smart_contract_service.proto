@@ -47,26 +47,18 @@ message ContractSlotUsage {
      */
     proto.ContractID contract_id = 1;
 
-    oneof written_keys {
-        /**
-         * If true, the list of written slot keys is contained in the non-identical
-         * state changes in the Hiero transactional unit of this EVM transaction.
-         */
-        bool written_keys_are_non_identical_state_changes = 2;
-
-        /**
-         * When this EVM transaction was one of several within its Hiero
-         * transactional unit, the storage slots that it wrote.
-         * <p>
-         * The written value can be unambiguously derived from the block items
-         * in this EVM transaction's Hiero transactional unit. In particular,
-         * 1. If a following EVM trace modifies the same slot, the value written
-         * in this EVM transaction was whatever value the following trace read.
-         * 2. If the slot was not modified in a following EVM trace, the value
-         * is whatever value was committed to the Merkle state for the slot.
-         */
-        WrittenSlotKeys written_slot_keys = 3;
-    }
+    /**
+     * When this EVM transaction was one of several within its Hiero
+     * transactional unit, the storage slots that it wrote.
+     * <p>
+     * The written value can be unambiguously derived from the block items
+     * in this EVM transaction's Hiero transactional unit. In particular,
+     * 1. If a following EVM trace modifies the same slot, the value written
+     * in this EVM transaction was whatever value the following trace read.
+     * 2. If the slot was not modified in a following EVM trace, the value
+     * is whatever value was committed to the Merkle state for the slot.
+     */
+    WrittenSlotKeys written_slot_keys = 3;
 
     /**
      * The storage slots that were read in this EVM execution. They may or
@@ -85,8 +77,18 @@ message WrittenSlotKeys {
 message SlotRead {
     oneof identifier {
         /**
-        * If this slot was also written, the index of the written key in the
-        * ContractSlotUsage#slot_writes list above.
+        * If this slot was also written, the index of the written key in a
+        * an explicit or implicit list of written keys in the stream.
+        * <p>
+        * The case of the explicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` set to a non-empty list
+        * of keys. In this case, the index is into that list.
+        * <p>
+        * The case of the implicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` unset. In this case,
+        * the list is implicit---it is the list of all SlotKey state changes
+        * in the Hiero transactional unit that match this ContractSlotUsage's
+        * `contract_id` and have `identical` set to false.
         */
         int32 index = 1;
 

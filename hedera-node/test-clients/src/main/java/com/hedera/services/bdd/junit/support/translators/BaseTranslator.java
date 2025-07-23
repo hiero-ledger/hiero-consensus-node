@@ -701,30 +701,28 @@ public class BaseTranslator {
      */
     private static List<Bytes> writtenKeysFrom(
             @NonNull final ContractSlotUsage slotUsage, @NonNull final List<StateChange> stateChanges) {
-        return switch (slotUsage.writtenKeys().kind()) {
-            case UNSET -> throw new IllegalStateException("No written keys kind set for slot");
-            case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES -> {
-                final List<Bytes> writtenKeys = new LinkedList<>();
-                final var contractId = slotUsage.contractIdOrThrow();
-                for (final var stateChange : stateChanges) {
-                    if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
-                        continue;
-                    }
-                    SlotKey slotKey = null;
-                    if (stateChange.hasMapUpdate()
-                            && !stateChange.mapUpdateOrThrow().identical()) {
-                        slotKey = stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                    } else if (stateChange.hasMapDelete()) {
-                        slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                    }
-                    if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
-                        writtenKeys.add(sansLeadingZeros(slotKey.key()));
-                    }
+        if (slotUsage.hasWrittenSlotKeys()) {
+            return slotUsage.writtenSlotKeysOrThrow().keys();
+        } else {
+            final List<Bytes> writtenKeys = new LinkedList<>();
+            final var contractId = slotUsage.contractIdOrThrow();
+            for (final var stateChange : stateChanges) {
+                if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                    continue;
                 }
-                yield writtenKeys;
+                SlotKey slotKey = null;
+                if (stateChange.hasMapUpdate()
+                        && !stateChange.mapUpdateOrThrow().identical()) {
+                    slotKey = stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                } else if (stateChange.hasMapDelete()) {
+                    slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                }
+                if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
+                    writtenKeys.add(sansLeadingZeros(slotKey.key()));
+                }
             }
-            case WRITTEN_SLOT_KEYS -> slotUsage.writtenSlotKeysOrThrow().keys();
-        };
+            return writtenKeys;
+        }
     }
 
     /**

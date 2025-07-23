@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
-import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
@@ -165,8 +164,6 @@ public class BlockStreamBuilder
 
     private static final Logger log = LogManager.getLogger(BlockStreamBuilder.class);
 
-    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES =
-            new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenIdOrThrow().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNumOrThrow());
@@ -648,7 +645,7 @@ public class BlockStreamBuilder
                                         indexedReads.add(read);
                                     }
                                 }
-                                indexedSlotUsages.add(new ContractSlotUsage(contractId, IMPLICIT_WRITES, indexedReads));
+                                indexedSlotUsages.add(new ContractSlotUsage(contractId, null, indexedReads));
                             } else {
                                 indexedSlotUsages.add(slotUsage);
                             }
