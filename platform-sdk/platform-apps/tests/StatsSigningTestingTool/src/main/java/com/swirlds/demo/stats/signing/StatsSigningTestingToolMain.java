@@ -282,7 +282,7 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
             // Retrieve a random signed transaction from the pool
             transaction = sttTransactionPool.transaction();
 
-            if (!platform.createTransaction(transaction)) {
+            if (!transactionPool.submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
 

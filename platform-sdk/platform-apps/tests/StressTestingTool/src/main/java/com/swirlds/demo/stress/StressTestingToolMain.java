@@ -234,7 +234,7 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
             // Retrieve a random signed transaction from the pool
             transaction = transactionPool.transaction();
 
-            if (!platform.createTransaction(transaction)) {
+            if (!transactionPoolNexus.submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
 

@@ -206,7 +206,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
                 break; // don't create too many transactions per event
             }
             random.nextBytes(transaction); // random, so it's non-compressible
-            if (!platform.createTransaction(transaction)) {
+            if (!transactionPool.submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
             numCreated++;

@@ -345,7 +345,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         final byte[] freezeBytes = pttTransactionPool.createFreezeTranByte(startTime);
 
-        if (!submitter.sendFreezeTran(platform, freezeBytes)) {
+        if (!submitter.sendFreezeTran(transactionPool, freezeBytes)) {
             logger.warn(DEMO_INFO.getMarker(), new CreateTransactionFailedPayload(FREEZE_TRANSACTION_TYPE));
         }
     }
@@ -371,7 +371,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 return false;
             }
             final boolean success = submitter.trySubmit(
-                    platform, Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
+                    platform, transactionPool, Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
             if (!success) { // if failed keep bytes payload try next time
                 try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                         UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
@@ -400,7 +400,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             // empty means no more transaction
             logger.info(LOGM_DEMO_INFO, "Stop generating transactions ");
             submitter.sendTransaction(
-                    platform, pttTransactionPool.createControlTranBytes(ControlType.ENTER_VALIDATION));
+                    transactionPool, pttTransactionPool.createControlTranBytes(ControlType.ENTER_VALIDATION));
             logger.info(LOGM_DEMO_INFO, "node {} sent ENTER_VALIDATION Message", platform.getSelfId());
             noMoreTransaction = true;
             return false;
@@ -666,6 +666,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                     // through calls to the setFirstAccountId and setFirstSmartContractId methods.
                     pttTransactionPool = new PttTransactionPool(
                             platform,
+                            transactionPool,
                             platform.getSelfId().id(),
                             payloadConfig,
                             myName,
@@ -754,7 +755,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
             appClient[k] =
-                    new AppClient(this.platform, this.selfId, clientConfig, selfName, consensusStateEventHandler);
+                    new AppClient(this.platform, transactionPool, this.selfId, clientConfig, selfName, consensusStateEventHandler);
             appClient[k].start();
         }
     }
@@ -1124,7 +1125,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                         consensusTime);
 
                 submitter.sendTransaction(
-                        platform, pttTransactionPool.createControlTranBytes(ControlType.EXIT_VALIDATION));
+                        transactionPool, pttTransactionPool.createControlTranBytes(ControlType.EXIT_VALIDATION));
 
                 logger.info(
                         LOGM_DEMO_QUORUM, "Sent EXIT_VALIDATION transaction  [ consensusTime = {} ]", consensusTime);
@@ -1175,7 +1176,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         logger.info(
                 LOGM_DEMO_QUORUM, "Achieved Quorum on ENTER_SYNC transaction [ consensusTime = {} ]", consensusTime);
 
-        submitter.sendTransaction(platform, pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
+        submitter.sendTransaction(transactionPool, pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
 
         logger.info(LOGM_DEMO_QUORUM, "Sent EXIT_SYNC transaction  [ consensusTime = {} ]", consensusTime);
     }

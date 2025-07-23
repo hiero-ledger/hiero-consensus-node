@@ -141,11 +141,11 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
                 byte cents = (byte) Math.max(
                         0, // ask or bid a price close to the current price
                         Math.min(127, price[i] + rand.nextInt(5) - 2));
-                platform.createTransaction(new byte[] {askBid, (byte) i, cents});
+                transactionPool.submitApplicationTransaction(Bytes.wrap(new byte[] {askBid, (byte) i, cents}));
             }
         }
         if (speedCmd != -1) {
-            platform.createTransaction(new byte[] {speedCmd});
+            transactionPool.submitApplicationTransaction(Bytes.wrap(new byte[] {speedCmd}));
             speedCmd = -1;
         }
     }

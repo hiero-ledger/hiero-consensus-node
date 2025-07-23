@@ -158,7 +158,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
 
                 final byte[] transactionData = generator.generateTransaction();
 
-                while (!platform.createTransaction(transactionData)) {
+                while (!transactionPool.submitApplicationTransaction(Bytes.wrap(transactionData))) {
                     Thread.sleep(100);
                 }
 

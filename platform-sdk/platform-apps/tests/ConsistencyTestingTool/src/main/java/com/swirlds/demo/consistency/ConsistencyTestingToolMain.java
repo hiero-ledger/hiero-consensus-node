@@ -96,7 +96,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     public void run() {
         logger.info(STARTUP.getMarker(), "run called in Main.");
-        new TransactionGenerator(new SecureRandom(), platform, TRANSACTIONS_PER_SECOND).start();
+        new TransactionGenerator(new SecureRandom(), platform, transactionPool, TRANSACTIONS_PER_SECOND).start();
     }
 
     /**
