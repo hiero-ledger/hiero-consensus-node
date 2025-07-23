@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.swirlds.state.State;
 import java.util.List;
@@ -32,24 +32,24 @@ class SavepointStackImplBlocksStreamModeTest {
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
-    private KVStateChangeListener kvStateChangeListener;
+    private ImmediateStateChangeListener immediateStateChangeListener;
 
     private SavepointStackImpl subject;
 
     @BeforeEach
     void setUp() {
         subject = SavepointStackImpl.newRootStack(
-                state, 3, 50, boundaryStateChangeListener, kvStateChangeListener, BLOCKS);
+                state, 3, 50, boundaryStateChangeListener, immediateStateChangeListener, BLOCKS);
     }
 
     @Test
     void commitsFullStackAsExpected() {
         final var mockChanges = List.of(StateChange.DEFAULT);
-        given(kvStateChangeListener.getStateChanges()).willReturn(mockChanges);
+        given(immediateStateChangeListener.getStateChanges()).willReturn(mockChanges);
 
         subject.commitTransaction(streamBuilder);
 
-        verify(kvStateChangeListener).reset(null);
+        verify(immediateStateChangeListener).reset(null);
         verify(streamBuilder).stateChanges(mockChanges);
     }
 

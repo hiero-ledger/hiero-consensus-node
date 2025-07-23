@@ -15,9 +15,9 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -157,7 +157,7 @@ public enum BlockStreamAccess {
             @NonNull final String serviceName,
             @NonNull final String stateKey) {
         final AtomicReference<V> lastValue = new AtomicReference<>();
-        final var stateId = BlockImplUtils.stateIdFor(serviceName, stateKey);
+        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         stateChangesForState(blocks, stateId)
                 .filter(StateChange::hasSingletonUpdate)
                 .map(StateChange::singletonUpdateOrThrow)
@@ -185,7 +185,7 @@ public enum BlockStreamAccess {
             @NonNull final String serviceName,
             @NonNull final String stateKey) {
         final Map<K, V> upToDate = new HashMap<>();
-        final var stateId = BlockImplUtils.stateIdFor(serviceName, stateKey);
+        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         blocks.forEach(block -> block.items().stream()
                 .filter(BlockItem::hasStateChanges)
                 .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())

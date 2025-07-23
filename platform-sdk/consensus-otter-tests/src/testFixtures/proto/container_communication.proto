@@ -204,7 +204,7 @@ message KillImmediatelyRequest {
 
 message SyntheticBottleneckRequest {
   // The number of milliseconds to sleep per round on the handle thread
-  int64 sleep_millis_per_round = 1;
+  uint64 sleep_millis_per_round = 1;
 }
 
 // Service definition for controlling tests.

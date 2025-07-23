@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -31,7 +32,7 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         writableNftState = emptyWritableNftStateBuilder().build();
-        given(writableStates.<NftID, Nft>get(NFTS)).willReturn(writableNftState);
+        given(writableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(writableNftState);
         writableNftStore = new WritableNftStore(writableStates, writableEntityCounters);
     }
 
@@ -107,7 +108,7 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
                         Nft.newBuilder().nftId(nftToRemove).ownerId(ownerId).build())
                 .build();
         assertTrue(writableNftState.contains(nftToRemove));
-        given(writableStates.<NftID, Nft>get(NFTS)).willReturn(writableNftState);
+        given(writableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(writableNftState);
         writableNftStore = new WritableNftStore(writableStates, writableEntityCounters);
         assertNotNull(writableNftStore.get(nftToRemove));
 
@@ -130,7 +131,7 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
                         Nft.newBuilder().nftId(nftToRemove).ownerId(ownerId).build())
                 .build();
         assertTrue(writableNftState.contains(nftToRemove));
-        given(writableStates.<NftID, Nft>get(NFTS)).willReturn(writableNftState);
+        given(writableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(writableNftState);
         writableNftStore = new WritableNftStore(writableStates, writableEntityCounters);
         assertNotNull(writableNftStore.get(nftToRemove));
 
@@ -142,7 +143,7 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void warmWarmsUnderlyingState(@Mock WritableKVState<NftID, Nft> nfts) {
-        given(writableStates.<NftID, Nft>get(NFTS)).willReturn(nfts);
+        given(writableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(nfts);
         final var nftStore = new WritableNftStore(writableStates, writableEntityCounters);
         final var id =
                 NftID.newBuilder().tokenId(fungibleTokenId).serialNumber(1).build();

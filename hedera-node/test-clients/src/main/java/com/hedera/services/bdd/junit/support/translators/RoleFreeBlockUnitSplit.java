@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS_QUEUE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -112,7 +113,7 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                if (hasKvOrEmptyChanges(item.stateChangesOrThrow())) {
+                if (hasEmptyOrKvOrNonReceiptQueueChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
             } else if (item.hasSignedTransaction()) {
@@ -285,9 +286,16 @@ public class RoleFreeBlockUnitSplit {
         txIndexes.clear();
     }
 
-    private static boolean hasKvOrEmptyChanges(@NonNull final StateChanges stateChanges) {
+    private static boolean hasEmptyOrKvOrNonReceiptQueueChanges(@NonNull final StateChanges stateChanges) {
         final var changes = stateChanges.stateChanges();
-        return changes.isEmpty() || changes.stream().anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
+        return changes.isEmpty()
+                || changes.stream()
+                        .anyMatch(change -> change.hasMapUpdate()
+                                || change.hasMapDelete()
+                                || (change.hasQueuePush()
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal())
+                                || (change.hasQueuePop()
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal()));
     }
 
     /**

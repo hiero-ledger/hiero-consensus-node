@@ -262,7 +262,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext);
+        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
     }
 
     /**
@@ -355,12 +355,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
-                platformContext);
+                platformContext,
+                OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
@@ -376,7 +377,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         legacyNodeId,
                         eventStreamLoc,
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)

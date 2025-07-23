@@ -444,7 +444,7 @@ public class AtomicLeakyContractTestsSuite {
                 overriding("contracts.maxGasPerSec", "100"),
                 atomicBatch(contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
                                 .gas(23_000L)
-                                .hasPrecheck(MAX_GAS_LIMIT_EXCEEDED)
+                                .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -1234,7 +1234,7 @@ public class AtomicLeakyContractTestsSuite {
                                         .nonce(0)
                                         .gasPrice(0L)
                                         .gasLimit(1_000_000L)
-                                        .hasPrecheck(INVALID_CONTRACT_ID)
+                                        .hasKnownStatus(INVALID_CONTRACT_ID)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))));

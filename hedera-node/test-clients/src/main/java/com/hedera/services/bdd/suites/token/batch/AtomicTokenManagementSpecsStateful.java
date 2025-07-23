@@ -20,7 +20,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
@@ -82,34 +86,46 @@ public class AtomicTokenManagementSpecsStateful {
                 freezeMgmtFailureCasesWorkBase(),
                 atomicBatch(tokenFreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenFreeze(freezableToken, INVALID_ACCOUNT).batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenFreeze(freezableToken, INVALID_ACCOUNT)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(tokenFreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenFreeze(freezableToken, "go").batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenFreeze(freezableToken, "go")
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenUnfreeze(freezableToken, "go").batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenUnfreeze(freezableToken, "go")
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(tokenUnfreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenUnfreeze(freezableToken, INVALID_ACCOUNT).batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenUnfreeze(freezableToken, INVALID_ACCOUNT)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(tokenUnfreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
     }

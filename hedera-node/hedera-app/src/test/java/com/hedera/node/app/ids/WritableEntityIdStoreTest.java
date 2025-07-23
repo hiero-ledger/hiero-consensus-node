@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,10 +19,10 @@ import org.junit.jupiter.api.Test;
 class WritableEntityIdStoreTest {
     private final AtomicReference<EntityNumber> nextEntityNumber = new AtomicReference<>();
     private final AtomicReference<EntityCounts> entityCounts = new AtomicReference<>();
-    private final WritableSingletonState<EntityNumber> entityIdState =
-            new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, nextEntityNumber::get, nextEntityNumber::set);
-    private final WritableSingletonState<EntityCounts> entityCountsState =
-            new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, entityCounts::get, entityCounts::set);
+    private final WritableSingletonState<EntityNumber> entityIdState = new FunctionWritableSingletonState<>(
+            EntityIdService.NAME, ENTITY_ID_STATE_KEY, nextEntityNumber::get, nextEntityNumber::set);
+    private final WritableSingletonState<EntityCounts> entityCountsState = new FunctionWritableSingletonState<>(
+            EntityIdService.NAME, ENTITY_COUNTS_KEY, entityCounts::get, entityCounts::set);
     private WritableEntityIdStore subject;
 
     @BeforeEach

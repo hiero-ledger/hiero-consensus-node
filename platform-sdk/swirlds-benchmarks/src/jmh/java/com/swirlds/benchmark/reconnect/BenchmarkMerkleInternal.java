@@ -4,6 +4,8 @@ package com.swirlds.benchmark.reconnect;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
@@ -118,7 +120,7 @@ public class BenchmarkMerkleInternal extends PartialNaryMerkleInternal implement
      * in position 0, and that leaf will equal this node.
      */
     @Override
-    public MerkleNode migrate(final int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, final int version) {
         return migrationMapper.apply(this, version);
     }
 }
