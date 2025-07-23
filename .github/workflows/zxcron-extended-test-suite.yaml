@@ -61,7 +61,6 @@ jobs:
       # branch.
       - name: Check for tags
         id: check-tags-exist
-        if: ${{ github.event.inputs.rc-tag == 'none' }}
         env:
           GH_TOKEN: ${{ github.token }}
           XTS_PASS_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
