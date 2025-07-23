@@ -46,7 +46,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
-// This test cases are direct copies of TopicUpdateSuite\. The difference here is that
+// This test cases are direct copies of TopicUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 public class AtomicTopicUpdateSuite {
@@ -58,36 +58,29 @@ public class AtomicTopicUpdateSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(
                 Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                atomicBatch(updateTopic("0.0.1")
-                                .hasKnownStatus(INVALID_TOPIC_ID)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+        return hapiTest(atomicBatch(
+                        updateTopic("0.0.1").hasKnownStatus(INVALID_TOPIC_ID).batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
     final Stream<DynamicTest> updateToMissingTopicFails() {
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                atomicBatch(updateTopic("1.2.3")
-                                .hasKnownStatus(INVALID_TOPIC_ID)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+        return hapiTest(atomicBatch(
+                        updateTopic("1.2.3").hasKnownStatus(INVALID_TOPIC_ID).batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         final var autoRenewAccount = "autoRenewAccount";
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(autoRenewAccount),
                 cryptoCreate("replacementAccount"),
                 newKeyNamed("adminKey"),
@@ -100,9 +93,7 @@ public class AtomicTopicUpdateSuite {
 
     private HapiSpecOperation[] validateMultipleFieldsBase() {
         return new HapiSpecOperation[] {
-            cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-            newKeyNamed("adminKey"),
-            createTopic("testTopic").adminKeyName("adminKey")
+            newKeyNamed("adminKey"), createTopic("testTopic").adminKeyName("adminKey")
         };
     }
 
@@ -185,7 +176,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updatingAutoRenewAccountWithoutAdminFails() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate("payer"),
                 createTopic("testTopic").autoRenewAccountId("autoRenewAccount").payingWith("payer"),
@@ -200,7 +190,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updatingAutoRenewAccountWithAdminWorks() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate("newAutoRenewAccount"),
                 cryptoCreate("payer"),
@@ -221,7 +210,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateTopicWithAdminKeyWithoutAutoRenewAccountWithNewAdminKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
                 newKeyNamed("newAdminKey"),
@@ -239,7 +227,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewAutoRenewAccountAdded() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
@@ -274,7 +261,6 @@ public class AtomicTopicUpdateSuite {
                 .hasKnownStatus(SUCCESS);
 
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("oldAdminKey"),
                 cryptoCreate("oldAutoRenewAccount"),
                 newKeyNamed("newAdminKey"),
@@ -304,7 +290,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewAutoRenewAccountAddedAndNewAdminKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
@@ -323,7 +308,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateSubmitKeyToDiffKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 newKeyNamed("submitKey"),
                 createTopic("testTopic").adminKeyName("adminKey"),
@@ -338,7 +322,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> canRemoveSubmitKeyDuringUpdate() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 newKeyNamed("submitKey"),
                 createTopic("testTopic").adminKeyName("adminKey").submitKeyName("submitKey"),
@@ -352,7 +335,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateAdminKeyToDiffKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 newKeyNamed("updateAdminKey"),
                 createTopic("testTopic").adminKeyName("adminKey"),
@@ -364,7 +346,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateAdminKeyToEmpty() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 createTopic("testTopic").adminKeyName("adminKey"),
                 /* if adminKey is empty list should clear adminKey */
@@ -378,7 +359,6 @@ public class AtomicTopicUpdateSuite {
         long expirationTimestamp = Instant.now().getEpochSecond() + 7999990; // more than default.autorenew
         // .secs=7000000
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 newKeyNamed("adminKey2"),
                 newKeyNamed("submitKey"),
@@ -413,7 +393,6 @@ public class AtomicTopicUpdateSuite {
     final Stream<DynamicTest> expirationTimestampNegative() {
         long now = Instant.now().getEpochSecond();
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 createTopic("testTopic").autoRenewPeriod(validAutoRenewPeriod),
                 atomicBatch(updateTopic("testTopic")
                                 .expiry(now - 1) // less than consensus time
@@ -427,7 +406,6 @@ public class AtomicTopicUpdateSuite {
     final Stream<DynamicTest> expirationTimestampReduction() {
         long now = Instant.now().getEpochSecond();
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 createTopic("testTopic").autoRenewPeriod(validAutoRenewPeriod),
                 atomicBatch(updateTopic("testTopic")
                                 .expiry(now + 1000) // 1000 < autoRenewPeriod
@@ -441,9 +419,7 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateExpiryOnTopicWithNoAdminKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                createTopic("testTopic"),
-                doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
+                createTopic("testTopic"), doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
                     final var maxLifetime = Long.parseLong(value);
                     final var newExpiry = now.getEpochSecond() + maxLifetime - 12_345L;
                     final var excessiveExpiry = now.getEpochSecond() + maxLifetime + 12_345L;
@@ -465,7 +441,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateExpiryOnTopicWithAutoRenewAccountNoAdminKey() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount"),
                 createTopic("testTopic").autoRenewAccountId("autoRenewAccount"),
                 doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
@@ -490,7 +465,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> clearingAdminKeyWhenAutoRenewAccountPresent() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("adminKey"),
                 cryptoCreate("autoRenewAccount"),
                 createTopic("testTopic").adminKeyName("adminKey").autoRenewAccountId("autoRenewAccount"),
@@ -511,7 +485,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateSubmitKeyOnTopicWithNoAdminKeyFails() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("submitKey"),
                 createTopic("testTopic"),
                 atomicBatch(updateTopic("testTopic")
@@ -526,7 +499,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewInvalidAutoRenewAccountAdded() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
                 createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
@@ -545,7 +517,6 @@ public class AtomicTopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateImmutableTopicWithAutoRenewAccountWithNewExpirationTime() {
         return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("payer"),
                 cryptoCreate("autoRenewAccount"),
                 createTopic("testTopic")
@@ -562,5 +533,186 @@ public class AtomicTopicUpdateSuite {
                                     .payingWith(BATCH_OPERATOR),
                             getTopicInfo("testTopic").hasExpiry(newExpiry));
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithoutAdminKey() {
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(EMPTY_KEY)
+                                .signedBy(submitKey)
+                                .payingWith(submitKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasNoSubmitKey());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithoutAdminKey() {
+        final var submitKey = "submitKey";
+        final var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(newSubmitKey)
+                                .signedBy(submitKey)
+                                .payingWith(submitKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithRandomKey() {
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(EMPTY_KEY)
+                                .signedBy(randomKey)
+                                .payingWith(randomKey)
+                                .hasKnownStatus(INVALID_SIGNATURE)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
+        final var newSubmitKey = "newSubmitKey";
+        return hapiTest(
+                cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(newSubmitKey)
+                                .signedBy(randomKey)
+                                .payingWith(randomKey)
+                                .hasKnownStatus(INVALID_SIGNATURE)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> adminKeyCanSetItselfToSentinelAndItRemainsSentinel() {
+        var adminKey = "adminKey";
+        var newAdminKey = "newAdminKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(newAdminKey),
+                createTopic(topic).adminKeyName(adminKey),
+                getTopicInfo(topic).hasAdminKey(adminKey),
+                atomicBatch(updateTopic(topic)
+                                .adminKey(EMPTY_KEY)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasNoAdminKey(),
+                atomicBatch(updateTopic(topic)
+                                .adminKey(newAdminKey)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .hasKnownStatus(UNAUTHORIZED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withAdminKeyCanMakeSubmitKeySentinelAndThenUpdateIt() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(EMPTY_KEY)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(newSubmitKey)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withoutAdminKeyWhenSubmitKeyIsSentinelItCannotBeUpdatedBack() {
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                getTopicInfo(topic).hasSubmitKey(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(EMPTY_KEY)
+                                .signedBy(submitKey)
+                                .payingWith(submitKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(newSubmitKey)
+                                .signedBy(submitKey)
+                                .payingWith(submitKey)
+                                .hasKnownStatus(UNAUTHORIZED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> removingAdminAndSubmitKeys() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasSubmitKey(submitKey),
+                atomicBatch(updateTopic(topic)
+                                .submitKey(EMPTY_KEY)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasNoSubmitKey(),
+                atomicBatch(updateTopic(topic)
+                                .adminKey(EMPTY_KEY)
+                                .signedBy(adminKey)
+                                .payingWith(adminKey)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getTopicInfo(topic).hasNoAdminKey().hasNoSubmitKey());
     }
 }

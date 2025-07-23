@@ -138,7 +138,13 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile, platformStateFacade, platformContext)
+                        signedStateFile,
+                        (virtualMap) -> {
+                            https: // github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                            throw new UnsupportedOperationException();
+                        },
+                        platformStateFacade,
+                        platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
