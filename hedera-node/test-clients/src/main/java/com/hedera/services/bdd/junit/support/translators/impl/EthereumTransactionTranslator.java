@@ -84,10 +84,9 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     if (parts.isBatchScoped() && ethTxData != null) {
                                                         if (txCallResult.senderId() != null) {
                                                             if (baseTranslator.isNonceIncremented(
-                                                                    txCallResult
-                                                                            .senderId()
-                                                                            .accountNum(),
-                                                                    ethTxData.nonce())) {
+                                                                    txCallResult.senderId(),
+                                                                    ethTxData.nonce(),
+                                                                    remainingStateChanges)) {
                                                                 derivedBuilder.signerNonce(ethTxData.nonce() + 1L);
                                                             } else {
                                                                 derivedBuilder.signerNonce(ethTxData.nonce());
@@ -150,10 +149,9 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     if (parts.isBatchScoped() && ethTxData != null) {
                                                         if (txCreateResult.senderId() != null
                                                                 && baseTranslator.isNonceIncremented(
-                                                                        txCreateResult
-                                                                                .senderId()
-                                                                                .accountNum(),
-                                                                        ethTxData.nonce())) {
+                                                                        txCreateResult.senderId(),
+                                                                        ethTxData.nonce(),
+                                                                        remainingStateChanges)) {
                                                             derivedBuilder.signerNonce(ethTxData.nonce() + 1L);
                                                         }
                                                     } else {

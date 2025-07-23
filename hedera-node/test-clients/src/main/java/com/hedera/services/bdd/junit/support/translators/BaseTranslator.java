@@ -393,10 +393,7 @@ public class BaseTranslator {
             @NonNull final ContractFunctionResult.Builder derivedBuilder,
             @NonNull final List<StateChange> remainingStateChanges) {
         if (senderId != null) {
-            findAccount(senderId, remainingStateChanges)
-                    .ifPresentOrElse(
-                            senderAccount -> derivedBuilder.signerNonce(senderAccount.ethereumNonce()),
-                            () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrElse(Long.MIN_VALUE))));
+            derivedBuilder.signerNonce(getSignerNonce(senderId, remainingStateChanges));
         }
     }
 
@@ -985,7 +982,23 @@ public class BaseTranslator {
         return true;
     }
 
-    public boolean isNonceIncremented(Long accountNum, Long nonce) {
-        return nonces.get(accountNum) > nonce;
+    public boolean isNonceIncremented(
+            final AccountID accountID, final Long nonce, List<StateChange> remainingStateChanges) {
+        final var currentNonce = getSignerNonce(accountID, remainingStateChanges);
+        return currentNonce > nonce;
+    }
+
+    /**
+     * Retrieves the Ethereum nonce for a given account.
+     *
+     * @param senderId the account ID to get the nonce for
+     * @param remainingStateChanges the state changes to search for the account
+     * @return the Ethereum nonce for the account
+     */
+    private long getSignerNonce(
+            @NonNull final AccountID senderId, @NonNull final List<StateChange> remainingStateChanges) {
+        return findAccount(senderId, remainingStateChanges)
+                .map(Account::ethereumNonce)
+                .orElseGet(() -> nonces.getOrDefault(senderId.accountNumOrElse(Long.MIN_VALUE), 0L));
     }
 }
