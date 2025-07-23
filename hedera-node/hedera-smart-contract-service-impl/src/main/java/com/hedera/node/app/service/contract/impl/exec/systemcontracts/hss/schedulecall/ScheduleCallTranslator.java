@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.sched
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
@@ -27,6 +28,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,7 +46,7 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                     "scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)",
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
-    public static final SystemContractMethod SCHEDULED_CALL_ON_SENDER_SIGNATURE = SystemContractMethod.declare(
+    public static final SystemContractMethod EXECUTE_CALL_ON_SENDER_SIGNATURE = SystemContractMethod.declare(
                     "executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)",
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
@@ -56,14 +58,14 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
         registerMethods(SCHEDULED_CALL);
         registerMethods(SCHEDULED_CALL_WITH_SENDER);
-        registerMethods(SCHEDULED_CALL_ON_SENDER_SIGNATURE);
+        registerMethods(EXECUTE_CALL_ON_SENDER_SIGNATURE);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
         if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractScheduleCallEnabled()) {
-            return attempt.isMethod(SCHEDULED_CALL, SCHEDULED_CALL_WITH_SENDER, SCHEDULED_CALL_ON_SENDER_SIGNATURE);
+            return attempt.isMethod(SCHEDULED_CALL, SCHEDULED_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
         } else {
             return Optional.empty();
         }
@@ -87,8 +89,8 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
             to = call.get(paramIndex++);
             sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
             waitForExpiry = true;
-        } else if (attempt.isSelector(SCHEDULED_CALL_ON_SENDER_SIGNATURE)) {
-            call = SCHEDULED_CALL_ON_SENDER_SIGNATURE.decodeCall(attempt.inputBytes());
+        } else if (attempt.isSelector(EXECUTE_CALL_ON_SENDER_SIGNATURE)) {
+            call = EXECUTE_CALL_ON_SENDER_SIGNATURE.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
             sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
             waitForExpiry = false;
@@ -104,17 +106,21 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         final var contractId = ConversionUtils.asContractId(
                 attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
 
+        // TODO Glib: test for delete
+        Set<Key> keys =  attempt.keySetFor();
         // create TransactionBody
         TransactionBody body = TransactionBody.newBuilder()
                 .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
                 // create ScheduleCreateTransactionBody
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                        // TODO Glib: set admin key to be abl to delete the schedule
                         .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
                                 .contractCall(ContractCallTransactionBody.newBuilder()
                                         .contractID(contractId)
                                         .gas(gasLimit.longValueExact())
                                         .amount(value.longValueExact())
                                         .functionParameters(callData)))
+                        .adminKey(keys.stream().findFirst().get())
                         .expirationTime(Timestamp.newBuilder().seconds(expiry.longValueExact()))
                         .payerAccountID(sender)
                         .waitForExpiry(waitForExpiry))
@@ -127,7 +133,9 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,
-                attempt.keySetFor());
+                // TODO Glib: should we add sender key on call with sender?
+                keys,
+                DispatchForResponseCodeHssCall::scheduleCreateResultEncode);
     }
 
     /**
@@ -144,7 +152,6 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final AccountID payerId) {
-        // TODO Glib: SCHEDULE_CREATE or SCHEDULE_CREATE_CONTRACT_CALL here?
         return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_CREATE_CONTRACT_CALL, payerId);
     }
 }

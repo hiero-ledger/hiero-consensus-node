@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.services.bdd.suites.contract.precompile.schedule;
+
+import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+
+import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
+
+/**
+ * Tests success scenarios of the HRC-1215 functions when enabled
+ * {@code contracts.systemContract.scheduleService.scheduleCall.enabled} feature flag.
+ * This tests checks just a happy path because more detailed tests with be added to
+ * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
+ */
+@Tag(SMART_CONTRACT)
+@DisplayName("Schedule call")
+@HapiTestLifecycle
+public class ScheduleCallTest {
+
+    @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
+    static SpecContract contract;
+
+    @Account
+    static SpecAccount sender;
+
+    @BeforeAll
+    public static void setup(TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(
+                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+    }
+
+    @HapiTest
+    @DisplayName("scheduleCall(address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> scheduledCallTest() {
+        // contract is a default sender/payer for scheduleCall
+        return scheduledCallTest(contract.name(), "scheduleCallExample", BigInteger.valueOf(30));
+    }
+
+    @HapiTest
+    @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> scheduleCallWithSenderTest() {
+        return scheduledCallTest(sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(40));
+    }
+
+    @HapiTest
+    @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
+        return scheduledCallTest(sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(50));
+    }
+
+    private Stream<DynamicTest> scheduledCallTest(
+            @NonNull final String payer, @NonNull final String functionName, @NonNull final Object... parameters) {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            // run schedule call
+            final var scheduleAddress = new AtomicReference<Address>();
+            allRunFor(
+                    spec,
+                    contract.call(functionName, parameters)
+                            .gas(2_000_000L)
+                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
+                            .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
+                                    .resultThruAbi(
+                                            getABIFor(FUNCTION, functionName, contract.name()), ignore -> res -> {
+                                                Assertions.assertEquals(2, res.length);
+                                                Assertions.assertEquals(
+                                                        (long) ResponseCodeEnum.SUCCESS.getNumber(), res[0]);
+                                                Assertions.assertInstanceOf(Address.class, res[1]);
+                                                return Optional.empty();
+                                            })))
+                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+            // check schedule exists
+            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
+            allRunFor(
+                    spec,
+                    getScheduleInfo(scheduleIDString)
+                            .hasPayerAccountID(payer)
+                            .hasScheduleId(scheduleIDString)
+                            .isNotExecuted());
+        }));
+    }
+}

@@ -5,12 +5,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -21,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -90,17 +88,22 @@ public class ScheduleNativeCall extends AbstractCall {
         if (status != SUCCESS) {
             return gasOnly(revertResult(status, gasRequirement), status, isViewCall);
         } else {
-            final var encodedRes = RC_AND_ADDRESS_ENCODER.encode(
-                    Tuple.of((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.scheduleID())));
-            return gasOnly(successResult(encodedRes, gasRequirement, recordBuilder), status, isViewCall);
+            return gasOnly(
+                    successResult(
+                            DispatchForResponseCodeHssCall.scheduleCreateResultEncode(recordBuilder),
+                            gasRequirement,
+                            recordBuilder),
+                    status,
+                    isViewCall);
         }
     }
 
     /**
-     * Create a {@link TransactionBody} for a {@link ScheduleCreateTransactionBody} with the given
-     * the result is used to dispatch a {@code SCHEDULE_CREATE} transaction to the schedule service.
-     * @param scheduleTransactionBody
-     * @return
+     * Create a {@link TransactionBody} for a {@link ScheduleCreateTransactionBody} with the given the result is used to
+     * dispatch a {@code SCHEDULE_CREATE} transaction to the schedule service.
+     *
+     * @param scheduleTransactionBody schedule transaction body from a call
+     * @return transaction body for dispatch
      */
     private @NonNull TransactionBody bodyForScheduleCreate(final SchedulableTransactionBody scheduleTransactionBody) {
         return TransactionBody.newBuilder()
