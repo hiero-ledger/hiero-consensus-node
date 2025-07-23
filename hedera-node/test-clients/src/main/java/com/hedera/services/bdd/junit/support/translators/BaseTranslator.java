@@ -984,4 +984,8 @@ public class BaseTranslator {
         }
         return true;
     }
+
+    public boolean isNonceIncremented(Long accountNum, Long nonce) {
+        return nonces.get(accountNum) > nonce;
+    }
 }

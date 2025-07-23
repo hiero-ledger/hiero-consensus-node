@@ -720,8 +720,7 @@ public class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    // @LeakyHapiTest(overrides = {"contracts.evm.version"}) This will be fixed in
-    // https://github.com/hiero-ledger/hiero-consensus-node/issues/19993
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCall() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
