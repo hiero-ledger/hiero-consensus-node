@@ -23,8 +23,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
@@ -81,7 +81,7 @@ public class AtomicFileCreateSuite {
         return hapiTest(cryptoCreate(BATCH_OPERATOR), doWithStartupConfig("entities.maxLifetime", value -> atomicBatch(
                         fileCreate("test")
                                 .lifetime(Long.parseLong(value) + 12_345L)
-                                .hasKnownStatus(INVALID_EXPIRATION_TIME)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR)
                 .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
@@ -143,7 +143,7 @@ public class AtomicFileCreateSuite {
                 cryptoCreate(BATCH_OPERATOR),
                 atomicBatch(fileCreate("notHere")
                                 .lifetime(-60L)
-                                .hasKnownStatus(INVALID_EXPIRATION_TIME)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
