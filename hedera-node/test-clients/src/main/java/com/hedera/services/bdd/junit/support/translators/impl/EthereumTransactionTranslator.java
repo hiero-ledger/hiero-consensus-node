@@ -20,6 +20,7 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Translates a ethereum transaction into a {@link SingleTransactionRecord}.
@@ -81,10 +82,20 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             derivedBuilder, remainingStateChanges);
                                                 }
                                                 if (!PRE_NONCE_ERROR_MESSAGE.equals(txCallResult.errorMessage())) {
-                                                    baseTranslator.addSignerNonce(
-                                                            txCallResult.senderId(),
-                                                            derivedBuilder,
-                                                            remainingStateChanges);
+                                                    final boolean shouldUseInputData = parts.isBatchScoped()
+                                                            && tryGetParsedEthData(parts)
+                                                                    .isPresent();
+
+                                                    if (shouldUseInputData) {
+                                                        final var parsedEthData = tryGetParsedEthData(parts)
+                                                                .get();
+                                                        derivedBuilder.signerNonce(parsedEthData.nonce() + 1L);
+                                                    } else {
+                                                        baseTranslator.addSignerNonce(
+                                                                txCallResult.senderId(),
+                                                                derivedBuilder,
+                                                                remainingStateChanges);
+                                                    }
                                                 }
                                                 final var fnResult = derivedBuilder.build();
                                                 recordBuilder.contractCallResult(fnResult);
@@ -150,5 +161,15 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                 },
                 remainingStateChanges,
                 followingUnitTraces);
+    }
+
+    private Optional<EthTxData> tryGetParsedEthData(BlockTransactionParts parts) {
+        try {
+            final byte[] ethereumData =
+                    parts.body().ethereumTransactionOrThrow().ethereumData().toByteArray();
+            return Optional.ofNullable(EthTxData.populateEthTxData(ethereumData));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 }
