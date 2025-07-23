@@ -100,7 +100,7 @@ public class TurtleLogging {
             final AppenderComponentBuilder regularNodeFileAppender = configuration
                     .newAppender("FileLogger-" + nodeId, "File")
                     .addAttribute(
-                            "fileName", outputDirectory.resolve("swirlds.log").toString())
+                            "fileName", outputDirectory.resolve("output/swirlds.log").toString())
                     .addAttribute("append", true)
                     .add(nodeLogLayout)
                     .addComponent(regularNodeFilter);
@@ -114,7 +114,7 @@ public class TurtleLogging {
                     .newAppender("HashStreamLogger-" + nodeId, "File")
                     .addAttribute(
                             "fileName",
-                            outputDirectory.resolve("swirlds-hashstream.log").toString())
+                            outputDirectory.resolve("output/swirlds-hashstream/swirlds-hashstream.log").toString())
                     .addAttribute("append", true)
                     .add(nodeLogLayout)
                     .addComponent(hashStateNodeFilter);

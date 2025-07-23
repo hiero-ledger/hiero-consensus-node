@@ -6,6 +6,7 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -53,6 +54,13 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     public T set(@NonNull final String key, @NonNull final String value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, value);
+        return self();
+    }
+
+    @Override
+    public T set(@NonNull final String key, @NonNull final Path path) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, path.toString());
         return self();
     }
 

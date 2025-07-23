@@ -68,6 +68,9 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
         try {
             final WatchKey key = watchService.poll();
+            if (key == null) {
+                return; // No events to process
+            }
             if (key.isValid()) {
                 final List<String> newMarkerFiles = MarkerFileUtils.evaluateWatchKey(key);
                 resultsCollector.addMarkerFiles(newMarkerFiles);

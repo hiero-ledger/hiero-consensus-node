@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
@@ -29,6 +30,7 @@ public class MarkerFileUtils {
     @NonNull
     public static WatchService startObserving(@NonNull final Path markerFilesDir) {
         try {
+            Files.createDirectories(markerFilesDir);
             final WatchService watchService = FileSystems.getDefault().newWatchService();
             markerFilesDir.register(watchService, ENTRY_CREATE);
             return watchService;

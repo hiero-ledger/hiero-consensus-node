@@ -44,7 +44,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasAnyMarkerFile()) {
-            failWithMessage("Expected no marker files, but at least one was written: %s", actual.status());
+            failWithMessage("Expected no marker files, but node %s wrote at least one: %s", actual.nodeId(), actual.status());
         }
 
         return this;
@@ -60,7 +60,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasCoinRoundMarkerFile()) {
-            failWithMessage("Expected no coin round marker file, but one was written");
+            failWithMessage("Expected no coin round marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
@@ -76,7 +76,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasNoSuperMajorityMarkerFile()) {
-            failWithMessage("Expected no no-super-majority marker file, but one was written");
+            failWithMessage("Expected no no-super-majority marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
@@ -92,7 +92,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasNoJudgesMarkerFile()) {
-            failWithMessage("Expected no no-judges marker file, but one was written");
+            failWithMessage("Expected no no-judges marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
@@ -108,7 +108,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasConsensusExceptionMarkerFile()) {
-            failWithMessage("Expected no consensus exception marker file, but one was written");
+            failWithMessage("Expected no consensus exception marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
@@ -124,7 +124,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasAnyISSMarkerFile()) {
-            failWithMessage("Expected no ISS marker files, but at least one was written: %s", actual.status());
+            failWithMessage("Expected no ISS marker files, but node %s wrote at least one: %s", actual.nodeId(), actual.status());
         }
 
         return this;
@@ -141,7 +141,7 @@ public class SingleNodeMarkerFileResultAssert
         isNotNull();
 
         if (actual.status().hasISSMarkerFileOfType(issType)) {
-            failWithMessage("Expected no ISS marker file, but found: %s", actual.status());
+            failWithMessage("Expected no ISS marker file of type %s, but node %s wrote one", issType, actual.nodeId());
         }
 
         return this;

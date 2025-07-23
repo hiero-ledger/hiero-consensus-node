@@ -22,7 +22,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final String outputDirectory;
+    private final Path outputDirectory;
 
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
@@ -33,18 +33,21 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     public TurtleNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier);
-        this.outputDirectory = requireNonNull(outputDirectory).toString();
+        this.outputDirectory = requireNonNull(outputDirectory);
         setTurtleSpecificOverrides();
     }
 
     private void setTurtleSpecificOverrides() {
-        overriddenProperties.put(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP");
-        overriddenProperties.put(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
-        overriddenProperties.put(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory);
-        overriddenProperties.put(FileSystemManagerConfig_.ROOT_PATH, outputDirectory);
-        overriddenProperties.put(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
-        overriddenProperties.put(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
-        overriddenProperties.put(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+        this.set(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
+                .set(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
+                .set(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.resolve("data/saved"))
+                .set(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.resolve("data"))
+                .set(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
+                .set(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"))
+                .set(PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps"))
+                .set(PathsConfig_.MARKER_FILES_DIR, outputDirectory.resolve("data/saved/marker_files"))
+                .set(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false")
+                .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
     }
 
     /**
@@ -53,14 +56,5 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     @Override
     public TurtleNodeConfiguration self() {
         return this;
-    }
-
-    /**
-     * Gets the output directory for the Turtle node.
-     *
-     * @return the output directory as a string
-     */
-    public String getOutputDirectory() {
-        return outputDirectory;
     }
 }

@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 
 /**
@@ -139,5 +140,16 @@ public class MarkerFilesStatus {
                 this.hasConsensusExceptionMarkerFile
                         || markerFileNames.contains(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE),
                 newIssMarkerFiles);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this)
+                .append("hasCoinRoundMarkerFile", hasCoinRoundMarkerFile)
+                .append("hasNoSuperMajorityMarkerFile", hasNoSuperMajorityMarkerFile)
+                .append("hasNoJudgesMarkerFile", hasNoJudgesMarkerFile)
+                .append("hasConsensusExceptionMarkerFile", hasConsensusExceptionMarkerFile)
+                .append("issMarkerFiles", issMarkerFiles)
+                .toString();
     }
 }
