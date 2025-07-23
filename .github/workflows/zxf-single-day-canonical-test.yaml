@@ -27,7 +27,7 @@ jobs:
       contents: read
       id-token: write
 
-    timeout-minutes: 90 # max one hour timeout 
+    timeout-minutes: 90 # max one hour timeout
 
     steps:
       - name: Harden Runner
@@ -48,13 +48,13 @@ jobs:
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
-          token_format: 'access_token'
+          token_format: "access_token"
           create_credentials_file: true
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         with:
-          version: 'latest'
+          version: "latest"
           install_components: "gsutil"
 
       - name: Install Utility Tools
@@ -120,7 +120,7 @@ jobs:
 
       - name: Check Artifact Availability
         id: check-if-exist
-        timeout-minutes: 60  # step timeout 
+        timeout-minutes: 60 # step timeout
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -264,4 +264,3 @@ jobs:
               echo "2. Review the test script for any issues"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
-
