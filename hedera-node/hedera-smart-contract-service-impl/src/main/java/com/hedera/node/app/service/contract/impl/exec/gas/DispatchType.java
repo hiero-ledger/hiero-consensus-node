@@ -178,7 +178,6 @@ public enum DispatchType {
      */
     SCHEDULE_GET_INFO(HederaFunctionality.SCHEDULE_GET_INFO, DEFAULT);
 
-
     private final HederaFunctionality functionality;
     private final SubType subtype;
 

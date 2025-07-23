@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.deleteschedule;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static java.util.Objects.requireNonNull;
+
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
@@ -27,13 +30,8 @@ import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static java.util.Objects.requireNonNull;
-
 /**
- * Translates {@code deleteSchedule(address)} calls to the HSS system contract. For details
+ * Translates {@code deleteSchedule*} calls to the HSS system contract. For details
  * {@see <a href=https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1215.md>HIP-1215</a>}
  */
 @Singleton
@@ -77,10 +75,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
                         .build())
                 .build();
         return new DispatchForResponseCodeHssCall(
-                attempt,
-                body,
-                DeleteScheduleTranslator::gasRequirement,
-                attempt.keySetFor());
+                attempt, body, DeleteScheduleTranslator::gasRequirement, attempt.keySetFor());
     }
 
     /**
@@ -96,18 +91,10 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
         if (attempt.isSelector(DELETE_SCHEDULED)) {
             final var call = DELETE_SCHEDULED.decodeCall(attempt.inputBytes());
             final Address scheduleAddress = call.get(SCHEDULE_ID_INDEX);
-            // TODO Glib: what is a difference of this with ConversionUtils.addressToScheduleID
             final var number = ConversionUtils.numberOfLongZero(explicitFromHeadlong(scheduleAddress));
-            final var schedule = attempt.nativeOperations()
-                    .getSchedule(attempt.nativeOperations().entityIdFactory().newScheduleId(number));
-            // TODO Glib: INVALID_SCHEDULE_ID as in SignScheduleTranslator or RECORD_NOT_FOUND as in GetScheduledFungibleTokenCreateCall
-            //  discuss with a team
-            validateTrue(schedule != null, INVALID_SCHEDULE_ID);
-            return schedule.scheduleId();
+            return attempt.nativeOperations().entityIdFactory().newScheduleId(number);
         } else if (attempt.isSelector(DELETE_SCHEDULED_PROXY)) {
-            final var scheduleId = attempt.redirectScheduleId();
-            validateTrue(scheduleId != null, INVALID_SCHEDULE_ID);
-            return scheduleId;
+            return attempt.redirectScheduleId();
         }
         throw new IllegalStateException("Unexpected function selector");
     }
