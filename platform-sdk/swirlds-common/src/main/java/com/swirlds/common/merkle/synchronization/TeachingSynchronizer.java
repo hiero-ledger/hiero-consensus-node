@@ -11,6 +11,7 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
@@ -100,7 +101,11 @@ public class TeachingSynchronizer {
         outputStream = Objects.requireNonNull(out, "out must not be null");
 
         subtrees = new LinkedList<>();
-        subtrees.add(new TeacherSubtree(configuration, root));
+        if (root instanceof CustomReconnectRoot<?, ?> customReconnectRoot) {
+            subtrees.add(new TeacherSubtree(root, customReconnectRoot.buildTeacherView(reconnectConfig)));
+        } else {
+            subtrees.add(new TeacherSubtree(configuration, root));
+        }
 
         this.breakConnection = breakConnection;
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");

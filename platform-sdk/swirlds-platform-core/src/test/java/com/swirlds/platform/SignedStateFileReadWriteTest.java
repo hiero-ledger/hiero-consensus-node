@@ -37,6 +37,7 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import java.io.BufferedReader;
@@ -130,6 +131,9 @@ class SignedStateFileReadWriteTest {
 
         State state = signedState.getState();
         state.copy().release();
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
+        TestMerkleCryptoFactory.getInstance()
+                .digestTreeSync(signedState.getState().getRoot());
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
@@ -139,8 +143,11 @@ class SignedStateFileReadWriteTest {
         MerkleDb.resetDefaultInstancePath();
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                stateFile,
+                TestHederaVirtualMapState::new,
+                TEST_PLATFORM_STATE_FACADE,
+                PlatformContext.create(configuration));
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
@@ -182,6 +189,9 @@ class SignedStateFileReadWriteTest {
 
         // make immutable
         signedState.getState().copy().release();
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
+        TestMerkleCryptoFactory.getInstance()
+                .digestTreeSync(signedState.getState().getRoot());
 
         writeSignedStateToDisk(
                 platformContext,

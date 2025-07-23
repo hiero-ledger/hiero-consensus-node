@@ -30,6 +30,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
@@ -167,8 +168,8 @@ class ReadableFreezeUpgradeActionsTest {
         noiseFileLoc = zipOutputDir.toPath().resolve("forgotten.cfg");
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
 
-        final var readableNodeState =
-                MapReadableKVState.<EntityNumber, Node>builder(NODES_KEY).build();
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+                .build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
         nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
 
@@ -487,7 +488,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY,
                 false,
                 null);
-        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_KEY)
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
                 .value(new EntityNumber(4), node4)
                 .value(new EntityNumber(2), node2)
                 .value(new EntityNumber(3), node3)
@@ -626,7 +627,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY,
                 false,
                 null);
-        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_KEY)
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
                 .value(new EntityNumber(3), node4)
                 .value(new EntityNumber(1), node2)
                 .value(new EntityNumber(2), node3)
