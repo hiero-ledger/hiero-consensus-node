@@ -39,6 +39,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -75,6 +77,9 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
      * the app is run by this
      */
     private Platform platform;
+
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPoolNexus;
 
     private TransactionPool transactionPool;
 
@@ -145,6 +150,10 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
 
         // the higher the expected TPS, the smaller the window
         tps_measure_window_milliseconds = (int) (WINDOW_CALCULATION_CONST / expectedTPS);
+
+        transactionPoolNexus = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
 
         transactionPool = new TransactionPool(config.transPoolSize(), config.bytesPerTrans());
 
@@ -258,7 +267,18 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPoolNexus.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPoolNexus.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPoolNexus.hasBufferedSignatureTransactions();
     }
 }

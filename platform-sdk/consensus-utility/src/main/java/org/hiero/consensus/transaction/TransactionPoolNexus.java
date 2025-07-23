@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.creator.impl.pool;
+package org.hiero.consensus.transaction;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -18,7 +17,6 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -76,16 +74,14 @@ public class TransactionPoolNexus implements TransactionSupplier {
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param configuration the configuration to use
+     * @param transactionConfig the configuration to use
      * @param metrics       the metrics to use
-     * @param time          the time source to use
      */
     public TransactionPoolNexus(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
 
-        illegalTransactionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(10));
+        illegalTransactionLogger = new RateLimitedLogger(logger, Time.getCurrent(), Duration.ofMinutes(10));
 
-        final TransactionConfig transactionConfig = configuration.getConfigData(TransactionConfig.class);
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
         throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
 
@@ -129,6 +125,10 @@ public class TransactionPoolNexus implements TransactionSupplier {
         return submitTransaction(appTransaction, false);
     }
 
+    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction){
+        submitTransaction(transaction, true);
+    }
+
     /**
      * Attempt to submit a transaction.
      *
@@ -139,7 +139,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      *                    functionalities.
      * @return true if successful
      */
-    public synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
+    private synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
         Objects.requireNonNull(transaction);
 
         // Always submit system transactions. If it's not a system transaction, then only submit it if we

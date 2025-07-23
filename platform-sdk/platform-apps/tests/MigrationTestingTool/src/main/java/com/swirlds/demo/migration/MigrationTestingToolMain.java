@@ -25,6 +25,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -56,6 +58,8 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private int transactionsCreated;
     private TransactionGenerator generator;
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     /** transactions in each Event */
     private int transPerSecToCreate = 1000;
@@ -88,6 +92,10 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
+
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
 
         // Initialize application statistics
         initAppStats();
@@ -197,8 +205,18 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     }
 
     @Override
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
     @NonNull
-    public Bytes encodeSystemTransaction(final @NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

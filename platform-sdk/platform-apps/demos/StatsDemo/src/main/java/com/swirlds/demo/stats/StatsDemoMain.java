@@ -44,6 +44,8 @@ import java.util.Random;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -75,6 +77,8 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     private Console console = null;
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
     private Random random = new java.util.Random();
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -232,6 +236,9 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
             final int winNum = (int) selfId.id();
             console = createConsole(platform, winNum, true);
         }
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
     }
 
     @Override
@@ -324,7 +331,18 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

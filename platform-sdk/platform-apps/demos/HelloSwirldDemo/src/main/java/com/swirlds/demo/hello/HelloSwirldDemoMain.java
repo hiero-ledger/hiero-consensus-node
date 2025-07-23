@@ -29,9 +29,12 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
@@ -64,6 +67,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     public Console console;
     /** sleep this many milliseconds after each sync */
     public final int sleepPeriod = 100;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -89,6 +94,9 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
         this.selfId = id;
         final int winNum = (int) selfId.id();
         this.console = createConsole(platform, winNum, true); // create the window, make it visible
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
     }
 
     @Override
@@ -159,7 +167,18 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

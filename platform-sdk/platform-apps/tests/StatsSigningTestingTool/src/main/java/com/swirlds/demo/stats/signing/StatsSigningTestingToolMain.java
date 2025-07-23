@@ -38,11 +38,14 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -104,6 +107,9 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
      * the app is run by this
      */
     private Platform platform;
+
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     private SttTransactionPool sttTransactionPool;
 
@@ -185,6 +191,10 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
             // they shouldn't both be -1, so set one of them
             transPerEventMax = 1024;
         }
+
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
 
         sttTransactionPool = new SttTransactionPool(
                 platform.getSelfId(),
@@ -306,8 +316,7 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     }
 
     @Override
-    @NonNull
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
         final var bytes = new ByteArrayOutputStream();
         final var out = new WritableStreamingData(bytes);
 
@@ -316,9 +325,20 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
         out.writeByte(SYSTEM_TRANSACTION_MARKER);
         try {
             StateSignatureTransaction.PROTOBUF.write(transaction, out);
-            return Bytes.wrap(bytes.toByteArray());
+            transactionPool.submitPriorityTransaction( Bytes.wrap(bytes.toByteArray()));
         } catch (final IOException e) {
             throw new IllegalStateException("Failed to encode a system transaction.", e);
         }
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

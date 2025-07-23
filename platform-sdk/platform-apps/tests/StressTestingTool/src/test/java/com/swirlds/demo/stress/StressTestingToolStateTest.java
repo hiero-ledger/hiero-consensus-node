@@ -128,7 +128,8 @@ class StressTestingToolStateTest {
         // Given
         givenRoundAndEvent();
 
-        final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
@@ -152,7 +153,8 @@ class StressTestingToolStateTest {
                                 thirdConsensusTransaction)
                         .iterator());
 
-        final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -192,7 +194,8 @@ class StressTestingToolStateTest {
         // Given
         givenRoundAndEvent();
 
-        final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
         final var eventCore = mock(EventCore.class);
         final var gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -213,7 +216,8 @@ class StressTestingToolStateTest {
         // Given
         when(event.getConsensusTimestamp()).thenReturn(Instant.now());
 
-        final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
 
         final var eventCore = mock(EventCore.class);
         final var gossipEvent = GossipEvent.newBuilder()

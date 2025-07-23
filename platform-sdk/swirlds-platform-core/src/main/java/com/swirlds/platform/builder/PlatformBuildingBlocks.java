@@ -57,7 +57,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param randomBuilder                          a builder for creating random number generators
- * @param transactionPoolNexus                   provides transactions to be added to new events
+ * @param hasBufferedSignatureTransactions       checks if there are buffered signature transactions
  * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
  *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input

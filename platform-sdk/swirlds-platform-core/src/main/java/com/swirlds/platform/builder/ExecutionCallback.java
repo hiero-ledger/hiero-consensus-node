@@ -11,10 +11,8 @@ public interface ExecutionCallback extends TransactionSupplier {
      * Encodes a system transaction to {@link Bytes} representation of a {@link com.hedera.hapi.node.base.Transaction}.
      *
      * @param transaction the {@link StateSignatureTransaction} to encode
-     * @return {@link Bytes} representation of the transaction
      */
-    @NonNull
-    Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
+    void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction);
 
     /**
      * Returns a list of transactions. May return an empty array.

@@ -108,6 +108,8 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.NoArgsConstructor;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
@@ -199,6 +201,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     private NodeId selfId;
     /** the app is run by this */
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
     /** the platform is active now or not */
     private volatile boolean isActive = false;
 
@@ -559,6 +563,10 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     public void init(final Platform platform, final NodeId id) {
         this.platform = platform;
         selfId = id;
+
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
 
         platform.getNotificationEngine().register(PlatformStatusChangeListener.class, this::platformStatusChange);
         registerReconnectCompleteListener();
@@ -1262,8 +1270,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     }
 
     @Override
-    @NonNull
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
         final com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction convertedSystemTransaction =
                 com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction.newBuilder()
                         .setRound(transaction.round())
@@ -1279,9 +1286,20 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.newBuilder()
                     .setTestTransactionRawBytes(ByteString.copyFrom(testTransaction.toByteArray()))
                     .build();
-            return Bytes.wrap(testTransactionWrapper.toByteArray());
+            transactionPool.submitPriorityTransaction(Bytes.wrap(testTransactionWrapper.toByteArray()));
         } else {
-            return Bytes.wrap(testTransaction.toByteArray());
+            transactionPool.submitPriorityTransaction(Bytes.wrap(testTransaction.toByteArray()));
         }
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

@@ -31,10 +31,13 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.util.List;
 import java.util.Random;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -73,6 +76,8 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     private byte speedCmd = -1;
     /** is the simulation running fast now? */
     private boolean isFast = false;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -152,6 +157,9 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
         final int winNum = (int) selfId.id();
         this.console = createConsole(platform, winNum, true); // create the window, make it visible
         this.console.addKeyListener(keyListener);
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
     }
 
     @Override
@@ -215,7 +223,18 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

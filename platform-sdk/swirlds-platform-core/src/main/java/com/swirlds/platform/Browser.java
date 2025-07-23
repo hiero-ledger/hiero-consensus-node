@@ -311,7 +311,7 @@ public class Browser {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
-            builder.withSystemTransactionEncoderCallback(appMain::encodeSystemTransaction);
+            //builder.withSystemTransactionEncoderCallback(appMain::submitSystemTransaction);
             //TODO call the new methods in main
 
             // Build platform using the Inversion of Control pattern by injecting all needed
