@@ -5,9 +5,9 @@ on:
     inputs:
       rc-tag:
         required: false
-        description: "The tag to use for the XTS candidate. If not provided, the latest xts-candidate tag will be used."
+        description: "Release Candidate Tag:"
         type: string
-        default: "none"
+        default: ""
   schedule:
     # Runs Extended Test Suite every three hours
     - cron: "0 */3 * * *"
