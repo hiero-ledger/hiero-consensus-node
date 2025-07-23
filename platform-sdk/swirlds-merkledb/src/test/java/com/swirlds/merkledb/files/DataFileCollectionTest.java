@@ -768,9 +768,12 @@ class DataFileCollectionTest {
                         if (mockAppender.size() == 0) {
                             return false;
                         }
-                        final String logMsg = mockAppender.get(0);
-                        assertTrue(logMsg.contains("Some files to compact haven't been processed"));
-                        return true;
+                        for (int i = 0; i < mockAppender.size(); i++) {
+                            if (mockAppender.get(i).contains("Some files to compact haven't been processed")) {
+                                return true;
+                            }
+                        }
+                        return false;
                     },
                     Duration.ofMillis(5000),
                     "Compaction should not throw exception when interrupted");

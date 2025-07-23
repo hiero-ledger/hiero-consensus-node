@@ -261,6 +261,21 @@ class FileCreateTest extends FileTestBase {
     }
 
     @Test
+    @DisplayName("Translates INVALID_EXPIRATION_TIME to AUTO_RENEW_DURATION_NOT_IN_RANGE")
+    void translatesInvalidExpiryException() {
+        final var txBody = newCreateTxn(keys, expirationTime, SHARD, REALM);
+
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willThrow(new HandleException(ResponseCodeEnum.INVALID_EXPIRATION_TIME));
+
+        final var failure = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE, failure.getStatus());
+    }
+
+    @Test
     @DisplayName("Memo Validation Failure will throw")
     void handleThrowsIfAttributeValidatorFails() {
         final var keys = anotherKeys;

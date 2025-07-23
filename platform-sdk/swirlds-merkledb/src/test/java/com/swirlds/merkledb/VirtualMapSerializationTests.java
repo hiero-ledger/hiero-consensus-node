@@ -2,13 +2,14 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -16,18 +17,14 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
+import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
+import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -54,12 +51,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("VirtualMap Serialization Test")
 class VirtualMapSerializationTests {
 
-    public static final KeySerializer<ExampleLongKeyFixedSize> KEY_SERIALIZER =
-            new ExampleLongKeyFixedSize.Serializer();
-
-    public static final ValueSerializer<ExampleFixedSizeVirtualValue> VALUE_SERIALIZER =
-            new ExampleFixedSizeVirtualValueSerializer();
-
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
@@ -70,11 +61,10 @@ class VirtualMapSerializationTests {
         ConstructableRegistry.getInstance()
                 .registerConstructable(new ClassConstructorPair(
                         MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
-        registry.registerConstructable(
-                new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap<>(CONFIGURATION)));
+        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(
                 VirtualNodeCache.class,
-                () -> new VirtualNodeCache<>(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
+                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
     }
 
     /**
@@ -98,9 +88,7 @@ class VirtualMapSerializationTests {
     /**
      * Validate that two maps contain the same data.
      */
-    private void assertMapsAreEqual(
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> originalMap,
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> deserializedMap) {
+    private void assertMapsAreEqual(final VirtualMap originalMap, final VirtualMap deserializedMap) {
 
         assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
 
@@ -111,12 +99,12 @@ class VirtualMapSerializationTests {
 
         originalMap.forEachNode((final MerkleNode node) -> {
             if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> leaf = node.cast();
+                final VirtualLeafNode leaf = node.cast();
 
-                final ExampleLongKeyFixedSize key = leaf.getKey();
-                final ExampleFixedSizeVirtualValue value = leaf.getValue();
+                final Bytes key = leaf.getKey();
+                final Bytes value = leaf.getValue();
 
-                assertEquals(value, deserializedMap.get(key), "expected values to match");
+                assertEquals(value, deserializedMap.getBytes(key), "expected values to match");
             }
 
             if (node instanceof VirtualLeafNode || node instanceof VirtualInternalNode) {
@@ -148,11 +136,7 @@ class VirtualMapSerializationTests {
      * @param seed
      * 		the seed to use
      */
-    private void addRandomEntries(
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map,
-            final int count,
-            final int updateCount,
-            final long seed) {
+    private void addRandomEntries(final VirtualMap map, final int count, final int updateCount, final long seed) {
 
         final Random random = new Random(seed);
         final int offset = (int) Math.max(0, map.size() - updateCount);
@@ -160,10 +144,10 @@ class VirtualMapSerializationTests {
         for (int i = 0; i < count; i++) {
             final int v = random.nextInt();
 
-            final ExampleLongKeyFixedSize key = new ExampleLongKeyFixedSize(i + offset);
-            final ExampleFixedSizeVirtualValue value = new ExampleFixedSizeVirtualValue(v);
+            final Bytes key = ExampleLongKey.longToKey(i + offset);
+            final ExampleFixedValue value = new ExampleFixedValue(v);
 
-            map.put(key, value);
+            map.put(key, value, ExampleFixedValue.CODEC);
         }
     }
 
@@ -171,10 +155,8 @@ class VirtualMapSerializationTests {
      * Create a map and fill it with random key/value pairs.
      */
     @SuppressWarnings("SameParameterValue")
-    private VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> generateRandomMap(
-            final long seed, final int count, final String name) throws IOException {
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map =
-                new VirtualMap<>(name, KEY_SERIALIZER, VALUE_SERIALIZER, constructBuilder(), CONFIGURATION);
+    private VirtualMap generateRandomMap(final long seed, final int count, final String name) throws IOException {
+        final VirtualMap map = new VirtualMap(name, constructBuilder(), CONFIGURATION);
         addRandomEntries(map, count, 0, seed);
         return map;
     }
@@ -203,12 +185,9 @@ class VirtualMapSerializationTests {
     @Test
     @DisplayName("Map Comparison Test")
     void mapComparisonTest() throws IOException, InterruptedException {
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map0 =
-                generateRandomMap(0, 1_000, "test");
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map1 =
-                generateRandomMap(0, 1_000, "test");
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map2 =
-                generateRandomMap(1234, 1_000, "test");
+        final VirtualMap map0 = generateRandomMap(0, 1_000, "test");
+        final VirtualMap map1 = generateRandomMap(0, 1_000, "test");
+        final VirtualMap map2 = generateRandomMap(1234, 1_000, "test");
 
         try {
             assertMapsAreEqual(map0, map0);
@@ -225,8 +204,7 @@ class VirtualMapSerializationTests {
             map1.release();
             map2.release();
 
-            final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root = map2.getRight();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map2.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -234,8 +212,7 @@ class VirtualMapSerializationTests {
      * Test serialization of a map. Does not release any resources created by caller.
      */
     @SuppressWarnings("resource")
-    private void testMapSerialization(final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map)
-            throws IOException {
+    private void testMapSerialization(final VirtualMap map) throws IOException {
 
         final Path savedStateDirectory =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
@@ -261,8 +238,7 @@ class VirtualMapSerializationTests {
 
         final MerkleDataInputStream in = new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> deserializedMap =
-                in.readMerkleTree(savedStateDirectory, Integer.MAX_VALUE);
+        final VirtualMap deserializedMap = in.readMerkleTree(CONFIGURATION, savedStateDirectory, Integer.MAX_VALUE);
 
         assertMapsAreEqual(map, deserializedMap);
 
@@ -277,19 +253,16 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map =
-                generateRandomMap(seed, count, "test");
-        final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root =
-                map.getChild(1).cast();
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> copy = map.copy();
+        final VirtualMap map = generateRandomMap(seed, count, "test");
+        final VirtualMap copy = map.copy();
 
         try {
             testMapSerialization(map);
-            assertFalse(root.isFlushed(), "for this test, the root is expected not to be flushed");
+            assertFalse(map.isFlushed(), "for this test, the root is expected not to be flushed");
         } finally {
             map.release();
             copy.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -300,25 +273,22 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map =
-                generateRandomMap(seed, count, "test");
-        final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root =
-                map.getChild(1).cast();
-        root.enableFlush();
+        final VirtualMap map = generateRandomMap(seed, count, "test");
+        map.enableFlush();
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> serializedCopy = map.copy();
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> mutableCopy = serializedCopy.copy();
+        final VirtualMap serializedCopy = map.copy();
+        final VirtualMap mutableCopy = serializedCopy.copy();
 
         try {
             map.release();
-            root.waitUntilFlushed();
+            map.waitUntilFlushed();
 
             testMapSerialization(serializedCopy);
-            assertTrue(root.isFlushed(), "for this test, the root is expected to be flushed");
+            assertTrue(map.isFlushed(), "for this test, the root is expected to be flushed");
         } finally {
             serializedCopy.release();
             mutableCopy.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -329,32 +299,26 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map =
-                generateRandomMap(seed, count, "test");
-        final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root =
-                map.getChild(1).cast();
-        root.enableFlush();
+        final VirtualMap map = generateRandomMap(seed, count, "test");
+        map.enableFlush();
 
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> copy0 = map.copy();
+        final VirtualMap copy0 = map.copy();
         addRandomEntries(copy0, count, count / 2, seed * 2 + 1);
-        final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> copy1 = copy0.copy();
+        final VirtualMap copy1 = copy0.copy();
 
         try {
             map.release();
-            root.waitUntilFlushed();
+            map.waitUntilFlushed();
 
             System.out.println("map size: " + map.size() + ", copy0 size: " + copy0.size());
             testMapSerialization(copy0);
 
-            final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root0 =
-                    copy0.getChild(1).cast();
-
-            assertTrue(root.isFlushed(), "for this test, the root is expected to be flushed");
-            assertFalse(root0.isFlushed(), "for this test, the root0 is expected to not be flushed");
+            assertTrue(map.isFlushed(), "for this test, the root is expected to be flushed");
+            assertFalse(copy0.isFlushed(), "for this test, the root0 is expected to not be flushed");
         } finally {
             copy0.release();
             copy1.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 }
