@@ -182,12 +182,12 @@ public interface Network {
     MultipleNodeReconnectResults getReconnectResults();
 
     /**
-     * Gets the marker file results of all nodes that are currently in the network.
+     * Creates a new result with all marker file results of all nodes that are currently in the network.
      *
      * @return the marker file results of the nodes
      */
     @NonNull
-    MultipleNodeMarkerFileResults getMarkerFileResults();
+    MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when

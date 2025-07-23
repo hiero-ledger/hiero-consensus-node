@@ -34,6 +34,16 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
     T set(@NonNull String key, @NonNull String value);
 
     /**
+     * Updates a single property of the configuration to an integer value. Can only be invoked when the node is not
+     * running.
+     *
+     * @param key the key of the property
+     * @param value the integer value to set
+     * @return this {@code NodeConfiguration} instance for method chaining
+     */
+    T set(@NonNull String key, int value);
+
+    /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the node is not running.
      *
      * @param key the key of the property

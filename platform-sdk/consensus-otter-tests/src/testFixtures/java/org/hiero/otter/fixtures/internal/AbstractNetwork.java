@@ -232,9 +232,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public MultipleNodeMarkerFileResults getMarkerFileResults() {
+    public MultipleNodeMarkerFileResults newMarkerFileResults() {
         final List<SingleNodeMarkerFileResult> results =
-                getNodes().stream().map(Node::getMarkerFileResult).toList();
+                getNodes().stream().map(Node::newMarkerFileResult).toList();
         return new MultipleNodeMarkerFileResultsImpl(results);
     }
 

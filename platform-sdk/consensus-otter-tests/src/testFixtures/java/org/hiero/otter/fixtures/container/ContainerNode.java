@@ -274,7 +274,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     @NonNull
-    public SingleNodeMarkerFileResult getMarkerFileResult() {
+    public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 

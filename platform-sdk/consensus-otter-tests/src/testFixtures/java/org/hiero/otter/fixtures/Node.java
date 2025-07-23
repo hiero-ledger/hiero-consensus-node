@@ -227,10 +227,10 @@ public interface Node {
     SingleNodeReconnectResult getReconnectResults();
 
     /**
-     * Gets the marker file result of the node.
+     * Creates a new result with all marker file result of the node.
      *
      * @return the marker file result of the node
      */
     @NonNull
-    SingleNodeMarkerFileResult getMarkerFileResult();
+    SingleNodeMarkerFileResult newMarkerFileResult();
 }

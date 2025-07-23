@@ -285,7 +285,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public SingleNodeMarkerFileResult getMarkerFileResult() {
+    public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 
