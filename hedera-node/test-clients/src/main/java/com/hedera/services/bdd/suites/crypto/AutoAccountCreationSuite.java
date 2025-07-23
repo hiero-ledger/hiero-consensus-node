@@ -130,7 +130,7 @@ public class AutoAccountCreationSuite {
     public static final String A_TOKEN = "tokenA";
     private static final String B_TOKEN = "tokenB";
     public static final String NFT_INFINITE_SUPPLY_TOKEN = "nftA";
-    private static final String NFT_FINITE_SUPPLY_TOKEN = "nftB";
+    public static final String NFT_FINITE_SUPPLY_TOKEN = "nftB";
     private static final String MULTI_KEY = "multi";
     public static final String PARTY = "party";
     private static final String COUNTERPARTY = "counterparty";
@@ -144,7 +144,7 @@ public class AutoAccountCreationSuite {
     public static final String LAZY_CREATE_SPONSOR = "lazyCreateSponsor";
 
     private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    private static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    public static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
     private static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
     private static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
 
