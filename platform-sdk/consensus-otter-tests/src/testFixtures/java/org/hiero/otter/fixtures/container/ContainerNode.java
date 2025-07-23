@@ -11,6 +11,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.ProtocolStringList;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -27,9 +28,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -50,6 +54,7 @@ import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -69,7 +74,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 /**
  * Implementation of {@link Node} for a container environment.
  */
-public class ContainerNode extends AbstractNode implements Node {
+public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -86,6 +91,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
+    private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -301,6 +307,25 @@ public class ContainerNode extends AbstractNode implements Node {
         lifeCycle = DESTROYED;
     }
 
+    @Override
+    public void tick(@NonNull final Instant now) {
+        EventMessage event;
+        while ((event = receivedEvents.poll()) != null) {
+            switch (event.getEventCase()) {
+                case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(event.getLogEntry()));
+                case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
+                case CONSENSUS_ROUNDS ->
+                        resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                case MARKER_FILE_ADDED -> {
+                    final ProtocolStringList markerFiles = event.getMarkerFileAdded().getMarkerFileNameList();
+                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    resultsCollector.addMarkerFiles(markerFiles);
+                }
+                default -> log.warn("Received unexpected event: {}", event);
+            }
+        }
+    }
+
     /**
      * Container-specific implementation of {@link AsyncNodeActions}.
      */
@@ -338,15 +363,7 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    switch (value.getEventCase()) {
-                        case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
-                        case MARKER_FILE_ADDED ->
-                            resultsCollector.addMarkerFiles(
-                                    value.getMarkerFileAdded().getMarkerFileNameList());
-                    }
+                    receivedEvents.add(value);
                 }
 
                 @Override

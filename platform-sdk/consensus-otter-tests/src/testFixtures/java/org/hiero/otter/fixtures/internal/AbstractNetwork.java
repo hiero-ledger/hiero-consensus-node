@@ -123,7 +123,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
+    public void start() throws InterruptedException {
         defaultStartAction.start();
     }
 
@@ -334,7 +334,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() {
+        public void start() throws InterruptedException {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");
@@ -355,7 +355,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void freeze() {
+        public void freeze() throws InterruptedException {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 

@@ -154,7 +154,9 @@ public class ContainerNetwork extends AbstractNetwork {
     private ContainerNode createContainerNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node = new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+        timeManager.addTimeTickReceiver(node);
+        return node;
     }
 
     @NonNull

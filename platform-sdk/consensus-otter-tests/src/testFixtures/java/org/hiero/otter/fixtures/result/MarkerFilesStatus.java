@@ -7,8 +7,8 @@ import com.swirlds.platform.ConsensusImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 
 /**
@@ -144,12 +144,12 @@ public class MarkerFilesStatus {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(this)
-                .append("hasCoinRoundMarkerFile", hasCoinRoundMarkerFile)
-                .append("hasNoSuperMajorityMarkerFile", hasNoSuperMajorityMarkerFile)
-                .append("hasNoJudgesMarkerFile", hasNoJudgesMarkerFile)
-                .append("hasConsensusExceptionMarkerFile", hasConsensusExceptionMarkerFile)
-                .append("issMarkerFiles", issMarkerFiles)
+        return new StringJoiner(", ", MarkerFilesStatus.class.getSimpleName() + "[", "]")
+                .add("hasCoinRoundMarkerFile=" + hasCoinRoundMarkerFile)
+                .add("hasNoSuperMajorityMarkerFile=" + hasNoSuperMajorityMarkerFile)
+                .add("hasNoJudgesMarkerFile=" + hasNoJudgesMarkerFile)
+                .add("hasConsensusExceptionMarkerFile=" + hasConsensusExceptionMarkerFile)
+                .add("issMarkerFiles=" + issMarkerFiles)
                 .toString();
     }
 }

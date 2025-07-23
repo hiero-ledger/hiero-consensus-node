@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -33,6 +34,8 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
+
+        this.set(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, true);
     }
 
     /**

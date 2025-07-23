@@ -50,8 +50,10 @@ public interface Network {
      * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}. It will wait for a environment-specific timeout
      * before throwing an exception if the nodes do not reach the {@code ACTIVE} state. The default can be overridden by
      * calling {@link #withTimeout(Duration)}.
+     *
+     * @throws InterruptedException if the thread is interrupted while starting the network
      */
-    void start();
+    void start() throws InterruptedException;
 
     /**
      * Add an instrumented node to the network.

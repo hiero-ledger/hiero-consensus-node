@@ -11,9 +11,9 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.helpers.MarkerFileUtils;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.turtle.TurtleTimeManager.TimeTickReceiver;
 
 /**
  * An observer that watches for marker files written by a Turtle node.
