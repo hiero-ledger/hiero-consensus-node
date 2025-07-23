@@ -73,12 +73,12 @@ jobs:
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
-          
+
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
               gh run cancel ${{ github.run_id }}
             fi
-          
+
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
 
           else
@@ -86,23 +86,23 @@ jobs:
             XTS_COMMIT=$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
-  
+
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
               gh run cancel ${{ github.run_id }}
             fi
-  
+
             # Check if this commit has already been tagged xts-pass-* or build-*
             set +e
             XTS_PASS_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_PATTERN}")
             BUILD_PROMOTED_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")
             set -e
-  
+
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
               gh run cancel ${{ github.run_id }}
             fi
-  
+
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
             LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
@@ -111,7 +111,7 @@ jobs:
               LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
             fi
-          
+
             # Check if the tag exists on the main branch
             if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
               COMMIT_ON_DEFAULT_BRANCH=0
@@ -122,10 +122,10 @@ jobs:
 
           # Get the short commit id
           XTS_SHORT_COMMIT=$(git rev-parse --short "${XTS_COMMIT}")
-        
+
           # Get the branch name for the commit
           XTS_COMMIT_BRANCH=$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')
-          
+
           # Get commit author
           AUTHOR_NAME=$(git log -1 --format='%an' "${XTS_COMMIT}")
           AUTHOR_EMAIL=$(git log -1 --format='%ae' "${XTS_COMMIT}")
@@ -609,7 +609,6 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
-
 #      - name: Report failure (slack citr-operations)
 #        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
 #        with:
