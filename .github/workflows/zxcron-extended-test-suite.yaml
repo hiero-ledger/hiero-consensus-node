@@ -70,7 +70,6 @@ jobs:
         run: |
           # Check if the tag exists and if so grab its commit id
           if [[ -n "${RC_TAG}" ]]; then
-            echo "rc tag was provided: ${RC_TAG}"
             COMMIT_ON_DEFAULT_BRANCH=0
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
