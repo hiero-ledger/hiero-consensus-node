@@ -128,7 +128,7 @@ public class AutoAccountCreationSuite {
     private static final String TRANSFER_TXN_2 = "transferTxn2";
     private static final String TRANSFER_ALIAS = "transferAlias";
     public static final String A_TOKEN = "tokenA";
-    private static final String B_TOKEN = "tokenB";
+    public static final String B_TOKEN = "tokenB";
     public static final String NFT_INFINITE_SUPPLY_TOKEN = "nftA";
     public static final String NFT_FINITE_SUPPLY_TOKEN = "nftB";
     private static final String MULTI_KEY = "multi";
@@ -138,15 +138,15 @@ public class AutoAccountCreationSuite {
     public static final String CIVILIAN = "somebody";
     public static final String TOKEN_A_CREATE = "tokenACreateTxn";
 
-    private static final String TOKEN_B_CREATE = "tokenBCreateTxn";
+    public static final String TOKEN_B_CREATE = "tokenBCreateTxn";
     public static final String NFT_CREATE = "nftCreateTxn";
     private static final String SPONSOR = "autoCreateSponsor";
     public static final String LAZY_CREATE_SPONSOR = "lazyCreateSponsor";
 
     private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
     public static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    private static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
-    private static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
+    public static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
+    public static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
 
     public static final String CRYPTO_TRANSFER_RECEIVER = "cryptoTransferReceiver";
     public static final String TRUE = "true";
@@ -1143,7 +1143,7 @@ public class AutoAccountCreationSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    static void assertAliasBalanceAndFeeInChildRecord(
+    public static void assertAliasBalanceAndFeeInChildRecord(
             final TransactionRecord parent,
             final TransactionRecord child,
             final AccountID sponsor,
