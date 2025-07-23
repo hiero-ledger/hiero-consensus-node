@@ -7,8 +7,11 @@ import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.acco
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
+import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
@@ -26,10 +29,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
@@ -37,6 +42,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnlyForInnerTxn;
@@ -75,6 +81,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -86,11 +93,14 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -1020,5 +1030,51 @@ public class AtomicBatchNegativeTest {
                 atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+    }
+
+    /**
+     * Rollback contract emitted logs on fail
+     * @return hapi test
+     */
+    @HapiTest
+    @DisplayName("Rollback contract emitted logs on fail")
+    public Stream<DynamicTest> rollbackLogs() {
+        final var token = "token";
+        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
+        final var treasury = "treasury";
+        final var mintContract = "MintContract";
+        final var tokenSupplyKey = "tokenSupplyKey";
+        final var batchOperator = "batchOperator";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(treasury),
+                tokenCreate(token)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(100)
+                        .treasury(treasury)
+                        .adminKey(treasury)
+                        .supplyKey(treasury)
+                        .exposingAddressTo(tokenAddress::set),
+                cryptoCreate(batchOperator),
+                cryptoCreate(receiver),
+                uploadInitCode(mintContract),
+                sourcing(() -> contractCreate(mintContract, tokenAddress.get())),
+                // token supply key
+                newKeyNamed(tokenSupplyKey)
+                        .shape(KeyShape.threshOf(1, ED25519, CONTRACT).signedWith(sigs(ON, mintContract))),
+                tokenUpdate(token).supplyKey(tokenSupplyKey).signedByPayerAnd(treasury),
+                // failing batch
+                atomicBatch(
+                                // call with logs
+                                contractCall(mintContract, "mintFungibleTokenWithEvent", BigInteger.valueOf(1))
+                                        .batchKey(batchOperator)
+                                        .via("call"),
+                                // failing txn
+                                cryptoTransfer(moving(1, token).between(treasury, "receiver"))
+                                        .batchKey(batchOperator)
+                                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord("call").logged());
     }
 }
