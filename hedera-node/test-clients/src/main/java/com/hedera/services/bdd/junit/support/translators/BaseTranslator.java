@@ -985,7 +985,7 @@ public class BaseTranslator {
     public boolean isNonceIncremented(
             final AccountID accountID, final Long nonce, List<StateChange> remainingStateChanges) {
         final var currentNonce = getSignerNonce(accountID, remainingStateChanges);
-        return currentNonce > nonce;
+        return currentNonce != null && currentNonce > nonce;
     }
 
     /**
