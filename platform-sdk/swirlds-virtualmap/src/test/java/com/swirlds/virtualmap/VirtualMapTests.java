@@ -1164,10 +1164,9 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("A new map with a datasource with a root hash reveals it")
-    void mapWithExistingHashedDataHasNonNullRootHash() throws ExecutionException, InterruptedException {
-        // The builder I will use with this map is unique in that each call to "build" returns THE SAME DATASOURCE.
-        final InMemoryDataSource ds = new InMemoryDataSource("mapWithExistingHashedDataHasNonNullRootHash");
+    @DisplayName("If there are no dirty leaves, previous copy's root hash is used")
+    void emptyDirtyLeavesResultInHashFromPreviousCopy() throws ExecutionException, InterruptedException {
+        final InMemoryDataSource ds = new InMemoryDataSource("emptyDirtyLeavesResultInHashFromPreviousCopy");
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
         final VirtualMap vm = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
@@ -1175,20 +1174,19 @@ class VirtualMapTests extends VirtualTestBase {
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = vm.copy();
-
-        vm.getHash();
-        final Hash expectedHash = vm.getHash();
+        copy.enableFlush();
         vm.release();
+        // Hash the copy and flush all data to disk, including the root hash
         vm.waitUntilFlushed();
+        final Hash expectedHash = vm.getHash();
+
+        final VirtualMap copy2 = copy.copy();
         copy.release();
+        copy.waitUntilFlushed();
 
-        final VirtualMap vm2 = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
-        vm2.postInit();
-        vm2.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        vm2.copy().release();
-        assertEquals(expectedHash, vm2.getHash(), "hash should match expected");
+        assertEquals(expectedHash, copy2.getHash(), "hash should match expected");
 
-        vm2.release();
+        copy2.release();
     }
 
     @Test
