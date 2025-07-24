@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyStateId;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -72,7 +72,7 @@ public class AccountValidator {
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
-            final int readStateId = readNextFieldNumber(keyBytes.toReadableSequentialData());
+            final int readStateId = extractVirtualMapKeyStateId(keyBytes);
             if (readStateId == targetStateId) {
                 try {
                     final Account account = Account.PROTOBUF.parse(pair.right());
