@@ -155,6 +155,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return expectedStatus.orElse(SUCCESS);
     }
 
+    public boolean isExpectedStatusSet() {
+        return expectedStatus.isPresent() || permissibleStatuses.isPresent();
+    }
+
     public ResponseCodeEnum getExpectedPrecheck() {
         return expectedPrecheck.orElse(OK);
     }
@@ -325,7 +329,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return !deferStatusResolution;
     }
 
-    private void resolveStatus(HapiSpec spec) throws Throwable {
+    public void resolveStatus(HapiSpec spec) throws Throwable {
         actualStatus = resolvedStatusOfSubmission(spec);
         spec.updateResolvedCounts(actualStatus);
         if (actualStatus == INSUFFICIENT_PAYER_BALANCE) {
@@ -893,7 +897,15 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    public boolean hasBatchKey() {
+        return batchKey.isPresent();
+    }
+
     public Optional<String> getNode() {
         return node;
+    }
+
+    public boolean shouldResolveStatus() {
+        return !deferStatusResolution && !fireAndForget;
     }
 }

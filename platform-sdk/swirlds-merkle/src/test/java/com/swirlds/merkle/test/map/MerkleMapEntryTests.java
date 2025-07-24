@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.map;
 
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -171,7 +172,7 @@ class MerkleMapEntryTests {
                 new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final MerkleMapEntry<SerializableLong, KeyedMerkleLong<SerializableLong>> deserializedEntry =
-                merkleIn.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                merkleIn.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         assertEquals(entry, deserializedEntry, "deserialized entry should match");
         assertNotSame(

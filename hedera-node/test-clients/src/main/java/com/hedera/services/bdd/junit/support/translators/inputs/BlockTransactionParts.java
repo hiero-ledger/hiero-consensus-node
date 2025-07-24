@@ -41,6 +41,7 @@ import java.util.Optional;
  * @param outputs the output of processing the transaction
  * @param isTopLevel whether the transaction is a top-level transaction in its unit
  * @param hasEnrichedLegacyRecord whether the transaction has an enriched legacy record
+ * @param isBatchScoped where is part of atomic batch (inner transactions and their children)
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
@@ -48,12 +49,16 @@ public record BlockTransactionParts(
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs,
         boolean isTopLevel,
-        boolean hasEnrichedLegacyRecord) {
+        boolean hasEnrichedLegacyRecord,
+        boolean isBatchScoped) {
     /**
-     * Returns whether this transaction is part of a batch.
+     * Returns whether this transaction is an inner batch txn.
+     * <p>
+     * Note: will return false for inner children parts.
+     *
      * @return true if it is part of a batch, false otherwise
      */
-    public boolean inBatch() {
+    public boolean isInnerBatchTxn() {
         return body().hasBatchKey();
     }
 
@@ -173,7 +178,7 @@ public record BlockTransactionParts(
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
     public BlockTransactionParts withPartsFromBatchParent(@NonNull final TransactionParts transactionParts) {
-        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false, true);
+        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false, true, true);
     }
 
     /**

@@ -34,9 +34,10 @@ jobs:
       xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
+      xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -116,10 +117,13 @@ jobs:
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
             echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
+            echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
             echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### XTS Information" >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
             git tag -d "${XTS_CANDIDATE_TAG}"
@@ -220,7 +224,7 @@ jobs:
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -270,14 +274,12 @@ jobs:
       !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        env:
-          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -292,7 +294,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_INFO}) Passed",
+                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed",
                         "emoji": true
                       }
                     },
@@ -400,7 +402,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -457,8 +459,6 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
-        env:
-          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -470,7 +470,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_INFO}) Failed",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
                       "emoji": true
                     }
                   },

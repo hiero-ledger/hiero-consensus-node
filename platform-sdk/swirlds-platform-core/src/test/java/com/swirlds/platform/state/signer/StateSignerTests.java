@@ -15,7 +15,6 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.junit.jupiter.api.AfterEach;
@@ -36,13 +35,8 @@ public class StateSignerTests {
 
     @Test
     void doNotSignPcesState() {
-        final Randotron randotron = Randotron.create();
-
-        final Hash stateHash = randotron.nextHash();
-        final SignedState signedState = new RandomSignedStateGenerator()
-                .setStateHash(stateHash)
-                .setPcesRound(true)
-                .build();
+        final SignedState signedState =
+                new RandomSignedStateGenerator().setPcesRound(true).build();
 
         final PlatformSigner platformSigner = mock(PlatformSigner.class);
         final StateSigner stateSigner = new DefaultStateSigner(platformSigner);
@@ -57,11 +51,8 @@ public class StateSignerTests {
     void signRegularState() {
         final Randotron randotron = Randotron.create();
 
-        final Hash stateHash = randotron.nextHash();
-        final SignedState signedState = new RandomSignedStateGenerator()
-                .setStateHash(stateHash)
-                .setPcesRound(false)
-                .build();
+        final SignedState signedState =
+                new RandomSignedStateGenerator().setPcesRound(false).build();
 
         final PlatformSigner platformSigner = mock(PlatformSigner.class);
         final Signature signature = randotron.nextSignature();
