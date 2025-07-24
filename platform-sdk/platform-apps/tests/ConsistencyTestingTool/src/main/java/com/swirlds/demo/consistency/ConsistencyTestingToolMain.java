@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
@@ -166,5 +167,10 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
+    }
+
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        transactionPool.updatePlatformStatus(platformStatus);
     }
 }

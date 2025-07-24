@@ -568,7 +568,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
                 platform.getContext().getMetrics());
 
-        platform.getNotificationEngine().register(PlatformStatusChangeListener.class, this::platformStatusChange);
         registerReconnectCompleteListener();
 
         try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
@@ -894,8 +893,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         return consensusStateEventHandler;
     }
 
-    private void platformStatusChange(final PlatformStatusChangeNotification notification) {
-        final PlatformStatus newStatus = notification.getNewStatus();
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus newStatus) {
         // set isActive
         isActive = newStatus == PlatformStatus.ACTIVE;
 

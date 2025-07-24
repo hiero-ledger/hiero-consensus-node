@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.status.PlatformStatus;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -120,6 +121,11 @@ public final class DiagramCommand extends AbstractCommand {
             @Override
             public boolean hasBufferedSignatureTransactions() {
                 return false;
+            }
+
+            @Override
+            public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+
             }
         };
 

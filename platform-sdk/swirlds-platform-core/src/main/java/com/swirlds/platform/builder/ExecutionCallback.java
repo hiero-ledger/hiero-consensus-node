@@ -30,10 +30,10 @@ public interface ExecutionCallback extends TransactionSupplier {
      */
     boolean hasBufferedSignatureTransactions();
 
-//    /**
-//     * Update the platform status.
-//     *
-//     * @param platformStatus the new platform status
-//     */
-//    void updatePlatformStatus(@NonNull final PlatformStatus platformStatus);
+    /**
+     * Update the platform status.
+     *
+     * @param platformStatus the new platform status
+     */
+    void updatePlatformStatus(@NonNull final PlatformStatus platformStatus);
 }

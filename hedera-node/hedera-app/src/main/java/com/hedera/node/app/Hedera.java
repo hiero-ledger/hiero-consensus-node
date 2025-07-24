@@ -205,7 +205,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
@@ -605,8 +605,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     }
 
     @Override
-    public void notify(@NonNull final PlatformStatusChangeNotification notification) {
-        this.platformStatus = notification.getNewStatus();
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        this.platformStatus = platformStatus;
+        transactionPool.updatePlatformStatus(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         final var streamToBlockNodes = configProvider
                 .getConfiguration()
@@ -1166,7 +1167,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         // as well as unregister listeners from the last time this method ran
         if (daggerApp != null) {
             shutdownGrpcServer();
-            notifications.unregister(PlatformStatusChangeListener.class, this);
             notifications.unregister(ReconnectCompleteListener.class, daggerApp.reconnectListener());
             notifications.unregister(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
             notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
@@ -1230,7 +1230,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
         logConfiguration();
-        notifications.register(PlatformStatusChangeListener.class, this);
         notifications.register(ReconnectCompleteListener.class, daggerApp.reconnectListener());
         notifications.register(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());

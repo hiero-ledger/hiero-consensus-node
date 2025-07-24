@@ -6,6 +6,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionCallback;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
@@ -39,5 +40,10 @@ public class OtterExecutionCallback implements ExecutionCallback {
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
+    }
+
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        transactionPool.updatePlatformStatus(platformStatus);
     }
 }
