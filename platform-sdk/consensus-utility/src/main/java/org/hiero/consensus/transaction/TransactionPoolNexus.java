@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TransactionSupplier;
 
@@ -25,10 +18,6 @@ import org.hiero.consensus.model.transaction.TransactionSupplier;
  * created.
  */
 public class TransactionPoolNexus implements TransactionSupplier {
-
-    private static final Logger logger = LogManager.getLogger(TransactionPoolNexus.class);
-    private final RateLimitedLogger illegalTransactionLogger;
-
     /**
      * A list of transactions created by this node waiting to be put into a self-event.
      */
@@ -78,9 +67,6 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @param metrics       the metrics to use
      */
     public TransactionPoolNexus(@NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
-
-        illegalTransactionLogger = new RateLimitedLogger(logger, Time.getCurrent(), Duration.ofMinutes(10));
-
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
         throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
 
@@ -108,16 +94,10 @@ public class TransactionPoolNexus implements TransactionSupplier {
 
         if (appTransaction == null) {
             // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
-            illegalTransactionLogger.error(EXCEPTION.getMarker(), "transaction is null");
             return false;
         }
         if (appTransaction.length() > maximumTransactionSize) {
             // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
-            illegalTransactionLogger.error(
-                    EXCEPTION.getMarker(),
-                    "transaction has {} bytes, maximum permissible transaction size is {}",
-                    appTransaction.length(),
-                    maximumTransactionSize);
             return false;
         }
 
