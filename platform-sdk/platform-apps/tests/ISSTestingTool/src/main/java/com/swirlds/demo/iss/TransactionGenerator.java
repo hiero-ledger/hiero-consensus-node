@@ -4,11 +4,13 @@ package com.swirlds.demo.iss;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.ByteUtils.intToByteArray;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.Startable;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.platform.system.Platform;
 import java.util.Random;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * Generates and submits transactional workload.
@@ -16,15 +18,15 @@ import java.util.Random;
 public class TransactionGenerator implements Startable {
 
     private final Random random;
-    private final Platform platform;
+    private final TransactionPoolNexus transactionPool;
 
     private final StoppableThread thread;
 
     public TransactionGenerator(
-            final Random random, final Platform platform, final int networkWideTransactionsPerSecond) {
+            final Random random, final Platform platform, final TransactionPoolNexus transactionPool, final int networkWideTransactionsPerSecond) {
 
         this.random = random;
-        this.platform = platform;
+        this.transactionPool = transactionPool;
 
         // Each node in an N node network should create 1/N transactions per second.
         final int tps = networkWideTransactionsPerSecond
@@ -51,6 +53,6 @@ public class TransactionGenerator implements Startable {
      */
     private void generateTransaction() {
         // Transactions are simple: take an integer, and add it into the running sum.
-        platform.createTransaction(intToByteArray(random.nextInt()));
+        transactionPool.submitApplicationTransaction(Bytes.wrap(intToByteArray(random.nextInt())));
     }
 }

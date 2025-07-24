@@ -108,6 +108,8 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.NoArgsConstructor;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
@@ -199,6 +201,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     private NodeId selfId;
     /** the app is run by this */
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
     /** the platform is active now or not */
     private volatile boolean isActive = false;
 
@@ -341,7 +345,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         final byte[] freezeBytes = pttTransactionPool.createFreezeTranByte(startTime);
 
-        if (!submitter.sendFreezeTran(platform, freezeBytes)) {
+        if (!submitter.sendFreezeTran(transactionPool, freezeBytes)) {
             logger.warn(DEMO_INFO.getMarker(), new CreateTransactionFailedPayload(FREEZE_TRANSACTION_TYPE));
         }
     }
@@ -367,7 +371,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 return false;
             }
             final boolean success = submitter.trySubmit(
-                    platform, Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
+                    platform, transactionPool, Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
             if (!success) { // if failed keep bytes payload try next time
                 try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                         UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
@@ -396,7 +400,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             // empty means no more transaction
             logger.info(LOGM_DEMO_INFO, "Stop generating transactions ");
             submitter.sendTransaction(
-                    platform, pttTransactionPool.createControlTranBytes(ControlType.ENTER_VALIDATION));
+                    transactionPool, pttTransactionPool.createControlTranBytes(ControlType.ENTER_VALIDATION));
             logger.info(LOGM_DEMO_INFO, "node {} sent ENTER_VALIDATION Message", platform.getSelfId());
             noMoreTransaction = true;
             return false;
@@ -560,6 +564,10 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         this.platform = platform;
         selfId = id;
 
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
+
         platform.getNotificationEngine().register(PlatformStatusChangeListener.class, this::platformStatusChange);
         registerReconnectCompleteListener();
 
@@ -658,6 +666,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                     // through calls to the setFirstAccountId and setFirstSmartContractId methods.
                     pttTransactionPool = new PttTransactionPool(
                             platform,
+                            transactionPool,
                             platform.getSelfId().id(),
                             payloadConfig,
                             myName,
@@ -746,7 +755,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
             appClient[k] =
-                    new AppClient(this.platform, this.selfId, clientConfig, selfName, consensusStateEventHandler);
+                    new AppClient(this.platform, transactionPool, this.selfId, clientConfig, selfName, consensusStateEventHandler);
             appClient[k].start();
         }
     }
@@ -1127,7 +1136,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                         consensusTime);
 
                 submitter.sendTransaction(
-                        platform, pttTransactionPool.createControlTranBytes(ControlType.EXIT_VALIDATION));
+                        transactionPool, pttTransactionPool.createControlTranBytes(ControlType.EXIT_VALIDATION));
 
                 logger.info(
                         LOGM_DEMO_QUORUM, "Sent EXIT_VALIDATION transaction  [ consensusTime = {} ]", consensusTime);
@@ -1178,7 +1187,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         logger.info(
                 LOGM_DEMO_QUORUM, "Achieved Quorum on ENTER_SYNC transaction [ consensusTime = {} ]", consensusTime);
 
-        submitter.sendTransaction(platform, pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
+        submitter.sendTransaction(transactionPool, pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
 
         logger.info(LOGM_DEMO_QUORUM, "Sent EXIT_SYNC transaction  [ consensusTime = {} ]", consensusTime);
     }
@@ -1273,8 +1282,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     }
 
     @Override
-    @NonNull
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
         final com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction convertedSystemTransaction =
                 com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction.newBuilder()
                         .setRound(transaction.round())
@@ -1290,9 +1298,20 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.newBuilder()
                     .setTestTransactionRawBytes(ByteString.copyFrom(testTransaction.toByteArray()))
                     .build();
-            return Bytes.wrap(testTransactionWrapper.toByteArray());
+            transactionPool.submitPriorityTransaction(Bytes.wrap(testTransactionWrapper.toByteArray()));
         } else {
-            return Bytes.wrap(testTransaction.toByteArray());
+            transactionPool.submitPriorityTransaction(Bytes.wrap(testTransaction.toByteArray()));
         }
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

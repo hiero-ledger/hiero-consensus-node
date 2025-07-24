@@ -26,10 +26,11 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -58,7 +59,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param randomBuilder                          a builder for creating random number generators
- * @param transactionPoolNexus                   provides transactions to be added to new events
+ * @param hasBufferedSignatureTransactions       checks if there are buffered signature transactions
  * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
  *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
@@ -103,7 +104,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull RandomBuilder randomBuilder,
-        @NonNull TransactionPoolNexus transactionPoolNexus,
+        @NonNull BooleanSupplier hasBufferedSignatureTransactions,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
@@ -118,6 +119,7 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
+        @NonNull TransactionSupplier transactionSupplier,
         @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
     public PlatformBuildingBlocks {
@@ -134,7 +136,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(randomBuilder);
-        requireNonNull(transactionPoolNexus);
+        requireNonNull(hasBufferedSignatureTransactions);
         requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);

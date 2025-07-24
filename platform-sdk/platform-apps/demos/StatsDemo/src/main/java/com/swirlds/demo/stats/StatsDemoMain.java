@@ -33,6 +33,8 @@ import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -51,7 +53,9 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     /** the app is run by this */
     private Platform platform;
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
-    private final Random random = new java.util.Random();
+    private Random random = new java.util.Random();
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -101,7 +105,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
                 break; // don't create too many transactions per second
             }
             random.nextBytes(transaction); // random, so it's non-compressible
-            if (!platform.createTransaction(transaction)) {
+            if (!transactionPool.submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
             toCreate--;
@@ -117,6 +121,9 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         final String[] parameters = ParameterProvider.getInstance().getParameters();
         bytesPerTrans = parameters.length > 0 ? Integer.parseInt(parameters[0]) : 100;
         transPerSecToCreate = parameters.length > 1 ? Integer.parseInt(parameters[1]) : 200;
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
     }
 
     @Override
@@ -158,7 +165,18 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 }

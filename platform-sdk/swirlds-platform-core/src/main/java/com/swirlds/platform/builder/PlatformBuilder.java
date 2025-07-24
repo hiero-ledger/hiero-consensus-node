@@ -51,6 +51,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -59,7 +60,7 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -129,6 +130,7 @@ public final class PlatformBuilder {
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
     private Function<StateSignatureTransaction, Bytes> systemTransactionEncoder;
+    private ExecutionCallback executionCallback;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -282,6 +284,8 @@ public final class PlatformBuilder {
         return this;
     }
 
+
+
     /**
      * Register a callback that is called when a stale self event is detected (i.e. an event that will never reach
      * consensus). Depending on the use case, it may be a good idea to resubmit the transactions in the stale event.
@@ -311,6 +315,14 @@ public final class PlatformBuilder {
             @NonNull final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {
         throwIfAlreadyUsed();
         this.systemTransactionEncoder = Objects.requireNonNull(systemTransactionEncoder);
+        return this;
+    }
+
+    @NonNull
+    public PlatformBuilder withExecutionCallback(
+            @NonNull final ExecutionCallback executionCallback) {
+        throwIfAlreadyUsed();
+        this.executionCallback = Objects.requireNonNull(executionCallback);
         return this;
     }
 
@@ -439,6 +451,7 @@ public final class PlatformBuilder {
                 Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
+        //TODO add pendingSystemTransactionCheck
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(
                 preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer, systemTransactionEncoder);
 
@@ -482,9 +495,6 @@ public final class PlatformBuilder {
         final PlatformWiring platformWiring = new PlatformWiring(
                 platformContext, model, callbacks, initialState.get().isGenesisState());
 
-        final TransactionPoolNexus transactionPoolNexus = new TransactionPoolNexus(
-                platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
-
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
                 platformContext,
@@ -501,7 +511,7 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 randomBuilder,
-                transactionPoolNexus,
+                executionCallback::hasBufferedSignatureTransactions,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,
@@ -516,6 +526,7 @@ public final class PlatformBuilder {
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
+                executionCallback::getTransactions,
                 stateRootFunction);
 
         return new PlatformComponentBuilder(buildingBlocks);

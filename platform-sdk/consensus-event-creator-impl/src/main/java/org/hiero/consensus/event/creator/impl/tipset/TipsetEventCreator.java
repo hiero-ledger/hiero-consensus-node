@@ -25,7 +25,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;

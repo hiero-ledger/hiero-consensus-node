@@ -165,6 +165,8 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -315,6 +317,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * The Hashgraph Platform. This is set during state initialization.
      */
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
     /**
      * The current status of the platform.
      */
@@ -817,6 +821,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
         }
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
         assertEnvSanityChecks(nodeId);
         logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
         Locale.setDefault(Locale.US);
@@ -1107,8 +1114,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return requireNonNull(genesisNetworkSupplier);
     }
 
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction stateSignatureTransaction) {
+    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         final var nodeAccountID = appContext.selfNodeInfoSupplier().get().accountId();
 
         final var transactionID = TransactionID.newBuilder()
@@ -1127,6 +1133,22 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .build();
 
         return com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transaction);
+    }
+
+    @Override
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
+        transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
+    }
+
+        @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
     }
 
     /*==================================================================================================================

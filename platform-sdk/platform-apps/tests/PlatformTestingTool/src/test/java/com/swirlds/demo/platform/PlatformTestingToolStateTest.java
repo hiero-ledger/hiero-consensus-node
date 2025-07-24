@@ -156,37 +156,6 @@ class PlatformTestingToolStateTest {
         assertThat(consumedSystemTransactions).isEmpty();
     }
 
-    @Test
-    void handleConsensusRoundWithSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
-    void handleConsensusRoundWithDisabledAppendSig() {
-        // Given
-        givenInitState(CONFIG_WITHOUT_APPEND_SIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
 
     @Test
     void handleConsensusRoundWithMultipleSystemTransaction() {
@@ -205,7 +174,8 @@ class PlatformTestingToolStateTest {
                 .thenReturn(List.of(transaction, secondConsensusTransaction, thirdConsensusTransaction)
                         .iterator());
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -257,7 +227,8 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -278,7 +249,8 @@ class PlatformTestingToolStateTest {
         // Given
         givenInitState(DEFAULT_CONFIG);
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()

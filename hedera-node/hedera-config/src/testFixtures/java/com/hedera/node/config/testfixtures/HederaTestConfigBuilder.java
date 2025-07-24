@@ -87,7 +87,7 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.config.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The

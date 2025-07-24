@@ -44,7 +44,7 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
