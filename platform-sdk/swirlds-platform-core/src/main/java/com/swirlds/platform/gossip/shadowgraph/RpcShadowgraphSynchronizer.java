@@ -89,7 +89,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @return rpc peer state object
      */
     public RpcPeerHandler createPeerHandler(@NonNull final GossipRpcSender sender, @NonNull final NodeId otherNodeId) {
-        final RpcPeerHandler rpcPeerHandler = new RpcPeerHandler(
+        return new RpcPeerHandler(
                 this,
                 sender,
                 selfId,
@@ -101,6 +101,5 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 eventHandler,
                 syncGuard,
                 fallenBehindMonitor);
-        return rpcPeerHandler;
     }
 }
