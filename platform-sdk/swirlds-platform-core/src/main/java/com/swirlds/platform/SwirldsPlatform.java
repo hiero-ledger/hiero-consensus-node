@@ -407,16 +407,6 @@ public class SwirldsPlatform implements Platform {
      * {@inheritDoc}
      */
     @Override
-    public boolean createTransaction(@NonNull final byte[] transaction) {
-        return false;
-        //TODO move this
-        //transactionPoolNexus.submitApplicationTransaction(Bytes.wrap(transaction));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
     public PlatformContext getContext() {
         return platformContext;

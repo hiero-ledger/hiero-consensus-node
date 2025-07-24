@@ -19,6 +19,7 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.transaction.TransactionWrapperUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -164,11 +165,6 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
         }
 
-        @Override
-        public boolean createTransaction(@NonNull byte[] transaction) {
-            return queue.add(new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(transaction)));
-        }
-
         /**
          * Simulates a round of events coming to consensus and being handled by the Hedera node.
          *
@@ -199,8 +195,10 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                     prehandledEvents.clear();
                 }
                 // Now drain all events that will go in the next round and pre-handle them
-                final List<FakeEvent> newEvents = new ArrayList<>();
-                queue.drainTo(newEvents);
+                final List<FakeEvent> newEvents = hedera.getTransactions().stream()
+                        .map(TransactionWrapperUtils::createAppPayloadWrapper)
+                        .map(t-> new FakeEvent(defaultNodeId, now(), t))
+                        .toList();
                 newEvents.forEach(event -> hedera.onPreHandle(event, state, NOOP_STATE_SIG_CALLBACK));
                 prehandledEvents.addAll(newEvents);
             } catch (Throwable t) {
