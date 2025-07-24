@@ -2,6 +2,7 @@
 package com.swirlds.platform.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.BROADCAST_EVENT;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENT;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.KNOWN_TIPS;
@@ -52,7 +53,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Message based implementation of gossip; currently supporting sync Responsible for communication with a single peer
+ * Message based implementation of gossip; currently supporting sync and simplistic broadcast Responsible for
+ * communication with a single peer
  */
 public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
@@ -453,6 +455,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                                     Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
                             inputQueue.add(() -> receiver.receiveEvents(events));
                             break;
+                        case BROADCAST_EVENT:
+                            final GossipEvent event = input.readPbjRecord(GossipEvent.PROTOBUF);
+                            inputQueue.add(() -> receiver.receiveBroadcastEvent(event));
+                            break;
                         case EVENTS_FINISHED:
                             inputQueue.add(receiver::receiveEventsFinished);
                             break;
@@ -515,6 +521,15 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     }
                 }
             }
+        });
+    }
+
+    @Override
+    public void sendBroadcastEvent(final GossipEvent gossipEvent) {
+        outputQueue.add(out -> {
+            out.writeShort(1);
+            out.write(BROADCAST_EVENT);
+            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
         });
     }
 
