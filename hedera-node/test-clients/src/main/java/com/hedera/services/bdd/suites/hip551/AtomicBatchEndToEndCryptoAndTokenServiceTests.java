@@ -26,6 +26,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -185,7 +188,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                             moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(TOKEN_WAS_DELETED);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -222,7 +226,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                             moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferTokenSecondTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -259,7 +264,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                             moving(1, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferTokenSecondTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -335,7 +341,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(NEW_TREASURY_WITHOUT_FREE_AUTO_ASSOCIATIONS)
                     .signedBy(adminKey, NEW_TREASURY_WITHOUT_FREE_AUTO_ASSOCIATIONS)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
 
             // transfer token from new treasury to receiver associated account
             final var tokenTransferFromNewTreasury = cryptoTransfer(moving(10, FT_FOR_END_TO_END)
@@ -385,7 +392,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(NEW_TREASURY_WITH_ZERO_AUTO_ASSOCIATIONS)
                     .signedBy(adminKey, NEW_TREASURY_WITH_ZERO_AUTO_ASSOCIATIONS)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
 
             // transfer token from new treasury to receiver associated account
             final var tokenTransferFromNewTreasury = cryptoTransfer(moving(10, FT_FOR_END_TO_END)
@@ -449,8 +457,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     atomicBatch(updateTokenTreasury, tokenTransferFromNewTreasury)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                            .hasPrecheck(INVALID_SIGNATURE),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 0L),
@@ -482,7 +489,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFromNewTreasuryTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -525,7 +533,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFromNewTreasuryTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -562,7 +571,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                     .signedBy(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             // transfer token from new treasury to receiver associated account
             final var tokenTransferFromNewTreasury = cryptoTransfer(moving(10, FT_FOR_END_TO_END)
@@ -627,8 +637,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     atomicBatch(updateTokenTreasury, tokenTransferFromNewTreasury)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                            .hasPrecheck(INVALID_SIGNATURE),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 0L),
@@ -698,7 +707,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                     .signedBy(adminKey, NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -739,7 +749,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(OWNER)
                     .signedBy(newAdminKey, OWNER)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
@@ -782,7 +793,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     .payingWith(OWNER)
                     .signedBy(adminKey, OWNER)
                     .via("updateTokenTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
