@@ -995,7 +995,7 @@ public class BaseTranslator {
      * @param remainingStateChanges the state changes to search for the account
      * @return the Ethereum nonce for the account
      */
-    private Long getSignerNonce(
+    public Long getSignerNonce(
             @NonNull final AccountID senderId, @NonNull final List<StateChange> remainingStateChanges) {
         return findAccount(senderId, remainingStateChanges)
                 .map(Account::ethereumNonce)
