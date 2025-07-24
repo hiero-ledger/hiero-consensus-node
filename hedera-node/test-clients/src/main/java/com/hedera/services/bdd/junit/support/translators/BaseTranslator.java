@@ -111,7 +111,7 @@ public class BaseTranslator {
 
     private ExchangeRateSet activeRates;
     private final Map<Long, Long> nonces = new HashMap<>();
-    private final Map<Long, Address> evmAddresses = new HashMap<>();
+    private final Map<AccountID, Address> evmAddresses = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -852,7 +852,7 @@ public class BaseTranslator {
                                 .computeIfAbsent(ACCOUNT, ignore -> new LinkedList<>())
                                 .add(num);
                         final var account = mapUpdate.valueOrThrow().accountValueOrThrow();
-                        evmAddresses.put(num, ConversionUtils.priorityAddressOf(account));
+                        evmAddresses.put(key.accountIdKey(), ConversionUtils.priorityAddressOf(account));
                     }
                 } else if (key.hasEntityNumberKey()) {
                     final var value = mapUpdate.valueOrThrow();
@@ -983,5 +983,30 @@ public class BaseTranslator {
             }
         }
         return true;
+    }
+
+    /**
+     * Finds account of a contract, and generate contract ID with a contractNum.
+     *
+     * @param address EVM address of a contract
+     * @return contract ID with contractNum
+     */
+    public Optional<ContractID> findContractNum(Bytes address) {
+        ContractID result = null;
+        final var evmAddress = Address.wrap(org.apache.tuweni.bytes.Bytes.wrap(address.toByteArray()));
+        // try to find account id
+        final var account = evmAddresses.entrySet().stream()
+                .filter(entry -> evmAddress.equals(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .findFirst();
+        // create contract id
+        if (account.isPresent() && account.get().hasAccountNum()) {
+            result = ContractID.newBuilder()
+                    .shardNum(account.get().shardNum())
+                    .realmNum(account.get().realmNum())
+                    .contractNum(account.get().accountNumOrThrow())
+                    .build();
+        }
+        return Optional.ofNullable(result);
     }
 }

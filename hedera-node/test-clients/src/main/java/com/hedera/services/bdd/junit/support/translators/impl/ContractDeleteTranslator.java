@@ -66,10 +66,16 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                     // In a reverted batch, the contract deletion is rolled back, so there is no deleted account
                     // in the state changes. For legacy record compatibility, we use the contract ID from the
                     // original transaction body to populate the receipt.
-                    else if (parts.status() == REVERTED_SUCCESS && parts.inBatch()) {
-                        final var op = parts.body();
-                        receiptBuilder.contractID(
-                                op.contractDeleteInstanceOrThrow().contractID());
+                    else if (parts.status() == REVERTED_SUCCESS && parts.isInnerBatchTxn()) {
+                        final var contractID =
+                                parts.body().contractDeleteInstanceOrThrow().contractID();
+                        if (contractID.hasEvmAddress()) {
+                            baseTranslator
+                                    .findContractNum(contractID.evmAddressOrThrow())
+                                    .ifPresent(receiptBuilder::contractID);
+                        } else {
+                            receiptBuilder.contractID(contractID);
+                        }
                     }
                 },
                 remainingStateChanges,
