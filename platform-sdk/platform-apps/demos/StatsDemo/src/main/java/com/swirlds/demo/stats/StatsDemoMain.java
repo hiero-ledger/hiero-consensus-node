@@ -30,6 +30,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -112,14 +113,10 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     @Override
     public void init(@NonNull final Platform platform, @NonNull final NodeId id) {
         this.platform = platform;
-        // parse the config.txt parameters, and allow optional _ as in 1_000_000
+        // parse the config.txt parameters
         final String[] parameters = ParameterProvider.getInstance().getParameters();
-        bytesPerTrans = Integer.parseInt(parameters[3].replaceAll("_", ""));
-        transPerSecToCreate = Integer.parseInt(parameters[5].replaceAll("_", ""));
-        if (transPerSecToCreate == -1) {
-            // they shouldn't both be -1, so set one of them
-            transPerSecToCreate = 100;
-        }
+        bytesPerTrans = parameters.length > 0 ? Integer.parseInt(parameters[0]) : 100;
+        transPerSecToCreate = parameters.length > 1 ? Integer.parseInt(parameters[1]) : 200;
     }
 
     @Override
