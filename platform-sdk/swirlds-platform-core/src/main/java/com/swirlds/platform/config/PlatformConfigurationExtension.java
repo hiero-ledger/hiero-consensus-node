@@ -32,9 +32,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionConfig;
 
 /**
  * Registers configuration types for the platform.

@@ -117,8 +117,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -165,8 +163,6 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -175,6 +171,8 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /*
  ****************        ****************************************************************************************
@@ -1141,7 +1139,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
-        @NonNull
+    @NonNull
     @Override
     public List<Bytes> getTransactions() {
         return transactionPool.getTransactions();

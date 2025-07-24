@@ -9,7 +9,7 @@ import java.util.List;
  * A source of transactions.
  */
 @FunctionalInterface
-public interface TransactionSupplier {//TODO remove
+public interface TransactionSupplier { // TODO remove
 
     /**
      * Returns an array of transactions. May return an empty array.

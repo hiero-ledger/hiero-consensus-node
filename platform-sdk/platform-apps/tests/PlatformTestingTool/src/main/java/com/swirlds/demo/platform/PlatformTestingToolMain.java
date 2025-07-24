@@ -64,8 +64,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -108,11 +106,11 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.NoArgsConstructor;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
@@ -753,8 +751,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final SuperConfig clientConfig = objectMapper.readValue(new File(jsonFileName), SuperConfig.class);
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
-            appClient[k] =
-                    new AppClient(this.platform, transactionPool, this.selfId, clientConfig, selfName, consensusStateEventHandler);
+            appClient[k] = new AppClient(
+                    this.platform, transactionPool, this.selfId, clientConfig, selfName, consensusStateEventHandler);
             appClient[k].start();
         }
     }

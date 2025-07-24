@@ -23,7 +23,10 @@ public class TransactionGenerator implements Startable {
     private final StoppableThread thread;
 
     public TransactionGenerator(
-            final Random random, final Platform platform, final TransactionPoolNexus transactionPool, final int networkWideTransactionsPerSecond) {
+            final Random random,
+            final Platform platform,
+            final TransactionPoolNexus transactionPool,
+            final int networkWideTransactionsPerSecond) {
 
         this.random = random;
         this.transactionPool = transactionPool;

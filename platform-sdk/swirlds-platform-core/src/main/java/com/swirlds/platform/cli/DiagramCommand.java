@@ -124,9 +124,7 @@ public final class DiagramCommand extends AbstractCommand {
             }
 
             @Override
-            public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-
-            }
+            public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {}
         };
 
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())

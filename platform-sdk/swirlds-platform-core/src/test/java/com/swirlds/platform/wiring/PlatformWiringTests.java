@@ -84,8 +84,8 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, mock(
-                ExecutionCallback.class));
+        final PlatformWiring wiring =
+                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionCallback.class));
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));

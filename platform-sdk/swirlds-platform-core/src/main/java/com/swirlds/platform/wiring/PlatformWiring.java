@@ -318,11 +318,8 @@ public class PlatformWiring {
                 .getOutputWire()
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
         statusStateMachineWiring
-                .getOutputWire().solderTo(
-                "ExecutionStatusHandler",
-                "status updates",
-                executionCallback::updatePlatformStatus
-        );
+                .getOutputWire()
+                .solderTo("ExecutionStatusHandler", "status updates", executionCallback::updatePlatformStatus);
     }
 
     /**
@@ -531,10 +528,7 @@ public class PlatformWiring {
         stateSignerWiring
                 .getOutputWire()
                 .solderTo(
-                        "ExecutionSignatureSubmission",
-                        "state signatures",
-                        executionCallback::submitSystemTransaction
-                );
+                        "ExecutionSignatureSubmission", "state signatures", executionCallback::submitSystemTransaction);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -575,10 +569,10 @@ public class PlatformWiring {
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
-        //TODO maybe wire to app
-//        statusStateMachineWiring
-//                .getOutputWire()
-//                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
+        // TODO maybe wire to app
+        //        statusStateMachineWiring
+        //                .getOutputWire()
+        //                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();

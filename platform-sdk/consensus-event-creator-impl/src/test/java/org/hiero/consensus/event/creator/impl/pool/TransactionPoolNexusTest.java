@@ -4,14 +4,13 @@ package org.hiero.consensus.event.creator.impl.pool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import java.util.List;
-import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

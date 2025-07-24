@@ -12,7 +12,6 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -51,7 +50,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -60,7 +58,6 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -283,8 +280,6 @@ public final class PlatformBuilder {
         return this;
     }
 
-
-
     /**
      * Register a callback that is called when a stale self event is detected (i.e. an event that will never reach
      * consensus). Depending on the use case, it may be a good idea to resubmit the transactions in the stale event.
@@ -303,8 +298,7 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    public PlatformBuilder withExecutionCallback(
-            @NonNull final ExecutionCallback executionCallback) {
+    public PlatformBuilder withExecutionCallback(@NonNull final ExecutionCallback executionCallback) {
         throwIfAlreadyUsed();
         this.executionCallback = Objects.requireNonNull(executionCallback);
         return this;
@@ -435,8 +429,8 @@ public final class PlatformBuilder {
                 Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(
-                preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
+        final ApplicationCallbacks callbacks =
+                new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
         final SwirldStateManager swirldStateManager = new SwirldStateManager(
@@ -475,8 +469,7 @@ public final class PlatformBuilder {
             randomBuilder = new RandomBuilder();
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(
-                platformContext, model, callbacks, executionCallback);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, executionCallback);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,

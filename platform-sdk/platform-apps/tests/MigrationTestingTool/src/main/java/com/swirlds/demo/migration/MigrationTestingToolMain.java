@@ -27,11 +27,11 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * An application designed for testing migration from version to version.

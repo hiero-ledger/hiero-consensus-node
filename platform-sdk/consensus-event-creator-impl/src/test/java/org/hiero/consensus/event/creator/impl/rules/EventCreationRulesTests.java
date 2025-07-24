@@ -140,7 +140,7 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(status::get, ()->false);
+        final EventCreationRule rule = new PlatformStatusRule(status::get, () -> false);
 
         for (final PlatformStatus platformStatus : PlatformStatus.values()) {
             if (platformStatus == FREEZING) {

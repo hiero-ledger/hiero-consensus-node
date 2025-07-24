@@ -21,7 +21,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import java.time.Instant;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;

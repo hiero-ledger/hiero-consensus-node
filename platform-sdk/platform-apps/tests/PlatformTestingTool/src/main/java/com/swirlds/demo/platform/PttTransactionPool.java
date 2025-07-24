@@ -152,8 +152,8 @@ public class PttTransactionPool implements FastCopyable {
         this.initTime = Instant.now();
 
         if (fcmConfig != null) {
-            fcmTransactionPool =
-                    new FCMTransactionPool(platform, transactionPool, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
+            fcmTransactionPool = new FCMTransactionPool(
+                    platform, transactionPool, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
         }
 
         if (virtualMerkleConfig != null) {

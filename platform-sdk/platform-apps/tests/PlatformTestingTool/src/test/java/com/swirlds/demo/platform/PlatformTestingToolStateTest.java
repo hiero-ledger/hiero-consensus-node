@@ -156,7 +156,6 @@ class PlatformTestingToolStateTest {
         assertThat(consumedSystemTransactions).isEmpty();
     }
 
-
     @Test
     void handleConsensusRoundWithMultipleSystemTransaction() {
         // Given

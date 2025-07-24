@@ -43,8 +43,7 @@ class EventCreationManagerTests {
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        manager = new DefaultEventCreationManager(
-                configuration, metrics, time, ()->false, creator);
+        manager = new DefaultEventCreationManager(configuration, metrics, time, () -> false, creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

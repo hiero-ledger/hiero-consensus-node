@@ -23,11 +23,11 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * An application that can be made to ISS in controllable ways.
@@ -99,7 +99,8 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, transactionPool, testingToolConfig.transactionsPerSecond()).start();
+        new TransactionGenerator(new Random(), platform, transactionPool, testingToolConfig.transactionsPerSecond())
+                .start();
     }
 
     /**

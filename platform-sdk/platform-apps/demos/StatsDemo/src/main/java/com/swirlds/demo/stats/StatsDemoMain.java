@@ -34,10 +34,10 @@ import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the

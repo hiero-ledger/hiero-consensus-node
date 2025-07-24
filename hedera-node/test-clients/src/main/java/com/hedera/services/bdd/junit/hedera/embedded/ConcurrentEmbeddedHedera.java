@@ -197,7 +197,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                 // Now drain all events that will go in the next round and pre-handle them
                 final List<FakeEvent> newEvents = hedera.getTransactions().stream()
                         .map(TransactionWrapperUtils::createAppPayloadWrapper)
-                        .map(t-> new FakeEvent(defaultNodeId, now(), t))
+                        .map(t -> new FakeEvent(defaultNodeId, now(), t))
                         .toList();
                 newEvents.forEach(event -> hedera.onPreHandle(event, state, NOOP_STATE_SIG_CALLBACK));
                 prehandledEvents.addAll(newEvents);

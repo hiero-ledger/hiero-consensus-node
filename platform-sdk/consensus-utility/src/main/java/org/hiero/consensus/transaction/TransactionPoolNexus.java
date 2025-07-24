@@ -17,8 +17,8 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.transaction.TransactionSupplier;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TransactionSupplier;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be
@@ -77,8 +77,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @param transactionConfig the configuration to use
      * @param metrics       the metrics to use
      */
-    public TransactionPoolNexus(
-            @NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
+    public TransactionPoolNexus(@NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
 
         illegalTransactionLogger = new RateLimitedLogger(logger, Time.getCurrent(), Duration.ofMinutes(10));
 
@@ -125,7 +124,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
         return submitTransaction(appTransaction, false);
     }
 
-    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction){
+    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
         submitTransaction(transaction, true);
     }
 

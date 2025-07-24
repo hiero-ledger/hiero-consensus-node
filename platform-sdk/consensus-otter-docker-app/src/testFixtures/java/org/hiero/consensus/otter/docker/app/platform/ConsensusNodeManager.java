@@ -119,10 +119,7 @@ public class ConsensusNodeManager {
 
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionCallback(
-                platformConfig.getConfigData(TransactionConfig.class),
-                metrics
-        );
+        executionCallback = new OtterExecutionCallback(platformConfig.getConfigData(TransactionConfig.class), metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -137,7 +134,7 @@ public class ConsensusNodeManager {
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts);
-                //TODO add callbacks;
+        // TODO add callbacks;
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
