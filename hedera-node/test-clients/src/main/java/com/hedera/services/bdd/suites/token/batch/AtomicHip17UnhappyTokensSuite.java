@@ -253,7 +253,7 @@ public class AtomicHip17UnhappyTokensSuite {
                 atomicBatch(tokenUpdate(NFT_DELETED)
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .signedByPayerAnd(ADMIN_KEY)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));

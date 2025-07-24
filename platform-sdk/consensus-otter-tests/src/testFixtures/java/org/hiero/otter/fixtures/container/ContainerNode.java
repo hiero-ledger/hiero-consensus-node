@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -13,12 +14,18 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -45,11 +52,15 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -64,6 +75,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     private final ContainerImage container;
+    private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
@@ -87,15 +99,24 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
-            @NonNull final ImageFromDockerfile dockerImage) {
+            @NonNull final ImageFromDockerfile dockerImage,
+            @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+        this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
-        container = new ContainerImage(dockerImage, network, selfId);
+        final String savedStateDirectory = nodeConfiguration
+                .current()
+                .getConfigData(StateCommonConfig.class)
+                .savedStateDirectory()
+                .toString();
+
+        //noinspection resource
+        container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -190,7 +211,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeConsensusResult getConsensusResult() {
+    public SingleNodeConsensusResult newConsensusResult() {
         return resultsCollector.getConsensusResult();
     }
 
@@ -199,7 +220,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeLogResult getLogResult() {
+    public SingleNodeLogResult newLogResult() {
         return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
@@ -208,7 +229,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePlatformStatusResults getPlatformStatusResults() {
+    public SingleNodePlatformStatusResult newPlatformStatusResult() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -217,8 +238,27 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePcesResult getPcesResult() {
-        throw new UnsupportedOperationException("Not implemented yet!");
+    public SingleNodePcesResult newPcesResult() {
+        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+
+        final Configuration configuration = nodeConfiguration.current();
+        try {
+            final Path databaseDirectory =
+                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+            final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
+            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to resolve directory of PCES files", e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+        return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
     }
 
     /**
@@ -226,7 +266,16 @@ public class ContainerNode extends AbstractNode implements Node {
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    void destroy() {
+    // ignoring the Empty answer from destroyContainer
+    void destroy() throws IOException {
+        // copy logs from container to the local filesystem
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
+        Files.createDirectories(logPath);
+        Files.deleteIfExists(logPath.resolve("swirlds.log"));
+        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
+        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
+        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
@@ -345,6 +394,7 @@ public class ContainerNode extends AbstractNode implements Node {
         @Override
         @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            log.info("Starting synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
@@ -357,6 +407,7 @@ public class ContainerNode extends AbstractNode implements Node {
         @Override
         @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void stopSyntheticBottleneck() {
+            log.info("Stopping synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
@@ -367,6 +418,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
+        log.info("Received platform status change from {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;

@@ -5,8 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -189,18 +189,17 @@ public final class PcesUtilities {
     /**
      * Get the directory where event files are stored. If that directory doesn't exist, create it.
      *
-     * @param platformContext the platform context for this node
+     * @param configuration the configuration for this node
      * @param selfId          the ID of this node
      * @return the directory where event files are stored
      * @throws IOException if an error occurs while creating the directory
      */
     @NonNull
-    public static Path getDatabaseDirectory(
-            @NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) throws IOException {
+    public static Path getDatabaseDirectory(@NonNull final Configuration configuration, @NonNull final NodeId selfId)
+            throws IOException {
 
-        final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
+        final PcesConfig preconsensusEventStreamConfig = configuration.getConfigData(PcesConfig.class);
 
         final Path savedStateDirectory = stateConfig.savedStateDirectory();
         final Path databaseDirectory = savedStateDirectory

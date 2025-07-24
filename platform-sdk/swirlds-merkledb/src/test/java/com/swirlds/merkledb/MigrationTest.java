@@ -7,15 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
+import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
+import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -33,12 +31,6 @@ import org.junit.jupiter.api.Test;
 @Disabled("This test needs to be investigated")
 class MigrationTest {
 
-    private static final KeySerializer<ExampleLongKeyFixedSize> KEY_SERIALIZER =
-            new ExampleLongKeyFixedSize.Serializer();
-
-    private static final ValueSerializer<ExampleFixedSizeVirtualValue> VALUE_SERIALIZER =
-            new ExampleFixedSizeVirtualValueSerializer();
-
     @Test
     @DisplayName("extractVirtualMapData() Test")
     void extractVirtualMapDataTest() throws IOException, InterruptedException {
@@ -46,17 +38,16 @@ class MigrationTest {
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map = new VirtualMap<>(
-                "extractVirtualMapDataTest", KEY_SERIALIZER, VALUE_SERIALIZER, constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap("extractVirtualMapDataTest", constructBuilder(), CONFIGURATION);
         for (int i = 0; i < size; i++) {
             if (((i + 1) % (size / 100) == 0)) {
                 // Make a copy of the map in order to allow things to be flushed to disk
-                VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> copy = map.copy();
+                VirtualMap copy = map.copy();
                 map.release();
                 map = copy;
             }
 
-            map.put(new ExampleLongKeyFixedSize(i), new ExampleFixedSizeVirtualValue(i * 2));
+            map.put(ExampleLongKey.longToKey(i), new ExampleFixedValue(i * 2), ExampleFixedValue.CODEC);
         }
 
         final List<Long> firstVisitOrder = new ArrayList<>(size);
@@ -66,20 +57,24 @@ class MigrationTest {
         VirtualMapMigration.extractVirtualMapData(
                 getStaticThreadManager(),
                 map,
-                (final Pair<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> pair) -> {
-                    assertEquals(pair.key().getValue() * 2, pair.value().getId(), "key and value do not match");
-                    firstVisitOrder.add(pair.key().getValue());
-                    assertTrue(visited.add(pair.key().getValue()), "value should not have been already visited");
+                (final Pair<Bytes, Bytes> pair) -> {
+                    final long key = ExampleLongKey.keyToLong(pair.key());
+                    final int id = ExampleFixedValue.valueToId(pair.value());
+                    assertEquals(key * 2, id, "key and value do not match");
+                    firstVisitOrder.add(key);
+                    assertTrue(visited.add(key), "value should not have been already visited");
                 },
                 32);
 
         VirtualMapMigration.extractVirtualMapData(
                 getStaticThreadManager(),
                 map,
-                (final Pair<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> pair) -> {
-                    assertEquals(pair.key().getValue() * 2, pair.value().getId(), "key and value do not match");
-                    secondVisitOrder.add(pair.key().getValue());
-                    assertFalse(visited.add(pair.key().getValue()), "value should have already been visited");
+                (final Pair<Bytes, Bytes> pair) -> {
+                    final long key = ExampleLongKey.keyToLong(pair.key());
+                    final int id = ExampleFixedValue.valueToId(pair.value());
+                    assertEquals(key * 2, id, "key and value do not match");
+                    secondVisitOrder.add(key);
+                    assertFalse(visited.add(key), "value should have already been visited");
                 },
                 31); // thread count should not matter for correctness
 
@@ -108,22 +103,21 @@ class MigrationTest {
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> map = new VirtualMap<>(
-                "extractDataConcurrentlyTest", KEY_SERIALIZER, VALUE_SERIALIZER, constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap("extractDataConcurrentlyTest", constructBuilder(), CONFIGURATION);
 
         final Random random = new Random(42);
-        final byte[] value = new byte[ExampleFixedSizeVirtualValue.RANDOM_BYTES];
+        final byte[] value = new byte[ExampleFixedValue.RANDOM_BYTES];
         long checkSum = 0L;
         for (int i = 0; i < size; i++) {
             if ((i + 1) % (size / 100) == 0) {
                 // Make a copy of the map in order to allow things to be flushed to disk
-                VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> copy = map.copy();
+                VirtualMap copy = map.copy();
                 map.release();
                 map = copy;
             }
 
             random.nextBytes(value);
-            map.put(new ExampleLongKeyFixedSize(i), new ExampleFixedSizeVirtualValue(i, value));
+            map.put(ExampleLongKey.longToKey(i), new ExampleFixedValue(i, value), ExampleFixedValue.CODEC);
             checkSum += bytesToLong(value);
         }
 
@@ -132,8 +126,9 @@ class MigrationTest {
         VirtualMapMigration.extractVirtualMapDataC(
                 getStaticThreadManager(),
                 map,
-                (final Pair<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> pair) -> {
-                    checkSum2.addAndGet(bytesToLong(pair.value().getData()));
+                (final Pair<Bytes, Bytes> pair) -> {
+                    final byte[] data = ExampleFixedValue.valueToData(pair.value());
+                    checkSum2.addAndGet(bytesToLong(data));
                 },
                 32);
         assertEquals(checkSum, checkSum2.get());
