@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -21,5 +17,4 @@ import org.hiero.consensus.model.event.PlatformEvent;
 public record ApplicationCallbacks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
-        @Nullable Consumer<PlatformEvent> staleEventConsumer,
-        @NonNull Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {}
+        @Nullable Consumer<PlatformEvent> staleEventConsumer) {}

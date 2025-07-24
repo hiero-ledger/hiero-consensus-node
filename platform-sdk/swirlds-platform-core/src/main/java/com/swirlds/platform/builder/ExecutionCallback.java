@@ -4,6 +4,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TransactionSupplier;
 
 public interface ExecutionCallback extends TransactionSupplier {
@@ -28,4 +29,11 @@ public interface ExecutionCallback extends TransactionSupplier {
      * @return true if there are any buffered signature transactions
      */
     boolean hasBufferedSignatureTransactions();
+
+//    /**
+//     * Update the platform status.
+//     *
+//     * @param platformStatus the new platform status
+//     */
+//    void updatePlatformStatus(@NonNull final PlatformStatus platformStatus);
 }

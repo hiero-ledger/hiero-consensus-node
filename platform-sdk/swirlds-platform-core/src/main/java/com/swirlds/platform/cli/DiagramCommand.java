@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
@@ -13,6 +15,7 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.builder.ExecutionCallback;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -101,14 +104,29 @@ public final class DiagramCommand extends AbstractCommand {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {}, x -> {
-            return null;
-        });
+        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
+        final ExecutionCallback executionCallback = new ExecutionCallback() {
+            @Override
+            public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+                // No-op for diagram generation
+            }
+
+            @NonNull
+            @Override
+            public List<Bytes> getTransactions() {
+                return List.of();
+            }
+
+            @Override
+            public boolean hasBufferedSignatureTransactions() {
+                return false;
+            }
+        };
 
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, true);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, executionCallback);
 
         final String diagramString = platformWiring
                 .getModel()

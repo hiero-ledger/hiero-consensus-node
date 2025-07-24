@@ -129,7 +129,6 @@ public final class PlatformBuilder {
     private Consumer<PlatformEvent> preconsensusEventConsumer;
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
-    private Function<StateSignatureTransaction, Bytes> systemTransactionEncoder;
     private ExecutionCallback executionCallback;
 
     /**
@@ -303,21 +302,6 @@ public final class PlatformBuilder {
         return this;
     }
 
-    /**
-     * Register a callback that is called when the platform creates a {@link StateSignatureTransaction} and wants
-     * to encode it to {@link Bytes}, using a logic specific to the application that uses the platform.
-     *
-     * @param systemTransactionEncoder the callback to register
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withSystemTransactionEncoderCallback(
-            @NonNull final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {
-        throwIfAlreadyUsed();
-        this.systemTransactionEncoder = Objects.requireNonNull(systemTransactionEncoder);
-        return this;
-    }
-
     @NonNull
     public PlatformBuilder withExecutionCallback(
             @NonNull final ExecutionCallback executionCallback) {
@@ -451,9 +435,8 @@ public final class PlatformBuilder {
                 Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
-        //TODO add pendingSystemTransactionCheck
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(
-                preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer, systemTransactionEncoder);
+                preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
         final SwirldStateManager swirldStateManager = new SwirldStateManager(
@@ -493,7 +476,7 @@ public final class PlatformBuilder {
         }
 
         final PlatformWiring platformWiring = new PlatformWiring(
-                platformContext, model, callbacks, initialState.get().isGenesisState());
+                platformContext, model, callbacks, executionCallback);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
@@ -511,7 +494,6 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 randomBuilder,
-                executionCallback::hasBufferedSignatureTransactions,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,
@@ -526,7 +508,7 @@ public final class PlatformBuilder {
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
-                executionCallback::getTransactions,
+                executionCallback,
                 stateRootFunction);
 
         return new PlatformComponentBuilder(buildingBlocks);

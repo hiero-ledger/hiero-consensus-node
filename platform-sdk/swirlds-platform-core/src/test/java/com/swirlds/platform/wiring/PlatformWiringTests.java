@@ -12,6 +12,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.builder.ExecutionCallback;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -78,14 +79,13 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {}, x -> {
-            return null;
-        });
+        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
 
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, true);
+        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, mock(
+                ExecutionCallback.class));
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));

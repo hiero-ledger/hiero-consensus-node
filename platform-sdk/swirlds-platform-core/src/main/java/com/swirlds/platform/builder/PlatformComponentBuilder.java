@@ -484,13 +484,13 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.transactionSupplier());
+                    blocks.executionCallback());
 
             eventCreationManager = new DefaultEventCreationManager(
                     blocks.platformContext().getConfiguration(),
                     blocks.platformContext().getMetrics(),
                     blocks.platformContext().getTime(),
-                    blocks.hasBufferedSignatureTransactions(),
+                    blocks.executionCallback()::hasBufferedSignatureTransactions,
                     eventCreator);
         }
         return eventCreationManager;

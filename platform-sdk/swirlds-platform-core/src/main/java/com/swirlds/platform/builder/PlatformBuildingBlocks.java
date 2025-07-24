@@ -59,7 +59,6 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param randomBuilder                          a builder for creating random number generators
- * @param hasBufferedSignatureTransactions       checks if there are buffered signature transactions
  * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
  *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
@@ -104,7 +103,6 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull RandomBuilder randomBuilder,
-        @NonNull BooleanSupplier hasBufferedSignatureTransactions,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
@@ -119,7 +117,7 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
-        @NonNull TransactionSupplier transactionSupplier,
+        @NonNull ExecutionCallback executionCallback,
         @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
     public PlatformBuildingBlocks {
@@ -136,7 +134,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(randomBuilder);
-        requireNonNull(hasBufferedSignatureTransactions);
         requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
@@ -150,6 +147,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
+        requireNonNull(executionCallback);
         requireNonNull(stateRootFunction);
     }
 }
