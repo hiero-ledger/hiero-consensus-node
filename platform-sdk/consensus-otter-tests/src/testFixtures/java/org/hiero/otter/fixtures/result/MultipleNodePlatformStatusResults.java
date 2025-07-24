@@ -16,12 +16,12 @@ import org.hiero.otter.fixtures.Node;
 public interface MultipleNodePlatformStatusResults extends OtterResult {
 
     /**
-     * Returns the list of {@link SingleNodePlatformStatusResults} for all nodes
+     * Returns the list of {@link SingleNodePlatformStatusResult} for all nodes
      *
      * @return the list of status progressions
      */
     @NonNull
-    List<SingleNodePlatformStatusResults> results();
+    List<SingleNodePlatformStatusResult> results();
 
     /**
      * Excludes the status progression of a specific node from the current results.

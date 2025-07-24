@@ -42,14 +42,14 @@ public class CheckingRecoveryTest {
         // Add more than 3 nodes with balanced weights so that one node can be lost without halting consensus
         network.addNodes(4, WeightGenerators.BALANCED);
 
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();
 
         // Run the nodes for some time
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         final Node nodeToThrottle = network.getNodes().getLast();
-        assertThat(nodeToThrottle.getPlatformStatusResults())
+        assertThat(nodeToThrottle.newPlatformStatusResult())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         // Throttle the last node for a period of time so that it falls into CHECKING

@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -17,7 +18,9 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * A Merkle leaf that stores an arbitrary value with delegated serialization based on the {@link
  * #classId}.
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
+@Deprecated
 public class ValueLeaf<T> extends PartialMerkleLeaf implements MerkleLeaf {
 
     /**
@@ -126,5 +129,14 @@ public class ValueLeaf<T> extends PartialMerkleLeaf implements MerkleLeaf {
     public void setValue(@Nullable final T value) {
         throwIfImmutable();
         this.val = value;
+    }
+
+    /**
+     * Gets the codec used for serialization and deserialization.
+     *
+     * @return The codec
+     */
+    public Codec<T> getCodec() {
+        return codec;
     }
 }
