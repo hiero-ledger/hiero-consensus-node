@@ -83,7 +83,7 @@ jobs:
 
           else
             set +e
-            XTS_COMMIT=$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}") >/dev/null 2>&1
+            XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
@@ -94,8 +94,8 @@ jobs:
 
             # Check if this commit has already been tagged xts-pass-* or build-*
             set +e
-            XTS_PASS_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_PATTERN}")
-            BUILD_PROMOTED_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")
+            XTS_PASS_TAGGED="$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_PATTERN}")"
+            BUILD_PROMOTED_TAGGED="$(git tag --contains "${XTS_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")"
             set -e
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
@@ -105,10 +105,10 @@ jobs:
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
-            LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
+            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)"
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
-              LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
+              LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
             fi
 
@@ -121,14 +121,14 @@ jobs:
           fi
 
           # Get the short commit id
-          XTS_SHORT_COMMIT=$(git rev-parse --short "${XTS_COMMIT}")
+          XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
 
           # Get the branch name for the commit
-          XTS_COMMIT_BRANCH=$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')
+          XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
 
           # Get commit author
-          AUTHOR_NAME=$(git log -1 --format='%an' "${XTS_COMMIT}")
-          AUTHOR_EMAIL=$(git log -1 --format='%ae' "${XTS_COMMIT}")
+          AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
+          AUTHOR_EMAIL="$(git log -1 --format='%ae' "${XTS_COMMIT}")"
 
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
@@ -152,7 +152,7 @@ jobs:
               git tag -d "${XTS_CANDIDATE_TAG}"
             fi
           else
-            gh run cancel ${{ github.run_id }}
+            gh run cancel "${{ github.run_id }}"
           fi
 
   extended-test-suite:
@@ -277,15 +277,15 @@ jobs:
           RC_TAG: ${{ inputs.rc-tag || '' }}
         run: |
           if [[ -n "${RC_TAG}" ]]; then
-            TAG=xts-pass-${RC_TAG}
-            git tag --annotate ${TAG} --message "chore: tagging release candidate as XTS passing"
-            git push --set-upstream origin ${TAG}
+            TAG="xts-pass-${RC_TAG}"
+            git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
+            git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-pass-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
           else
-            EPOCH_TIME=$(date +%s)
-            TAG=xts-pass-${EPOCH_TIME}
-            git tag --annotate ${TAG} --message "chore: tagging commit for build candidate promotion"
+            EPOCH_TIME="$(date +%s)"
+            TAG="xts-pass-${EPOCH_TIME}"
+            git tag --annotate "${TAG}" --message "chore: tagging commit for build candidate promotion"
             git push --set-upstream origin --tags
             echo "### Commit Tagged for Promotion" >>  "${GITHUB_STEP_SUMMARY}"
             echo "promotion-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
@@ -452,10 +452,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         continue-on-error: true
         run: |
-          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+          for job_id in "$(gh run view "${{ github.run_id }}" --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]')"; do
             echo "Fetching logs for job $job_id..."
 
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+            current_job_name="$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')"
 
             echo "Logs for job $current_job_name :" >> run.log
 
