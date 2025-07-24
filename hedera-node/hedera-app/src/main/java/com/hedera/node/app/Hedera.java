@@ -1209,6 +1209,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
+                .transactionPool(transactionPool)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())

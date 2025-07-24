@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -185,6 +186,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder transactionPool(TransactionPoolNexus transactionPool);
 
         @BindsInstance
         Builder self(NodeInfo self);
