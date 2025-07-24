@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol.rpc;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
@@ -11,16 +12,19 @@ import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Implementation of a factory for rpc protocol, encompassing new sync
+ * Implementation of a factory for rpc protocol, encompassing new sync and broadcast atm
  */
 public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer> {
 
@@ -29,6 +33,21 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
     private final NetworkMetrics networkMetrics;
     private final Time time;
     private final SyncMetrics syncMetrics;
+
+    /**
+     * List of all started sync exchanges with remote peers
+     */
+    private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
+
+    /**
+     * Is event broadcast enabled in settings
+     */
+    private final boolean broadcastEnabled;
+
+    /**
+     * Node id of current node
+     */
+    private final NodeId selfId;
 
     /**
      * Constructs a new sync protocol
@@ -50,21 +69,25 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
             final int rosterSize,
             @NonNull final NetworkMetrics networkMetrics,
             @NonNull final Time time,
-            @NonNull final SyncMetrics syncMetrics) {
+            @NonNull final SyncMetrics syncMetrics,
+            @NonNull final NodeId selfId) {
         super(synchronizer, platformContext, rosterSize, intakeEventCounter);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
         this.time = Objects.requireNonNull(time);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
+        this.broadcastEnabled = syncConfig.broadcast();
+        this.selfId = Objects.requireNonNull(selfId);
     }
 
     /**
-     * @param platformContext      the platform context
-     * @param intakeEventCounter   keeps track of how many events have been received from each peer
-     * @param threadManager        the thread manager
-     * @param rosterSize           estimated roster size
-     * @param networkMetrics       network metrics to register data about communication traffic and latencies
-     * @param syncMetrics          metrics of synchronization process
+     * @param platformContext    the platform context
+     * @param intakeEventCounter keeps track of how many events have been received from each peer
+     * @param threadManager      the thread manager
+     * @param rosterSize         estimated roster size
+     * @param networkMetrics     network metrics to register data about communication traffic and latencies
+     * @param syncMetrics        metrics of synchronization process
+     * @param selfId             id of current node
      */
     public static RpcProtocol create(
             @NonNull final PlatformContext platformContext,
@@ -73,7 +96,8 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
             @NonNull final ThreadManager threadManager,
             final int rosterSize,
             @NonNull final NetworkMetrics networkMetrics,
-            final SyncMetrics syncMetrics) {
+            final SyncMetrics syncMetrics,
+            final NodeId selfId) {
 
         return new RpcProtocol(
                 synchronizer,
@@ -83,7 +107,8 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
                 rosterSize,
                 networkMetrics,
                 platformContext.getTime(),
-                syncMetrics);
+                syncMetrics,
+                selfId);
     }
 
     /**
@@ -104,6 +129,7 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
                 NetworkUtils::handleNetworkException);
         final RpcPeerHandler handler = synchronizer.createPeerHandler(peerProtocol, peerId);
         peerProtocol.setRpcPeerHandler(handler);
+        allRpcPeers.add(handler);
         return peerProtocol;
     }
 
@@ -113,6 +139,21 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus status) {
         platformStatus.set(status);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        super.addEvent(platformEvent);
+
+        // broadcast event to other nodes as part of simplistic broadcast
+        if (broadcastEnabled && selfId.equals(platformEvent.getCreatorId())) {
+            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
+            allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
+            syncMetrics.broadcastEventSent();
+        }
     }
 
     /**
