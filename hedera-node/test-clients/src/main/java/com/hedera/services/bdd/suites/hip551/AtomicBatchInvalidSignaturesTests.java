@@ -93,7 +93,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     atomicBatch(tokenAssociate(contract, misc)
                                     .via(associateTxnId)
                                     .batchKey(batchOperator)
-                                    .payingWith(batchOperator))
+                                    .payingWith(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator)
                             .via("failedBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -135,7 +136,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                     tokenAssociate(contractWithoutKey, token2)
                                             .via(associate2TxnId)
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator))
+                                            .payingWith(batchOperator)
+                                            .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, adminKey)
                             .via("mixedAssocBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -198,7 +200,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                     tokenAssociate(contractNoKey, token1)
                                             .via(associate3TxnId)
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator))
+                                            .payingWith(batchOperator)
+                                            .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, adminKey1, adminKey2)
                             .via("complexAssocBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -244,7 +247,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                     tokenAssociate(contract, misc)
                                             .via(associateTxnId)
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator))
+                                            .payingWith(batchOperator)
+                                            .hasKnownStatus(ACCOUNT_DELETED))
                             .signedByPayerAnd(batchOperator, adminKey)
                             .via("deleteBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -289,7 +293,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                 tokenAssociate(contract, misc)
                                         .via(associateTxnId)
                                         .batchKey(batchOperator)
-                                        .payingWith(batchOperator))
+                                        .payingWith(batchOperator)
+                                        .hasKnownStatus(TOKEN_WAS_DELETED))
                         .signedByPayerAnd(batchOperator, tokenAdminKey)
                         .via("deletedTokenAssoc")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -329,7 +334,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     atomicBatch(tokenCreate("validToken")
                                     .adminKey(aliceThresholdKey)
                                     .via(invalidTokenTxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, aliceKey1) // Missing aliceKey2 for 2/2 threshold
                             .via("invalidNameBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -343,7 +349,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     atomicBatch(tokenCreate("invalidSigToken")
                                     .treasury(alice)
                                     .via(invalidSigTokenTxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, aliceKey1) // Missing aliceKey2 for 2/2 threshold treasury
                             .via("invalidSigBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -377,7 +384,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     atomicBatch(tokenCreate(tokenName)
                                     .treasury(TOKEN_TREASURY)
                                     .via(tokenCreateTxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, treasuryKey1) // Missing treasuryKey2 for 2/2 threshold
                             .via("treasuryBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -422,7 +430,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                             OptionalLong.of(maximumToCollect),
                                             tokenCollector))
                                     .via(token1TxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(
                                     batchOperator, DEFAULT_PAYER, TOKEN_TREASURY) // Missing tokenCollector signature
                             .via("feeCollectorBatch")
@@ -475,7 +484,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     // Batch with treasury wipe attempt - should fail entire batch
                     atomicBatch(wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, List.of(1L))
                                     .via(wipe1TxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT))
                             .signedByPayerAnd(batchOperator)
                             .via("wipeBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -509,7 +519,8 @@ public class AtomicBatchInvalidSignaturesTests {
                     // Batch with KYC grant on token without KYC key - should fail entire batch
                     atomicBatch(grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
                                     .via(kyc1TxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY))
                             .signedByPayerAnd(batchOperator, GENESIS)
                             .via("kycBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -554,13 +565,12 @@ public class AtomicBatchInvalidSignaturesTests {
                     getTokenNftInfo(nftToken, 1L).hasMetadata(copyFromUtf8("a")),
 
                     // Batch with invalid NFT metadata update - should fail entire batch
-                    atomicBatch(
-                                    tokenUpdateNfts(nftToken, NFT_TEST_METADATA, List.of(1L))
-                                            .via(updateTxnId)
-                                            .batchKey(batchOperator)
-                                            .payingWith(TOKEN_TREASURY)
-                                            .fee(10 * ONE_HBAR) // Missing METADATA_KEY signature - INVALID_SIGNATURE
-                                    )
+                    atomicBatch(tokenUpdateNfts(nftToken, NFT_TEST_METADATA, List.of(1L))
+                                    .via(updateTxnId)
+                                    .batchKey(batchOperator)
+                                    .payingWith(TOKEN_TREASURY)
+                                    .fee(10 * ONE_HBAR) // Missing METADATA_KEY signature - INVALID_SIGNATURE
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator)
                             .via("metadataBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -605,7 +615,8 @@ public class AtomicBatchInvalidSignaturesTests {
                                     .autoRenewAccount("newAutoRenew")
                                     .autoRenewPeriod(secondPeriod)
                                     .via(updateTxnId)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .signedByPayerAnd(batchOperator, adminKey1) // Missing adminKey2 - need 2/2 threshold
                             .via("autoRenewBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
