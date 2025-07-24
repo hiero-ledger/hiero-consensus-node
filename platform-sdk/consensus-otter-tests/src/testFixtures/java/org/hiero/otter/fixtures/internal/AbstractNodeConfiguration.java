@@ -35,7 +35,7 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
 
-        this.set(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, true);
+        overriddenProperties.put(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
     }
 
     /**

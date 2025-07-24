@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static java.util.Objects.requireNonNull;
-
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.platform.config.BasicConfig_;
@@ -22,8 +20,6 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final Path outputDirectory;
-
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
      *
@@ -33,21 +29,28 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     public TurtleNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier);
-        this.outputDirectory = requireNonNull(outputDirectory);
-        setTurtleSpecificOverrides();
+        setTurtleSpecificOverrides(outputDirectory);
     }
 
-    private void setTurtleSpecificOverrides() {
-        this.set(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
-                .set(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0)
-                .set(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.resolve("data/saved"))
-                .set(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.resolve("data"))
-                .set(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
-                .set(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"))
-                .set(PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps"))
-                .set(PathsConfig_.MARKER_FILES_DIR, outputDirectory.resolve("data/saved/marker_files"))
-                .set(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
-                .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+    private void setTurtleSpecificOverrides(@NonNull final Path outputDirectory) {
+        overriddenProperties.put(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP");
+        overriddenProperties.put(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
+        overriddenProperties.put(
+                StateCommonConfig_.SAVED_STATE_DIRECTORY,
+                outputDirectory.resolve("data/saved").toString());
+        overriddenProperties.put(
+                FileSystemManagerConfig_.ROOT_PATH,
+                outputDirectory.resolve("data").toString());
+        overriddenProperties.put(PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString());
+        overriddenProperties.put(
+                PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys").toString());
+        overriddenProperties.put(
+                PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps").toString());
+        overriddenProperties.put(
+                PathsConfig_.MARKER_FILES_DIR,
+                outputDirectory.resolve("data/saved/marker_files").toString());
+        overriddenProperties.put(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
+        overriddenProperties.put(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
     }
 
     /**
