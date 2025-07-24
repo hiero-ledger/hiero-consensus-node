@@ -11,7 +11,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -44,9 +43,10 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterExecutionCallback;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -60,6 +60,7 @@ public class ConsensusNodeManager {
     private static final String SWIRLD_NAME = "123";
 
     private final Platform platform;
+    private final OtterExecutionCallback executionCallback;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
@@ -118,7 +119,10 @@ public class ConsensusNodeManager {
 
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-
+        executionCallback = new OtterExecutionCallback(
+                platformConfig.getConfigData(TransactionConfig.class),
+                metrics
+        );
         final PlatformBuilder builder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -132,9 +136,8 @@ public class ConsensusNodeManager {
                         (vm) -> state)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
-                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
+                .withKeysAndCerts(keysAndCerts);
+                //TODO add callbacks;
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
@@ -193,7 +196,7 @@ public class ConsensusNodeManager {
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
     public boolean submitTransaction(@NonNull final byte[] transaction) {
-        return platform.createTransaction(transaction);
+        return executionCallback.submitApplicationTransaction(transaction);
     }
 
     /**

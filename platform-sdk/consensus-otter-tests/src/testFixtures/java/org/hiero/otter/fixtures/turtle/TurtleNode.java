@@ -16,7 +16,6 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -49,12 +48,13 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterExecutionCallback;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -94,6 +94,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     @Nullable
     private Platform platform;
+
+    @Nullable
+    private OtterExecutionCallback executionCallback;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -211,9 +214,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
+            assert executionCallback != null; // platform must be initialized if lifeCycle is STARTED
 
-            platform.createTransaction(transaction);
+            executionCallback.submitApplicationTransaction(transaction);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -368,6 +371,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
+        this.executionCallback = new OtterExecutionCallback(
+                platformContext.getConfiguration().getConfigData(TransactionConfig.class),
+                platformContext.getMetrics());
+
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -382,8 +389,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
-                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()))
+                //TODO add callback
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()));
 
