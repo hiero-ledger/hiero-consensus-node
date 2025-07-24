@@ -11,7 +11,7 @@ import java.util.Iterator;
  * @param <K> The key of the state
  * @param <V> The value of the state
  */
-public class WrappedReadableKVState<K extends Comparable<K>, V> extends ReadableKVStateBase<K, V> {
+public class WrappedReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
     /** The {@link ReadableKVState} to delegate to for all read operations on cache miss */
     private final ReadableKVState<K, V> delegate;
 
@@ -24,7 +24,7 @@ public class WrappedReadableKVState<K extends Comparable<K>, V> extends Readable
      * @param delegate The delegate. Must not be null.
      */
     public WrappedReadableKVState(@NonNull final ReadableKVState<K, V> delegate) {
-        super(delegate.getStateKey());
+        super(delegate.getServiceName(), delegate.getStateKey());
         this.delegate = delegate;
     }
 

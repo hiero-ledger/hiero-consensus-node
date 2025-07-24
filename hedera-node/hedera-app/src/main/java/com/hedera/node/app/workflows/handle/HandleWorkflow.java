@@ -34,8 +34,7 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
@@ -132,7 +131,6 @@ public class HandleWorkflow {
     private final CacheWarmer cacheWarmer;
     private final OpWorkflowMetrics opWorkflowMetrics;
     private final ThrottleServiceManager throttleServiceManager;
-    private final SemanticVersion version;
     private final InitTrigger initTrigger;
     private final HollowAccountCompletions hollowAccountCompletions;
     private final SystemTransactions systemTransactions;
@@ -145,8 +143,7 @@ public class HandleWorkflow {
     private final HintsService hintsService;
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
-    private final KVStateChangeListener kvStateChangeListener;
-    private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final ImmediateStateChangeListener immediateStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final CurrentPlatformStatus currentPlatformStatus;
@@ -186,8 +183,7 @@ public class HandleWorkflow {
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
-            @NonNull final KVStateChangeListener kvStateChangeListener,
-            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
@@ -206,7 +202,6 @@ public class HandleWorkflow {
         this.cacheWarmer = requireNonNull(cacheWarmer);
         this.opWorkflowMetrics = requireNonNull(opWorkflowMetrics);
         this.throttleServiceManager = requireNonNull(throttleServiceManager);
-        this.version = requireNonNull(version);
         this.initTrigger = requireNonNull(initTrigger);
         this.hollowAccountCompletions = requireNonNull(hollowAccountCompletions);
         this.systemTransactions = requireNonNull(systemTransactions);
@@ -217,8 +212,7 @@ public class HandleWorkflow {
         this.migrationStateChanges = new ArrayList<>(migrationStateChanges);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
-        this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
-        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
         this.streamMode = configProvider
@@ -270,11 +264,11 @@ public class HandleWorkflow {
 
         // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
         // Dispatch transplant updates for the nodes in override network
-        if (boundaryStateChangeListener.lastConsensusTime() != null && !checkedForTransplant) {
+        if (!checkedForTransplant) {
             boolean dispatchedTransplantUpdates = false;
             try {
                 dispatchedTransplantUpdates = systemTransactions.dispatchTransplantUpdates(
-                        state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getRoundNum());
+                        state, blockStreamManager.lastExecutionTime(), round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
             } catch (Exception e) {
                 logger.error("Failed to dispatch transplant updates", e);
@@ -301,14 +295,8 @@ public class HandleWorkflow {
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
                 // Dispatch rewards for active nodes after at least one user transaction is handled
-                if (boundaryStateChangeListener.lastConsensusTime() != null) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                            state,
-                            boundaryStateChangeListener
-                                    .lastConsensusTimeOrThrow()
-                                    .plusNanos(1),
-                            systemTransactions);
-                }
+                transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                        state, blockStreamManager.lastExecutionTime().plusNanos(1), systemTransactions);
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
             }
@@ -330,7 +318,8 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
-            recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+            recordCache.commitRoundReceipts(
+                    state, round.getConsensusTimestamp(), immediateStateChangeListener, blockStreamManager, streamMode);
         }
     }
 
@@ -491,8 +480,33 @@ public class HandleWorkflow {
                 default -> ORDINARY_TRANSACTION;
             };
         }
+        if (type == POST_UPGRADE_TRANSACTION) {
+            logger.info("Doing post-upgrade setup @ {}", consensusNow);
+            systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            if (streamMode != RECORDS) {
+                blockStreamManager.confirmPendingWorkFinished();
+            }
+            // Since we track node stake metadata separately from the future address book (FAB),
+            // we need to update that stake metadata from any node additions or deletions that
+            // just took effect; it would be nice to unify the FAB and stake metadata in the future.
+            final var writableTokenStates = state.getWritableStates(TokenService.NAME);
+            final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
+            doStreamingKVChanges(
+                    writableTokenStates,
+                    writableEntityIdStates,
+                    () -> stakeInfoHelper.adjustPostUpgradeStakes(
+                            networkInfo,
+                            configProvider.getConfiguration(),
+                            new WritableStakingInfoStore(
+                                    writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
+                            new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            if (streamMode == RECORDS) {
+                // Only update this if we are relying on RecordManager state for post-upgrade processing
+                blockRecordManager.markMigrationRecordsStreamed();
+            }
+        }
         final var userTxn =
-                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
+                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
         if (userTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
@@ -579,9 +593,8 @@ public class HandleWorkflow {
                     - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
-            var nextTime = boundaryStateChangeListener
-                    .lastConsensusTimeOrThrow()
-                    .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+            var nextTime =
+                    blockStreamManager.lastExecutionTime().plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in this interval
@@ -609,24 +622,16 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(
-                        writableStates,
-                        entityIdWritableStates,
-                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
-                        iter::remove);
-                nextTime = boundaryStateChangeListener
-                        .lastConsensusTimeOrThrow()
+                doStreamingKVChanges(writableStates, entityIdWritableStates, iter::remove);
+                nextTime = blockStreamManager
+                        .lastExecutionTime()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
                 n--;
             }
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(
-                    writableStates,
-                    entityIdWritableStates,
-                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
-                    iter::purgeUntilNext);
+            doStreamingKVChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -670,7 +675,7 @@ public class HandleWorkflow {
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStore(entityIdWritableStates);
-            doStreamingKVChanges(writableStates, entityIdWritableStates, now, () -> {
+            doStreamingKVChanges(writableStates, entityIdWritableStates, () -> {
                 final var scheduleStore = new WritableScheduleStoreImpl(writableStates, entityCounters);
                 scheduleStore.purgeExpiredRangeClosed(then.getEpochSecond(), now.getEpochSecond() - 1);
             });
@@ -708,49 +713,9 @@ public class HandleWorkflow {
                 // Flushes the BUSY builder to the stream, no other side effects
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
-                if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
-                    // Since we track node stake metadata separately from the future address book (FAB),
-                    // we need to update that stake metadata from any node additions or deletions that
-                    // just took effect; it would be nice to unify the FAB and stake metadata in the future.
-                    // IMPORTANT:
-                    //   (1) These K/V changes must be committed directly to the state instead of
-                    //   being accumulated in the user stack in case it is rolled back.
-                    //   (2) The K/V changes must also be written immediately in their own block item,
-                    //   instead of being added to the base builder state changes, because if there is
-                    //   a preceding NodeStakeUpdate added later in executeTopLevel(), *its* state changes
-                    //   will come before the base builder's changes in the block stream
-                    final var writableTokenStates = state.getWritableStates(TokenService.NAME);
-                    final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-                    final var schedulingConfig = parentTxn.config().getConfigData(SchedulingConfig.class);
-                    doStreamingKVChanges(
-                            writableTokenStates,
-                            // Ensure that even if the user txn has preceding children, these state changes still have
-                            // an earlier consensus time; since in fact they are, in fact, committed first
-                            writableEntityIdStates,
-                            parentTxn.consensusNow().minusNanos(schedulingConfig.reservedSystemTxnNanos()),
-                            () -> stakeInfoHelper.adjustPostUpgradeStakes(
-                                    networkInfo,
-                                    parentTxn.config(),
-                                    new WritableStakingInfoStore(
-                                            writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
-                                    new WritableNetworkStakingRewardsStore(writableTokenStates)));
-                    if (streamMode == RECORDS) {
-                        // Only update this if we are relying on RecordManager state for post-upgrade processing
-                        blockRecordManager.markMigrationRecordsStreamed();
-                        parentTxn.stack().commitFullStack();
-                    }
-                }
-
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                advanceTimeFor(parentTxn, dispatch);
+                stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
-                if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
-                    logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
-                    systemTransactions.doPostUpgradeSetup(dispatch);
-                    if (streamMode != RECORDS) {
-                        blockStreamManager.confirmPendingWorkFinished();
-                    }
-                }
                 hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 dispatchProcessor.processDispatch(dispatch);
                 updateWorkflowMetrics(parentTxn);
@@ -794,7 +759,7 @@ public class HandleWorkflow {
         final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
         final var dispatch =
                 parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        advanceTimeFor(scheduledTxn, dispatch);
+        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
             final var handleOutput = scheduledTxn
@@ -814,38 +779,19 @@ public class HandleWorkflow {
     }
 
     /**
-     * Manages time-based side effects for the given user transaction and dispatch.
-     *
-     * @param parentTxn the user transaction to manage time for
-     * @param dispatch the dispatch to manage time for
-     */
-    private void advanceTimeFor(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
-        // WARNING: The check below relies on the BlockStreamManager's last-handled time not being updated yet,
-        // so we must not call setLastHandleTime() until after them
-        processStakePeriodChanges(parentTxn, dispatch);
-        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
-        if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
-        }
-    }
-
-    /**
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
      * @param writableStates the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
-     * @param now the consensus timestamp of the action
      * @param action the action to commit
      */
     private void doStreamingKVChanges(
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
-            @NonNull final Instant now,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
-            kvStateChangeListener.reset();
+            immediateStateChangeListener.resetKvStateChanges();
         }
         action.run();
         ((CommittableWritableStates) writableStates).commit();
@@ -853,12 +799,11 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = kvStateChangeListener.getStateChanges();
+            final var changes = immediateStateChangeListener.getKvStateChanges();
             if (!changes.isEmpty()) {
-                final var stateChangesItem = BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))
-                        .build();
-                blockStreamManager.writeItem(stateChangesItem);
+                blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                        .build());
             }
         }
     }
@@ -904,28 +849,6 @@ public class HandleWorkflow {
                 .transactionID(txnInfo.txBody().transactionIDOrThrow())
                 .exchangeRate(exchangeRateSet)
                 .memo(txnInfo.txBody().memo());
-    }
-
-    /**
-     * Processes any side effects of crossing a stake period boundary.
-     *
-     * @param parentTxn the user transaction that crossed the boundary
-     * @param dispatch the dispatch for the user transaction that crossed the boundary
-     */
-    private void processStakePeriodChanges(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
-        try {
-            stakePeriodChanges.process(
-                    dispatch,
-                    parentTxn.stack(),
-                    parentTxn.tokenContextImpl(),
-                    streamMode,
-                    blockStreamManager.lastHandleTime());
-        } catch (final Exception e) {
-            // We don't propagate a failure here to avoid a catastrophic scenario
-            // where we are "stuck" trying to process node stake updates and never
-            // get back to user transactions
-            logger.error("Failed to process stake period changes", e);
-        }
     }
 
     /**
@@ -994,29 +917,27 @@ public class HandleWorkflow {
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
-            final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
+                final var workTime =
+                        blockHashSigner.isReady() ? blockStreamManager.lastExecutionTime() : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        workTime,
                         () -> hintsService.executeCrsWork(
                                 new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        workTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                workTime,
+                                roundTimestamp,
                                 tssConfig,
                                 isActive));
             }
@@ -1030,9 +951,13 @@ public class HandleWorkflow {
                 doStreamingKVChanges(
                         historyWritableStates,
                         null,
-                        boundaryTimestamp,
                         () -> historyService.reconcile(
-                                activeRosters, currentMetadata, historyStore, boundaryTimestamp, tssConfig, isActive));
+                                activeRosters,
+                                currentMetadata,
+                                historyStore,
+                                blockStreamManager.lastExecutionTime(),
+                                tssConfig,
+                                isActive));
             }
         }
     }

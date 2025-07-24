@@ -9,6 +9,7 @@ import "platform/state/platform_state.proto";
 import "platform/event/gossip_event.proto";
 import "platform/event/event_consensus_data.proto";
 import "platform/event/event_descriptor.proto";
+import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
 
@@ -168,22 +169,59 @@ message EventMessage {
   }
 }
 
+// Request to initialize the container.
+message InitRequest {
+  // ID of the node.
+  com.hedera.hapi.platform.state.NodeId self_id = 1;
+}
+
 // Request to start the remote platform.
 message StartRequest {
-  // ID of the node starting the platform.
-  com.hedera.hapi.platform.state.NodeId self_id = 1;
   // Semantic version of the platform.
-  .proto.SemanticVersion version = 2;
+  .proto.SemanticVersion version = 1;
   // Roster of nodes participating in the platform.
-  com.hedera.hapi.node.state.roster.Roster roster = 3;
+  com.hedera.hapi.node.state.roster.Roster roster = 2;
   // Cryptographic keys and certificates for the platform.
-  ProtoKeysAndCerts keys_and_certs = 4;
+  ProtoKeysAndCerts keys_and_certs = 3;
   // Properties overridden for the platform.
-  map<string, string> overridden_properties = 5;
+  map<string, string> overridden_properties = 4;
+}
+
+// Wrapper for a transaction submission request.
+message TransactionRequest {
+  // Serialized transaction data.
+  bytes payload = 1;
+}
+
+message TransactionRequestAnswer {
+  // indicator if the platform accepted the transaction
+  bool result = 1;
+}
+
+message KillImmediatelyRequest {
+  google.protobuf.Empty ignore = 1;
+}
+
+message SyntheticBottleneckRequest {
+  // The number of milliseconds to sleep per round on the handle thread
+  uint64 sleep_millis_per_round = 1;
 }
 
 // Service definition for controlling tests.
 service TestControl {
+  // RPC to initialize the container with the node ID.
+  rpc Init(InitRequest) returns (google.protobuf.Empty);
+
   // RPC to start the platform and stream event messages.
   rpc Start(StartRequest) returns (stream EventMessage);
+
+  // RPC used by the test harness to submit a transaction to the running
+  // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
+  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+
+  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
+  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+
+  // RPC to change the synthetic bottleneck of the handle thread.
+  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
 }

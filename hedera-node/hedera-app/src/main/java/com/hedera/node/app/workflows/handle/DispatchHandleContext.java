@@ -355,6 +355,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
+        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -365,9 +366,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 storeFactory.asReadOnly(),
                 consensusNow,
                 shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody)
-                        ? txnInfo.signatureMap().sigPair().size()
-                        : 0));
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {

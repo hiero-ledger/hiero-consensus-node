@@ -8,6 +8,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEV
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -27,6 +28,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
@@ -56,10 +58,10 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron           the random generator
-     * @param timeManager         the time manager
-     * @param logging             the logging utility
-     * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
+     * @param randotron            the random generator
+     * @param timeManager          the time manager
+     * @param logging              the logging utility
+     * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */
     public TurtleNetwork(
@@ -108,7 +110,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      */
     @Override
     @NonNull
-    public List<Node> addNodes(final int count) {
+    public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
         throwIfInState(State.RUNNING, "Cannot add nodes after the network has been started.");
         throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
         if (!nodes.isEmpty()) {
@@ -118,8 +120,10 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         executorService = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomRosterBuilder rosterBuilder =
-                RandomRosterBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
+        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(randotron)
+                .withSize(count)
+                .withWeightGenerator(weightGenerator)
+                .withRealKeysEnabled(true);
         final Roster roster = rosterBuilder.build();
 
         simulatedNetwork =
@@ -192,6 +196,8 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         for (final TurtleNode node : nodes) {
             node.destroy();
         }
-        executorService.shutdownNow();
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
     }
 }

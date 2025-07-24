@@ -130,7 +130,6 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -139,9 +138,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
-@Disabled
 public class AtomicEthereumSuite {
-
     public static final long GAS_LIMIT = 1_000_000;
     public static final String ERC20_CONTRACT = "ERC20Contract";
     public static final String EMIT_SENDER_ORIGIN_CONTRACT = "EmitSenderOrigin";
@@ -579,10 +576,10 @@ public class AtomicEthereumSuite {
                                 .fee(810000000L)
                                 .maxGasAllowance(0L)
                                 .nonce(999L)
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(WRONG_NONCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest

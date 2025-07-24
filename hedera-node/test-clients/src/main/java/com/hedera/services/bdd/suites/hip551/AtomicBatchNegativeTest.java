@@ -4,11 +4,16 @@ package com.hedera.services.bdd.suites.hip551;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -16,11 +21,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
@@ -32,6 +39,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnlyForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -39,26 +47,36 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -105,9 +123,12 @@ public class AtomicBatchNegativeTest {
                     newKeyNamed(newKey),
                     atomicBatch(
                                     cryptoUpdate(sender).key(newKey).batchKey(sender),
-                                    cryptoDelete(sender).batchKey(sender),
+                                    cryptoDelete(sender)
+                                            .signedByPayerAnd(newKey)
+                                            .batchKey(sender),
                                     cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
-                                            .batchKey(sender))
+                                            .batchKey(sender)
+                                            .hasKnownStatus(ACCOUNT_DELETED))
                             .payingWith(sender)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -131,11 +152,10 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
             final var batchOperator = "batchOperator";
             final var innerTxnPayer = "innerPayer";
-            final var innerTxnId = "innerId";
             // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
             final var innerTxn = cryptoCreate("foo")
                     .balance(ONE_HBAR)
-                    .txnId(innerTxnId)
+                    .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer)
                     .signedBy(DEFAULT_PAYER);
@@ -143,7 +163,6 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
                     cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                     // Since the inner txn is signed by DEFAULT_PAYER, it should fail
                     atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(INVALID_SIGNATURE));
         }
@@ -160,7 +179,8 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
+                    .payingWith(innerTxnPayer)
+                    .hasKnownStatus(INVALID_TRANSACTION_START);
             final var validStart = Timestamp.newBuilder()
                     .setSeconds(Instant.now().getEpochSecond() + 1000)
                     .setNanos(1)
@@ -235,7 +255,8 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(cryptoCreate(innerId)
                                     .txnId(innerId)
                                     .validDurationSecs(-1)
-                                    .batchKey("batchOperator"))
+                                    .batchKey("batchOperator")
+                                    .hasKnownStatus(INVALID_TRANSACTION_DURATION))
                             .payingWith("batchOperator")
                             .hasPrecheck(INVALID_TRANSACTION_DURATION));
         }
@@ -249,7 +270,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     usableTxnIdNamed("successfulBatch").payerId("batchOperator"),
                     usableTxnIdNamed("failingBatch").payerId("batchOperator"),
-                    cryptoCreate("sender").balance(0L),
+                    cryptoCreate("sender").balance(ONE_HBAR),
                     cryptoCreate("receiver"),
 
                     // successful batch duplication
@@ -266,8 +287,7 @@ public class AtomicBatchNegativeTest {
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
-                            .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                            .payingWith("batchOperator"),
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
@@ -330,7 +350,8 @@ public class AtomicBatchNegativeTest {
                     contractCreate(contract).gas(1_000_000),
                     atomicBatch(contractCall(contract, function, payload)
                                     .gas(2000001)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED))
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -673,13 +694,15 @@ public class AtomicBatchNegativeTest {
                                             .batchKey("Alice")
                                             .fee(ONE_HBAR)
                                             .payingWith("Bob")
-                                            .signedBy("Bob"),
+                                            .signedBy("Bob")
+                                            .hasKnownStatus(REVERTED_SUCCESS),
                                     // will fail because receiver is not associated with ftC
                                     cryptoTransfer(TokenMovement.moving(1, "ftC")
                                                     .between("Bob", "receiver"))
                                             .batchKey("Alice")
                                             .payingWith("Bob")
-                                            .signedBy("Bob"))
+                                            .signedBy("Bob")
+                                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                             .payingWith("Alice")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
@@ -697,34 +720,6 @@ public class AtomicBatchNegativeTest {
                     getAccountBalance("collector").hasTokenBalance("ftB", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftA", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftC", 0));
-        }
-
-        @HapiTest
-        @DisplayName("Batch containing expired transaction charges on rollback")
-        // BATCH_66
-        public Stream<DynamicTest> failingWithExpiryStillChargesFees() {
-            final var beforeHour = -3_600L; // 1 hour in the past
-            return hapiTest(
-                    // create accounts and tokens
-                    cryptoCreate("Alice").balance(ONE_HUNDRED_HBARS),
-                    // batch txn
-                    usableTxnIdNamed("expiredTxn").modifyValidStart(beforeHour).payerId("Alice"),
-                    atomicBatch(
-                                    tokenCreate("ftA").batchKey("Alice").payingWith("Alice"),
-                                    tokenCreate("ftB")
-                                            .txnId("expiredTxn")
-                                            .batchKey("Alice")
-                                            .payingWith("Alice"))
-                            .payingWith("Alice")
-                            .hasPrecheck(TRANSACTION_EXPIRED)
-                            .via("batchTxn"),
-
-                    // This test no longer make sense
-                    // Expired transaction will be detected on batch ingest, so it will not execute any of the inner
-                    // transactions and will not create any records.
-                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
-                        assertEquals(0, records.size());
-                    }));
         }
 
         @HapiTest
@@ -906,6 +901,99 @@ public class AtomicBatchNegativeTest {
                             .payingWith(alice) // Alice pays for the batch
                             .signedBy(alice) // Alice signs with the valid BatchKey
                             .hasPrecheck(MISSING_BATCH_KEY));
+        }
+    }
+
+    @Nested
+    @DisplayName("Nonce Tests")
+    class NonceTests {
+        private static final String INTERNAL_CALLEE_CONTRACT = "InternalCallee";
+        private static final String BATCH_OPERATOR = "batchOperator";
+        private static final String EXTERNAL_FUNCTION = "externalFunction";
+        private static final String REVERT_FUNCTION = "revertWithRevertReason";
+
+        @HapiTest
+        @DisplayName("Nonce gets updated after contract reversion inside batch")
+        final Stream<DynamicTest> nonceUpdatedAfterEvmReversionDueContractLogic() {
+            final var gasLimit = 215_000L;
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                    contractCreate(INTERNAL_CALLEE_CONTRACT),
+                    atomicBatch(ethereumCall(INTERNAL_CALLEE_CONTRACT, REVERT_FUNCTION)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(gasLimit)
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                    .via("ethCall")
+                                    .batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(1L)),
+                    getTxnRecord("ethCall")
+                            .hasPriority(recordWith()
+                                    .status(CONTRACT_REVERT_EXECUTED)
+                                    .contractCallResult(resultWith().signerNonce(1L))));
+        }
+
+        @HapiTest
+        @DisplayName("Nonce gets updated after successful contract call inside batch")
+        final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
+            final var internalCalleeContract = "InternalCallee";
+            final var externalFunction = "externalFunction";
+            final var gasLimit = 215_000L;
+            return hapiTest(
+                    cryptoCreate("batchOperator"),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(internalCalleeContract),
+                    contractCreate(internalCalleeContract),
+                    atomicBatch(ethereumCall(internalCalleeContract, externalFunction)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(gasLimit)
+                                    .via("ethCall")
+                                    .batchKey("batchOperator"))
+                            .payingWith("batchOperator"),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(1L)),
+                    getTxnRecord("ethCall")
+                            .hasPriority(
+                                    recordWith().contractCallResult(resultWith().signerNonce(1L))));
+        }
+
+        @HapiTest
+        @DisplayName("Nonce not updated when intrinsic gas check fails")
+        final Stream<DynamicTest> nonceNotUpdatedWhenIntrinsicGasHandlerCheckFailed() {
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(BATCH_OPERATOR),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                    contractCreate(INTERNAL_CALLEE_CONTRACT),
+                    atomicBatch(ethereumCall(INTERNAL_CALLEE_CONTRACT, EXTERNAL_FUNCTION)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(21_000L)
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR)
+                            .hasPrecheck(INSUFFICIENT_GAS),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(0L)));
         }
     }
 

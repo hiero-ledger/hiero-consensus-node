@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package com.hedera.hapi.platform.message;
+
+option java_package = "com.hedera.hapi.platform.message.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.platform.message">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Describes the event window which is currently seen by given node. <br/>
+ *
+ * Used to determine if we or peer are falling behind with regards to each active graph window.
+ * If one of the parties ancient threshold is outside of expired range of another, no useful synchronization can be performed and sync process will be aborted. <br/>
+ * It can be reestablished in future, if other peer has provided delayed party missing events, or full reconnect/reinitialization was performed on delayed node.
+ */
+message GossipEventWindow {
+
+  /**
+   * the latest round that has come to consensus
+   */
+  int64 latestConsensusRound = 1;
+
+  /**
+   * the minimum birth round for an event to be considered non-ancient
+   */
+  int64 ancientThreshold = 2;
+
+  /**
+   * the minimum birth round value for an event to be considered not expired
+   */
+  int64 expiredThreshold = 3;
+}
+
+/**
+ * Message exchange at the start of rpc sync, to exchange the event window and tipset.<br/>
+ * <br/>
+ * Each side of the communication MAY send GossipSyncData at any time sync process in not in progress,
+ * but MUST NOT send another one until it has received corresponding GossipSyncData from the peer.
+ *
+ */
+message GossipSyncData {
+  /**
+   * Current consensus/event window of sender
+   */
+  GossipEventWindow window = 1;
+
+  /**
+   * The hashes of the tips.<br/>
+   * The hash SHALL be a SHA-384 hash.<br/>
+   * Order of these tips can be random, but answer sent back in GossipKnownTips array will follow same order.
+   */
+  repeated bytes tips = 2;
+
+}

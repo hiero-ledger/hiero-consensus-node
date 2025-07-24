@@ -20,9 +20,10 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,16 +67,21 @@ class SignedStateTests {
      */
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var real = new TestMerkleStateRoot();
+        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final var real = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.DEFAULT.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
+        final MerkleNode realRoot = state.getRoot();
+        final MerkleNode rootSpy = spy(realRoot);
+        when(state.getRoot()).thenReturn(rootSpy);
+
         if (reserveCallback != null) {
             doAnswer(invocation -> {
                         reserveCallback.run();
                         return null;
                     })
-                    .when((MerkleNode) state)
+                    .when(rootSpy)
                     .reserve();
         }
 
@@ -212,7 +218,10 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final MerkleNodeState state = spy(new TestMerkleStateRoot());
+        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+
+        final MerkleNodeState state = spy(new TestHederaVirtualMapState(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);

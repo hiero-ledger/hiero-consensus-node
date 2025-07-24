@@ -24,13 +24,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
+import static com.hedera.services.bdd.suites.contract.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -243,7 +243,7 @@ public class SteadyStateThrottlingTest {
 
     final Stream<DynamicTest> checkBalanceQps(int burstSize, double expectedQps) {
         return defaultHapiSpec("CheckBalanceQps")
-                .given(cryptoCreate("curious").payingWith(GENESIS))
+                .given(cryptoCreate(CIVILIAN), cryptoCreate("curious").payingWith(GENESIS), sleepForSeconds(1))
                 .when()
                 .then(withOpContext((spec, opLog) -> {
                     int numBusy = 0;
@@ -253,7 +253,7 @@ public class SteadyStateThrottlingTest {
                     int logScreen = 0;
                     while (watch.elapsed(SECONDS) < secsToRun) {
                         var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance(DEFAULT_PAYER)
+                                .mapToObj(ignore -> getAccountBalance(CIVILIAN)
                                         .noLogging()
                                         .payingWith("curious")
                                         .hasAnswerOnlyPrecheckFrom(BUSY, OK))

@@ -270,13 +270,12 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        final List<ThrottleUsage> throttleUsages = result.throttleUsages();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         try {
-            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
+            checkThrottles(txInfo, state, hederaConfig, result.throttleUsages());
         } finally {
             // Always keep throttle usages up to date for refund logic
-            result.setThrottleUsages(throttleUsages);
+            result.setThrottleUsages(result.throttleUsages());
         }
 
         // 4a. Run pure checks
@@ -317,7 +316,7 @@ public final class IngestChecker {
 
         // 8. Re-run checks against inner transactions
         if (functionality == ATOMIC_BATCH) {
-            for (Bytes bytes : txBody.atomicBatch().transactions()) {
+            for (final Bytes bytes : txBody.atomicBatch().transactions()) {
                 runAllChecks(state, bytes, configuration, result, YES);
             }
         }
