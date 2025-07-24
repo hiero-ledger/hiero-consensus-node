@@ -34,10 +34,10 @@ class DocExamplesTest {
         timeManager.waitFor(Duration.ofSeconds(30));
 
         // 5. Verify consensus was reached and advanced past round 2
-        assertThat(network.getConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
 
         // 6. Check for no error-level log messages
-        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
     }
 
     // This test is used in the turtle-environment.md
@@ -52,7 +52,7 @@ class DocExamplesTest {
         env.timeManager().waitFor(Duration.ofSeconds(30));
 
         // Results will be identical across runs
-        final long lastRound = network.getConsensusResults().results().get(0).lastRoundNum();
+        final long lastRound = network.newConsensusResults().results().get(0).lastRoundNum();
 
         // This assertion will always pass with seed=42
         assertThat(lastRound).isEqualTo(35);

@@ -58,7 +58,7 @@ public class DataFileCollectionBench extends BaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
                 BenchmarkRecord record = new BenchmarkRecord(id, nextValue());
-                index.put(id, store.storeDataItem(record::serialize, BenchmarkRecord.getSerializedSize()));
+                index.put(id, store.storeDataItem(record::serialize, record.getSizeInBytes()));
                 if (verify) map[(int) id] = record;
             }
             store.endWriting();
