@@ -39,8 +39,21 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenFreezeStatus.FreezeNotApplicable;
 import static com.hederahashgraph.api.proto.java.TokenFreezeStatus.Frozen;
@@ -381,7 +394,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                             movingUnique(NFT_FOR_END_TO_END, 15L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferFirstTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_NFT_ID);
 
             return hapiTest(flattened(
                     // create keys and accounts,
@@ -588,7 +602,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFirstTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN);
 
             return hapiTest(flattened(
                     // create accounts and token
@@ -790,7 +805,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                             moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferFirstTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
             return hapiTest(flattened(
                     // create keys and accounts
@@ -995,7 +1011,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("pauseTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1029,7 +1046,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("unpauseTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1077,7 +1095,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_IS_PAUSED);
 
                 // pause the fungible token
                 final var pauseFungibleToken = tokenPause(FT_FOR_TOKEN_PAUSE)
@@ -1123,7 +1142,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, pauseKey)
                         .via("pauseTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1162,7 +1182,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, pauseKey)
                         .via("pauseTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1246,7 +1267,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .pauseKey(newPauseKey)
                         .signedBy(OWNER, adminKey)
                         .via("updatePauseTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY);
 
                 // pause the fungible token
                 final var pauseFungibleToken = tokenPause(FT_FOR_TOKEN_PAUSE)
@@ -1420,7 +1442,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("freezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1453,7 +1476,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("unfreezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1494,7 +1518,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN);
 
                 // freeze the non-fungible token
                 final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1541,7 +1566,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, freezeKey)
                         .via("freezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY);
 
                 return hapiTest(flattened(
                         // create accounts, keys and token
@@ -1581,7 +1607,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, freezeKey)
                         .via("freezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1628,7 +1655,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN);
 
                 // freeze the non-fungible token for one of the accounts
                 final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1724,7 +1752,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .freezeKey(newFreezeKey)
                         .signedBy(OWNER, adminKey)
                         .via("unfreezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY);
 
                 // freeze the non-fungible token
                 final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1873,7 +1902,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, supplyKey)
                         .via("burnTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1931,7 +1961,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -1984,7 +2015,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -2047,7 +2079,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                 moving(1L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_WAS_DELETED);
 
                 return hapiTest(flattened(
                         // create accounts and token
@@ -2084,7 +2117,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, supplyKey)
                         .via("burnTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_WAS_DELETED);
 
                 // delete the fungible token
                 final var deleteFungibleToken = tokenDelete(FT_FOR_TOKEN_BURN)
@@ -2123,7 +2157,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, wipeKey)
                         .via("wipeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_WAS_DELETED);
 
                 // delete the fungible token
                 final var deleteFungibleToken = tokenDelete(FT_FOR_TOKEN_BURN)
@@ -2162,7 +2197,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("burnTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 // wipe the fungible token
                 final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
@@ -2213,7 +2249,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER)
                         .via("wipeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2250,7 +2287,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, supplyKey)
                         .via("burnTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY);
 
                 // wipe the fungible token
                 final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
@@ -2301,7 +2339,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .payingWith(OWNER)
                         .signedBy(OWNER, wipeKey)
                         .via("wipeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY);
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2440,7 +2479,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .wipeKey(newWipeKey)
                         .signedBy(OWNER)
                         .via("unfreezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(INVALID_SIGNATURE);
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2498,7 +2538,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .wipeKey(newWipeKey)
                         .signedBy(OWNER)
                         .via("unfreezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY);
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2554,7 +2595,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         .adminKey(newAdminKey)
                         .signedBy(OWNER, adminKey, newAdminKey)
                         .via("unfreezeTxn")
-                        .batchKey(BATCH_OPERATOR);
+                        .batchKey(BATCH_OPERATOR)
+                        .hasKnownStatus(TOKEN_IS_IMMUTABLE);
 
                 // delete the fungible token
                 final var deleteFungibleToken = tokenDelete(FT_FOR_TOKEN_BURN)
@@ -2697,7 +2739,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("grantKycTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2735,7 +2778,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("revokeKycTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2800,7 +2844,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                             moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferSecondTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
 
             return hapiTest(flattened(
                     // create accounts and token
@@ -2840,7 +2885,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER, kycKey)
                     .via("grantKycTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
             // transfer tokens to not associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2876,7 +2922,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER, kycKey)
                     .via("grantKycTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY);
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -2928,7 +2975,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                             moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferSecondTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
 
             return hapiTest(flattened(
                     // create accounts and token
@@ -3079,7 +3127,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("updateKycTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
