@@ -389,7 +389,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)
-                //TODO add callback
+                .withExecutionCallback(executionCallback)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()));
 

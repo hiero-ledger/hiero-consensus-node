@@ -317,6 +317,12 @@ public class PlatformWiring {
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
+        statusStateMachineWiring
+                .getOutputWire().solderTo(
+                "ExecutionStatusHandler",
+                "status updates",
+                executionCallback::updatePlatformStatus
+        );
     }
 
     /**
@@ -525,8 +531,8 @@ public class PlatformWiring {
         stateSignerWiring
                 .getOutputWire()
                 .solderTo(
-                        "Execution",
-                        "State signatures",
+                        "ExecutionSignatureSubmission",
+                        "state signatures",
                         executionCallback::submitSystemTransaction
                 );
 
