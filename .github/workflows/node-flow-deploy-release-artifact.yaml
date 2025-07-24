@@ -186,7 +186,7 @@ jobs:
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - release-branch
     steps:
