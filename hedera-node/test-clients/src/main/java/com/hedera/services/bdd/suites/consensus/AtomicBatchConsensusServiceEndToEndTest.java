@@ -23,9 +23,15 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -301,7 +307,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .signedBy(PAYER, submitKey)
                     .payingWith(PAYER)
                     .via("innerTxnAfterDelete")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_TOPIC_ID);
 
             // delete topic inner transaction
             final var deleteTopicTransaction = deleteTopic(TOPIC_ID)
@@ -352,7 +359,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .signedBy(PAYER, submitKey)
                     .payingWith(PAYER)
                     .via("innerTxnAfterDelete")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_TOPIC_ID);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -396,7 +404,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_TOPIC_ID);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -537,7 +546,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -582,7 +592,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(UNAUTHORIZED);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -627,7 +638,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(UNAUTHORIZED);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -668,7 +680,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
             final var deleteTopicTransaction = deleteTopic(TOPIC_ID)
                     .payingWith(PAYER)
                     .via("deleteTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(UNAUTHORIZED);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -755,7 +768,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, newAdminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -799,7 +813,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -904,7 +919,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1184,7 +1200,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .signedBy(PAYER)
                     .payingWith(PAYER)
                     .via("innerTxnBeforeUpdate")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1223,7 +1240,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .signedBy(PAYER_INSUFFICIENT_BALANCE, submitKey)
                     .payingWith(PAYER_INSUFFICIENT_BALANCE)
                     .via("innerTxnAfterUpdate")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1263,7 +1281,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .signedBy(PAYER, submitKey)
                     .payingWith(PAYER)
                     .via("innerTxnAfterUpdate")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1614,7 +1633,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1677,7 +1697,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER)
                     .signedBy(PAYER, adminKey, feeScheduleKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(CUSTOM_FEES_LIST_TOO_LONG);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
@@ -1931,7 +1952,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                     .payingWith(PAYER_EXEMPT_FEES)
                     .signedBy(PAYER_EXEMPT_FEES, adminKey)
                     .via("updateTopicTxn")
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED);
 
             return hapiTest(flattened(
                     createAccountsAndKeys(),
