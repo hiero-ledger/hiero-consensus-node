@@ -142,8 +142,8 @@ class SyncFilteringTest {
         // Test filtering multiple times. Each iteration, move time forward. We should see more and more events
         // returned as they age.
         while (time.now().isBefore(endTime)) {
-            final List<PlatformEvent> filteredEvents =
-                    SyncUtils.filterLikelyDuplicates(selfId, nonAncestorSendThreshold, time.now(), events);
+            final List<PlatformEvent> filteredEvents = SyncUtils.filterLikelyDuplicates(
+                    selfId, nonAncestorSendThreshold, Duration.ZERO, time.now(), events);
 
             // Gather a list of events we expect to see.
             final List<PlatformEvent> expectedEvents = new ArrayList<>();
