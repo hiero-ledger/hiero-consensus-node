@@ -30,7 +30,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -90,7 +89,8 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     private synchronized void generateTransactions() {
         final byte[] transaction = new byte[bytesPerTrans];
         final long now = System.nanoTime();
-        final double tps = transPerSecToCreate / platform.getRoster().rosterEntries().size();
+        final double tps =
+                transPerSecToCreate / platform.getRoster().rosterEntries().size();
 
         if (transPerSecToCreate > -1) { // if not unlimited (-1 means unlimited)
             toCreate += ((double) now - lastEventTime) * NANOSECONDS_TO_SECONDS * tps;
