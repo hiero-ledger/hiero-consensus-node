@@ -12,7 +12,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
-public interface SingleNodePlatformStatusResults extends OtterResult {
+public interface SingleNodePlatformStatusResult extends OtterResult {
 
     /**
      * Returns the node ID of the node which status progression has been recorded.
