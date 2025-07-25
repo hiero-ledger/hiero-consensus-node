@@ -72,7 +72,6 @@ tasks:
       - echo "solo_user_dir={{ .solo_user_dir }}"
       - echo "SOLO_HOME=${SOLO_HOME}"
       - echo "SOLO_NETWORK_SIZE=${SOLO_NETWORK_SIZE}"
-      - echo "SOLO_CHART_VERSION=${SOLO_CHART_VERSION}"
       - echo "CONSENSUS_NODE_VERSION=${CONSENSUS_NODE_VERSION}"
       - echo "SOLO_NAMESPACE=${SOLO_NAMESPACE}"
       - echo "SOLO_DEPLOYMENT=${SOLO_DEPLOYMENT}"
@@ -222,10 +221,7 @@ tasks:
         if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
-        if [[ "${SOLO_CHART_VERSION}" != "" ]]; then
-          export SOLO_CHART_FLAG="--solo-chart-version ${SOLO_CHART_VERSION}"
-        fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${SOLO_CHART_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
       - task: "solo:node:setup"
 
   solo:node:setup:
