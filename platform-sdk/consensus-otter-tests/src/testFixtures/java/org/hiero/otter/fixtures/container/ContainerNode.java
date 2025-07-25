@@ -54,6 +54,7 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -102,6 +103,8 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
+
+        LogConfigBuilder.configure(outputDirectory);
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
