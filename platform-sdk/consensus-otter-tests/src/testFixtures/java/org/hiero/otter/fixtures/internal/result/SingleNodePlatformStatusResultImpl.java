@@ -9,12 +9,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
- * Default implementation of {@link SingleNodePlatformStatusResults}
+ * Default implementation of {@link SingleNodePlatformStatusResult}
  */
-public class SingleNodePlatformStatusResultsImpl implements SingleNodePlatformStatusResults {
+public class SingleNodePlatformStatusResultImpl implements SingleNodePlatformStatusResult {
 
     private final NodeResultsCollector collector;
 
@@ -22,11 +22,11 @@ public class SingleNodePlatformStatusResultsImpl implements SingleNodePlatformSt
     private volatile int startIndex = 0;
 
     /**
-     * Creates a new instance of {@link SingleNodePlatformStatusResultsImpl}.
+     * Creates a new instance of {@link SingleNodePlatformStatusResultImpl}.
      *
      * @param collector the {@link NodeResultsCollector} that collects the results
      */
-    public SingleNodePlatformStatusResultsImpl(@NonNull final NodeResultsCollector collector) {
+    public SingleNodePlatformStatusResultImpl(@NonNull final NodeResultsCollector collector) {
         this.collector = requireNonNull(collector);
     }
 
