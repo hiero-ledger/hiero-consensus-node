@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
@@ -295,4 +296,7 @@ public interface HederaOperations {
      */
     @Nullable
     ThrottleAdviser getThrottleAdviser();
+
+    @Nullable
+    ContractMetrics contractMetrics();
 }

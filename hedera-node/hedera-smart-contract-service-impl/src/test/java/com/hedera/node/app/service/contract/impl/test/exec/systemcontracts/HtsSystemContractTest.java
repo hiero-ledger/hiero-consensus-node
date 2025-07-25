@@ -17,9 +17,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.*;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -27,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -73,6 +75,9 @@ class HtsSystemContractTest {
     @Mock
     private ContractMetrics contractMetrics;
 
+    @Mock
+    private HederaOpsDuration hederaOpsDuration;
+
     private MockedStatic<FrameUtils> frameUtils;
 
     private HtsSystemContract subject;
@@ -81,7 +86,7 @@ class HtsSystemContractTest {
     @BeforeEach
     void setUp() {
         frameUtils = Mockito.mockStatic(FrameUtils.class);
-        subject = new HtsSystemContract(gasCalculator, attemptFactory, contractMetrics);
+        subject = new HtsSystemContract(gasCalculator, attemptFactory, contractMetrics, hederaOpsDuration);
     }
 
     @AfterEach
@@ -96,6 +101,7 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         final var pricedResult = gasOnly(successResult(ByteBuffer.allocate(1), 123L), SUCCESS, true);
         given(call.execute(frame)).willReturn(pricedResult);
@@ -123,6 +129,7 @@ class HtsSystemContractTest {
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
         given(call.execute(frame)).willThrow(RuntimeException.class);
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         final var expected = haltResult(ExceptionalHaltReason.PRECOMPILE_ERROR, frame.getRemainingGas());
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
