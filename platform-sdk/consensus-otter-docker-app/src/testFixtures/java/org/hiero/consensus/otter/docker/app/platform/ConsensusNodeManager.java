@@ -133,8 +133,8 @@ public class ConsensusNodeManager {
                         (vm) -> state)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts);
-        // TODO add callbacks;
+                .withKeysAndCerts(keysAndCerts)
+                .withExecutionCallback(executionCallback);
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
