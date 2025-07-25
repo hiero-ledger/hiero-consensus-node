@@ -299,7 +299,6 @@ jobs:
           export NODE_COPY_CONCURRENT=1
 
           #task clean
-          task init
           task
           task_code=${?}
           task solo:node:logs

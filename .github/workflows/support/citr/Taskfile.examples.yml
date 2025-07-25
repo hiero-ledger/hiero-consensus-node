@@ -17,8 +17,6 @@ vars:
   solo_bin_dir: "{{ .solo_user_dir }}/bin"
   temp_prefix:
     sh: (echo "/tmp/solo-${USER}-$(date +%Y%m%d%H%M%S)")
-  run_build_file:
-    sh: (echo "/tmp/solo-${USER}-run-build-$(date +%Y%m%d%H%M%S)")
   var_check_file:
     sh: (echo "/tmp/solo-${USER}-var-check-$(date +%Y%m%d%H%M%S)")
   minio_flag_file:
@@ -28,8 +26,6 @@ vars:
 
 tasks:
   default:
-    deps:
-      - task: "init"
     cmds:
       - task: "install:kubectl:darwin"
       - task: "install:kubectl:linux"
@@ -38,8 +34,6 @@ tasks:
 
   install:
     desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
-    deps:
-      - task: "init"
     cmds:
       #Alex - task: "cluster:create"
       - task: "solo:init"
@@ -51,22 +45,8 @@ tasks:
       - task: "solo:network:deploy"
 
   destroy:
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:network:destroy"
-
-  build:
-    cmds:
-      - rm -Rf dist
-      - npx tsc
-      - node {{.TASKFILE_DIR}}/../resources/post-build-script.js
-
-  init:
-    cmds:
-      - task: "install:solo"
-      - task: "var:check"
-      - task: "run:build"
 
   var:check:
     silent: true
@@ -82,7 +62,6 @@ tasks:
         - nodes
         - node_list_internal
         - node_identifiers
-        - run_build_file
         - SOLO_NAMESPACE
         - SOLO_DEPLOYMENT
         - SOLO_CLUSTER_SETUP_NAMESPACE
@@ -178,8 +157,6 @@ tasks:
   solo:init:
     internal: true
     silent: true
-    deps:
-      - task: "init"
     status:
       - test -f {{ .solo_bin_dir }}/helm
       - test -f {{ .solo_cache_dir }}/profiles/custom-spec.yaml
@@ -196,8 +173,6 @@ tasks:
   solo:cluster-ref:connect:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${CONTEXT}" != "" ]]; then
@@ -215,8 +190,6 @@ tasks:
   solo:deployment:create:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${CLUSTER_REF}" != "" ]]; then
@@ -229,8 +202,6 @@ tasks:
   solo:deployment:add-cluster:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${CLUSTER_REF}" != "" ]]; then
@@ -253,16 +224,12 @@ tasks:
          test -f {{ .solo_keys_dir }}/s-public-node${n}.pem
          test -f {{ .solo_keys_dir }}/s-private-node${n}.pem
         done
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- node keys --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
   solo:network:deploy:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${DEBUG_NODE_ALIAS}" != "" ]]; then
@@ -280,8 +247,6 @@ tasks:
   solo:node:setup:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
@@ -292,16 +257,12 @@ tasks:
   solo:network:destroy:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
 
   solo:node:start:
     silent: true
     internal: true
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${DEBUG_NODE_ALIAS}" != "" ]]; then
@@ -319,15 +280,11 @@ tasks:
     silent: true
     internal: true
     ignore_error: true
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q {{ .CLI_ARGS }} --dev
 
   solo:relay:
     silent: true
-    deps:
-      -
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- relay deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
       - |
@@ -342,8 +299,6 @@ tasks:
     status:
       - |
         {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-node1
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- relay destroy --deployment "${SOLO_DEPLOYMENT}" -i node1 -q --dev
 
@@ -404,14 +359,6 @@ tasks:
           pkill -f "kubectl port-forward -n {{ .SOLO_NAMESPACE }}" | grep -w ${UID} || true
         fi
 
-  run:build:
-    silent: true
-    status:
-      - test -f {{ .run_build_file }}
-    cmds:
-      - task: "build"
-      - touch {{ .run_build_file }}
-
   solo:cluster:minio:
     internal: true
     silent: true
@@ -427,7 +374,6 @@ tasks:
   solo:cluster:setup:
     silent: true
     deps:
-      - task: "init"
       - task: "solo:cluster:minio"
     status:
       - |
@@ -453,42 +399,30 @@ tasks:
 
   start:
     desc: solo node start
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:node:start"
 
   stop:
     desc: solo node stop
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:node:stop"
 
   show:ips:
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:node:addresses"
 
   clean:cache:
     desc: remove solo cache directory
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:cache:remove"
 
   clean:logs:
     desc: remove solo logs director
-    deps:
-      - task: "init"
     cmds:
       - task: "solo:logs:remove"
 
   default-with-mirror:
     desc: in addition to the defaults, also deploy the mirror node
-    deps:
-      - task: "init"
     cmds:
       - task: "default"
       - task: "solo:mirror-node"
@@ -496,8 +430,6 @@ tasks:
 
   default-with-relay:
     desc: in addition to default-with-mirror, deploy the JSON RPC relay
-    deps:
-      - task: "init"
     cmds:
       - task: "default"
       - task: "solo:mirror-node"
@@ -507,8 +439,6 @@ tasks:
   solo:mirror-node:
     silent: true
     desc: solo mirror-node deploy with port forward
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
       - |
@@ -522,8 +452,6 @@ tasks:
   solo:explorer:
     silent: true
     desc: solo explorer deploy with port forward on explorer
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
@@ -551,16 +479,12 @@ tasks:
     status:
       - |
         {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
-    deps:
-      - task: "init"
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
 
   solo:destroy-explorer:
     silent: true
     desc: solo explorer destroy
-    deps:
-      - task: "init"
     cmds:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
@@ -571,8 +495,6 @@ tasks:
 
   clean:
     desc: destroy, then remove cache directory, logs directory, config, and port forwards
-    deps:
-      - task: "init"
     cmds:
       - task: "destroy"
       - task: "clean:cache"
