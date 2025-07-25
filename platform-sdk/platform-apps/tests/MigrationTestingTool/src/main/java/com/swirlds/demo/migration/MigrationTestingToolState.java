@@ -126,7 +126,8 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
             return this;
         }
 
-        return super.migrate(configuration, version);
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+        return this;
     }
 
     /**
