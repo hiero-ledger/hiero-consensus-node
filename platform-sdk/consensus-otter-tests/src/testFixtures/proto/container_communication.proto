@@ -169,18 +169,22 @@ message EventMessage {
   }
 }
 
+// Request to initialize the container.
+message InitRequest {
+  // ID of the node.
+  com.hedera.hapi.platform.state.NodeId self_id = 1;
+}
+
 // Request to start the remote platform.
 message StartRequest {
-  // ID of the node starting the platform.
-  com.hedera.hapi.platform.state.NodeId self_id = 1;
   // Semantic version of the platform.
-  .proto.SemanticVersion version = 2;
+  .proto.SemanticVersion version = 1;
   // Roster of nodes participating in the platform.
-  com.hedera.hapi.node.state.roster.Roster roster = 3;
+  com.hedera.hapi.node.state.roster.Roster roster = 2;
   // Cryptographic keys and certificates for the platform.
-  ProtoKeysAndCerts keys_and_certs = 4;
+  ProtoKeysAndCerts keys_and_certs = 3;
   // Properties overridden for the platform.
-  map<string, string> overridden_properties = 5;
+  map<string, string> overridden_properties = 4;
 }
 
 // Wrapper for a transaction submission request.
@@ -200,11 +204,14 @@ message KillImmediatelyRequest {
 
 message SyntheticBottleneckRequest {
   // The number of milliseconds to sleep per round on the handle thread
-  int64 sleep_millis_per_round = 1;
+  uint64 sleep_millis_per_round = 1;
 }
 
 // Service definition for controlling tests.
 service TestControl {
+  // RPC to initialize the container with the node ID.
+  rpc Init(InitRequest) returns (google.protobuf.Empty);
+
   // RPC to start the platform and stream event messages.
   rpc Start(StartRequest) returns (stream EventMessage);
 

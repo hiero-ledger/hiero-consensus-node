@@ -77,12 +77,12 @@ on:
         description: ""
         required: false
         type: string
-        default: "35.247.76.217"
+        default: "jrs.reports.eng.hashgraph.io"
       jrs-web-port:
         description: ""
         required: false
         type: number
-        default: 8095
+        default: 0
       summary-bucket:
         description: ""
         required: false
@@ -172,7 +172,7 @@ jobs:
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

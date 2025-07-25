@@ -6,9 +6,8 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -30,26 +29,48 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     private final PcesFileTracker pcesFileTracker;
 
     /**
-     * Constructor for {@code PcesFilesResultImpl}.
+     * Constructor for {@code SingleNodePcesResultImpl} using the default PCES directory based on the node ID and
+     * configuration.
      *
      * @param nodeId The {@link NodeId} of the files' node
-     * @param platformContext The {@link PlatformContext} to use for file reading
+     * @param configuration The {@link Configuration} to use for reading PCES files
      */
-    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final PlatformContext platformContext) {
+    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final Configuration configuration) {
+        this(nodeId, configuration, defaultPcesDirectory(nodeId.id(), configuration));
+    }
+
+    /**
+     * Constructor for {@code SingleNodePcesResultImpl} using a custom PCES directory.
+     *
+     * @param nodeId The {@link NodeId} of the files' node
+     * @param configuration The {@link Configuration} to use for reading PCES files
+     * @param pcesDirectory The directory where PCES files are stored
+     */
+    public SingleNodePcesResultImpl(
+            @NonNull final NodeId nodeId,
+            @NonNull final Configuration configuration,
+            @NonNull final Path pcesDirectory) {
         this.nodeId = requireNonNull(nodeId);
-
-        final Configuration configuration = platformContext.getConfiguration();
-        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-
         try {
-
-            final Path databaseDirectory =
-                    getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
-
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());
+                    configuration, new NoOpRecycleBin(), pcesDirectory, NO_LOWER_BOUND, true);
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
+        }
+    }
+
+    /**
+     * Construct the default PCES directory based on the node ID and configuration.
+     *
+     * @param nodeId the ID of the node
+     * @param configuration the configuration of the node
+     * @return the default PCES directory path
+     */
+    private static Path defaultPcesDirectory(final long nodeId, final Configuration configuration) {
+        try {
+            return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Error resolving default PCES directory", e);
         }
     }
 

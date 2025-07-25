@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.security.SecureRandom;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -29,7 +31,7 @@ class VirtualMapLifecycleTests {
 
     private static final Random RANDOM = new SecureRandom();
 
-    private static final VirtualMap<TestKey, TestValue> TERMINATE_QUERY = new VirtualMap<>(CONFIGURATION);
+    private static final VirtualMap TERMINATE_QUERY = new VirtualMap(VirtualMapTestUtils.CONFIGURATION);
 
     /**
      * This hammer test will have one thread querying maps while another thread is modifying
@@ -42,9 +44,9 @@ class VirtualMapLifecycleTests {
     @Tags({@Tag("VirtualMerkle"), @Tag("VMAP-016")})
     @DisplayName("Main thread mutates vm while background thread queries immutable vm")
     void queryCopyWhileMutatingOriginal() throws InterruptedException, ExecutionException, TimeoutException {
-        final VirtualMap<TestKey, TestValue> map = createMap();
-        final AtomicReference<VirtualMap<TestKey, TestValue>> mutableCopy = new AtomicReference<>(map);
-        final BlockingQueue<VirtualMap<TestKey, TestValue>> immutableCopies = new LinkedBlockingQueue<>();
+        final VirtualMap map = VirtualMapTestUtils.createMap();
+        final AtomicReference<VirtualMap> mutableCopy = new AtomicReference<>(map);
+        final BlockingQueue<VirtualMap> immutableCopies = new LinkedBlockingQueue<>();
         final int totalTransactions = 10_000;
         final ExecutorService service = Executors.newSingleThreadExecutor();
         try {
@@ -73,53 +75,53 @@ class VirtualMapLifecycleTests {
         }
     }
 
-    private void deleteKeyValue(final int index, final AtomicReference<VirtualMap<TestKey, TestValue>> atomicMap) {
-        final TestKey key = new TestKey(index);
+    private void deleteKeyValue(final int index, final AtomicReference<VirtualMap> atomicMap) {
+        final Bytes key = TestKey.longToKey(index);
         atomicMap.get().remove(key);
     }
 
-    private void updateKeyValue(final int index, final AtomicReference<VirtualMap<TestKey, TestValue>> atomicMap) {
-        final TestKey key = new TestKey(index);
+    private void updateKeyValue(final int index, final AtomicReference<VirtualMap> atomicMap) {
+        final Bytes key = TestKey.longToKey(index);
         final TestValue value = new TestValue(index + RANDOM.nextInt());
-        atomicMap.get().put(key, value);
+        atomicMap.get().put(key, value, TestValueCodec.INSTANCE);
     }
 
-    private void createKeyValue(final int index, final AtomicReference<VirtualMap<TestKey, TestValue>> atomicMap) {
-        final TestKey key = new TestKey(index);
+    private void createKeyValue(final int index, final AtomicReference<VirtualMap> atomicMap) {
+        final Bytes key = TestKey.longToKey(index);
         final TestValue value = new TestValue(index);
-        atomicMap.get().put(key, value);
+        atomicMap.get().put(key, value, TestValueCodec.INSTANCE);
     }
 
     private void executeTransactions(
             final int totalTransactions,
-            final BiConsumer<Integer, AtomicReference<VirtualMap<TestKey, TestValue>>> executor,
-            final BlockingQueue<VirtualMap<TestKey, TestValue>> queue,
-            final AtomicReference<VirtualMap<TestKey, TestValue>> atomicMap) {
+            final BiConsumer<Integer, AtomicReference<VirtualMap>> executor,
+            final BlockingQueue<VirtualMap> queue,
+            final AtomicReference<VirtualMap> atomicMap) {
         final int roundCycle = totalTransactions / 100;
         int transactionsCounter = 0;
         while (transactionsCounter < totalTransactions) {
             executor.accept(transactionsCounter, atomicMap);
             transactionsCounter++;
             if (transactionsCounter != 0 && transactionsCounter % roundCycle == 0) {
-                final VirtualMap<TestKey, TestValue> immutableMap = atomicMap.get();
+                final VirtualMap immutableMap = atomicMap.get();
                 atomicMap.set(immutableMap.copy());
                 queue.add(immutableMap);
             }
         }
     }
 
-    private void queryVirtualMap(final BlockingQueue<VirtualMap<TestKey, TestValue>> queue)
-            throws InterruptedException {
+    private void queryVirtualMap(final BlockingQueue<VirtualMap> queue) throws InterruptedException {
         final Random random = new SecureRandom();
         try {
             while (true) {
-                final VirtualMap<TestKey, TestValue> map = queue.take();
+                final VirtualMap map = queue.take();
                 if (map == TERMINATE_QUERY) {
                     map.release();
                     return;
                 }
                 do {
-                    if (map.isEmpty()) {
+                    // VirtualMap has state metadata only
+                    if (map.size() == 1) {
                         break;
                     }
 
@@ -129,15 +131,15 @@ class VirtualMapLifecycleTests {
                     TestValue value;
                     do {
                         final long keyIndex = random.nextInt((int) size);
-                        final TestKey key = new TestKey(keyIndex);
-                        value = map.get(key);
+                        final Bytes key = TestKey.longToKey(keyIndex);
+                        value = map.get(key, TestValueCodec.INSTANCE);
                     } while (value == null);
                 } while (queue.isEmpty());
                 map.release();
             }
         } catch (final InterruptedException ex) {
             while (!queue.isEmpty()) {
-                final VirtualMap<TestKey, TestValue> map = queue.take();
+                final VirtualMap map = queue.take();
                 map.release();
             }
         } catch (final Exception ex) {

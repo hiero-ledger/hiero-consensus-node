@@ -10,6 +10,7 @@ import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -17,9 +18,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * A merkle node with a string (the label) as the left child, and the merkle node value as the right
  * child. We actually support a raw type (any type!) as the value, and we serialize it and put it
  * into a simple merkle node.
- *
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  * @param <T> The value type
  */
+@Deprecated
 @DebugIterationEndpoint
 public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal {
     public static final long CLASS_ID = 0x3832CC837AB77BFL;

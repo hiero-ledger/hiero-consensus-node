@@ -12,7 +12,10 @@ import org.hiero.base.constructable.ConstructableIgnored;
  * This class sole purpose is to extend the {@link MerkleStateRoot} class and implement the {@link MerkleNodeState}.
  * Technically, {@link MerkleStateRoot} is already implementing {@link State} and {@link MerkleNode} but it does not
  * implement the {@link MerkleNodeState} interface. This class is merely a connector of these two interfaces.
+ *
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
+@Deprecated
 @ConstructableIgnored
 public class HederaStateRoot extends MerkleStateRoot<HederaStateRoot> implements MerkleNodeState {
 

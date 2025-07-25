@@ -39,7 +39,10 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * All write operations are synchronized with the current instance. It is ok for multiple iterators to be running in
  * multiple threads at the same time. An iterator for a mutable queue provides a snapshot view of the queue at the
  * time of iterator creation. A reverse iterator materializes the view (should not be used for huge queues).
+ *
+ * @deprecated should be removed once the migration to the Mega Map state organization is completed on the mainnet.
  */
+@Deprecated
 public class FCQueue<E extends FastCopyable & SerializableHashable> extends PartialMerkleLeaf
         implements Queue<E>, MerkleLeaf {
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();

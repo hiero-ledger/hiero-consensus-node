@@ -10,6 +10,7 @@ import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class SingletonNodeTest extends MerkleTestBase {
 
     private SingletonNode<ProtoString> node;

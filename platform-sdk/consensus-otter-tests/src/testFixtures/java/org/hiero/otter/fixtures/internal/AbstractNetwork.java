@@ -28,14 +28,17 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -170,9 +173,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public MultipleNodeConsensusResults getConsensusResults() {
+    public MultipleNodeConsensusResults newConsensusResults() {
         final List<SingleNodeConsensusResult> results =
-                getNodes().stream().map(Node::getConsensusResult).toList();
+                getNodes().stream().map(Node::newConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
     }
 
@@ -181,9 +184,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults getLogResults() {
+    public MultipleNodeLogResults newLogResults() {
         final List<SingleNodeLogResult> results =
-                getNodes().stream().map(Node::getLogResult).toList();
+                getNodes().stream().map(Node::newLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
     }
@@ -193,9 +196,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public MultipleNodePlatformStatusResults getPlatformStatusResults() {
-        final List<SingleNodePlatformStatusResults> statusProgressions =
-                getNodes().stream().map(Node::getPlatformStatusResults).toList();
+    public MultipleNodePlatformStatusResults newPlatformStatusResults() {
+        final List<SingleNodePlatformStatusResult> statusProgressions =
+                getNodes().stream().map(Node::newPlatformStatusResult).toList();
         return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
     }
 
@@ -204,9 +207,20 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public MultipleNodePcesResults getPcesResults() {
+    public MultipleNodeReconnectResults newReconnectResults() {
+        final List<SingleNodeReconnectResult> reconnectResults =
+                getNodes().stream().map(Node::newReconnectResult).toList();
+        return new MultipleNodeReconnectResultsImpl(reconnectResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodePcesResults newPcesResults() {
         final List<SingleNodePcesResult> results =
-                getNodes().stream().map(Node::getPcesResult).toList();
+                getNodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
     }
 
@@ -220,12 +234,12 @@ public abstract class AbstractNetwork implements Network {
                 .collect(Collectors.toSet());
 
         // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.getConsensusResult().getLatestEventWindow();
+        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
 
         long weightOfAheadNodes = 0;
         for (final Node maybeAheadNode : otherNodes) {
             final EventWindow peerEventWindow =
-                    maybeAheadNode.getConsensusResult().getLatestEventWindow();
+                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
             if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
@@ -246,12 +260,12 @@ public abstract class AbstractNetwork implements Network {
                 .collect(Collectors.toSet());
 
         // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.getConsensusResult().getLatestEventWindow();
+        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
 
         int numNodesAhead = 0;
         for (final Node maybeAheadNode : otherNodes) {
             final EventWindow peerEventWindow =
-                    maybeAheadNode.getConsensusResult().getLatestEventWindow();
+                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
             // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
             if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)

@@ -8,9 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_START;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_PREFIX_MISMATCH;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
@@ -69,7 +67,6 @@ import org.mockito.MockedStatic;
 final class TransactionCheckerTest extends AppTestBase {
     private static final int MAX_TX_SIZE = 1024 * 6;
     private static final int MAX_JUMBO_TX_SIZE = 1024 * 130;
-    private static final int MAX_MEMO_SIZE = 100;
     private static final long MAX_DURATION = 120L;
     private static final long MIN_DURATION = 10L;
     private static final int MIN_VALIDITY_BUFFER = 2;
@@ -160,7 +157,6 @@ final class TransactionCheckerTest extends AppTestBase {
         // Set up the properties
         props = () -> new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
-                        .withValue("hedera.transaction.maxMemoUtf8Bytes", MAX_MEMO_SIZE)
                         .withValue("hedera.transaction.minValidityBufferSecs", MIN_VALIDITY_BUFFER)
                         .withValue("hedera.transaction.minValidDuration", MIN_DURATION)
                         .withValue("hedera.transaction.maxValidDuration", MAX_DURATION)
@@ -838,36 +834,6 @@ final class TransactionCheckerTest extends AppTestBase {
                 assertThatThrownBy(() -> checker.check(tx, null))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_ID_FIELD_NOT_ALLOWED));
-            }
-
-            @Test
-            @DisplayName("A transaction body with too large of a memo fails")
-            void testCheckTransactionBodyWithTooLargeMemoFails() {
-                // Given a transaction body with a memo that is too large
-                final var memo = randomString(MAX_MEMO_SIZE + 1);
-                final var body = bodyBuilder(txIdBuilder()).memo(memo);
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", MEMO_TOO_LONG);
-            }
-
-            // NOTE! This test will not be the case forever! We have an issue to fix
-            // this, and allow zero bytes in the memo field.
-            @ParameterizedTest
-            @ValueSource(strings = {"\0", "\0Hello World", "Hello \0 World", "Hello World\0"})
-            @DisplayName("A transaction body with a zero byte in the memo fails")
-            void testCheckTransactionBodyWithZeroByteMemoFails(final String memo) {
-                // Given a transaction body with a memo that contains a zero byte
-                final var body = bodyBuilder(txIdBuilder()).memo(memo);
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_ZERO_BYTE_IN_STRING);
             }
 
             @ParameterizedTest
