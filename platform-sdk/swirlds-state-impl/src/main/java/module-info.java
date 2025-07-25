@@ -10,6 +10,7 @@ module com.swirlds.state.impl {
     opens com.swirlds.state.merkle.disk to
             com.hedera.node.app;
 
+    requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
@@ -20,7 +21,6 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires com.hedera.node.hapi;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;

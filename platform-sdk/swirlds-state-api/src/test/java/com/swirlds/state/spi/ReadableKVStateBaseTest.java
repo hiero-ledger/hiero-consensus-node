@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
  * ReadableKVStateBase#reset()}) will be covered by other tests in addition to this one.
  */
 public class ReadableKVStateBaseTest extends StateTestBase {
-    private ReadableKVStateBase<ProtoBytes, String> state;
-    protected Map<ProtoBytes, String> backingMap;
+    private ReadableKVStateBase<ProtoBytes, ProtoBytes> state;
+    protected Map<ProtoBytes, ProtoBytes> backingMap;
 
     @BeforeEach
     void setUp() {
@@ -29,8 +29,8 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         this.state = createFruitState(this.backingMap);
     }
 
-    protected Map<ProtoBytes, String> createBackingMap() {
-        final var map = new HashMap<ProtoBytes, String>();
+    protected Map<ProtoBytes, ProtoBytes> createBackingMap() {
+        final var map = new HashMap<ProtoBytes, ProtoBytes>();
         map.put(A_KEY, APPLE);
         map.put(B_KEY, BANANA);
         map.put(C_KEY, CHERRY);
@@ -41,7 +41,7 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         return map;
     }
 
-    protected ReadableKVStateBase<ProtoBytes, String> createFruitState(Map<ProtoBytes, String> backingMap) {
+    protected ReadableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(Map<ProtoBytes, ProtoBytes> backingMap) {
         return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, backingMap);
     }
 

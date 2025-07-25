@@ -32,7 +32,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
                             FRUIT_STATE_KEY,
                             inMemoryValueClassId(FRUIT_STATE_KEY),
                             ProtoBytes.PROTOBUF,
-                            STRING_CODEC,
+                            ProtoBytes.PROTOBUF,
                             fruitMerkleMap))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -46,7 +46,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
                             null,
                             inMemoryValueClassId(FRUIT_STATE_KEY),
                             ProtoBytes.PROTOBUF,
-                            STRING_CODEC,
+                            ProtoBytes.PROTOBUF,
                             fruitMerkleMap))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -59,8 +59,8 @@ class InMemoryWritableStateTest extends MerkleTestBase {
                             FRUIT_SERVICE_NAME,
                             FRUIT_STATE_KEY,
                             inMemoryValueClassId(FRUIT_STATE_KEY),
-                            STRING_CODEC,
-                            STRING_CODEC,
+                            ProtoBytes.PROTOBUF,
+                            ProtoBytes.PROTOBUF,
                             null))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -73,25 +73,30 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         }
     }
 
-    private InMemoryWritableKVState<ProtoBytes, String> createState() {
+    private InMemoryWritableKVState<ProtoBytes, ProtoBytes> createState() {
         return new InMemoryWritableKVState<>(
                 FRUIT_SERVICE_NAME,
                 FRUIT_STATE_KEY,
                 inMemoryValueClassId(FRUIT_STATE_KEY),
                 ProtoBytes.PROTOBUF,
-                STRING_CODEC,
+                ProtoBytes.PROTOBUF,
                 fruitMerkleMap);
     }
 
-    private void add(ProtoBytes key, String value) {
+    private void add(ProtoBytes key, ProtoBytes value) {
         addKvState(
-                fruitMerkleMap, inMemoryValueClassId(FRUIT_STATE_KEY), ProtoBytes.PROTOBUF, STRING_CODEC, key, value);
+                fruitMerkleMap,
+                inMemoryValueClassId(FRUIT_STATE_KEY),
+                ProtoBytes.PROTOBUF,
+                ProtoBytes.PROTOBUF,
+                key,
+                value);
     }
 
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private InMemoryWritableKVState<ProtoBytes, String> state;
+        private InMemoryWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
@@ -124,7 +129,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
     @Nested
     @DisplayName("Mutation Tests")
     final class MutationTest {
-        private InMemoryWritableKVState<ProtoBytes, String> state;
+        private InMemoryWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
@@ -138,7 +143,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
             return fruitMerkleMap.containsKey(new InMemoryKey<>(key));
         }
 
-        String readValueFromMerkleMap(ProtoBytes key) {
+        ProtoBytes readValueFromMerkleMap(ProtoBytes key) {
             final var val = fruitMerkleMap.get(new InMemoryKey<>(key));
             return val == null ? null : val.getValue();
         }

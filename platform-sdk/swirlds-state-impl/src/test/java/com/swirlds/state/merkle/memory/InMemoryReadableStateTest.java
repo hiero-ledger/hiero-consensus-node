@@ -61,15 +61,20 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         }
     }
 
-    private void add(ProtoBytes key, String value) {
+    private void add(ProtoBytes key, ProtoBytes value) {
         addKvState(
-                fruitMerkleMap, inMemoryValueClassId(FRUIT_STATE_KEY), ProtoBytes.PROTOBUF, STRING_CODEC, key, value);
+                fruitMerkleMap,
+                inMemoryValueClassId(FRUIT_STATE_KEY),
+                ProtoBytes.PROTOBUF,
+                ProtoBytes.PROTOBUF,
+                key,
+                value);
     }
 
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private InMemoryReadableKVState<ProtoBytes, String> state;
+        private InMemoryReadableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {

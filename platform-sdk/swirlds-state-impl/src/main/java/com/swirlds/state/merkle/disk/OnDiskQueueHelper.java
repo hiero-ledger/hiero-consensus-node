@@ -2,13 +2,16 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.merkle.StateUtils.getQueueStateVirtualMapValue;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.QueueState;
+import com.hedera.hapi.platform.state.VirtualMapValue;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.StateUtils;
-import com.swirlds.state.merkle.queue.QueueState;
-import com.swirlds.state.merkle.queue.QueueStateCodec;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ConcurrentModificationException;
@@ -63,12 +66,6 @@ public final class OnDiskQueueHelper<E> {
     private final VirtualMap virtualMap;
 
     /**
-     * The codec for the elements of the queue.
-     */
-    @NonNull
-    private final Codec<E> valueCodec;
-
-    /**
      * An empty iterator used as a placeholder when no elements are available.
      */
     private final QueueIterator EMPTY_ITERATOR = new QueueIterator(0, 0);
@@ -79,17 +76,12 @@ public final class OnDiskQueueHelper<E> {
      * @param serviceName The name of the service that owns the queue's state.
      * @param stateKey The unique key for identifying the queue's state.
      * @param virtualMap The storage mechanism for the queue's data.
-     * @param valueCodec The codec for the elements of the queue.
      */
     public OnDiskQueueHelper(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Codec<E> valueCodec) {
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final VirtualMap virtualMap) {
         this.serviceName = requireNonNull(serviceName);
         this.stateKey = requireNonNull(stateKey);
         this.virtualMap = requireNonNull(virtualMap);
-        this.valueCodec = requireNonNull(valueCodec);
     }
 
     /**
@@ -103,9 +95,9 @@ public final class OnDiskQueueHelper<E> {
         if (state == null) {
             return EMPTY_ITERATOR;
         } else {
-            final QueueIterator it = new QueueIterator(state.getHead(), state.getTail());
+            final QueueIterator it = new QueueIterator(state.head(), state.tail());
             // Log to transaction state log, what was iterated
-            logQueueIterate(computeLabel(serviceName, stateKey), state.getTail() - state.getHead(), it);
+            logQueueIterate(computeLabel(serviceName, stateKey), state.tail() - state.head(), it);
             it.reset();
             return it;
         }
@@ -120,7 +112,9 @@ public final class OnDiskQueueHelper<E> {
      */
     @NonNull
     public E getFromStore(final long index) {
-        final var value = virtualMap.get(StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, index), valueCodec);
+        final VirtualMapValue virtualMapValue = virtualMap.get(
+                StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, index), VirtualMapValue.PROTOBUF);
+        final E value = virtualMapValue != null ? virtualMapValue.value().as() : null;
         if (value == null) {
             throw new IllegalStateException("Can't find queue element at index " + index + " in the store");
         }
@@ -133,13 +127,9 @@ public final class OnDiskQueueHelper<E> {
      * @return The current state of the queue.
      */
     public QueueState getState() {
-        final QueueState state = virtualMap.get(
-                StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey), QueueStateCodec.INSTANCE);
-        if (state == null) {
-            return null;
-        }
-        // FUTURE WORK: optimize performance here, see https://github.com/hiero-ledger/hiero-consensus-node/issues/19670
-        return new QueueState(state.getHead(), state.getTail());
+        final VirtualMapValue virtualMapValue =
+                virtualMap.get(getVirtualMapKeyForSingleton(serviceName, stateKey), VirtualMapValue.PROTOBUF);
+        return virtualMapValue != null ? virtualMapValue.value().as() : null;
     }
 
     /**
@@ -148,7 +138,20 @@ public final class OnDiskQueueHelper<E> {
      * @param state The new state to set for the queue.
      */
     public void updateState(@NonNull final QueueState state) {
-        virtualMap.put(StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey), state, QueueStateCodec.INSTANCE);
+        final Bytes keyBytes = getVirtualMapKeyForSingleton(serviceName, stateKey);
+
+        final VirtualMapValue virtualMapValue = getQueueStateVirtualMapValue(state);
+        virtualMap.put(keyBytes, virtualMapValue, VirtualMapValue.PROTOBUF);
+    }
+
+    /**
+     * Checks if a queue is empty.
+     *
+     * @param state the queue state to check
+     * @return {@code true} if the queue is empty, {@code false} otherwise
+     */
+    public static boolean isEmpty(@NonNull final QueueState state) {
+        return state.head() == state.tail();
     }
 
     /**

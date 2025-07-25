@@ -6,8 +6,10 @@ import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 
+import com.hedera.hapi.platform.state.QueueState;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.VirtualMapValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
@@ -477,30 +479,56 @@ public final class StateUtils {
     }
 
     /**
-     * Creates Protocol Buffer encoded byte array for a VirtualMapKey field.
+     * Creates an instance of {@link VirtualMapValue} which is stored in a state.
+     *
+     * @param <V>         the type of the value
+     * @param serviceName the service name
+     * @param stateKey    the state key
+     * @param value       the value object
+     * @return a {@link VirtualMapValue} for a {@link com.swirlds.virtualmap.VirtualMap}
+     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
+     */
+    public static <V> VirtualMapValue getVirtualMapValue(
+            @NonNull final String serviceName, @NonNull final String stateKey, final V value) {
+        return new VirtualMapValue(new OneOf<>(
+                VirtualMapValue.ValueOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), value));
+    }
+
+    /**
+     * Creates an instance of {@link VirtualMapValue} for a {@link com.hedera.hapi.platform.state.QueueState} which is stored in a state.
+     *
+     * @param queueState the value object
+     * @return a {@link VirtualMapValue} for {@link com.hedera.hapi.platform.state.QueueState} in a {@link com.swirlds.virtualmap.VirtualMap}
+     */
+    public static VirtualMapValue getQueueStateVirtualMapValue(@NonNull final QueueState queueState) {
+        return new VirtualMapValue(new OneOf<>(VirtualMapValue.ValueOneOfType.QUEUE_STATE, queueState));
+    }
+
+    /**
+     * Creates Protocol Buffer encoded byte array for either a {@link VirtualMapKey} or a {@link VirtualMapValue} field.
      * Follows protobuf encoding format: tag (field number + wire type), length, and value.
      *
      * @param serviceName       the service name
      * @param stateKey          the state key
-     * @param keyObjectBytes    the serialized key object
+     * @param objectBytes       the serialized key or value object
      * @return Properly encoded Protocol Buffer byte array
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static byte[] createVirtualMapKeyBytesForKV(
-            @NonNull final String serviceName, @NonNull final String stateKey, byte[] keyObjectBytes) {
+    public static Bytes getVirtualMapKeyValueBytes(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Bytes objectBytes) {
         final int stateId = getValidatedStateId(serviceName, stateKey);
         // This matches the Protocol Buffer tag format: (field_number << TAG_TYPE_BITS) | wire_type
         int tag = (stateId << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+        int length = Math.toIntExact(objectBytes.length());
 
-        ByteBuffer byteBuffer = ByteBuffer.allocate(sizeOfVarInt32(tag)
-                + sizeOfVarInt32(keyObjectBytes.length) /* length */
-                + keyObjectBytes.length /* key bytes */);
+        ByteBuffer byteBuffer =
+                ByteBuffer.allocate(sizeOfVarInt32(tag) + sizeOfVarInt32(length) /* length */ + length /* key bytes */);
         BufferedData bufferedData = BufferedData.wrap(byteBuffer);
 
         bufferedData.writeVarInt(tag, false);
-        bufferedData.writeVarInt(keyObjectBytes.length, false);
-        bufferedData.writeBytes(keyObjectBytes);
+        bufferedData.writeVarInt(length, false);
+        bufferedData.writeBytes(objectBytes);
 
-        return byteBuffer.array();
+        return Bytes.wrap(byteBuffer.array());
     }
 }

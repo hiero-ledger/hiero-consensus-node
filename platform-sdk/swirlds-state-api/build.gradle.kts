@@ -12,7 +12,6 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
     requires("com.swirlds.state.api.test.fixtures")
-    requires("org.mockito")
     runtimeOnly("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")
 }
