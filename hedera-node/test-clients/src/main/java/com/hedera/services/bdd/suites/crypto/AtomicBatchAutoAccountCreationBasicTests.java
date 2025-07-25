@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -40,11 +41,11 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -98,36 +99,48 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                 // create fungible token
                 createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
-
-                // perform the atomic batch transaction
-                atomicBatch(tokenTransferToAlias)
-                        .payingWith(BATCH_OPERATOR)
-                        .via("batchTxn")
-                        .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
-
-                // validate account is created and has the expected balance
-                getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L),
-                getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                        .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
-                        .has(accountWith()
-                                .key(VALID_ALIAS_ED25519)
-                                .alias(VALID_ALIAS_ED25519)
-                                .maxAutoAssociations(-1)
-                                .memo(AUTO_MEMO)),
                 withOpContext((spec, opLog) -> {
-                    final HapiGetTxnRecord hapiGetTxnRecord =
-                            getTxnRecord("batchTxn").andAllChildRecords().assertingNothingAboutHashes();
-                    allRunFor(spec, hapiGetTxnRecord);
 
-                    if (!hapiGetTxnRecord.getChildRecords().isEmpty()) {
-                        final var newAccountId = hapiGetTxnRecord
-                                .getFirstNonStakingChildRecord()
-                                .getReceipt()
-                                .getAccountID();
-                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
-                    }
-                    getAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L);
+                    // perform the atomic batch transaction
+                    final var atomicBatchTransaction = atomicBatch(tokenTransferToAlias)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS);
+
+                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+
+                    // validate account is created and has the expected balance
+                    final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L);
+                    final var aliasAccountBalanceCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                            .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
+                            .has(accountWith()
+                                    .key(VALID_ALIAS_ED25519)
+                                    .alias(VALID_ALIAS_ED25519)
+                                    .maxAutoAssociations(-1)
+                                    .memo(AUTO_MEMO));
+
+                    allRunFor(
+                            spec,
+                            atomicBatchTransaction,
+                            batchTxnFeeCheck,
+                            senderBalanceCheck,
+                            aliasAccountBalanceCheck);
+
+                    final var accountInfo =
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                    allRunFor(spec, accountInfo);
+
+                    final var newAccountId = accountInfo
+                            .getResponse()
+                            .getCryptoGetInfo()
+                            .getAccountInfo()
+                            .getAccountID();
+                    spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+
+                    final var getAccountBalance = getAccountBalance(VALID_ALIAS_ED25519)
+                            .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L)
+                            .logged();
+                    allRunFor(spec, getAccountBalance);
                 })));
     }
 
@@ -148,36 +161,47 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                 // create fungible token
                 createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
-
-                // perform the atomic batch transaction
-                atomicBatch(tokenTransferToAlias)
-                        .payingWith(BATCH_OPERATOR)
-                        .via("batchTxn")
-                        .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
-
-                // validate account is created and has the expected balance
-                getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L),
-                getAliasedAccountInfo(VALID_ALIAS_ECDSA)
-                        .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
-                        .has(accountWith()
-                                .key(VALID_ALIAS_ECDSA)
-                                .alias(VALID_ALIAS_ECDSA)
-                                .maxAutoAssociations(-1)
-                                .memo(AUTO_MEMO)),
                 withOpContext((spec, opLog) -> {
-                    final HapiGetTxnRecord hapiGetTxnRecord =
-                            getTxnRecord("batchTxn").andAllChildRecords().assertingNothingAboutHashes();
-                    allRunFor(spec, hapiGetTxnRecord);
 
-                    if (!hapiGetTxnRecord.getChildRecords().isEmpty()) {
-                        final var newAccountId = hapiGetTxnRecord
-                                .getFirstNonStakingChildRecord()
-                                .getReceipt()
-                                .getAccountID();
-                        spec.registry().saveAccountId(VALID_ALIAS_ECDSA, newAccountId);
-                    }
-                    getAccountBalance(VALID_ALIAS_ECDSA).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L);
+                    // perform the atomic batch transaction
+                    final var atomicBatchTransaction = atomicBatch(tokenTransferToAlias)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS);
+
+                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+
+                    // validate account is created and has the expected balance
+                    final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L);
+                    final var aliasAccountBalanceCheck = getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                            .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
+                            .has(accountWith()
+                                    .key(VALID_ALIAS_ECDSA)
+                                    .alias(VALID_ALIAS_ECDSA)
+                                    .maxAutoAssociations(-1)
+                                    .memo(AUTO_MEMO));
+                    allRunFor(
+                            spec,
+                            atomicBatchTransaction,
+                            batchTxnFeeCheck,
+                            senderBalanceCheck,
+                            aliasAccountBalanceCheck);
+
+                    final var accountInfo =
+                            getAliasedAccountInfo(VALID_ALIAS_ECDSA).logged();
+                    allRunFor(spec, accountInfo);
+
+                    final var newAccountId = accountInfo
+                            .getResponse()
+                            .getCryptoGetInfo()
+                            .getAccountInfo()
+                            .getAccountID();
+                    spec.registry().saveAccountId(VALID_ALIAS_ECDSA, newAccountId);
+
+                    final var getAccountBalance = getAccountBalance(VALID_ALIAS_ECDSA)
+                            .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L)
+                            .logged();
+                    allRunFor(spec, getAccountBalance);
                 })));
     }
 
@@ -279,20 +303,20 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                     .maxAutoAssociations(-1)
                                     .memo(AUTO_MEMO)),
                     withOpContext((spec, opLog) -> {
-                        final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferTxnName)
-                                .andAllChildRecords()
-                                .logged();
-                        allRunFor(spec, hapiGetTxnRecord);
+                        final var accountInfo = getAliasedAccountInfo(alias).logged();
+                        allRunFor(spec, accountInfo);
 
-                        final var newAccountId = hapiGetTxnRecord
-                                .andAllChildRecords()
-                                .getFirstNonStakingChildRecord()
-                                .getReceipt()
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
                                 .getAccountID();
                         spec.registry().saveAccountId(alias, newAccountId);
-                        final var getNewAccountBalance =
-                                getAccountBalance(alias).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L);
-                        allRunFor(spec, getNewAccountBalance);
+
+                        final var getAccountBalance = getAccountBalance(alias)
+                                .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L)
+                                .logged();
+                        allRunFor(spec, getAccountBalance);
                     })));
         });
     }
@@ -351,20 +375,20 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                     .memo(AUTO_MEMO))
                             .hasOwnedNfts(1L),
                     withOpContext((spec, opLog) -> {
-                        final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferTxnName)
-                                .andAllChildRecords()
-                                .logged();
-                        allRunFor(spec, hapiGetTxnRecord);
+                        final var accountInfo = getAliasedAccountInfo(alias).logged();
+                        allRunFor(spec, accountInfo);
 
-                        final var newAccountId = hapiGetTxnRecord
-                                .andAllChildRecords()
-                                .getFirstNonStakingChildRecord()
-                                .getReceipt()
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
                                 .getAccountID();
                         spec.registry().saveAccountId(alias, newAccountId);
-                        final var getNewAccountBalance =
-                                getAccountBalance(alias).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
-                        allRunFor(spec, getNewAccountBalance);
+
+                        final var getAccountBalance = getAccountBalance(alias)
+                                .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L)
+                                .logged();
+                        allRunFor(spec, getAccountBalance);
                     })));
         });
     }
@@ -428,22 +452,21 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                     .memo(AUTO_MEMO))
                             .hasOwnedNfts(1L),
                     withOpContext((spec, opLog) -> {
-                        final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferTxnName)
-                                .andAllChildRecords()
-                                .logged();
-                        allRunFor(spec, hapiGetTxnRecord);
+                        final var accountInfo = getAliasedAccountInfo(alias).logged();
+                        allRunFor(spec, accountInfo);
 
-                        final var newAccountId = hapiGetTxnRecord
-                                .andAllChildRecords()
-                                .getFirstNonStakingChildRecord()
-                                .getReceipt()
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
                                 .getAccountID();
                         spec.registry().saveAccountId(alias, newAccountId);
-                        final var getNewAccountNFTBalance =
-                                getAccountBalance(alias).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
-                        final var getNewAccountFTBalance =
-                                getAccountBalance(alias).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L);
-                        allRunFor(spec, getNewAccountNFTBalance, getNewAccountFTBalance);
+
+                        final var getAccountBalance = getAccountBalance(alias)
+                                .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L)
+                                .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L)
+                                .logged();
+                        allRunFor(spec, getAccountBalance);
                     })));
         });
     }
@@ -475,7 +498,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create a hollow account with the EVM alias within an atomic batch
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     1L,
@@ -483,7 +506,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
@@ -541,7 +565,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create a hollow account with the EVM alias within an atomic batch
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     0L,
@@ -549,7 +573,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
@@ -607,7 +632,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create a hollow account with the EVM alias within an atomic batch
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     0L,
@@ -615,7 +640,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(1L, 2L), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
@@ -673,7 +699,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create a hollow account with the EVM alias within an atomic batch
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     1L,
@@ -681,7 +707,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(1L, 2L), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_ECDSA,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
@@ -753,7 +780,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     final var atomicBatchTransaction = atomicBatch(
                                     tokenTransferTo_ED25519_Alias,
                                     tokenTransferTo_ECDSA_Alias,
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     1L,
@@ -761,7 +788,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxnAllAccounts")
@@ -859,7 +887,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     final var atomicBatchTransaction = atomicBatch(
                                     tokenTransferTo_ED25519_Alias,
                                     tokenTransferTo_ECDSA_Alias,
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     0L,
@@ -867,7 +895,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxnAllAccounts")
@@ -973,7 +1002,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     final var atomicBatchTransaction = atomicBatch(
                                     tokenTransferTo_ED25519_Alias,
                                     tokenTransferTo_ECDSA_Alias,
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     0L,
@@ -981,7 +1010,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(3L, 4L), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW,
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxnAllAccounts")
@@ -1081,7 +1111,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create hollow account and transfer to the same ECDSA key in one atomic batch
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     1L,
@@ -1089,7 +1119,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias")
+                                                    "createHollowAccountWithCryptoTransferToAlias",
+                                                    SUCCESS)
                                             .getFirst(),
                                     tokenTransferTo_ECDSA_Alias)
                             .payingWith(BATCH_OPERATOR)
@@ -1166,7 +1197,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     // Create hollow account and transfer to the same ECDSA key in one atomic batch
                     final var atomicBatchTransaction = atomicBatch(
                                     tokenTransferTo_ECDSA_Alias,
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     1L,
@@ -1174,7 +1205,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias")
+                                                    "createHollowAccountWithCryptoTransferToAlias",
+                                                    SUCCESS)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxnAllAccounts")
@@ -1237,7 +1269,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                             moving(1L, FT_FOR_AUTO_ACCOUNT).between(OWNER, invalidEvmAliasBytes))
                     .payingWith(OWNER)
                     .via(transferTxn)
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
 
             return hapiTest(flattened(
                     // create keys and accounts register alias
@@ -1303,7 +1336,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                             moving(1L, FT_FOR_AUTO_ACCOUNT).between(OWNER, invalidKeyBytes))
                     .payingWith(OWNER)
                     .via(transferTxn)
-                    .batchKey(BATCH_OPERATOR);
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
 
             return hapiTest(flattened(
                     // create keys and accounts register alias
@@ -1355,7 +1389,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                         moving(0L, FT_FOR_AUTO_ACCOUNT).between(OWNER, VALID_ALIAS_ECDSA))
                 .payingWith(OWNER)
                 .via("cryptoTransferTo_ECDSA_Alias")
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(INVALID_ACCOUNT_ID);
 
         return hapiTest(flattened(
                 // create keys and accounts register alias
@@ -1392,7 +1427,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
         final var tokenTransferTo_ED25519_Alias = cryptoTransfer(movingHbar(0L).between(OWNER, VALID_ALIAS_ED25519))
                 .payingWith(OWNER)
                 .via("cryptoTransferTo_ED25519_Alias")
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(INVALID_ACCOUNT_ID);
 
         return hapiTest(flattened(
                 // create keys and accounts register alias
@@ -1452,7 +1488,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create atomic batch txn
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_AllowEmptyTransfers(
                                                     CIVILIAN,
                                                     evmAlias.get(),
                                                     0L,
@@ -1460,7 +1496,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW,
+                                                    INVALID_ACCOUNT_ID)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
@@ -1516,9 +1553,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     final var atomicBatchTransaction = atomicBatch(tokenTransferTo_ECDSA_Alias)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
-
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(VALID_ALIAS_ECDSA)
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1527,7 +1562,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     // validate sender account balance after transfers
                     final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 100L);
 
-                    allRunFor(spec, atomicBatchTransaction, batchTxnFeeCheck, invalidAliasCheck, senderBalanceCheck);
+                    allRunFor(spec, atomicBatchTransaction, invalidAliasCheck, senderBalanceCheck);
                 })));
     }
 
@@ -1554,9 +1589,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     final var atomicBatchTransaction = atomicBatch(tokenTransferTo_ED25519_Alias)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
-
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1565,7 +1598,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                     // validate sender account balance after transfers
                     final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 100L);
 
-                    allRunFor(spec, atomicBatchTransaction, batchTxnFeeCheck, invalidAliasCheck, senderBalanceCheck);
+                    allRunFor(spec, atomicBatchTransaction, invalidAliasCheck, senderBalanceCheck);
                 })));
     }
 
@@ -1596,7 +1629,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
                     // Create atomic batch txn
                     final var atomicBatchTransaction = atomicBatch(
-                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+                                    createHollowAccountWithCryptoTransferWithBatchKeyToAlias_AllowEmptyTransfers(
                                                     PAYER_NO_FUNDS,
                                                     evmAlias.get(),
                                                     0L,
@@ -1604,13 +1637,12 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                                                     FT_FOR_AUTO_ACCOUNT,
                                                     List.of(), // NFT serials
                                                     NFT_FOR_AUTO_ACCOUNT,
-                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW)
+                                                    "createHollowAccountWithCryptoTransferToAlias" + VALID_ALIAS_HOLLOW,
+                                                    INSUFFICIENT_PAYER_BALANCE)
                                             .getFirst())
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
-
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(evmAlias.get())
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1626,13 +1658,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                             .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 90L)
                             .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 3L);
 
-                    allRunFor(
-                            spec,
-                            atomicBatchTransaction,
-                            batchTxnFeeCheck,
-                            invalidAliasCheck,
-                            senderBalanceCheck,
-                            ownerBalanceCheck);
+                    allRunFor(spec, atomicBatchTransaction, invalidAliasCheck, senderBalanceCheck, ownerBalanceCheck);
                 })));
     }
 
@@ -1648,7 +1674,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
                         moving(1L, FT_FOR_AUTO_ACCOUNT).between(OWNER, aliasBytes))
                 .payingWith(OWNER)
                 .via("cryptoTransferTo_Unrecoverable_Alias")
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(INVALID_ALIAS_KEY);
 
         return hapiTest(flattened(
                 // create keys and accounts register alias
@@ -1687,7 +1714,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
         });
     }
 
-    private List<HapiTxnOp> createHollowAccountWithCryptoTransferWithBatchKeyToAlias(
+    private List<HapiTxnOp> createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
             String sender,
             ByteString evmAlias,
             long hbarAmount,
@@ -1695,7 +1722,49 @@ public class AtomicBatchAutoAccountCreationBasicTests {
             String ftToken,
             List<Long> nftSerials,
             String nftToken,
-            String txnName) {
+            String txnName,
+            ResponseCodeEnum status) {
+
+        final var transfers = new ArrayList<TokenMovement>();
+
+        if (hbarAmount > 0) {
+            transfers.add(movingHbar(hbarAmount).between(sender, evmAlias));
+        }
+
+        if (ftAmount > 0 && ftToken != null) {
+            transfers.add(moving(ftAmount, ftToken).between(sender, evmAlias));
+        }
+
+        if (nftSerials != null && !nftSerials.isEmpty() && nftToken != null) {
+            for (Long serial : nftSerials) {
+                transfers.add(movingUnique(nftToken, serial).between(sender, evmAlias));
+            }
+        }
+
+        final var cryptoTransfer = cryptoTransfer(transfers.toArray(TokenMovement[]::new))
+                .payingWith(sender)
+                .via(txnName)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(status);
+
+        // We do not want to create a crypto transfer with empty transfers
+        if (transfers.isEmpty()) {
+            throw new IllegalArgumentException("Cannot create cryptoTransfer with empty transfers");
+        }
+
+        return List.of(cryptoTransfer);
+    }
+
+    private List<HapiTxnOp> createHollowAccountWithCryptoTransferWithBatchKeyToAlias_AllowEmptyTransfers(
+            String sender,
+            ByteString evmAlias,
+            long hbarAmount,
+            long ftAmount,
+            String ftToken,
+            List<Long> nftSerials,
+            String nftToken,
+            String txnName,
+            ResponseCodeEnum status) {
 
         final var transfers = new ArrayList<TokenMovement>();
 
@@ -1716,7 +1785,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
         final var cryptoTransfer = cryptoTransfer(transfers.toArray(TokenMovement[]::new))
                 .payingWith(sender)
                 .via(txnName)
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(status);
 
         return List.of(cryptoTransfer);
     }
