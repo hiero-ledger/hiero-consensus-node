@@ -20,11 +20,14 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.platform.fs.stresstest.proto.RandomBytesTransaction;
@@ -69,6 +72,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -349,6 +353,7 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
+        when(platformContext.getConfiguration()).thenReturn(new TestConfigBuilder().withConfigDataType(TransactionConfig.class).getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {
@@ -377,10 +382,16 @@ class PlatformTestingToolStateTest {
         final Metric metric = mock(SpeedometerMetric.class);
         final Counter counter = mock(Counter.class);
         final RunningAverageMetric runningAverageMetric = mock(RunningAverageMetric.class);
+        final FunctionGauge functionGauge = mock(FunctionGauge.class);
 
         final DefaultPlatformMetrics metrics = mock(DefaultPlatformMetrics.class);
         when(metrics.getOrCreate(any()))
                 .thenReturn(
+                        metric,
+                        metric,
+                        metric,
+                        functionGauge,
+                        functionGauge,
                         metric,
                         metric,
                         metric,
