@@ -72,6 +72,16 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         }
     }
 
+    public VirtualHashChunk(final long path, final int height) {
+        this(path, height, new byte[VirtualHashChunk.getChunkSize(height)]);
+    }
+
+    public VirtualHashChunk copy() {
+        final byte[] dataCopy = new byte[hashData.length];
+        System.arraycopy(hashData, 0, dataCopy, 0, hashData.length);
+        return new VirtualHashChunk(path, height, dataCopy);
+    }
+
     public static VirtualHashChunk parseFrom(final ReadableSequentialData in) throws IOException {
         if (in == null) {
             return null;
@@ -129,7 +139,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         return size;
     }
 
-    public void writeTo(final WritableSequentialData out) throws IOException {
+    public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
         if (path != 0) {
             ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_PATH);
@@ -252,6 +262,8 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
      *      Chunk height
      * @return
      *      Path index in the chunk, starting from 0
+     * @throws IllegalArgumentException
+     *      If the path is outside this chunk
      */
     public static int getPathIndexInChunk(final long path, final long chunkPath, final int chunkHeight) {
         final long firstChunkPath = Path.getLeftChildPath(chunkPath);
@@ -298,7 +310,8 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     private void setHashImpl(final int index, final Hash hash) {
         final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-        // Is synchronization needed here?
+        // No synchronization for reading or writing hashes. Memory visibility has
+        // to be ensured by the caller, typically virtual hashing tasks
         hash.getBytes().getBytes(0, hashData, pos, len);
     }
 
@@ -306,11 +319,23 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         final byte[] hashBytes = new byte[len];
-        // Is synchronization needed here?
+        // No synchronization for reading or writing hashes. Memory visibility has
+        // to be ensured by the caller, typically virtual hashing tasks
         System.arraycopy(hashData, pos, hashBytes, 0, len);
         return new Hash(hashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
+    /**
+     * Updates a hash at the given path. If this hash chunk doesn't contain the path, an
+     * {@link IllegalArgumentException} is thrown.
+     *
+     * <p>This method must not be called in parallel for the same path. Typically, hashes
+     * in chunks are updated from virtual hasher tasks, every path is handled by a single
+     * hashing task.
+     *
+     * @param path Virtual path
+     * @param hash Hash to set
+     */
     public void setHashAtPath(final long path, final Hash hash) {
         final int index = getPathIndexInChunk(path, this.path, height);
         setHashImpl(index, hash);
@@ -321,6 +346,17 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         return getHashImpl(index);
     }
 
+    /**
+     * Updates a hash at the given index. If the index is negative, or greater or equal to
+     * the size of the chunk, an {@link IllegalArgumentException} is thrown.
+     *
+     * <p>This method must not be called in parallel for the same index. Typically, hashes
+     * in chunks are updated from virtual hasher tasks, every path / index is handled by a
+     * single hashing task.
+     *
+     * @param index Hash index in the chunk
+     * @param hash Hash to set
+     */
     public void setHashAtIndex(final int index, final Hash hash) {
         if ((index < 0) || (index >= getChunkSize(height))) {
             throw new IllegalArgumentException("Wrong hash index: " + index);
