@@ -179,8 +179,8 @@ jobs:
           set +x
           set +e
           #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          echo "RUN_HCN_VERSION=$(echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}')" >> "${GITHUB_ENV}"
+          n="$(echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
@@ -199,7 +199,7 @@ jobs:
 
       - name: Set hederahash sha value
         run: |
-          hederahash=`git rev-parse HEAD`
+          hederahash="$(git rev-parse HEAD)"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
@@ -233,7 +233,7 @@ jobs:
         run: |
           set +x
           set +e
-          curdir=`pwd`
+          curdir="$(pwd)"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
           if [ ${?} -eq 0 ]
           then
@@ -263,7 +263,7 @@ jobs:
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
@@ -343,7 +343,7 @@ jobs:
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-perf-test"
@@ -352,7 +352,7 @@ jobs:
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-perf-test"
@@ -369,7 +369,7 @@ jobs:
           helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
@@ -410,7 +410,7 @@ jobs:
           helm install --set name=merkle --set appName=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
 
@@ -426,7 +426,7 @@ jobs:
           set +x
           set +e
 
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
           --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
@@ -436,9 +436,9 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
+          n="$(expr "${{ env.run_NLG_Accounts }}" / 1000)"
           NLG_c=32
 
           NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
@@ -487,12 +487,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -503,9 +503,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -579,9 +579,9 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
+          n="$(expr "${{ env.run_NLG_Accounts }}" / 1000)"
           NLG_c=32
 
           NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
@@ -630,8 +630,8 @@ jobs:
           set +e
 
           #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          echo "RUN_HCN_VERSION=$(echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}')" >> "${GITHUB_ENV}"
+          n="$(echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
@@ -735,12 +735,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -751,9 +751,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -826,8 +826,8 @@ jobs:
           set +e
 
           #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          echo "RUN_HCN_VERSION=$(echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}')" >> "${GITHUB_ENV}"
+          n="$(echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
@@ -926,12 +926,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -942,9 +942,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -1025,7 +1025,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
@@ -1034,7 +1034,7 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          result=`grep 'CryptoBenchMerkleDb.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}'`
+          result="$(grep 'CryptoBenchMerkleDb.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}')"
           echo "value=${result}" >> $GITHUB_OUTPUT
           echo "value=${result}"
 
@@ -1194,7 +1194,7 @@ jobs:
             HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} \n\
             SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }}"
           #last line is 6, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
+          freport="$(/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);')"
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
 
           cat <<EOF > slack_payload.json
