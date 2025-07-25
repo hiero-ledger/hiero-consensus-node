@@ -38,6 +38,11 @@ public class RoundHashValidator {
     private final long round;
 
     /**
+     * The JSON string containing information about the current state.
+     */
+    private final String stateJson;
+
+    /**
      * An object capable of determining the consensus hash.
      */
     private final ConsensusHashFinder hashFinder;
@@ -58,10 +63,13 @@ public class RoundHashValidator {
      *
      * @param round       the round number
      * @param roundWeight the total weight for this round
+     * @param stateJson   the JSON string containing information about the current state
      * @param issMetrics  iss related metrics
      */
-    public RoundHashValidator(final long round, final long roundWeight, @NonNull final IssMetrics issMetrics) {
+    public RoundHashValidator(
+            final long round, final long roundWeight, @NonNull String stateJson, @NonNull final IssMetrics issMetrics) {
         this.round = round;
+        this.stateJson = Objects.requireNonNull(stateJson);
         hashFinder = new ConsensusHashFinder(round, roundWeight, Objects.requireNonNull(issMetrics));
     }
 
@@ -70,6 +78,13 @@ public class RoundHashValidator {
      */
     public long getRound() {
         return round;
+    }
+
+    /**
+     * Get the state info of the state that is being validated.
+     */
+    public String getStateJson() {
+        return stateJson;
     }
 
     /**
