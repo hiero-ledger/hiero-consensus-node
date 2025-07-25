@@ -26,7 +26,6 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -353,7 +352,10 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
-        when(platformContext.getConfiguration()).thenReturn(new TestConfigBuilder().withConfigDataType(TransactionConfig.class).getOrCreateConfig());
+        when(platformContext.getConfiguration())
+                .thenReturn(new TestConfigBuilder()
+                        .withConfigDataType(TransactionConfig.class)
+                        .getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {

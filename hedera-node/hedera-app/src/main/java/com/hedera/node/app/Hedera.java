@@ -725,7 +725,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
-        if(transactionPool == null){
+        if (transactionPool == null) {
             transactionPool = new TransactionPoolNexus(
                     platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
                     platform.getContext().getMetrics());
@@ -825,7 +825,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
         }
-        if(transactionPool == null){
+        if (transactionPool == null) {
             transactionPool = new TransactionPoolNexus(
                     platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
                     platform.getContext().getMetrics());
