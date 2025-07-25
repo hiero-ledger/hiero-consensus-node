@@ -202,18 +202,14 @@ sequenceDiagram
     Test->>ContainerNetwork: addNodes(4)
 
     loop For each node
-        ContainerNetwork->>ContainerNode: new ContainerNode()
-        activate ContainerNode
-        ContainerNode->>GenericContainer: new GenericContainer()
-        activate GenericContainer
-        GenericContainer->>Container: Start container
-        activate Container
+        ContainerNetwork->>+ContainerNode: new ContainerNode()
+        ContainerNode->>+GenericContainer: new GenericContainer()
+        GenericContainer->>+Container: Start container
         ContainerNode->>Container: start()
-        Container->>DockerMain: java -jar DockerApp.jar
-        activate DockerMain
-        DockerMain->>DockerManager: Initialize gRPC server
-        activate DockerManager
+        Container->>+DockerMain: java -jar DockerApp.jar
+        DockerMain->>+DockerManager: Initialize gRPC server
         ContainerNode->>DockerManager: Establish gRPC connection
+      ContainerNode->>DockerManager: Send InitRequest
     end
 
     Test->>ContainerNetwork: start()
@@ -221,25 +217,34 @@ sequenceDiagram
     loop For each node
         ContainerNetwork->>ContainerNode: start()
         ContainerNode->>DockerManager: Send StartRequest
-        DockerManager->>ConsensusNodeManager: new ConsensusNodeManager()
-        activate ConsensusNodeManager
-        ConsensusNodeManager->>Platform: Initialize Platform
-        activate Platform
+        DockerManager->>+ConsensusNodeManager: new ConsensusNodeManager()
+        ConsensusNodeManager->>+Platform: Initialize Platform
         Note over ContainerNode,Platform: 🔄 Ongoing consensus and event streaming
     end
+    
+    deactivate ContainerNode
+    deactivate GenericContainer
+    deactivate Container
+    deactivate DockerMain
+    deactivate DockerManager
+    deactivate ConsensusNodeManager
+    deactivate Platform
 ```
 
 When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. A `ContainerNode` creates a new Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing it to send requests and receive events.
 
 This process ensures each container runs an independent consensus node with real network communication.
 
-### gRPC Protocol
+## 📡 gRPC Protocol
 
 Container nodes use gRPC for control and monitoring.
 
 ```protobuf
 // Service definition for controlling tests.
 service TestControl {
+  // RPC to initialize the container with the node ID.
+  rpc Init(InitRequest) returns (google.protobuf.Empty);
+
   // RPC to start the platform and stream event messages.
   rpc Start(StartRequest) returns (stream EventMessage);
 
@@ -249,6 +254,9 @@ service TestControl {
 
   // RCP to signal a kill of the app
   rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+
+  // RPC to change the synthetic bottleneck of the handle thread.
+  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
 }
 
 // Wrapper for different types of event messages.
@@ -261,13 +269,16 @@ message EventMessage {
     LogEntry log_entry = 2;
     // Consensus rounds event.
     ProtoConsensusRounds consensus_rounds = 3;
+    // Marker file event.
+    MarkerFileAdded marker_file_added = 4;
   }
 }
 
+// Request to initialize the container.
+message InitRequest {...}
+
 // Request to start the remote platform.
-message StartRequest {
-  ...
-}
+message StartRequest {...}
 
 // Wrapper for a transaction submission request.
 message TransactionRequest {...}
@@ -277,9 +288,12 @@ message TransactionRequestAnswer {...}
 
 // Request to kill the application immediately.
 message KillImmediatelyRequest {...}
+
+// Request to set the synthetic bottleneck.
+message SyntheticBottleneckRequest {...}
 ```
 
-### Notification Flow
+## 📢 Notification Flow
 
 ```mermaid
 sequenceDiagram
@@ -289,23 +303,47 @@ sequenceDiagram
     participant Platform
 
     ContainerNode->>DockerManager: StartRequest via gRPC
-    DockerManager->>ConsensusNodeManager: new ConsensusNodeManager()
-    activate ConsensusNodeManager
-    ConsensusNodeManager->>Platform: Initialize Platform
-    activate Platform
+    DockerManager->>+ConsensusNodeManager: new ConsensusNodeManager()
+    ConsensusNodeManager->>+Platform: Initialize Platform
 
     loop Event Streaming
-        Platform->>ConsensusNodeManager: Event via OutputWire
+        Platform->>ConsensusNodeManager: Notification via OutputWire
         ConsensusNodeManager->>DockerManager: Notify event
         DockerManager->>ContainerNode: Stream EventMessage
+        ContainerNode->>ContainerNode: Add EventMessage to Queue
     end
+
+    deactivate ConsensusNodeManager
+    deactivate Platform
 ```
 
 Once a connection between the `ContainerNode` and the `DockerManager` is established, it can receive events. The `Platform` notifies the `ConsensusNodeManager` of various events such as status changes, log entries, and consensus rounds. The `ConsensusNodeManager` then relays these events to the `DockerManager`, which streams them back to the `ContainerNode` as `EventMessage` objects.
 
-### Debugging Container Tests
+## ⏱️ Time Management
 
-#### 1. Container Logs
+The continuous assertions have to be evaluated on the main thread of the test, because otherwise JUnit would not be aware of thrown `AssertionErrors`.
+
+```mermaid
+sequenceDiagram
+    participant Test Method
+    participant RegularTimeManager
+    participant ContainerNode
+
+    Test Method->>RegularTimeManager: waitFor(Duration.ofSeconds(30))
+
+    loop Every Granularity Period (10ms)
+        RegularTimeManager->>RegularTimeManager: advanceTime(granularity)
+        RegularTimeManager->>RegularTimeManager: Thread.sleep(granularity)
+        RegularTimeManager->>ContainerNode: tick(now)
+        ContainerNode->>ContainerNode: Process queued EventMessages
+    end
+```
+
+This sequence shows how time advancement is used to evaluate continuous assertions. When the test calls `waitFor()` or a related method on the `TimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified duration is reached. During each tick, every `Node` is given a chance to process incoming `EventMessages` which also evaluates continuous assertions defined on these messages. These ticks happen on the main test thread, ensuring that any `AssertionError` thrown during processing is caught by JUnit.
+
+## Debugging Container Tests
+
+### 1. Container Logs
 
 Access container logs for debugging:
 
@@ -320,7 +358,7 @@ docker logs <container_name>
 docker logs -f <container_name>
 ```
 
-#### 2. Network Inspection
+### 2. Network Inspection
 
 ```bash
 # List Docker networks
@@ -330,7 +368,7 @@ docker network ls
 docker network inspect <network_name>
 ```
 
-#### 3. Resource Monitoring
+### 3. Resource Monitoring
 
 ```bash
 # Monitor container resource usage
