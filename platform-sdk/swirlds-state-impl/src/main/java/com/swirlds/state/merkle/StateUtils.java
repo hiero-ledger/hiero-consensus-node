@@ -4,6 +4,7 @@ package com.swirlds.state.merkle;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.*;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 
 import com.hedera.hapi.platform.state.SingletonType;
@@ -502,5 +503,23 @@ public final class StateUtils {
         bufferedData.writeBytes(keyObjectBytes);
 
         return byteBuffer.array();
+    }
+
+    /**
+     * Extracts the state ID from a serialized {@link com.hedera.hapi.platform.state.VirtualMapKey}.
+     * <p>
+     * This method reads the next protobuf field number (the one-of field number) from the key's
+     * sequential data, which corresponds to the embedded state ID.
+     * </p>
+     *
+     * @param keyBytes the serialized {@link VirtualMapKey} bytes
+     * @return the extracted state ID
+     * @throws NullPointerException if {@code keyBytes} is null
+     */
+    public static int extractVirtualMapKeyStateId(@NonNull final Bytes keyBytes) {
+        Objects.requireNonNull(keyBytes, "keyBytes must not be null");
+        // Rely on the fact that VirtualMapKey has a single OneOf field,
+        // so the next field number is the state ID.
+        return readNextFieldNumber(keyBytes.toReadableSequentialData());
     }
 }
