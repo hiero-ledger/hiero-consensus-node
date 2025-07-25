@@ -3,6 +3,9 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.gossip.permits.FairSyncSelector;
+import com.swirlds.platform.gossip.permits.LruFairSyncSelector;
+import com.swirlds.platform.gossip.permits.NoopFairSyncSelector;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -36,6 +39,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     private final Duration sleepAfterSync;
 
+    private final FairSyncSelector fairSyncSelector;
+
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
@@ -68,6 +73,21 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
+
+        final int maxConcurrentSyncs = (int) Math.ceil(
+                syncConfig.fairMaxConcurrentSyncs() > 1
+                        ? syncConfig.fairMaxConcurrentSyncs()
+                        : syncConfig.fairMaxConcurrentSyncs() * numberOfNodes);
+        final int minimalRoundRobinSize = (int) Math.ceil(
+                syncConfig.fairMinimalRoundRobinSize() > 1
+                        ? syncConfig.fairMinimalRoundRobinSize()
+                        : syncConfig.fairMinimalRoundRobinSize() * numberOfNodes);
+
+        if (maxConcurrentSyncs <= 0) {
+            this.fairSyncSelector = new NoopFairSyncSelector();
+        } else {
+            this.fairSyncSelector = new LruFairSyncSelector(maxConcurrentSyncs, minimalRoundRobinSize);
+        }
     }
 
     /**
@@ -79,7 +99,16 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     public RpcPeerHandler createPeerHandler(@NonNull final GossipRpcSender sender, @NonNull final NodeId otherNodeId) {
         final RpcPeerHandler rpcPeerHandler = new RpcPeerHandler(
-                this, sender, selfId, otherNodeId, sleepAfterSync, syncMetrics, time, intakeEventCounter, eventHandler);
+                this,
+                sender,
+                selfId,
+                otherNodeId,
+                sleepAfterSync,
+                syncMetrics,
+                time,
+                intakeEventCounter,
+                eventHandler,
+                fairSyncSelector);
         return rpcPeerHandler;
     }
 
