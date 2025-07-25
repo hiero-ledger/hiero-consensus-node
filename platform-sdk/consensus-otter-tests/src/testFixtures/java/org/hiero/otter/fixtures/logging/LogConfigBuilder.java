@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.FREEZE;
+import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.THREADS;
+import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
@@ -9,10 +24,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.ThreadContext;
@@ -45,22 +61,21 @@ public final class LogConfigBuilder {
 
     /** Markers that are allowed in swirlds.log & console. */
     private static final Set<LogMarker> ALLOWED_MARKERS = Set.of(
-            LogMarker.EXCEPTION,
-            LogMarker.TESTING_EXCEPTIONS,
-            LogMarker.SOCKET_EXCEPTIONS,
-            LogMarker.INVALID_EVENT_ERROR,
-            LogMarker.THREADS,
-            LogMarker.STARTUP,
-            LogMarker.PLATFORM_STATUS,
-            LogMarker.RECONNECT,
-            LogMarker.FREEZE,
-            LogMarker.STATE_TO_DISK,
-            LogMarker.DEMO_INFO,
-            LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT);
+            EXCEPTION,
+            TESTING_EXCEPTIONS,
+            SOCKET_EXCEPTIONS,
+            INVALID_EVENT_ERROR,
+            THREADS,
+            STARTUP,
+            PLATFORM_STATUS,
+            RECONNECT,
+            FREEZE,
+            STATE_TO_DISK,
+            DEMO_INFO,
+            TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT);
 
     /** Ignoring marker used from threads without correct ThreadContext */
-    private static final Set<LogMarker> IGNORED_MARKERS =
-            Set.of(LogMarker.STARTUP, LogMarker.MERKLE_DB, LogMarker.VIRTUAL_MERKLE_STATS);
+    private static final Set<LogMarker> IGNORED_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 
     /** Default pattern for text-based appenders. */
     private static final String DEFAULT_PATTERN =
@@ -108,7 +123,7 @@ public final class LogConfigBuilder {
                 hashStreamFilter);
         builder.add(hashAppender);
 
-        final AppenderComponentBuilder consoleAppender = builder.newAppender("ConsoleMarker", "Console")
+        final AppenderComponentBuilder consoleAppender = builder.newAppender("ConsoleLogger", "Console")
                 .addAttribute("target", Target.SYSTEM_OUT)
                 .add(standardLayout)
                 .addComponent(combineFilters(builder, thresholdInfoFilter, allowedMarkerFilters));
@@ -118,7 +133,7 @@ public final class LogConfigBuilder {
                 .add(builder.newAppenderRef("InMemory"))
                 .add(builder.newAppenderRef("FileLogger"))
                 .add(builder.newAppenderRef("HashStreamLogger"))
-                .add(builder.newAppenderRef("ConsoleMarker"));
+                .add(builder.newAppenderRef("ConsoleLogger"));
         // Register the root logger with the configuration
         builder.add(root);
 
@@ -139,7 +154,7 @@ public final class LogConfigBuilder {
         requireNonNull(baseDir, "baseDir must not be null");
         requireNonNull(nodeLogDirs, "nodeLogDirs must not be null");
 
-        final Map<NodeId, Path> safeCopy = new ConcurrentHashMap<>(nodeLogDirs);
+        final Map<NodeId, Path> nodeIds = Collections.unmodifiableMap(nodeLogDirs);
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
 
         final LayoutComponentBuilder standardLayout =
@@ -149,14 +164,12 @@ public final class LogConfigBuilder {
         final ComponentBuilder<?> allowedMarkerFilters = createAllowedMarkerFilters(builder);
         final ComponentBuilder<?> hashStreamFilter = configureHashStreamFilter(builder);
 
-        final Map<String, String> createdFileAppenderNames = new ConcurrentHashMap<>();
-        final Map<String, String> createdHashAppenderNames = new ConcurrentHashMap<>();
+        final Map<String, String> createdFileAppenderNames = new HashMap<>();
+        final Map<String, String> createdHashAppenderNames = new HashMap<>();
         final List<FilterComponentBuilder> excludeNodeFilters = new ArrayList<>();
 
-        final List<Map.Entry<NodeId, Path>> sources =
-                safeCopy.entrySet().stream().toList();
         // Per node appenders
-        for (final Map.Entry<NodeId, Path> entry : sources) {
+        for (final Map.Entry<NodeId, Path> entry : nodeIds.entrySet()) {
             final String nodeId = Long.toString(entry.getKey().id());
 
             excludeNodeFilters.add(createExcludeNodeFilter(builder, entry.getKey()));
@@ -260,7 +273,7 @@ public final class LogConfigBuilder {
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder) {
         return builder.newComponent("Filters")
                 .addComponent(builder.newFilter("MarkerFilter", Result.ACCEPT, Result.DENY)
-                        .addAttribute("marker", LogMarker.STATE_HASH));
+                        .addAttribute("marker", STATE_HASH));
     }
 
     /**
