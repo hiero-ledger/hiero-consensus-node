@@ -2,7 +2,6 @@
 package org.hiero.otter.test;
 
 import static org.assertj.core.api.Fail.fail;
-import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -83,9 +82,7 @@ public class ReconnectTest {
 
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))

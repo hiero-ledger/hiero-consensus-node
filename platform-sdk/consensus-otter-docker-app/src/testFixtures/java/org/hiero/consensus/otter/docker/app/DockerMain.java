@@ -5,10 +5,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 
 /**
  * Main entry point for the Docker container application.
@@ -69,6 +71,7 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
+        LogConfigBuilder.configureNode(Path.of(""));
         new DockerMain(createDispatchExecutor(), Executors.newCachedThreadPool()).startGrpcServer();
     }
 
