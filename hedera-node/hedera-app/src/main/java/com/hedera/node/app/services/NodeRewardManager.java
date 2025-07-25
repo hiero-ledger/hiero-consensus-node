@@ -116,9 +116,15 @@ public class NodeRewardManager {
      * @param state the state
      */
     public void updateJudgesOnEndRound(State state) {
-        // Track missing judges in this round
-        missingJudgesInLastRoundOf(state).forEach(nodeId -> missedJudgeCounts.merge(nodeId, 1L, Long::sum));
         roundsThisStakingPeriod++;
+        // Track missing judges in this round
+        missingJudgesInLastRoundOf(state).forEach(nodeId -> {
+            if (missedJudgeCounts.containsKey(nodeId)) {
+                missedJudgeCounts.put(nodeId, missedJudgeCounts.get(nodeId) + 1);
+            } else {
+                missedJudgeCounts.put(nodeId, roundsThisStakingPeriod);
+            }
+        });
     }
 
     /**

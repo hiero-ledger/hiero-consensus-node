@@ -157,6 +157,41 @@ class NodeRewardManagerTest {
     }
 
     @Test
+    void testUpdateJudgesOnEndRoundSetsNewNodeInActiveRosterMissedJudgesToCurrentTotalRoundsInStakingPeriod() {
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
+
+        for (int i = 0; i < 9; i++) {
+            nodeRewardManager.updateJudgesOnEndRound(state);
+        }
+
+        // Add nodeId 2 to the active roster after 9 rounds
+        final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
+                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
+                .build();
+        rosters.put(
+                ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
+                Roster.newBuilder()
+                        .rosterEntries(List.of(
+                                RosterEntry.newBuilder().nodeId(0L).build(),
+                                RosterEntry.newBuilder().nodeId(1L).build(),
+                                RosterEntry.newBuilder().nodeId(2L).build()))
+                        .build());
+        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
+
+        nodeRewardManager.updateJudgesOnEndRound(state);
+
+        // Now nodeId 2 should have missed judges equal to the current rounds in staking period
+        assertEquals(10, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(1L));
+        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(2L));
+
+        nodeRewardManager.resetNodeRewards();
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertTrue(nodeRewardManager.getMissedJudgeCounts().isEmpty());
+    }
+
+    @Test
     void testMaybeRewardActiveNodeRewardsDisabled() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeRewardsEnabled", false)
