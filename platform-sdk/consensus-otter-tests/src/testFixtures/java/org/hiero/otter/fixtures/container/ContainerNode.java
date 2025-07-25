@@ -272,12 +272,14 @@ public class ContainerNode extends AbstractNode implements Node {
     // ignoring the Empty answer from destroyContainer
     void destroy() throws IOException {
         // copy logs from container to the local filesystem
-        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
-        Files.createDirectories(logPath);
-        Files.deleteIfExists(logPath.resolve("swirlds.log"));
-        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
-        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
-        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+        Files.createDirectories(logPath.resolve("swirlds-hashstream"));
+
+        container.copyFileFromContainer(
+                "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+        container.copyFileFromContainer(
+                "output/swirlds-hashstream/swirlds-hashstream.log",
+                logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);

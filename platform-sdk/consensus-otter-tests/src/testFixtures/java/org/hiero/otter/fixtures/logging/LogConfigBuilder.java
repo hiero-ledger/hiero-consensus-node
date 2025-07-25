@@ -89,11 +89,12 @@ public final class LogConfigBuilder {
      * For all nodes contained in the map an individual set of appenders is created. If the map is
      * empty a single global set of appenders is produced.
      *
-     * @param defaultLogDir directory used when no per-node mapping is provided
+     * @param baseDir       directory used when no per-node mapping is provided
      * @param nodeLogDirs   mapping (node-ID  ➔  directory) for per-node log routing
      */
-    public static void configure(final Path defaultLogDir, final Map<NodeId, Path> nodeLogDirs) {
-        requireNonNull(defaultLogDir, "defaultLogDir must not be null");
+    public static void configure(final Path baseDir, final Map<NodeId, Path> nodeLogDirs) {
+        requireNonNull(baseDir, "baseDir must not be null");
+        final Path defaultLogDir = baseDir.resolve("output");
         final Map<NodeId, Path> safeCopy = nodeLogDirs == null ? Map.of() : new ConcurrentHashMap<>(nodeLogDirs);
 
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
@@ -143,7 +144,9 @@ public final class LogConfigBuilder {
                     "HashStreamLogger",
                     standardLayout,
                     hashStreamFilter,
-                    defaultLogDir.resolve("swirlds-hashstream.log").toString());
+                    defaultLogDir
+                            .resolve("swirlds-hashstream/swirlds-hashstream.log")
+                            .toString());
             createdFileAppenderNames.put("GLOBAL", fileAppender);
             createdHashAppenderNames.put("GLOBAL", hashAppender);
         } else {
@@ -159,16 +162,14 @@ public final class LogConfigBuilder {
                         fileAppenderName,
                         standardLayout,
                         markersAndThreshold,
-                        entry.getValue()
-                                .resolve("swirlds-" + nodeIdString + ".log")
-                                .toString());
+                        entry.getValue().resolve("output/swirlds.log").toString());
                 addFileAppender(
                         builder,
                         hashAppenderName,
                         standardLayout,
                         hashStreamFilter,
                         entry.getValue()
-                                .resolve("swirlds-hashstream-" + nodeIdString + ".log")
+                                .resolve("output/swirlds-hashstream/swirlds-hashstream.log")
                                 .toString());
 
                 createdFileAppenderNames.put(nodeIdString, fileAppenderName);

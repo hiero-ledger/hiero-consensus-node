@@ -76,7 +76,7 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
-        LogConfigBuilder.configure(Path.of("logs"));
+        LogConfigBuilder.configure(Path.of(""));
         new DockerMain().startGrpcServer();
     }
 
