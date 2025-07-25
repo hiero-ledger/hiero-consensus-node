@@ -19,11 +19,11 @@ import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.PublishStreamResponse;
-import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
-import org.hiero.block.api.PublishStreamResponse.EndOfStream;
-import org.hiero.block.api.PublishStreamResponse.ResendBlock;
-import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.protoc.PublishStreamResponse;
+import org.hiero.block.api.protoc.PublishStreamResponse.BlockAcknowledgement;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.protoc.PublishStreamResponse.ResendBlock;
+import org.hiero.block.api.protoc.PublishStreamResponse.SkipBlock;
 
 /**
  * Base class for tests that involve block node communication.
@@ -35,35 +35,35 @@ public abstract class BlockNodeCommunicationTestBase {
     @NonNull
     protected static PublishStreamResponse createSkipBlock(final long blockNumber) {
         final SkipBlock skipBlock =
-                SkipBlock.newBuilder().blockNumber(blockNumber).build();
-        return PublishStreamResponse.newBuilder().skipBlock(skipBlock).build();
+                SkipBlock.newBuilder().setBlockNumber(blockNumber).build();
+        return PublishStreamResponse.newBuilder().setSkipBlock(skipBlock).build();
     }
 
     @NonNull
     protected static PublishStreamResponse createResendBlock(final long blockNumber) {
         final ResendBlock resendBlock =
-                ResendBlock.newBuilder().blockNumber(blockNumber).build();
-        return PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
+                ResendBlock.newBuilder().setBlockNumber(blockNumber).build();
+        return PublishStreamResponse.newBuilder().setResendBlock(resendBlock).build();
     }
 
     @NonNull
     protected static PublishStreamResponse createEndOfStreamResponse(
             final EndOfStream.Code responseCode, final long lastVerifiedBlock) {
         final EndOfStream eos = EndOfStream.newBuilder()
-                .blockNumber(lastVerifiedBlock)
-                .status(responseCode)
+                .setBlockNumber(lastVerifiedBlock)
+                .setStatus(responseCode)
                 .build();
-        return PublishStreamResponse.newBuilder().endStream(eos).build();
+        return PublishStreamResponse.newBuilder().setEndStream(eos).build();
     }
 
     @NonNull
     protected static PublishStreamResponse createBlockAckResponse(final long blockNumber, final boolean alreadyExists) {
         final BlockAcknowledgement blockAck = BlockAcknowledgement.newBuilder()
-                .blockNumber(blockNumber)
-                .blockAlreadyExists(alreadyExists)
+                .setBlockNumber(blockNumber)
+                .setBlockAlreadyExists(alreadyExists)
                 .build();
 
-        return PublishStreamResponse.newBuilder().acknowledgement(blockAck).build();
+        return PublishStreamResponse.newBuilder().setAcknowledgement(blockAck).build();
     }
 
     @NonNull
