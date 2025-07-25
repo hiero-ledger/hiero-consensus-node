@@ -21,8 +21,6 @@ vars:
     sh: (echo "/tmp/solo-${USER}-var-check-$(date +%Y%m%d%H%M%S)")
   minio_flag_file:
     sh: (echo "/tmp/solo-${USER}-minio-flag-$(date +%Y%m%d%H%M%S)")
-  solo_install_file:
-    sh: (echo "/tmp/solo-${USER}-solo-install-$(date +%Y%m%d%H%M%S)")
 
 tasks:
   default:
@@ -117,20 +115,6 @@ tasks:
       - echo "Use command 'task default-with-mirror' to deploy the network with a mirror node."
       - echo "Use command 'task default-with-relay' to deploy the network with a relay node."
 
-  install:solo:
-    silent: true
-    internal: true
-    status:
-      - test -f {{ .solo_install_file }}
-    cmds:
-      - |
-        if [[ "$(ls -1 package.json > /dev/null 2>&1)" == "" ]]; then
-          cd ..
-        fi
-        pwd
-      - npm install
-      - touch {{ .solo_install_file }}
-
   install:kubectl:darwin:
     silent: true
     internal: true
@@ -168,7 +152,7 @@ tasks:
       #- test "$(yq -r '.flags."node-ids"' < {{ .solo_user_dir }}/solo.yaml)" == "{{ .node_identifiers }}"
       - test "$(jq -r '.flags."node-ids"' < {{ .solo_user_dir }}/solo.config)" == "{{ .node_identifiers }}"
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- init --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo init --dev
 
   solo:cluster-ref:connect:
     silent: true
