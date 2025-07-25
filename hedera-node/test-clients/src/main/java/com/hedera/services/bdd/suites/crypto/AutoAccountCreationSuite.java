@@ -1143,7 +1143,7 @@ public class AutoAccountCreationSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    static void assertAliasBalanceAndFeeInChildRecord(
+    public static void assertAliasBalanceAndFeeInChildRecord(
             final TransactionRecord parent,
             final TransactionRecord child,
             final AccountID sponsor,
