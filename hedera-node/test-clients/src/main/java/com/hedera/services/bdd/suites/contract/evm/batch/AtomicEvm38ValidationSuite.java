@@ -401,7 +401,7 @@ public class AtomicEvm38ValidationSuite {
                         .payingWith(BATCH_OPERATOR)),
                 atomicBatch(contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(15), BigInteger.valueOf(434))
                                 .gas(350_000L)
-                                .hasPrecheck(CONTRACT_DELETED)
+                                .hasKnownStatus(CONTRACT_DELETED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -417,9 +417,8 @@ public class AtomicEvm38ValidationSuite {
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 contractCreate(contract).balance(10).payingWith(sender),
                 atomicBatch(contractCall(contract)
-                                .hasPrecheck(CONTRACT_DELETED)
+                                .hasKnownStatus(CONTRACT_DELETED)
                                 .payingWith(sender)
-                                .hasKnownStatus(SUCCESS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),

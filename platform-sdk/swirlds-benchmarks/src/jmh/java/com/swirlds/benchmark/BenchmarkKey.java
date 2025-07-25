@@ -4,6 +4,7 @@ package com.swirlds.benchmark;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,6 +26,12 @@ public class BenchmarkKey implements VirtualKey {
 
     public static int getKeySize() {
         return keySize;
+    }
+
+    public static Bytes longToKey(long seed) {
+        final byte[] keyBytes = new byte[keySize];
+        Utils.toBytes(seed, keyBytes);
+        return Bytes.wrap(keyBytes);
     }
 
     public BenchmarkKey() {

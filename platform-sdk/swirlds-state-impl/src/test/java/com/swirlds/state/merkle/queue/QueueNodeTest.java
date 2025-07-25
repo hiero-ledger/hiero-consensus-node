@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class QueueNodeTest extends MerkleTestBase {
     @Test
     void usesQueueNodeIdFromMetadataIfAvailable() {
