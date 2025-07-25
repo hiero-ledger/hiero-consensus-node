@@ -512,8 +512,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final T node;
         if (path < state.getFirstLeafPath()) {
             final Hash hash = records.findHash(path);
-            final VirtualHashRecord virtualHashRecord =
-                    new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
+            final VirtualHashRecord virtualHashRecord = new VirtualHashRecord(path, hash);
             //noinspection unchecked
             node = (T) (new VirtualInternalNode(this, virtualHashRecord));
         } else if (path <= state.getLastLeafPath()) {
@@ -525,7 +524,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             }
             final Hash hash = records.findHash(path);
             //noinspection unchecked
-            node = (T) (new VirtualLeafNode(leafRecord, hash != VirtualNodeCache.DELETED_HASH ? hash : null));
+            node = (T) (new VirtualLeafNode(leafRecord, hash));
         } else {
             // The index is out of bounds. Maybe we have a root node with one leaf and somebody has asked
             // for the second leaf, in which case it would be null.
@@ -762,7 +761,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
                 assert sibling != null;
                 cache.clearLeafPath(lastLeafSibling);
-                cache.deleteHash(lastLeafParent);
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths

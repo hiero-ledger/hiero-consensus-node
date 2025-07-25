@@ -15,7 +15,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -158,7 +157,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
             }
         }
 
-        final VirtualHashRecord rec = new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
+        final VirtualHashRecord rec = new VirtualHashRecord(path, hash);
         return new VirtualInternalNode(map, rec);
     }
 
