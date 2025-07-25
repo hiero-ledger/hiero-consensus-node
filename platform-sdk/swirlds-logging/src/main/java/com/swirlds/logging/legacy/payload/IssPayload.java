@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.legacy.payload;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
+
 /**
  * A message that gets logged when a node receives a signature for a state that is invalid.
  */
@@ -9,6 +11,7 @@ public class IssPayload extends AbstractLogPayload {
     private String selfHash;
     private String consensusHash;
     private boolean catastrophic;
+    private String stateJson;
 
     public IssPayload() {}
 
@@ -26,18 +29,22 @@ public class IssPayload extends AbstractLogPayload {
      * 		string if there was no consensus hash
      * @param catastrophic
      * 		if this was a catastrophic ISS
+     * @param stateJson
+     *      the state JSON
      */
     public IssPayload(
             final String message,
             final long round,
             final String selfHash,
             final String consensusHash,
-            final boolean catastrophic) {
+            final boolean catastrophic,
+            final String stateJson) {
         super(message);
         this.round = round;
         this.selfHash = selfHash;
         this.consensusHash = consensusHash;
         this.catastrophic = catastrophic;
+        this.stateJson = stateJson;
     }
 
     /**
@@ -94,5 +101,24 @@ public class IssPayload extends AbstractLogPayload {
      */
     public void setCatastrophic(final boolean catastrophic) {
         this.catastrophic = catastrophic;
+    }
+
+    /**
+     * Get the state JSON as a raw JSON value.
+     * <p>
+     * The {@code @JsonRawValue} annotation instructs Jackson to embed the returned JSON string directly
+     * into the output (i.e. not quoted as a String).
+     * </p>
+     */
+    @JsonRawValue
+    public String getStateJson() {
+        return stateJson;
+    }
+
+    /**
+     * Set the state JSON.
+     */
+    public void setStateJson(final String stateJson) {
+        this.stateJson = stateJson;
     }
 }

@@ -56,6 +56,8 @@ import org.hiero.base.crypto.Hash;
  * This data structure does not support null keys or null values.
  * </p>
  *
+ * @deprecated should be removed once <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19002">Testing Tools support Virtual Mega Map state</a>.
+ *
  * @param <K> the type of the key. Must be effectively immutable. That is, after insertion into a map, no operation on
  *            this key should be capable of changing the behavior of its {@link Object#hashCode()} or
  *            {@link Object#equals(Object)} methods. It is STRONGLY recommended that this type not implement
@@ -65,6 +67,7 @@ import org.hiero.base.crypto.Hash;
  *            value is an internal node the key will need to be stored inside a descendant leaf node.
  */
 @DebugIterationEndpoint
+@Deprecated
 public class MerkleMap<K, V extends MerkleNode & Keyed<K>> extends PartialBinaryMerkleInternal
         implements Labeled, Map<K, V>, MerkleInternal {
 

@@ -55,19 +55,20 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Throws IAE for any non-null key")
         void nonNullKey() {
-            assertThatThrownBy(() -> states.get(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         @DisplayName("Throws IAE for any non-null Singleton key")
         void nonNullSingletonKey() {
-            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_KEY))
+                    .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         @DisplayName("Throws IAE for any non-null Queue key")
         void nonNullQueueKey() {
-            assertThatThrownBy(() -> states.getQueue(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -109,19 +110,20 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Throws IAE for any non-null key")
         void nonNullKey() {
-            assertThatThrownBy(() -> states.get(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         @DisplayName("Throws IAE for any non-null Singleton key")
         void nonNullSingletonKey() {
-            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_KEY))
+                    .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         @DisplayName("Throws IAE for any non-null Queue key")
         void nonNullQueueKey() {
-            assertThatThrownBy(() -> states.getQueue(UNKNOWN_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @NonNull

@@ -8,7 +8,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
 public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult {
 
     private final NodeId nodeId;
-    private final SingleNodePlatformStatusResults statusResults;
+    private final SingleNodePlatformStatusResult statusResults;
     private final SingleNodeLogResult logResults;
 
     /**
@@ -28,7 +28,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      */
     public SingleNodeReconnectResultImpl(
             @NonNull final NodeId nodeId,
-            @NonNull final SingleNodePlatformStatusResults statusResults,
+            @NonNull final SingleNodePlatformStatusResult statusResults,
             @NonNull final SingleNodeLogResult logResults) {
         this.nodeId = requireNonNull(nodeId);
         this.statusResults = requireNonNull(statusResults);
