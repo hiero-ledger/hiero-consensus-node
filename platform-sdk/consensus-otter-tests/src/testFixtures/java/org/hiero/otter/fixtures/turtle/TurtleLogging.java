@@ -36,6 +36,6 @@ public class TurtleLogging {
     }
 
     private void updateLogging() {
-        LogConfigBuilder.configure(rootOutputDirectory, nodeIdConfigurations);
+        LogConfigBuilder.configureMultiNode(rootOutputDirectory, nodeIdConfigurations);
     }
 }
