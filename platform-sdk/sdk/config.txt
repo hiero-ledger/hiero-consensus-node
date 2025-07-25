@@ -5,7 +5,7 @@ swirld, 123
 
 # app,		HelloSwirldDemo.jar
 # app,		CryptocurrencyDemo.jar
- app,		StatsDemo.jar,		   1, 3000, 0, 100, -1, 200
+ app,		StatsDemo.jar,		   100, 200
 
 
 # ** BEGIN REMOVE FROM SDK RELEASES **
