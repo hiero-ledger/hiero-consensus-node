@@ -24,7 +24,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +153,6 @@ public final class LogConfigBuilder {
         requireNonNull(baseDir, "baseDir must not be null");
         requireNonNull(nodeLogDirs, "nodeLogDirs must not be null");
 
-        final Map<NodeId, Path> nodeIds = Collections.unmodifiableMap(nodeLogDirs);
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
 
         final LayoutComponentBuilder standardLayout =
@@ -169,7 +167,7 @@ public final class LogConfigBuilder {
         final List<FilterComponentBuilder> excludeNodeFilters = new ArrayList<>();
 
         // Per node appenders
-        for (final Map.Entry<NodeId, Path> entry : nodeIds.entrySet()) {
+        for (final Map.Entry<NodeId, Path> entry : nodeLogDirs.entrySet()) {
             final String nodeId = Long.toString(entry.getKey().id());
 
             excludeNodeFilters.add(createExcludeNodeFilter(builder, entry.getKey()));
