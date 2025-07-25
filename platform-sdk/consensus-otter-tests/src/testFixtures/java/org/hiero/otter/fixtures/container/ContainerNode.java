@@ -104,7 +104,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
 
-        LogConfigBuilder.configure(outputDirectory);
+        LogConfigBuilder.configureTest();
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");

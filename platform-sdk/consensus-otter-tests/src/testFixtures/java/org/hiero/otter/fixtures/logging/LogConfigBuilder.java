@@ -76,7 +76,7 @@ public final class LogConfigBuilder {
      *
      * @param baseDir     directory where log files are written (created automatically)
      */
-    public static void configure(@NonNull final Path baseDir) {
+    public static void configureNode(@NonNull final Path baseDir) {
         requireNonNull(baseDir, "baseDir must not be null");
         final Path defaultLogDir = baseDir.resolve("output");
 
@@ -224,6 +224,28 @@ public final class LogConfigBuilder {
         Configurator.reconfigure(builder.build());
 
         LogManager.getLogger(LogConfigBuilder.class).info("Unified logging configuration (re)initialized");
+    }
+
+    public static void configureTest() {
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+
+        final LayoutComponentBuilder standardLayout =
+                builder.newLayout("PatternLayout").addAttribute("pattern", DEFAULT_PATTERN);
+
+        final FilterComponentBuilder thresholdInfoFilter = createThresholdFilter(builder);
+        final AppenderComponentBuilder consoleAppender = builder.newAppender("Console", "Console")
+                .addAttribute("target", Target.SYSTEM_OUT)
+                .add(standardLayout)
+                .addComponent(thresholdInfoFilter);
+        builder.add(consoleAppender);
+
+        final RootLoggerComponentBuilder root = builder.newRootLogger(Level.ALL).add(builder.newAppenderRef("Console"));
+
+        builder.add(root);
+
+        Configurator.reconfigure(builder.build());
+
+        LogManager.getLogger(LogConfigBuilder.class).info("Test logging configuration (re)initialized");
     }
 
     /**
