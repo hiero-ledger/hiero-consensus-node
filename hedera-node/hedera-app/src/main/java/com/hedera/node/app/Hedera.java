@@ -725,6 +725,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
+        if(transactionPool == null){
+            transactionPool = new TransactionPoolNexus(
+                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                    platform.getContext().getMetrics());
+        }
         if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
@@ -820,9 +825,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
         }
-        transactionPool = new TransactionPoolNexus(
-                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                platform.getContext().getMetrics());
+        if(transactionPool == null){
+            transactionPool = new TransactionPoolNexus(
+                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                    platform.getContext().getMetrics());
+        }
         assertEnvSanityChecks(nodeId);
         logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
         Locale.setDefault(Locale.US);
