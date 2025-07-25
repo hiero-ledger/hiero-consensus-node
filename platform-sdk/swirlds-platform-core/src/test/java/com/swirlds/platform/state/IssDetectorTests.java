@@ -48,7 +48,6 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,16 +55,6 @@ import org.junit.jupiter.api.Test;
 class IssDetectorTests extends PlatformTest {
     private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
-
-    private SwirldStateManager swirldStateManager;
-
-    @BeforeEach
-    void setUp() {
-        swirldStateManager = mock(SwirldStateManager.class);
-        final MerkleNodeState consensusState = mock(MerkleNodeState.class);
-        when(swirldStateManager.getConsensusState()).thenReturn(consensusState);
-        when(consensusState.getInfoJson()).thenReturn("");
-    }
 
     @Test
     @DisplayName("State reservation is released")
@@ -768,6 +757,7 @@ class IssDetectorTests extends PlatformTest {
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);
         when(s.getHash()).thenReturn(hash);
+        when(s.getInfoJson()).thenReturn("");
         return rs;
     }
 
