@@ -10,6 +10,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.*;
 import com.swirlds.config.api.Configuration;
 import java.util.Map;
@@ -52,6 +53,21 @@ class HederaEvmTransactionProcessorTest {
     @Mock
     private TransactionProcessor v38processor;
 
+    @Mock
+    private TransactionProcessor v46processor;
+
+    @Mock
+    private TransactionProcessor v50processor;
+
+    @Mock
+    private TransactionProcessor v51processor;
+
+    @Mock
+    private TransactionProcessor v65processor;
+
+    @Mock
+    private OpsDurationCounter opsDurationCounter;
+
     private HederaEvmTransactionProcessor subject;
 
     @BeforeEach
@@ -59,7 +75,11 @@ class HederaEvmTransactionProcessorTest {
         subject = new HederaEvmTransactionProcessor(Map.of(
                 VERSION_030, v30processor,
                 VERSION_034, v34processor,
-                VERSION_038, v38processor));
+                VERSION_038, v38processor,
+                VERSION_046, v46processor,
+                VERSION_050, v50processor,
+                VERSION_051, v51processor,
+                VERSION_065, v65processor));
     }
 
     @Test
@@ -67,9 +87,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, context, VERSION_030, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_030, tracer, config, opsDurationCounter);
 
-        verify(v30processor).processTransaction(transaction, worldUpdater, context, tracer, config);
+        verify(v30processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
     }
 
     @Test
@@ -77,9 +97,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, context, VERSION_034, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_034, tracer, config, opsDurationCounter);
 
-        verify(v34processor).processTransaction(transaction, worldUpdater, context, tracer, config);
+        verify(v34processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
     }
 
     @Test
@@ -87,8 +107,48 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, context, VERSION_038, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_038, tracer, config, opsDurationCounter);
 
-        verify(v38processor).processTransaction(transaction, worldUpdater, context, tracer, config);
+        verify(v38processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+    }
+
+    @Test
+    void calls046AsExpected() {
+        final var transaction = wellKnownHapiCall();
+        final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
+
+        subject.process(transaction, worldUpdater, context, VERSION_046, tracer, config, opsDurationCounter);
+
+        verify(v46processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+    }
+
+    @Test
+    void calls050AsExpected() {
+        final var transaction = wellKnownHapiCall();
+        final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
+
+        subject.process(transaction, worldUpdater, context, VERSION_050, tracer, config, opsDurationCounter);
+
+        verify(v50processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+    }
+
+    @Test
+    void calls051AsExpected() {
+        final var transaction = wellKnownHapiCall();
+        final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
+
+        subject.process(transaction, worldUpdater, context, VERSION_051, tracer, config, opsDurationCounter);
+
+        verify(v51processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+    }
+
+    @Test
+    void calls065AsExpected() {
+        final var transaction = wellKnownHapiCall();
+        final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
+
+        subject.process(transaction, worldUpdater, context, VERSION_065, tracer, config, opsDurationCounter);
+
+        verify(v65processor).processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
     }
 }

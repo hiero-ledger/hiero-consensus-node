@@ -9,11 +9,13 @@ import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.config.data.StatsConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.DoubleGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -37,6 +39,7 @@ public class ThrottleMetrics {
     private List<MetricPair> liveMetricPairs = List.of();
     private MetricPair gasThrottleMetricPair;
     private MetricPair opsDurationThrottleMetricPair;
+    private Counter opsDurationInvalidConsumeCalls;
 
     /**
      * Constructs a {@link ThrottleMetrics} instance.
@@ -70,10 +73,15 @@ public class ThrottleMetrics {
                 .map(this::setupLiveMetricPair)
                 .toList();
 
+        // If there is a configured throttle to sample, that doesn't have a corresponding
+        // DeterministicThrottle live metric created (not sure when would that be the case?) we add it
+        // as an "inert" metric, that never changes.
+        // Unless it's a GAS or OPS_DURATION throttle - we don't include those.
+        final var throttlesExcludedFromInertMetrics = Set.of(GAS_THROTTLE_ID, OPS_DURATION_ID);
         final var throttleNames =
                 throttles.stream().map(DeterministicThrottle::name).collect(Collectors.toSet());
         throttlesToSample.stream()
-                .filter(name -> !throttleNames.contains(name) && !GAS_THROTTLE_ID.equals(name))
+                .filter(name -> !throttleNames.contains(name) && !throttlesExcludedFromInertMetrics.contains(name))
                 .forEach(this::setupInertMetric);
     }
 
@@ -113,6 +121,11 @@ public class ThrottleMetrics {
         final var throttlesToSample = throttlesToSampleSupplier.apply(statsConfig);
         opsDurationThrottleMetricPair =
                 throttlesToSample.contains(OPS_DURATION_ID) ? setupLiveMetricPair(opsDurationThrottle) : null;
+        opsDurationInvalidConsumeCalls =
+                metrics.getOrCreate(new Counter.Config("app", "consOpsDurationInvalidConsumeCalls")
+                        .withDescription("A count of invalid ops duration throttle consume calls "
+                                + "(i.e. when the execution consumes more ops duration "
+                                + "than was available) - indicating a possible bug."));
     }
 
     /**
@@ -130,6 +143,10 @@ public class ThrottleMetrics {
                     .gauge()
                     .set(opsDurationThrottleMetricPair.throttle().instantaneousPercentUsed());
         }
+    }
+
+    public void incOpsDurationInvalidConsumeCalls() {
+        this.opsDurationInvalidConsumeCalls.add(1);
     }
 
     private MetricPair setupLiveMetricPair(@NonNull final CongestibleThrottle throttle) {

@@ -30,5 +30,4 @@ public record OpsDurationConfig(
                 List<LongPair> opsDurations193_to_256,
         @ConfigProperty(defaultValue = "566") @NetworkProperty long opsGasBasedDurationMultiplier,
         @ConfigProperty(defaultValue = "1575") @NetworkProperty long precompileGasBasedDurationMultiplier,
-        @ConfigProperty(defaultValue = "566") @NetworkProperty long systemContractGasBasedDurationMultiplier,
-        @ConfigProperty(defaultValue = "0") @NetworkProperty long durationCheckShift) {}
+        @ConfigProperty(defaultValue = "566") @NetworkProperty long systemContractGasBasedDurationMultiplier) {}

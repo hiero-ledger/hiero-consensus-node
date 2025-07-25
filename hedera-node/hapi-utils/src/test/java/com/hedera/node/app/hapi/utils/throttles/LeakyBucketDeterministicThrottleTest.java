@@ -49,6 +49,17 @@ class LeakyBucketDeterministicThrottleTest {
     }
 
     @Test
+    void canGetCapacityFree() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var capacity = 1_000_000;
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
+        assertEquals(capacity, subject.capacityFree(now));
+        subject.allow(now, capacity / 2);
+        assertEquals(capacity / 2, subject.capacityFree(now));
+        assertEquals(capacity / 2, subject.capacityFree(now.minusNanos(123)));
+    }
+
+    @Test
     void canGetPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
