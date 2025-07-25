@@ -295,7 +295,6 @@ class VirtualMapHashingTest {
         current = current.copy();
         Future<Hash> future = TestMerkleCryptoFactory.getInstance().digestTreeAsync(prev);
 
-        final long numInternals = current.getState().getFirstLeafPath();
         for (int i = 0; i < nKeys; ++i) {
             current.remove(TestKey.longToKey(i));
         }
@@ -304,15 +303,14 @@ class VirtualMapHashingTest {
         prev.release();
 
         final VirtualNodeCache cache = current.getCache();
-        int deletedInternals = 1; // path 0 internal node is preserved for an empty map
-        for (int path = 1; path < numInternals; ++path) {
-            final Hash hash = cache.lookupHashByPath(path);
-            assertNotNull(hash, "Unexpected null");
-            if (hash == VirtualNodeCache.DELETED_HASH) {
-                deletedInternals++;
-            }
-        }
-        assertEquals(numInternals, deletedInternals, "The number of deleted internals doesn't match");
+        cache.seal();
+        assertEquals(
+                0,
+                cache.dirtyHashesForFlush(current.getState().getLastLeafPath())
+                        .toList()
+                        .size());
+
+        current.release();
     }
 
     @Test

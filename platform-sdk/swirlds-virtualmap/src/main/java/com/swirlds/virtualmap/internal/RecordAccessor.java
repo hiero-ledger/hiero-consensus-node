@@ -64,9 +64,6 @@ public final class RecordAccessor {
     public Hash findHash(final long path) {
         assert path >= 0;
         final Hash hash = cache.lookupHashByPath(path);
-        if (hash == VirtualNodeCache.DELETED_HASH) {
-            return null;
-        }
         if (hash != null) {
             return hash;
         }
@@ -92,9 +89,6 @@ public final class RecordAccessor {
     public boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException {
         assert path >= 0;
         final Hash hash = cache.lookupHashByPath(path);
-        if (hash == VirtualNodeCache.DELETED_HASH) {
-            return false;
-        }
         if (hash != null) {
             hash.serialize(out);
             return true;

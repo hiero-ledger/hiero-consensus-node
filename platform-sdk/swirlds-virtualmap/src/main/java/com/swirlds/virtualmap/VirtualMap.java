@@ -751,7 +751,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
                 assert sibling != null;
                 cache.clearLeafPath(lastLeafSibling);
-                cache.deleteHash(lastLeafParent);
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths

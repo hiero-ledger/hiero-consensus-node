@@ -96,8 +96,6 @@ public class RecordAccessorTest {
 
         cache.putLeaf(sixthLeafMoved);
         cache.deleteLeaf(seventhLeafGone);
-        cache.deleteHash(DELETED_INTERNAL_PATH);
-        cache.deleteHash(OLD_DELETED_INTERNAL_PATH);
         mutableRecords = new RecordAccessor(state, cache.copy(), dataSource);
         cache.prepareForHashing();
         cache.putHash(rootChanged);

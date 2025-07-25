@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.cache;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
-import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_HASH;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_LEAF_RECORD;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static java.util.Arrays.asList;
@@ -287,12 +286,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final VirtualLeafBytes<TestValue> bananaLeaf3 = bananaLeaf(5);
         cache3.clearLeafPath(11);
         cache3.putLeaf(bananaLeaf3);
-        cache3.deleteHash(5);
         assertEquals(
                 DELETED_LEAF_RECORD,
                 cache3.lookupLeafByPath(11),
                 "value that was looked up should match original value");
-        assertEquals(DELETED_HASH, cache3.lookupHashByPath(5), "value that was looked up should match original value");
 
         validateLeaves(cache3, 5, asList(bananaLeaf3, dateLeaf1, grapeLeaf3, eggplantLeaf1, cherryLeaf2, figLeaf2));
 
@@ -1490,33 +1487,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Sealed cache cannot delete internals")
-    void deletingAnInternalWithSealedCacheThrows() {
-        cache.seal();
-        assertThrows(
-                MutabilityException.class, () -> cache.deleteHash(ROOT_PATH), "can't delete after cache is sealed");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Deleting a non-existent internal is OK")
-    void deletingAnInternalThatDoesNotExistIsOK() {
-        final VirtualNodeCache cache0 = cache;
-        nextRound();
-
-        final VirtualHashRecord root0 = rootInternal();
-        final VirtualHashRecord left0 = leftInternal();
-        final VirtualHashRecord right0 = rightInternal();
-        cache0.putHash(root0);
-        cache0.putHash(left0);
-        cache0.putHash(right0);
-
-        assertNull(cache.lookupHashByPath(LEFT_LEFT_PATH), "no node should be found");
-        cache.deleteHash(LEFT_LEFT_PATH);
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Deleting an existent internal in the same cache version is OK")
     void deletingAnInternalThatDoesExistIsOK() {
         final VirtualNodeCache cache0 = cache;
@@ -1532,34 +1502,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertEquals(
                 right0.hash(),
                 cache0.lookupHashByPath(RIGHT_PATH),
-                "value that was looked up should match original value");
-        cache.deleteHash(RIGHT_PATH);
-        assertEquals(
-                DELETED_HASH,
-                cache.lookupHashByPath(RIGHT_PATH),
-                "value that was looked up should match original value");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Deleting an existent internal across cache versions is OK")
-    void deletingAnInternalThatDoesExistInOlderCacheIsOK() {
-        final VirtualNodeCache cache0 = cache;
-        nextRound();
-
-        final VirtualHashRecord root0 = rootInternal();
-        final VirtualHashRecord left0 = leftInternal();
-        final VirtualHashRecord right0 = rightInternal();
-        cache0.putHash(root0);
-        cache0.putHash(left0);
-        cache0.putHash(right0);
-        nextRound();
-        cache0.seal();
-
-        cache.deleteHash(RIGHT_PATH);
-        assertEquals(
-                DELETED_HASH,
-                cache.lookupHashByPath(RIGHT_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -2269,7 +2211,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.putLeaf(cherryLeaf1);
         // Delete B and move G
         cache1.deleteLeaf(bananaLeaf0);
-        cache1.deleteHash(5);
         VirtualLeafBytes<TestValue> grapeLeaf1 = cache1.lookupLeafByKey(G_KEY);
         assert grapeLeaf1 != null;
         grapeLeaf1 = grapeLeaf1.withPath(5);
@@ -2312,14 +2253,12 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assert figLeaf2 != null;
         figLeaf2 = figLeaf2.withPath(appleLeaf0.path());
         cache2.putLeaf(figLeaf2);
-        cache2.deleteHash(leftRight1.path());
         VirtualLeafBytes<TestValue> cherryLeaf2 = cache2.lookupLeafByKey(C_KEY);
         assert cherryLeaf2 != null;
         cherryLeaf2 = cherryLeaf2.withPath(leftRight1.path());
         cache2.putLeaf(cherryLeaf2);
         // Delete E and move F into leftLeft's place
         cache2.deleteLeaf(eggplantLeaf0);
-        cache2.deleteHash(leftLeft0.path());
         figLeaf2 = figLeaf2.withPath(leftLeft0.path());
         cache2.putLeaf(figLeaf2);
         // Finally, add B and move F back down to where it was
@@ -2720,14 +2659,11 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(rootInternal());
         cache0.putHash(leftInternal());
         cache0.putHash(rightInternal());
-        cache1.deleteHash(2);
 
         final VirtualNodeCache cache2 = cache1.copy();
         cache1.putHash(rightInternal());
         cache1.putHash(leftLeftInternal());
         cache1.putHash(leftRightInternal());
-        cache2.deleteHash(4);
-        cache2.deleteHash(3);
 
         cache2.copy(); // Needed until #3842 is fixed
         cache2.putHash(leftLeftInternal());
@@ -2766,17 +2702,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(leftLeftInternal());
         cache0.putHash(leftRightInternal());
         cache0.putHash(rightLeftInternal());
-        cache1.deleteHash(6);
-        cache1.deleteHash(5);
-        cache1.deleteHash(4);
 
         final VirtualNodeCache cache2 = cache1.copy();
         cache1.putHash(leftLeftInternal());
-        cache2.deleteHash(4);
-        cache2.deleteHash(3);
-        cache2.deleteHash(2);
-        cache2.deleteHash(1);
-        cache2.deleteHash(0);
 
         cache2.copy();
         cache0.seal();
