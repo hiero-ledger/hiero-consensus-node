@@ -16,7 +16,6 @@ import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
@@ -108,15 +107,10 @@ public class DefaultIssDetector implements IssDetector {
     private final long latestFreezeRound;
 
     /**
-     * The state manager that is used to get the current consensus state.
-     */
-    private final SwirldStateManager swirldStateManager;
-
-    /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
      * @param platformContext              the platform context
-     * @param roster                the current roster
+     * @param roster                       the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
      * @param ignoredRound                 a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if
@@ -127,9 +121,7 @@ public class DefaultIssDetector implements IssDetector {
             @NonNull final Roster roster,
             final boolean ignorePreconsensusSignatures,
             final long ignoredRound,
-            final long latestFreezeRound,
-            @NonNull final SwirldStateManager swirldStateManager) {
-        this.swirldStateManager = swirldStateManager;
+            final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
         markerFileWriter = new MarkerFileWriter(platformContext);
 
@@ -193,10 +185,11 @@ public class DefaultIssDetector implements IssDetector {
      * force a decision on the hash, and handle any ISS events that result.
      *
      * @param roundNumber the round that was just completed
+     * @param stateJson the JSON string containing information about the current state
      * @return a list of ISS notifications, which may be empty, but will not contain null
      */
     @NonNull
-    private List<IssNotification> shiftRoundDataWindow(final long roundNumber) {
+    private List<IssNotification> shiftRoundDataWindow(final long roundNumber, @NonNull final String stateJson) {
         if (roundNumber <= previousRound) {
             throw new IllegalArgumentException(
                     "previous round was " + previousRound + ", can't decrease round to " + roundNumber);
@@ -216,7 +209,8 @@ public class DefaultIssDetector implements IssDetector {
 
         previousRound = roundNumber;
         roundData.put(
-                roundNumber, new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), issMetrics));
+                roundNumber,
+                new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), stateJson, issMetrics));
 
         return removedRounds.stream()
                 .map(this::handleRemovedRound)
@@ -267,8 +261,10 @@ public class DefaultIssDetector implements IssDetector {
         try (reservedSignedState) {
             final SignedState state = reservedSignedState.get();
             final long roundNumber = state.getRound();
+            final String stateJson = state.getState().getInfoJson();
 
-            final List<IssNotification> issNotifications = new ArrayList<>(shiftRoundDataWindow(roundNumber));
+            final List<IssNotification> issNotifications =
+                    new ArrayList<>(shiftRoundDataWindow(roundNumber, stateJson));
 
             // Apply any signatures we collected previously that are for this round
             issNotifications.addAll(applySignaturesAndShiftWindow(roundNumber));
@@ -446,10 +442,11 @@ public class DefaultIssDetector implements IssDetector {
     public List<IssNotification> overridingState(@NonNull final ReservedSignedState state) {
         try (state) {
             final long roundNumber = state.get().getRound();
+            final String stateJson = state.get().getState().getInfoJson();
             // this is not practically possible for an ISS to occur for hashes before the state provided
             // in this method. Even if it were to happen, on a reconnect, we are receiving a new state that is fully
             // signed, so any ISSs in the past should be ignored. so we will ignore any ISSs from removed rounds
-            shiftRoundDataWindow(roundNumber);
+            shiftRoundDataWindow(roundNumber, stateJson);
 
             // Apply any signatures we collected previously that are for this round. It is not practically
             // possible for there to be any signatures stored up for this state, but there is no harm in
@@ -525,6 +522,7 @@ public class DefaultIssDetector implements IssDetector {
         final long round = roundHashValidator.getRound();
         final Hash selfHash = roundHashValidator.getSelfStateHash();
         final Hash consensusHash = roundHashValidator.getConsensusHash();
+        final String stateJson = roundHashValidator.getStateJson();
 
         final long skipCount = selfIssRateLimiter.getDeniedRequests();
         if (selfIssRateLimiter.requestAndTrigger()) {
@@ -537,7 +535,6 @@ public class DefaultIssDetector implements IssDetector {
             roundHashValidator.getHashFinder().writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            final String stateJson = swirldStateManager.getConsensusState().getInfoJson();
             logger.fatal(
                     EXCEPTION.getMarker(),
                     new IssPayload(
@@ -573,7 +570,7 @@ public class DefaultIssDetector implements IssDetector {
             writeSkippedLogCount(sb, skipCount);
 
             final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
-            final String stateJson = swirldStateManager.getConsensusState().getInfoJson();
+            final String stateJson = roundHashValidator.getStateJson();
             logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true, stateJson));
         }
     }

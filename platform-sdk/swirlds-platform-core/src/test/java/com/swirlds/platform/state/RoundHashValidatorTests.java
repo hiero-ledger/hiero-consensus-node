@@ -38,6 +38,8 @@ import org.mockito.Mockito;
 class RoundHashValidatorTests {
     private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
 
+    private static final String STATE_JSON = "{}";
+
     static Stream<Arguments> args() {
         return Stream.of(
                 Arguments.of(HashValidityStatus.VALID),
@@ -263,8 +265,8 @@ class RoundHashValidatorTests {
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(
+                round, RosterUtils.computeTotalWeight(roster), STATE_JSON, Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
@@ -309,8 +311,8 @@ class RoundHashValidatorTests {
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(
+                round, RosterUtils.computeTotalWeight(roster), STATE_JSON, Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
@@ -353,8 +355,8 @@ class RoundHashValidatorTests {
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(
+                round, RosterUtils.computeTotalWeight(roster), STATE_JSON, Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
@@ -402,8 +404,8 @@ class RoundHashValidatorTests {
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(
+                round, RosterUtils.computeTotalWeight(roster), STATE_JSON, Mockito.mock(IssMetrics.class));
 
         final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
@@ -435,7 +437,8 @@ class RoundHashValidatorTests {
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator =
+                new RoundHashValidator(round, totalWeight, STATE_JSON, Mockito.mock(IssMetrics.class));
 
         long addedWeight = 0;
 
@@ -475,7 +478,8 @@ class RoundHashValidatorTests {
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, HashValidityStatus.VALID);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator =
+                new RoundHashValidator(round, totalWeight, STATE_JSON, Mockito.mock(IssMetrics.class));
 
         assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
 
@@ -519,7 +523,8 @@ class RoundHashValidatorTests {
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, HashValidityStatus.CATASTROPHIC_ISS);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator =
+                new RoundHashValidator(round, totalWeight, STATE_JSON, Mockito.mock(IssMetrics.class));
 
         assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
 

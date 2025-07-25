@@ -112,7 +112,7 @@ public class IssPayload extends AbstractLogPayload {
      */
     @JsonRawValue
     public String getStateJson() {
-        return stateJson;
+        return (stateJson == null || stateJson.isEmpty()) ? null : stateJson;
     }
 
     /**
