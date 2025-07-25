@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
@@ -18,6 +19,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  *
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
+@SuppressWarnings("unused")
 public interface Network {
 
     /**
@@ -48,8 +50,10 @@ public interface Network {
      * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}. It will wait for a environment-specific timeout
      * before throwing an exception if the nodes do not reach the {@code ACTIVE} state. The default can be overridden by
      * calling {@link #withTimeout(Duration)}.
+     *
+     * @throws InterruptedException if the thread is interrupted while starting the network
      */
-    void start();
+    void start() throws InterruptedException;
 
     /**
      * Add an instrumented node to the network.
@@ -178,10 +182,19 @@ public interface Network {
     MultipleNodeReconnectResults newReconnectResults();
 
     /**
+     * Creates a new result with all marker file results of all nodes that are currently in the network.
+     *
+     * @return the marker file results of the nodes
+     */
+    @NonNull
+    MultipleNodeMarkerFileResults newMarkerFileResults();
+
+    /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
      * its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
+     * @return {@code true} if the node is behind by node weight, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
@@ -192,6 +205,7 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @param fraction the fraction of peers to consider for the behind check
+     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);

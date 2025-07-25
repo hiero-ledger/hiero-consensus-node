@@ -42,6 +42,11 @@ public class HappyPathTest {
         assertContinuouslyThat(network.newPlatformStatusResults())
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
+        assertContinuouslyThat(network.newMarkerFileResults())
+                .haveNoNoSuperMajorityMarkerFiles()
+                .haveNoNoJudgesMarkerFiles()
+                .haveNoConsensusExceptionMarkerFiles()
+                .haveNoIssMarkerFiles();
 
         network.start();
 

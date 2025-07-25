@@ -26,16 +26,19 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -120,7 +123,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
+    public void start() throws InterruptedException {
         defaultStartAction.start();
     }
 
@@ -228,6 +231,17 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public MultipleNodeMarkerFileResults newMarkerFileResults() {
+        final List<SingleNodeMarkerFileResult> results =
+                getNodes().stream().map(Node::newMarkerFileResult).toList();
+        return new MultipleNodeMarkerFileResultsImpl(results);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
         final Set<Node> otherNodes = getNodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
@@ -320,7 +334,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() {
+        public void start() throws InterruptedException {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");
@@ -341,7 +355,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void freeze() {
+        public void freeze() throws InterruptedException {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 

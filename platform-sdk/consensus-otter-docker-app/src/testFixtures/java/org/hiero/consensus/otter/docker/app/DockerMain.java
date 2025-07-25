@@ -6,6 +6,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -29,21 +30,15 @@ public final class DockerMain {
     private final Server grpcServer;
 
     /**
-     * Constructs a {@link DockerMain} instance using the default single-threaded executor.
-     */
-    private DockerMain() {
-        this(createDefaultExecutor());
-    }
-
-    /**
      * Constructs a {@link DockerMain} instance with a custom {@link ExecutorService}.
      *
-     * @param executor the {@link ExecutorService} to use for managing threads in the gRPC server
-     * @throws NullPointerException if {@code executor} is {@code null}
+     * @param dispatchExecutor the {@link ExecutorService} to use for managing threads in the gRPC server
+     * @param backgroundExecutor the {@link Executor} to use for background tasks
+     * @throws NullPointerException if {@code dispatchExecutor} is {@code null}
      */
-    public DockerMain(@NonNull final ExecutorService executor) {
+    public DockerMain(@NonNull final ExecutorService dispatchExecutor, @NonNull final Executor backgroundExecutor) {
         grpcServer = ServerBuilder.forPort(GRPC_PORT)
-                .addService(new DockerManager(executor))
+                .addService(new DockerManager(dispatchExecutor, backgroundExecutor))
                 .build();
     }
 
@@ -55,7 +50,7 @@ public final class DockerMain {
      *
      * @return a single-threaded {@link ExecutorService} with custom thread factory
      */
-    private static ExecutorService createDefaultExecutor() {
+    private static ExecutorService createDispatchExecutor() {
         final ThreadFactory factory = r -> {
             final Thread t = new Thread(r, DEFAULT_GRPC_THREAD_NAME);
             t.setDaemon(true);
@@ -77,7 +72,7 @@ public final class DockerMain {
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
         LogConfigBuilder.configureNode(Path.of(""));
-        new DockerMain().startGrpcServer();
+        new DockerMain(createDispatchExecutor(), Executors.newCachedThreadPool()).startGrpcServer();
     }
 
     /**

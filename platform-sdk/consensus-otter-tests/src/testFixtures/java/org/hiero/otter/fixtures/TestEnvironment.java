@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 
 /**
  * Interface representing the test environment of an Otter test.
@@ -43,7 +42,6 @@ public interface TestEnvironment {
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the destruction
      * process to complete causing the test to fail.
-     * @throws IOException if an I/O error occurs during the destruction process, causing the test to fail.
      */
-    void destroy() throws InterruptedException, IOException;
+    void destroy() throws InterruptedException;
 }
