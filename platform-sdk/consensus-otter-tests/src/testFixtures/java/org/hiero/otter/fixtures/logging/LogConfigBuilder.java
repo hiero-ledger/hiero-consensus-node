@@ -66,7 +66,8 @@ public final class LogConfigBuilder {
             "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
     /** Pattern used when JVM thread-local context is used to separate nodes */
-    private static final String NODE_PATTERN = "%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
+    private static final String NODE_PATTERN =
+            "%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
     private LogConfigBuilder() {
         // utility
@@ -93,26 +94,22 @@ public final class LogConfigBuilder {
      */
     public static void configure(final Path defaultLogDir, final Map<NodeId, Path> nodeLogDirs) {
         requireNonNull(defaultLogDir, "defaultLogDir must not be null");
-        final Map<NodeId, Path> safeCopy = nodeLogDirs == null
-                ? Map.of()
-                : new ConcurrentHashMap<>(nodeLogDirs);
+        final Map<NodeId, Path> safeCopy = nodeLogDirs == null ? Map.of() : new ConcurrentHashMap<>(nodeLogDirs);
 
-        final ConfigurationBuilder<BuiltConfiguration> builder =
-                ConfigurationBuilderFactory.newConfigurationBuilder();
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
 
-        final LayoutComponentBuilder standardLayout = builder.newLayout("PatternLayout")
-                .addAttribute("pattern", DEFAULT_PATTERN);
-        final LayoutComponentBuilder nodeLayout = builder.newLayout("PatternLayout")
-                .addAttribute("pattern", NODE_PATTERN);
+        final LayoutComponentBuilder standardLayout =
+                builder.newLayout("PatternLayout").addAttribute("pattern", DEFAULT_PATTERN);
+        final LayoutComponentBuilder nodeLayout =
+                builder.newLayout("PatternLayout").addAttribute("pattern", NODE_PATTERN);
 
         final FilterComponentBuilder thresholdInfoFilter = builder.newFilter(
-                "ThresholdFilter", Result.NEUTRAL, Result.DENY)
+                        "ThresholdFilter", Result.NEUTRAL, Result.DENY)
                 .addAttribute("level", Level.INFO);
 
         final ComponentBuilder<?> allowedMarkerFilters = builder.newComponent("filters");
         for (final String marker : ALLOWED_MARKERS) {
-            allowedMarkerFilters.addComponent(builder.newFilter(
-                    "MarkerFilter", Result.ACCEPT, Result.NEUTRAL)
+            allowedMarkerFilters.addComponent(builder.newFilter("MarkerFilter", Result.ACCEPT, Result.NEUTRAL)
                     .addAttribute("marker", marker));
         }
         // deny everything else
@@ -125,8 +122,7 @@ public final class LogConfigBuilder {
         // Filter for STATE_HASH only (hash-stream file)
         final ComponentBuilder<?> hashStreamFilter = builder.newComponent("filters")
                 .addComponent(thresholdInfoFilter)
-                .addComponent(builder.newFilter(
-                        "MarkerFilter", Result.ACCEPT, Result.DENY)
+                .addComponent(builder.newFilter("MarkerFilter", Result.ACCEPT, Result.DENY)
                         .addAttribute("marker", HASH_STREAM_MARKER));
 
         final Map<String, String> createdFileAppenderNames = new ConcurrentHashMap<>();
@@ -136,9 +132,17 @@ public final class LogConfigBuilder {
         if (safeCopy.isEmpty()) {
             // single JVM-wide configuration
             sources = List.of();
-            final String fileAppender = addFileAppender(builder, "FileLogger", standardLayout, markersAndThreshold,
+            final String fileAppender = addFileAppender(
+                    builder,
+                    "FileLogger",
+                    standardLayout,
+                    markersAndThreshold,
                     defaultLogDir.resolve("swirlds.log").toString());
-            final String hashAppender = addFileAppender(builder, "HashStreamLogger", standardLayout, hashStreamFilter,
+            final String hashAppender = addFileAppender(
+                    builder,
+                    "HashStreamLogger",
+                    standardLayout,
+                    hashStreamFilter,
                     defaultLogDir.resolve("swirlds-hashstream.log").toString());
             createdFileAppenderNames.put("GLOBAL", fileAppender);
             createdHashAppenderNames.put("GLOBAL", hashAppender);
@@ -150,10 +154,22 @@ public final class LogConfigBuilder {
                 final String fileAppenderName = "FileLogger-" + nodeIdString;
                 final String hashAppenderName = "HashStreamLogger-" + nodeIdString;
 
-                addFileAppender(builder, fileAppenderName, standardLayout, markersAndThreshold,
-                        entry.getValue().resolve("swirlds-" + nodeIdString + ".log").toString());
-                addFileAppender(builder, hashAppenderName, standardLayout, hashStreamFilter,
-                        entry.getValue().resolve("swirlds-hashstream-" + nodeIdString + ".log").toString());
+                addFileAppender(
+                        builder,
+                        fileAppenderName,
+                        standardLayout,
+                        markersAndThreshold,
+                        entry.getValue()
+                                .resolve("swirlds-" + nodeIdString + ".log")
+                                .toString());
+                addFileAppender(
+                        builder,
+                        hashAppenderName,
+                        standardLayout,
+                        hashStreamFilter,
+                        entry.getValue()
+                                .resolve("swirlds-hashstream-" + nodeIdString + ".log")
+                                .toString());
 
                 createdFileAppenderNames.put(nodeIdString, fileAppenderName);
                 createdHashAppenderNames.put(nodeIdString, hashAppenderName);
@@ -204,11 +220,12 @@ public final class LogConfigBuilder {
      *
      * @return the name of the created appender
      */
-    private static String addFileAppender(final ConfigurationBuilder<BuiltConfiguration> builder,
-                                          final String name,
-                                          final LayoutComponentBuilder layout,
-                                          final ComponentBuilder<?> filters,
-                                          final String fileName) {
+    private static String addFileAppender(
+            final ConfigurationBuilder<BuiltConfiguration> builder,
+            final String name,
+            final LayoutComponentBuilder layout,
+            final ComponentBuilder<?> filters,
+            final String fileName) {
         final AppenderComponentBuilder appender = builder.newAppender(name, "File")
                 .addAttribute("fileName", fileName)
                 .addAttribute("append", true)
@@ -217,4 +234,4 @@ public final class LogConfigBuilder {
         builder.add(appender);
         return name;
     }
-} 
+}
