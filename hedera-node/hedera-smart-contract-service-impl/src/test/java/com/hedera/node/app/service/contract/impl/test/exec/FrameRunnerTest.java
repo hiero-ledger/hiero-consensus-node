@@ -24,13 +24,18 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
@@ -40,6 +45,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailur
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -50,7 +56,9 @@ import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.frame.MessageFrame.Type;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +75,9 @@ class FrameRunnerTest {
 
     @Mock
     private MessageFrame frame;
+
+    @Mock
+    private MessageFrame lasMessageFrame;
 
     @Mock
     private ProxyWorldUpdater worldUpdater;
@@ -88,6 +99,9 @@ class FrameRunnerTest {
 
     @Mock
     private EntityIdFactory entityIdFactory;
+
+    @Mock
+    final Deque<MessageFrame> mockedStack = new ArrayDeque<>();
 
     private final PropagatedCallFailureRef propagatedCallFailure = new PropagatedCallFailureRef();
 
@@ -246,6 +260,7 @@ class FrameRunnerTest {
                 .build();
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -259,6 +274,97 @@ class FrameRunnerTest {
         assertFailureExpectationsWith(frame, result);
         assertEquals(INSUFFICIENT_CHILD_RECORDS, result.haltReason());
         assertNull(result.revertReason());
+    }
+
+    @Test
+    void propagatesResourceExhaustedException() {
+        final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
+
+        // Setup basic scenario
+        // Only set up the minimal required mocks
+        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
+        messageFrameStack.addFirst(frame);
+        given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
+        given(frame.getType()).willReturn(Type.MESSAGE_CALL);
+        given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+
+        final var contractId = ContractID.newBuilder()
+                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.toArray()))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+
+        // Configure messageCallProcessor to throw ResourceExhaustedException
+        doThrow(new ResourceExhaustedException(ResponseCodeEnum.THROTTLED_AT_CONSENSUS))
+                .when(messageCallProcessor)
+                .process(frame, tracer);
+
+        // The exception should propagate through the method
+        assertThrows(
+                ResourceExhaustedException.class,
+                () -> subject.runToCompletion(
+                        GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor));
+
+        // Verify method calls before the exception
+        inOrder.verify(tracer).traceOriginAction(frame);
+        inOrder.verify(messageCallProcessor).process(frame, tracer);
+
+        // Verify sanitizeTracedActions was NOT called (since exception is propagated)
+        verify(tracer, never()).sanitizeTracedActions(frame);
+    }
+
+    @Test
+    void handlesGenericExceptionGracefully() {
+        // Setup minimal required mocks
+        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
+        messageFrameStack.addFirst(frame);
+
+        // Basic frame setup
+        given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
+        given(frame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
+        given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+
+        // Gas calculation setup
+        given(frame.getRemainingGas()).willReturn(GAS_LIMIT / 2);
+        given(gasCalculator.getMaxRefundQuotient()).willReturn(BESU_MAX_REFUND_QUOTIENT);
+        given(frame.getGasRefund()).willReturn(GAS_LIMIT / 8);
+        given(frame.getGasPrice()).willReturn(Wei.of(NETWORK_GAS_PRICE));
+
+        // Context variables
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.maxRefundPercentOfGasLimit", HEDERA_MAX_REFUND_PERCENTAGE)
+                .getOrCreateConfig();
+        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+        given(frame.getContextVariable(FrameUtils.TRACKER_CONTEXT_VARIABLE)).willReturn(null);
+        given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.CODE_SECTION_MISSING));
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+
+        // Contract ID setup
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
+
+        // Exception behavior
+        doThrow(new RuntimeException("Generic processing error"))
+                .when(messageCallProcessor)
+                .process(frame, tracer);
+
+        // Run the method
+        final var result = subject.runToCompletion(
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+
+        // Verify method calls
+        verify(tracer).traceOriginAction(frame);
+        verify(messageCallProcessor).process(frame, tracer);
+        verify(tracer).sanitizeTracedActions(frame);
+
+        // Verify the failure result
+        assertFalse(result.isSuccess());
+        assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
+        assertEquals(Bytes.EMPTY, result.output());
     }
 
     private void assertSuccessExpectationsWith(
@@ -295,6 +401,7 @@ class FrameRunnerTest {
             @NonNull final Address receiver, final boolean success, final boolean receiverSigCheckFailure) {
         final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
         messageFrameStack.addFirst(frame);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(frame.getType()).willReturn(MessageFrame.Type.CONTRACT_CREATION);
         given(childFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         doAnswer(invocation -> {

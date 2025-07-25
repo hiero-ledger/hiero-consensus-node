@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -120,7 +121,8 @@ public class CustomGasCharging {
         validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
-            final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
+            final var gasCost = transaction.gasCostGiven(context.gasPrice());
+            final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction, gasCost);
 
             // Increment nonce right after the gas is charged
             sender.incrementNonce();
@@ -133,17 +135,17 @@ public class CustomGasCharging {
     }
 
     /**
-     * Tries to charge intrinsic gas for the given transaction based on the pre-fetched sender accountID,
-     * within the given context and world updater.  This is used when transaction are aborted due to an exception check
-     * failure before the transaction has started execution in the EVM.
+     * If the transaction is aborted with a HandleException, adjust the gas charging events in the world updater
+     * to reflect the correct gas charges for the transaction.
      *
      * @param sender  the sender accountID
      * @param context the context of the transaction, including the network gas price
      * @param worldUpdater the world updater for the transaction
      * @param transaction the transaction to charge gas for
+     * @return intrinsic gas charged for the transaction or 0 if no gas was charged
      * @throws HandleException if the gas charging fails for any reason
      */
-    public void chargeGasForAbortedTransaction(
+    public long possiblyChargeGasForAbortedTransaction(
             @NonNull final AccountID sender,
             @NonNull final HederaEvmContext context,
             @NonNull final HederaWorldUpdater worldUpdater,
@@ -153,15 +155,58 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false);
+        /*
+         * There are several possibilities to consider here:
+         * 1. The transaction could have been aborted during parsing before any gas was charged. In this case charge intrinsic gas to payer if possible.
+         * 2. The transaction could have been aborted with a ResourceExhaustedException, which means we need to remove all gas charging events and
+         *     a. If the transaction is an Ethereum transaction, charge the relayer or sender for the intrinsic gas based on gas price.
+         *     b. otherwise, charge the sender for the intrinsic gas.
+         * In all other cases do nothing as the gas charging events are correct - even in the case of a non ResourceExhaustedException exception
+         * in which case the refund is already handled in the {@link FrameRunner#runToCompletion} method.
+         *
+         */
 
-        if (transaction.isEthereumTransaction()) {
-            final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
-            worldUpdater.collectGasFee(transaction.relayerId(), fee, false);
-        } else {
-            final var fee = feeForAborted(sender, context, worldUpdater, intrinsicGas);
-            worldUpdater.collectGasFee(sender, fee, false);
+        final var intrinsicGas =
+                gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate());
+        if (!worldUpdater.hasGasChargingEvents()) {
+            return chargeSenderIntrinsicGas(sender, context, worldUpdater, intrinsicGas);
         }
+        if (transaction.exception() instanceof ResourceExhaustedException) {
+            worldUpdater.resetGasChargingEvents();
+            if (transaction.isEthereumTransaction()) {
+                final var senderAccount = worldUpdater.getHederaAccount(sender);
+                final var relayerAccount = worldUpdater.getHederaAccount(requireNonNull(transaction.relayerId()));
+                if (senderAccount == null || relayerAccount == null) {
+                    return chargeSenderIntrinsicGas(sender, context, worldUpdater, intrinsicGas);
+                }
+                chargeWithRelayer(
+                        senderAccount,
+                        relayerAccount,
+                        context,
+                        worldUpdater,
+                        transaction,
+                        gasCostGiven(intrinsicGas, context.gasPrice()));
+                return intrinsicGas;
+            } else {
+                return chargeSenderIntrinsicGas(sender, context, worldUpdater, intrinsicGas);
+            }
+        }
+        return 0;
+    }
+
+    private long chargeSenderIntrinsicGas(
+            @NonNull AccountID sender,
+            @NonNull HederaEvmContext context,
+            @NonNull HederaWorldUpdater worldUpdater,
+            long intrinsicGas) {
+
+        if (worldUpdater.getHederaAccount(sender) != null) {
+            final var fee =
+                    feeForAborted(sender, context, worldUpdater, gasCostGiven(intrinsicGas, context.gasPrice()));
+            worldUpdater.collectGasFee(sender, fee, false);
+            return intrinsicGas;
+        }
+        return 0;
     }
 
     private long feeForAborted(
@@ -195,13 +240,13 @@ public class CustomGasCharging {
         worldUpdater.collectGasFee(sender.hederaId(), transaction.gasCostGiven(context.gasPrice()), false);
     }
 
-    private long chargeWithRelayer(
+    public long chargeWithRelayer(
             @NonNull final HederaEvmAccount sender,
             @NonNull final HederaEvmAccount relayer,
             @NonNull final HederaEvmContext context,
             @NonNull final HederaWorldUpdater worldUpdater,
-            @NonNull final HederaEvmTransaction transaction) {
-        final var gasCost = transaction.gasCostGiven(context.gasPrice());
+            @NonNull final HederaEvmTransaction transaction,
+            final long gasCost) {
         final long senderGasCost;
         final long relayerGasCost;
         if (transaction.requiresFullRelayerAllowance()) {

@@ -255,7 +255,22 @@ public class QueryHederaOperations implements HederaOperations {
 
     @Override
     public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
-        throw new UnsupportedOperationException("Queries cannot get original slot usage");
+        throw new UnsupportedOperationException("Queries cannot replay gas charging events");
+    }
+
+    @Override
+    public void resetGasChargingEvents() {
+        throw new UnsupportedOperationException("Queries do not have gas charging events");
+    }
+
+    @Override
+    public boolean hasGasChargingEvents() {
+        return false;
+    }
+
+    @Override
+    public boolean hasRefundGasFeeEvents() {
+        return false;
     }
 
     @Override

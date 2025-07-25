@@ -138,6 +138,17 @@ class HederaEvmTransactionResultTest {
     }
 
     @Test
+    void statusWithGasUsedTest() {
+        final var subject =
+                HederaEvmTransactionResult.fromAborted(SENDER_ID, CALLED_CONTRACT_ID, CONTRACT_EXECUTION_EXCEPTION);
+        assertEquals(CONTRACT_EXECUTION_EXCEPTION, subject.finalStatus());
+
+        assertEquals(0, subject.gasUsed());
+        var newSubject = subject.withGasUsed(100);
+        assertEquals(100, newSubject.gasUsed());
+    }
+
+    @Test
     void finalStatusFromIpbAbortTranslated() {
         final var subject =
                 HederaEvmTransactionResult.fromAborted(SENDER_ID, CALLED_CONTRACT_ID, INSUFFICIENT_PAYER_BALANCE);

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.scope;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
@@ -15,6 +16,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.QueryHederaOperations;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -40,6 +42,10 @@ class QueryHederaOperationsTest {
     @Mock
     private TinybarValues tinybarValues;
 
+    @Mock
+    private FeeCharging.Context feeChargingContext;
+
+    @Mock
     private QueryHederaOperations subject;
 
     private ContractID contractID;
@@ -113,8 +119,20 @@ class QueryHederaOperationsTest {
     }
 
     @Test
+    void replayGasChargingNotSupported() {
+        assertThrows(UnsupportedOperationException.class, () -> subject.replayGasChargingIn(feeChargingContext));
+    }
+
+    @Test
     void chargingStorageRentNotSupported() {
         assertThrows(UnsupportedOperationException.class, () -> subject.chargeStorageRent(anotherContractID, 2L, true));
+    }
+
+    @Test
+    void infoAboutGasChargingEventsTests() {
+        assertThrows(UnsupportedOperationException.class, subject::resetGasChargingEvents);
+        assertFalse(subject::hasGasChargingEvents);
+        assertFalse(subject::hasRefundGasFeeEvents);
     }
 
     @Test

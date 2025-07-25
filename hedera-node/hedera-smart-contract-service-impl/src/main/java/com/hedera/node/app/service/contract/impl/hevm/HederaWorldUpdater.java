@@ -140,6 +140,23 @@ public interface HederaWorldUpdater extends WorldUpdater {
     void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
+     * Remove all the stored gas charging events in the world updater.
+     * This in effect resets the gas charging events stored for this transaction so that only the intrinsic gas can be charged.
+     * This should only be used in certain exception cases (e.g. ops duration throttle reached).
+     */
+    void resetGasChargingEvents();
+
+    /**
+     * Returns whether there are any gas charging events in this scope.
+     */
+    boolean hasGasChargingEvents();
+
+    /**
+     * Returns whether any of the gas charging events in this scope are refunds.
+     */
+    boolean hasRefundGasFeeEvents();
+
+    /**
      * Tries to transfer the given amount from a sending contract to the recipient. The sender
      * has already authorized this action, in the sense that it is the address that has initiated
      * either a message call with value or a {@code selfdestruct}. The recipient, however, must

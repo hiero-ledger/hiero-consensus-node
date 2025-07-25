@@ -199,6 +199,21 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         enhancement.operations().refundGasFee(payerId, amount);
     }
 
+    @Override
+    public void resetGasChargingEvents() {
+        enhancement.operations().resetGasChargingEvents();
+    }
+
+    @Override
+    public boolean hasGasChargingEvents() {
+        return enhancement.operations().hasGasChargingEvents();
+    }
+
+    @Override
+    public boolean hasRefundGasFeeEvents() {
+        return enhancement.operations().hasRefundGasFeeEvents();
+    }
+
     /**
      * {@inheritDoc}
      */
