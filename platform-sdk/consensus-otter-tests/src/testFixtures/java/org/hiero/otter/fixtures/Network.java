@@ -138,44 +138,44 @@ public interface Network {
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of all nodes that are currently in the network.
+     * Creates a new result with all the consensus rounds of all nodes that are currently in the network.
      *
      * @return the consensus rounds of the filtered nodes
      */
     @NonNull
-    MultipleNodeConsensusResults getConsensusResults();
+    MultipleNodeConsensusResults newConsensusResults();
 
     /**
-     * Gets the log results of all nodes that are currently in the network.
+     * Creates a new result with all the log results of all nodes that are currently in the network.
      *
      * @return the log results of the nodes
      */
     @NonNull
-    MultipleNodeLogResults getLogResults();
+    MultipleNodeLogResults newLogResults();
 
     /**
-     * Gets the status progression results of all nodes that are currently in the network.
+     * Creates a new result with all the status progression results of all nodes that are currently in the network.
      *
      * @return the status progression results of the nodes
      */
     @NonNull
-    MultipleNodePlatformStatusResults getPlatformStatusResults();
+    MultipleNodePlatformStatusResults newPlatformStatusResults();
 
     /**
-     * Gets the results related to PCES files of all nodes that are currently in the network.
+     * Creates a new result with all the PCES file results of all nodes that are currently in the network.
      *
      * @return the PCES files created by the nodes
      */
     @NonNull
-    MultipleNodePcesResults getPcesResults();
+    MultipleNodePcesResults newPcesResults();
 
     /**
-     * Gets the results related to node reconnects of all nodes that are currently in the network.
+     * Creates a new result with all node reconnect results of all nodes that are currently in the network.
      *
      * @return the results of node reconnects
      */
     @NonNull
-    MultipleNodeReconnectResults getReconnectResults();
+    MultipleNodeReconnectResults newReconnectResults();
 
     /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
