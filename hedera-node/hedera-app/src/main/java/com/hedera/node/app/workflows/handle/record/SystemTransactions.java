@@ -199,8 +199,12 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(state);
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
-        final var systemContext =
-                newSystemContext(now, state, dispatch -> onSuccess.get().accept(dispatch), true);
+        final var systemContext = newSystemContext(
+                now,
+                state,
+                dispatch -> onSuccess.get().accept(dispatch),
+                UseReservedConsensusTimes.YES,
+                TriggerStakePeriodSideEffects.NO);
 
         final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
@@ -338,7 +342,8 @@ public class SystemTransactions {
      * @param state the state to set up
      */
     public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
@@ -412,7 +417,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -474,7 +480,8 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
@@ -601,7 +608,7 @@ public class SystemTransactions {
      *
      * @param firstEventTime the timestamp of the first event in the current round
      */
-    public Instant restartSystemChangesTimeAt(@NonNull final Instant firstEventTime) {
+    public Instant firstReservedSystemTimeFor(@NonNull final Instant firstEventTime) {
         requireNonNull(firstEventTime);
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -619,13 +626,33 @@ public class SystemTransactions {
                                 : 0);
     }
 
+    /**
+     * Whether a context for system transactions should use reserved prior consensus times, or pick up from
+     * the time given to the transaction context factory.
+     */
+    private enum UseReservedConsensusTimes {
+        YES,
+        NO
+    }
+
+    /**
+     * Whether the dispatches in a context for system transactions should trigger stake period boundary
+     * side effects.
+     */
+    private enum TriggerStakePeriodSideEffects {
+        YES,
+        NO
+    }
+
     private SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isGenesis) {
+            @NonNull final UseReservedConsensusTimes useReservedConsensusTimes,
+            @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
         final var config = configProvider.getConfiguration();
-        final var firstConsTime = isGenesis ? restartSystemChangesTimeAt(now) : now;
+        final var firstConsTime =
+                useReservedConsensusTimes == UseReservedConsensusTimes.YES ? firstReservedSystemTimeFor(now) : now;
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
                 config.getConfigData(AccountsConfig.class).systemAdmin());
@@ -646,7 +673,7 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0, isGenesis);
+                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
             }
 
             @Override
@@ -666,17 +693,27 @@ public class SystemTransactions {
             @Override
             public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
                 requireNonNull(body);
-                dispatch(body, entityNum, isGenesis);
+                dispatch(body, entityNum, triggerStakePeriodSideEffects);
             }
 
-            private void dispatch(final @NonNull TransactionBody body, final long entityNum, boolean isGenesis) {
+            private void dispatch(
+                    @NonNull final TransactionBody body,
+                    final long entityNum,
+                    @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
                 // System dispatches never have child transactions, so one nano is enough to separate them
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
                 }
-                final var handleOutput =
-                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess, isGenesis);
+                final var handleOutput = executeSystem(
+                        state,
+                        now,
+                        creatorInfo,
+                        systemAdminId,
+                        body,
+                        entityNum,
+                        onSuccess,
+                        triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES);
                 if (streamMode != BLOCKS) {
                     final var records =
                             ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
@@ -724,7 +761,7 @@ public class SystemTransactions {
      * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
      * @param onSuccess the action to take after the transaction is successfully dispatched
-     * @param isGenesis the flag indicating if this is a genesis transaction
+     * @param applyStakePeriodSideEffects the flag indicating if this is a genesis transaction
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -735,12 +772,12 @@ public class SystemTransactions {
             @NonNull final TransactionBody body,
             final long nextEntityNum,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isGenesis) {
+            final boolean applyStakePeriodSideEffects) {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
-        stakePeriodChanges.advanceTimeTo(parentTxn, !isGenesis);
+        stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         if (streamMode != BLOCKS) {
             // This updates consTimeOfLastHandledTxn as a side effect
             blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
