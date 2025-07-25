@@ -7,7 +7,7 @@ import java.util.List;
 import org.hiero.otter.fixtures.Node;
 
 /**
- * Interface that provides access to the results related to PCES files.
+ * Interface that provides access to the results related to reconnects.
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
@@ -41,4 +41,11 @@ public interface MultipleNodeReconnectResults {
     default MultipleNodeReconnectResults suppressingNode(@NonNull final Node node) {
         return suppressingNode(node.selfId());
     }
+
+    /**
+     * Subscribes to log entries logged by the nodes.
+     *
+     * @param subscriber the subscriber that will receive the log entries
+     */
+    void subscribe(@NonNull LogSubscriber subscriber);
 }
