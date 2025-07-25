@@ -20,11 +20,13 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.platform.fs.stresstest.proto.RandomBytesTransaction;
@@ -69,6 +71,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.transaction.TransactionConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -157,38 +160,6 @@ class PlatformTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
-    void handleConsensusRoundWithDisabledAppendSig() {
-        // Given
-        givenInitState(CONFIG_WITHOUT_APPEND_SIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
     void handleConsensusRoundWithMultipleSystemTransaction() {
         // Given
         givenInitState(DEFAULT_CONFIG);
@@ -205,7 +176,8 @@ class PlatformTestingToolStateTest {
                 .thenReturn(List.of(transaction, secondConsensusTransaction, thirdConsensusTransaction)
                         .iterator());
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -257,7 +229,8 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -278,7 +251,8 @@ class PlatformTestingToolStateTest {
         // Given
         givenInitState(DEFAULT_CONFIG);
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitSystemTransaction(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes = main.getTransactions().getFirst();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
@@ -378,6 +352,10 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
+        when(platformContext.getConfiguration())
+                .thenReturn(new TestConfigBuilder()
+                        .withConfigDataType(TransactionConfig.class)
+                        .getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {
@@ -406,10 +384,16 @@ class PlatformTestingToolStateTest {
         final Metric metric = mock(SpeedometerMetric.class);
         final Counter counter = mock(Counter.class);
         final RunningAverageMetric runningAverageMetric = mock(RunningAverageMetric.class);
+        final FunctionGauge functionGauge = mock(FunctionGauge.class);
 
         final DefaultPlatformMetrics metrics = mock(DefaultPlatformMetrics.class);
         when(metrics.getOrCreate(any()))
                 .thenReturn(
+                        metric,
+                        metric,
+                        metric,
+                        functionGauge,
+                        functionGauge,
                         metric,
                         metric,
                         metric,

@@ -41,6 +41,7 @@ import org.hiero.base.crypto.test.fixtures.ECDSASigningProvider;
 import org.hiero.base.crypto.test.fixtures.ED25519SigningProvider;
 import org.hiero.base.crypto.test.fixtures.SigningProvider;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with Ed25519 signatures.
@@ -131,6 +132,7 @@ public class PttTransactionPool implements FastCopyable {
      */
     public PttTransactionPool(
             final Platform platform,
+            final TransactionPoolNexus transactionPool,
             final long myID,
             final PayloadConfig config,
             final String myName,
@@ -150,8 +152,8 @@ public class PttTransactionPool implements FastCopyable {
         this.initTime = Instant.now();
 
         if (fcmConfig != null) {
-            fcmTransactionPool =
-                    new FCMTransactionPool(platform, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
+            fcmTransactionPool = new FCMTransactionPool(
+                    platform, transactionPool, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
         }
 
         if (virtualMerkleConfig != null) {
@@ -174,6 +176,7 @@ public class PttTransactionPool implements FastCopyable {
 
     public PttTransactionPool(
             final Platform platform,
+            final TransactionPoolNexus transactionPool,
             final long myID,
             final PayloadConfig config,
             final String myName,
@@ -185,6 +188,7 @@ public class PttTransactionPool implements FastCopyable {
             final ExpectedFCMFamily expectedFCMFamily) {
         this(
                 platform,
+                transactionPool,
                 myID,
                 config,
                 myName,

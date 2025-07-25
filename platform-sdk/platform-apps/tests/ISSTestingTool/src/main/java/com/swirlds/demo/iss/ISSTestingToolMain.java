@@ -25,6 +25,9 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * An application that can be made to ISS in controllable ways.
@@ -58,6 +61,8 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     }
 
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
 
     /**
      * Constructor
@@ -72,6 +77,9 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public void init(final Platform platform, final NodeId id) {
         this.platform = platform;
+        transactionPool = new TransactionPoolNexus(
+                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                platform.getContext().getMetrics());
 
         platform.getNotificationEngine().register(IssListener.class, this::issListener);
     }
@@ -91,7 +99,8 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, testingToolConfig.transactionsPerSecond()).start();
+        new TransactionGenerator(new Random(), platform, transactionPool, testingToolConfig.transactionsPerSecond())
+                .start();
     }
 
     /**
@@ -139,7 +148,23 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     }
 
     @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
+    }
+
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        transactionPool.updatePlatformStatus(platformStatus);
     }
 }

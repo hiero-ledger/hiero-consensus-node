@@ -90,6 +90,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -178,8 +179,23 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
-        return hedera.encodeSystemTransaction(transaction);
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        hederaOrThrow().submitSystemTransaction(transaction);
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return hederaOrThrow().hasBufferedSignatureTransactions();
+    }
+
+    @Override
+    public @NonNull List<Bytes> getTransactions() {
+        return hederaOrThrow().getTransactions();
+    }
+
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        hederaOrThrow().updatePlatformStatus(platformStatus);
     }
 
     /**
@@ -361,7 +377,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(hedera::encodeSystemTransaction);
+                .withExecutionCallback(hedera);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
 

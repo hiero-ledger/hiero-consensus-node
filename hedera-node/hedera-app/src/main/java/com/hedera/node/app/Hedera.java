@@ -117,8 +117,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -173,6 +171,8 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /*
  ****************        ****************************************************************************************
@@ -203,7 +203,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
@@ -315,6 +315,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * The Hashgraph Platform. This is set during state initialization.
      */
     private Platform platform;
+    /** the transaction pool, stores transactions that should be sumbitted to the network */
+    private TransactionPoolNexus transactionPool;
     /**
      * The current status of the platform.
      */
@@ -601,8 +603,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     }
 
     @Override
-    public void notify(@NonNull final PlatformStatusChangeNotification notification) {
-        this.platformStatus = notification.getNewStatus();
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        this.platformStatus = platformStatus;
+        transactionPool.updatePlatformStatus(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         final var streamToBlockNodes = configProvider
                 .getConfiguration()
@@ -722,6 +725,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
+        if (transactionPool == null) {
+            transactionPool = new TransactionPoolNexus(
+                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                    platform.getContext().getMetrics());
+        }
         if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
@@ -816,6 +824,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
+        }
+        if (transactionPool == null) {
+            transactionPool = new TransactionPoolNexus(
+                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                    platform.getContext().getMetrics());
         }
         assertEnvSanityChecks(nodeId);
         logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
@@ -1107,8 +1120,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return requireNonNull(genesisNetworkSupplier);
     }
 
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction stateSignatureTransaction) {
+    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         final var nodeAccountID = appContext.selfNodeInfoSupplier().get().accountId();
 
         final var transactionID = TransactionID.newBuilder()
@@ -1129,6 +1141,22 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transaction);
     }
 
+    @Override
+    public void submitSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
+        transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
+    }
+
+    @NonNull
+    @Override
+    public List<Bytes> getTransactions() {
+        return transactionPool.getTransactions();
+    }
+
+    @Override
+    public boolean hasBufferedSignatureTransactions() {
+        return transactionPool.hasBufferedSignatureTransactions();
+    }
+
     /*==================================================================================================================
     *
     * Random private helper methods
@@ -1144,7 +1172,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         // as well as unregister listeners from the last time this method ran
         if (daggerApp != null) {
             shutdownGrpcServer();
-            notifications.unregister(PlatformStatusChangeListener.class, this);
             notifications.unregister(ReconnectCompleteListener.class, daggerApp.reconnectListener());
             notifications.unregister(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
             notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
@@ -1187,6 +1214,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
+                .transactionPool(transactionPool)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())
@@ -1207,7 +1235,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
         logConfiguration();
-        notifications.register(PlatformStatusChangeListener.class, this);
         notifications.register(ReconnectCompleteListener.class, daggerApp.reconnectListener());
         notifications.register(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());

@@ -4,6 +4,7 @@ package com.swirlds.demo.consistency;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.Startable;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
@@ -11,6 +12,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * Generates and submits transactional workload
@@ -24,7 +26,7 @@ public class TransactionGenerator implements Startable {
     /**
      * The platform to submit transactions to
      */
-    private final Platform platform;
+    private final TransactionPoolNexus transactionPool;
 
     /**
      * The thread that generates and submits transactions
@@ -41,10 +43,11 @@ public class TransactionGenerator implements Startable {
     public TransactionGenerator(
             @NonNull final Random random,
             @NonNull final Platform platform,
+            TransactionPoolNexus transactionPool,
             final int networkWideTransactionsPerSecond) {
 
         this.random = Objects.requireNonNull(random);
-        this.platform = Objects.requireNonNull(platform);
+        this.transactionPool = Objects.requireNonNull(transactionPool);
 
         // Each node in an N node network should create 1/N transactions per second.
         final double tps = (double) networkWideTransactionsPerSecond
@@ -72,6 +75,6 @@ public class TransactionGenerator implements Startable {
      * Each transaction consists of a single random long value
      */
     private void generateTransaction() {
-        platform.createTransaction(longToByteArray(random.nextLong()));
+        transactionPool.submitApplicationTransaction(Bytes.wrap(longToByteArray(random.nextLong())));
     }
 }
