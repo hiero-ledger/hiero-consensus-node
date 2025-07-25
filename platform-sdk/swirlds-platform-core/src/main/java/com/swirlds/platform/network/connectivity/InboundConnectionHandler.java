@@ -79,7 +79,9 @@ public class InboundConnectionHandler {
     public void handle(@NonNull final Socket clientSocket) {
         final long acceptTime = time.currentTimeMillis();
         Objects.requireNonNull(clientSocket);
+        String remoteIp = "unknown";
         try {
+            remoteIp = clientSocket.getInetAddress().toString();
             clientSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
             clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
 
@@ -122,7 +124,7 @@ public class InboundConnectionHandler {
             socketExceptionLogger.warn(
                     SOCKET_EXCEPTIONS.getMarker(),
                     "Inbound connection from {} to {} had IOException: {}",
-                    "unknown",
+                    remoteIp,
                     selfId,
                     formattedException);
             NetworkUtils.close(clientSocket);

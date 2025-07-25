@@ -23,6 +23,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.Objects;
+import javax.net.ssl.SSLHandshakeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
@@ -142,6 +143,14 @@ public class OutboundConnectionManager implements ConnectionManager {
                     dis,
                     dos,
                     platformContext.getConfiguration());
+        } catch (final SSLHandshakeException e) {
+            NetworkUtils.close(clientSocket, dis, dos);
+            logger.warn(
+                    SOCKET_EXCEPTIONS.getMarker(),
+                    "{} failed to connect to {} with error: {}",
+                    selfId,
+                    otherPeer.nodeId(),
+                    e.toString());
         } catch (final SocketTimeoutException | SocketException e) {
             NetworkUtils.close(clientSocket, dis, dos);
             logger.debug(
