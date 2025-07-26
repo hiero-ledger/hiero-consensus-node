@@ -1,13 +1,69 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
+name: "ZXF: [CITR] Adhoc - Single Day Longevity NLG Test Controller (SDLnT)"
 on:
   workflow_dispatch:
     inputs:
+      test-asset:
+        required: true
+        default: "Longevity3"
+        description: "Performance test on given namespace"
+        type: choice
+        options:
+          - Longevity3
+          - Longevity4
       ref:
         required: true
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      solo-version:
+        required: true
+        default: "latest_tested_solo-charts0.59"
+        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "180"
+          - "330"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
@@ -68,13 +124,13 @@ jobs:
     uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "Longevity4"
+      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "latest_tested_solo-charts0.59"
-      nlg-accounts: "100000"
-      nlg-time: "3"
-      add-app-props: ""
-      add-settings: ""
+      solo-version: "${{ inputs.solo-version }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       nlg-access-token: ${{ secrets.NLG_ACCESS_TOKEN }}
