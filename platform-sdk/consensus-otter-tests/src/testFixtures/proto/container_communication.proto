@@ -193,15 +193,18 @@ message TransactionRequest {
   bytes payload = 1;
 }
 
+// Response to a transaction submission request.
 message TransactionRequestAnswer {
   // indicator if the platform accepted the transaction
   bool result = 1;
 }
 
+// Request to kill the application immediately.
 message KillImmediatelyRequest {
   google.protobuf.Empty ignore = 1;
 }
 
+// Request to set the synthetic bottleneck.
 message SyntheticBottleneckRequest {
   // The number of milliseconds to sleep per round on the handle thread
   uint64 sleep_millis_per_round = 1;
