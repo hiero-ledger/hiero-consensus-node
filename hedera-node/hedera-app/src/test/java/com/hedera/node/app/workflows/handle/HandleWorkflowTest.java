@@ -276,7 +276,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -330,7 +330,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -390,7 +390,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -459,7 +459,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -502,7 +502,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,

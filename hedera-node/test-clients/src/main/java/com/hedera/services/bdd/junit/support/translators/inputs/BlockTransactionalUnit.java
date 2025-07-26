@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.inputs;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
@@ -52,8 +51,6 @@ public record BlockTransactionalUnit(
                 .orElseThrow();
         // get queue of inner transactions from the atomic batch parts
         final var innerTxns = new ArrayDeque<>(batchParts.body().atomicBatchOrThrow().transactions().stream()
-                .map(txn -> Transaction.PROTOBUF.toBytes(
-                        Transaction.newBuilder().signedTransactionBytes(txn).build()))
                 .map(TransactionParts::from)
                 .toList());
         // Insert the inner transactions into the block transaction parts. Once we insert them, we can

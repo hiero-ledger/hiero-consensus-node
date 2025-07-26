@@ -17,6 +17,7 @@ import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
@@ -36,6 +37,9 @@ class CallOutcomeTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private HandleContext context;
+
     @Test
     void setsAbortCallResult() {
         final var abortedCall = new CallOutcome(
@@ -46,12 +50,11 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 EvmTransactionResult.DEFAULT,
                 null,
+                null,
                 null);
-        abortedCall.addCallDetailsTo(contractCallRecordBuilder);
+        abortedCall.addCallDetailsTo(contractCallRecordBuilder, context);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
 
@@ -67,11 +70,10 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                Bytes.EMPTY);
+                Bytes.EMPTY,
+                null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
@@ -86,10 +88,9 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null);
         assertNull(outcome.recipientIdIfCreated());
     }
@@ -105,10 +106,9 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }

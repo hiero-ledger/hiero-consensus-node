@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -194,7 +193,7 @@ public class ChildDispatchFactory {
                 : getTxnInfoFrom(options.payerId(), body);
         final var streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         final var childStack = SavepointStackImpl.newChildStack(
-                stack, options.reversingBehavior(), options.category(), options.transactionCustomizer(), streamMode);
+                stack, options.reversingBehavior(), options.category(), options.signedTxCustomizer(), streamMode);
         final var streamBuilder =
                 initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), requireNonNull(childTxnInfo));
         return newChildDispatch(
@@ -491,14 +490,9 @@ public class ChildDispatchFactory {
         requireNonNull(payerId);
         requireNonNull(txBody);
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
-        final var signedTransaction =
-                SignedTransaction.newBuilder().bodyBytes(bodyBytes).build();
-        final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
+        final var signedTx = SignedTransaction.newBuilder().bodyBytes(bodyBytes).build();
         return new TransactionInfo(
-                transaction,
+                signedTx,
                 txBody,
                 txBody.transactionIDOrElse(TransactionID.DEFAULT),
                 payerId,
@@ -530,9 +524,8 @@ public class ChildDispatchFactory {
      */
     private StreamBuilder initializedForChild(
             @NonNull final StreamBuilder builder, @NonNull final TransactionInfo txnInfo) {
-        builder.transaction(txnInfo.transaction())
+        builder.signedTx(txnInfo.signedTx())
                 .functionality(txnInfo.functionality())
-                .transactionBytes(txnInfo.transaction().signedTransactionBytes())
                 .memo(txnInfo.txBody().memo());
         final var transactionID = txnInfo.txBody().transactionID();
         if (transactionID != null) {

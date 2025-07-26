@@ -8,10 +8,10 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
@@ -119,13 +119,13 @@ public interface SystemContractOperations {
      *
      * @param result contract function result
      * @param responseStatus response status
-     * @param transaction transaction
+     * @param signedTx transaction
      * @param txResult the concise EVM transaction result
      */
     void externalizeResult(
             @Deprecated @NonNull ContractFunctionResult result,
             @NonNull ResponseCodeEnum responseStatus,
-            @NonNull Transaction transaction,
+            @NonNull SignedTransaction signedTx,
             @NonNull EvmTransactionResult txResult);
 
     /**
@@ -136,7 +136,7 @@ public interface SystemContractOperations {
      * @param isViewCall if the call is a view call
      * @return the synthetic transaction
      */
-    Transaction syntheticTransactionForNativeCall(
+    SignedTransaction syntheticSignedTxForNativeCall(
             @NonNull Bytes input, @NonNull ContractID contractID, boolean isViewCall);
 
     /**

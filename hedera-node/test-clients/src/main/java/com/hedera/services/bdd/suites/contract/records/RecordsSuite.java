@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
@@ -166,7 +167,7 @@ public class RecordsSuite {
                             firstCallRecord.getContractCallResult().getLogInfoList();
                     final var firstCallTimeLogData =
                             firstCallLogs.get(0).getData().toByteArray();
-                    final var firstCallTimestamp =
+                    final var firstCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(firstCallTimeLogData, 24, 32));
 
                     final var secondCallRecord = recordOp.getResponseRecord();
@@ -174,25 +175,17 @@ public class RecordsSuite {
                             secondCallRecord.getContractCallResult().getLogInfoList();
                     final var secondCallTimeLogData =
                             secondCallLogs.get(0).getData().toByteArray();
-                    final var secondCallTimestamp =
+                    final var secondCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(secondCallTimeLogData, 24, 32));
 
-                    final var blockPeriod = spec.startupProperties().getLong("hedera.recordStream.logPeriod");
-                    final var firstBlockPeriod =
-                            canonicalBlockPeriod(firstCallRecord.getConsensusTimestamp(), blockPeriod);
-                    final var secondBlockPeriod =
-                            canonicalBlockPeriod(secondCallRecord.getConsensusTimestamp(), blockPeriod);
-
-                    // In general both calls will be handled in the same block period, and should hence have the
-                    // same Ethereum block timestamp; but timing fluctuations in CI _can_ cause them to be handled
-                    // in different block periods, so we allow for that here as well
-                    if (firstBlockPeriod < secondBlockPeriod) {
+                    final var blockPeriod = spec.startupProperties().getConfigDuration("blockStream.blockPeriod");
+                    final var firstTime = asInstant(firstCallRecord.getConsensusTimestamp());
+                    final var secondTime = asInstant(secondCallRecord.getConsensusTimestamp());
+                    if (!firstTime.plus(blockPeriod).isAfter(secondTime)) {
                         assertTrue(
-                                firstCallTimestamp < secondCallTimestamp,
-                                "Block timestamps should change from period " + firstBlockPeriod + " to "
-                                        + secondBlockPeriod);
-                    } else {
-                        assertEquals(firstCallTimestamp, secondCallTimestamp, "Block timestamps should be equal");
+                                firstCallBlockTime < secondCallBlockTime,
+                                "Block timestamps should definitely change between " + firstTime + " and "
+                                        + secondTime);
                     }
                 }));
     }

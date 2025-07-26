@@ -19,7 +19,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -107,10 +106,6 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
-    }
-
-    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
-        return txnBody.hasBatchKey();
     }
 
     /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.resubmitter;
 
-import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -21,7 +21,7 @@ public interface TransactionResubmitter {
      */
     @InputWireLabel("stale events")
     @NonNull
-    List<EventTransaction> resubmitStaleTransactions(@NonNull PlatformEvent event);
+    List<Bytes> resubmitStaleTransactions(@NonNull PlatformEvent event);
 
     /**
      * Update the current event window. The transaction resubmitter may use this information to decide which

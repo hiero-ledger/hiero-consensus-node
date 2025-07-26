@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
@@ -453,11 +452,13 @@ class SolvencyPreCheckTest extends AppTestBase {
                 .sigMap(SignatureMap.DEFAULT)
                 .build();
         final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
         return new TransactionInfo(
-                transaction, txBody, SignatureMap.DEFAULT, signedTransactionBytes, functionality, null);
+                signedTransaction,
+                txBody,
+                SignatureMap.DEFAULT,
+                signedTransactionBytes,
+                functionality,
+                signedTransactionBytes);
     }
 
     private static AccountAmount send(AccountID accountID, long amount) {
