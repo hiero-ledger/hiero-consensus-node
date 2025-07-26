@@ -40,14 +40,17 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
             new OperationResult(0L, ExceptionalHaltReason.INVALID_OPERATION);
     private static final Operation.OperationResult UNDERFLOW_RESPONSE =
             new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
+    private final CodeFactory codeFactory;
 
     protected AbstractCustomCreateOperation(
             final int opcode,
             @NonNull final String name,
             final int stackItemsConsumed,
             final int stackItemsProduced,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final CodeFactory codeFactory) {
         super(opcode, name, stackItemsConsumed, stackItemsProduced, gasCalculator);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -143,7 +146,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .sender(frame.getRecipientAddress())
                 .value(value)
                 .apparentValue(value)
-                .code(CodeFactory.createCode(inputData, 0, false))
+                .code(codeFactory.createCode(inputData, false))
                 .completer(child -> complete(frame, child))
                 .build();
         frame.incrementRemainingGas(cost);
