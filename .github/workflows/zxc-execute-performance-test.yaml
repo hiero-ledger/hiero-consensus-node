@@ -14,11 +14,6 @@ on:
         required: true
         type: string
         default: ""
-      solo-version:
-        description: "Solo Version"
-        required: true
-        type: string
-        default: ""
       nlg-accounts:
         required: true
         default: "100000"
@@ -93,8 +88,6 @@ jobs:
 
       - name: Validate Input Parameters
         run: |
-          echo "Soloversion"
-          echo ${{ inputs.solo-version }}
           echo "Run HCN Version"
           echo ${{ inputs.ref }}
           echo "GS Root Dir"
