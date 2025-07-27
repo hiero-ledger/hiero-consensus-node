@@ -150,7 +150,7 @@ public class OutboundConnectionManager implements ConnectionManager {
                     "{} failed to connect to {} with error: {}",
                     selfId,
                     otherPeer.nodeId(),
-                    e.toString());
+                    NetworkUtils.formatException(e));
         } catch (final SocketTimeoutException | SocketException e) {
             NetworkUtils.close(clientSocket, dis, dos);
             logger.debug(
