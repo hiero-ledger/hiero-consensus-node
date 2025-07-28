@@ -584,6 +584,10 @@ public class BlockStreamBuilder
         if (category != BATCH_INNER) {
             if (customizer != null) {
                 signedTx = customizer.apply(signedTx);
+                // Right now only ContractService sets a customizer, and leaves serializedSignedTx as null;
+                // but to future proof, we null out the serialized bytes so they definitely get recreated
+                // from the _customized_ signed transaction in the block below
+                serializedSignedTx = null;
             }
             // The serialized bytes can only be null here if the transaction was synthetic (not submitted via HAPI)
             if (serializedSignedTx == null) {

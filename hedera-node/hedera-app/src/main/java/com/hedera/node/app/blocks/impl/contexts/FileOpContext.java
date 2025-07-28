@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.blocks.impl.TranslationContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,7 +25,7 @@ public record FileOpContext(
         @NonNull String memo,
         @NonNull ExchangeRateSet transactionExchangeRates,
         @NonNull TransactionID txnId,
-        @NonNull com.hedera.hapi.node.transaction.SignedTransaction signedTx,
+        @NonNull SignedTransaction signedTx,
         @NonNull HederaFunctionality functionality,
         @Nullable FileID fileId,
         @Nullable Bytes serializedSignedTx)

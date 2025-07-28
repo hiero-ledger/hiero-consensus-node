@@ -1101,8 +1101,17 @@ public class ConversionUtils {
     }
 
     /**
-     * If the frame has an access tracker, returns a {@link TxStorageUsage} that contains the reads and (if applicable)
-     * writes to storage int the frame's full EVM transaction.
+     * Takes the available context for an EVM transaction's storage usage and summarizes them, if applicable, in a
+     * {@link TxStorageUsage}.
+     * <p>
+     * The available context includes up to two parts, both of them optional:
+     * <ol>
+     *     <li>The root {@link ProxyWorldUpdater} for the transaction (possibly null if it was aborted before
+     *     entering the EVM); and,</li>
+     *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
+     * </ol>
+     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
+     * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
      * @param updater the proxy world updater to extract write accesses from
      * @param accessTracker the access tracker to extract reads from
      * @param checkForWrites whether to check if the updater has writes to include

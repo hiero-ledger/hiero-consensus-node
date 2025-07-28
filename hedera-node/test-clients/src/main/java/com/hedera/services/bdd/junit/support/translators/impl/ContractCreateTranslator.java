@@ -105,10 +105,6 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         if (createdId != null) {
                                             builder.contractId(createdId);
                                         }
-                                        if (parts.consensusTimestamp().seconds() == 1752784090L
-                                                && parts.consensusTimestamp().nanos() == 510504000) {
-                                            System.out.println("BOOP _ " + parts);
-                                        }
                                         baseTranslator.trackInitcode(parts.consensusTimestamp(), builder.build());
                                     }
                                 }
