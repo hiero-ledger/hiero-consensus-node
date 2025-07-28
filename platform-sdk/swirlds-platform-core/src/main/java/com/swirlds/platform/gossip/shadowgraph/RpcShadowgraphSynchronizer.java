@@ -4,8 +4,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
-import com.swirlds.platform.gossip.permits.LruSyncGuard;
-import com.swirlds.platform.gossip.permits.NoopSyncGuard;
+import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -39,6 +38,10 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     private final Duration sleepAfterSync;
 
+    /**
+     * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
+     * peers over and over.
+     */
     private final SyncGuard syncGuard;
 
     /**
@@ -74,20 +77,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
 
-        final int maxConcurrentSyncs = (int) Math.ceil(
-                syncConfig.fairMaxConcurrentSyncs() > 1
-                        ? syncConfig.fairMaxConcurrentSyncs()
-                        : syncConfig.fairMaxConcurrentSyncs() * numberOfNodes);
-        final int minimalRoundRobinSize = (int) Math.ceil(
-                syncConfig.fairMinimalRoundRobinSize() > 1
-                        ? syncConfig.fairMinimalRoundRobinSize()
-                        : syncConfig.fairMinimalRoundRobinSize() * numberOfNodes);
-
-        if (maxConcurrentSyncs <= 0) {
-            this.syncGuard = new NoopSyncGuard();
-        } else {
-            this.syncGuard = new LruSyncGuard(maxConcurrentSyncs, minimalRoundRobinSize);
-        }
+        this.syncGuard = SyncGuardFactory.create(
+                syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), numberOfNodes);
     }
 
     /**
