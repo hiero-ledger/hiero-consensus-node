@@ -8,11 +8,11 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
- * peers over and over. Exact implementation depends on subclass, but general gist is that {@link #tryAcquire(NodeId)}
+ * peers over and over. Exact implementation depends on subclass, but general gist is that {@link #isSyncAllowed(NodeId)}
  * calls will fail (return false) if called with recently acquired and released nodeId until enough other nodes are
  * acquired and released beforehand.
  */
-public interface FairSyncSelector {
+public interface SyncGuard {
 
     /**
      * See if given node should be synchronized with, depending on number of concurrent syncs and preference of not
@@ -22,7 +22,7 @@ public interface FairSyncSelector {
      * @return true if it is ok to synchronized against that node, false if it shouldn't be synchronized against for any
      * reason
      */
-    boolean tryAcquire(@NonNull NodeId nodeId);
+    boolean isSyncAllowed(@NonNull NodeId nodeId);
 
     /**
      * Called when remote node is forcing synchronization on local node. At that point, all checks are bypassed and
@@ -30,7 +30,7 @@ public interface FairSyncSelector {
      *
      * @param nodeId peer which forced synchronization on local node
      */
-    void forceAcquire(@NonNull final NodeId nodeId);
+    void onForcedSync(@NonNull final NodeId nodeId);
 
     /**
      * Indicate that synchronization has finished and node should be put as most recently synchronized against. Is safe
@@ -38,7 +38,7 @@ public interface FairSyncSelector {
      *
      * @param nodeId peer which has finished synchronization
      */
-    void releaseIfAcquired(@NonNull final NodeId nodeId);
+    void onSyncCompleted(@NonNull final NodeId nodeId);
 
     /**
      * Indicate that amount of peers have changed. Should NOT be called with removal of node against which

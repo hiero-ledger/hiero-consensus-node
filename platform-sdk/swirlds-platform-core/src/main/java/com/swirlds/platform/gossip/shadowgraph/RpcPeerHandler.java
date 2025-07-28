@@ -9,7 +9,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.gossip.permits.FairSyncSelector;
+import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
@@ -96,7 +96,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     private int incomingEventsCounter = 0;
 
-    private final FairSyncSelector fairSyncSelector;
+    private final SyncGuard syncGuard;
 
     /**
      * Create new state class for an RPC peer
@@ -122,7 +122,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             @NonNull final Time time,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<PlatformEvent> eventHandler,
-            @NonNull final FairSyncSelector fairSyncSelector) {
+            @NonNull final SyncGuard syncGuard) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -132,7 +132,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.time = Objects.requireNonNull(time);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.eventHandler = Objects.requireNonNull(eventHandler);
-        this.fairSyncSelector = fairSyncSelector;
+        this.syncGuard = syncGuard;
     }
 
     /**
@@ -168,13 +168,13 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         if (state.mySyncData == null) {
             if (systemHealthy) {
                 if (state.remoteSyncData == null) {
-                    if (!fairSyncSelector.tryAcquire(peerId)) {
+                    if (!syncGuard.isSyncAllowed(peerId)) {
                         this.syncMetrics.doNotSyncFairSelector();
                         return true;
                     }
                 } else {
                     // if remote side is starting sync with us, we want to do that, but still mark it as recently synced
-                    fairSyncSelector.forceAcquire(peerId);
+                    syncGuard.onForcedSync(peerId);
                 }
                 // we have received remote sync request, so we want to reply, or sync selector told us it is our
                 // time to initiate sync
@@ -370,7 +370,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
     private void clearInternalState() {
         if (state.mySyncData != null) {
-            fairSyncSelector.releaseIfAcquired(peerId);
+            syncGuard.onSyncCompleted(peerId);
         }
         state.clear(time.now());
     }

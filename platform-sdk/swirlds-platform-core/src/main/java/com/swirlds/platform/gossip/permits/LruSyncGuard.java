@@ -21,9 +21,9 @@ import org.hiero.consensus.model.node.NodeId;
  * <br>
  * Suggestion is to set minimalRoundRobinSize to not more than 1/3 of the connected nodes.
  */
-public class LruFairSyncSelector implements FairSyncSelector {
+public class LruSyncGuard implements SyncGuard {
 
-    private static final Logger logger = LogManager.getLogger(LruFairSyncSelector.class);
+    private static final Logger logger = LogManager.getLogger(LruSyncGuard.class);
 
     private final int maxConcurrentSyncs;
     private final int minimalRoundRobinSize;
@@ -46,7 +46,7 @@ public class LruFairSyncSelector implements FairSyncSelector {
      *                              fail
      * @param minimalRoundRobinSize minimum amount of finished synchronizations before nodeId reuse is considered
      */
-    public LruFairSyncSelector(final int maxConcurrentSyncs, final int minimalRoundRobinSize) {
+    public LruSyncGuard(final int maxConcurrentSyncs, final int minimalRoundRobinSize) {
         this.maxConcurrentSyncs = maxConcurrentSyncs;
         this.minimalRoundRobinSize = minimalRoundRobinSize;
     }
@@ -55,7 +55,7 @@ public class LruFairSyncSelector implements FairSyncSelector {
      * {@inheritDoc}
      */
     @Override
-    public synchronized boolean tryAcquire(@NonNull final NodeId nodeId) {
+    public synchronized boolean isSyncAllowed(@NonNull final NodeId nodeId) {
 
         // if more than allowed number of concurrent syncs is running, reject
         if (syncsInProgress.size() >= maxConcurrentSyncs) {
@@ -91,7 +91,7 @@ public class LruFairSyncSelector implements FairSyncSelector {
      * {@inheritDoc}
      */
     @Override
-    public synchronized void forceAcquire(@NonNull final NodeId nodeId) {
+    public synchronized void onForcedSync(@NonNull final NodeId nodeId) {
         checkNotInProgress(nodeId);
         syncsInProgress.add(nodeId);
     }
@@ -107,7 +107,7 @@ public class LruFairSyncSelector implements FairSyncSelector {
      * {@inheritDoc}
      */
     @Override
-    public synchronized void releaseIfAcquired(@NonNull final NodeId nodeId) {
+    public synchronized void onSyncCompleted(@NonNull final NodeId nodeId) {
         // we don't care if it is there, possibly no-op
         syncsInProgress.remove(nodeId);
         recentSyncs.remove(nodeId);

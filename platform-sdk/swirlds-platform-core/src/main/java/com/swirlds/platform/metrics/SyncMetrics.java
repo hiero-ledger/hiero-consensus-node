@@ -189,9 +189,9 @@ public class SyncMetrics {
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
     private final Time time;
-    private final @NonNull IntegerGauge rpcReadThreadRunning;
-    private final @NonNull IntegerGauge rpcWriteThreadRunning;
-    private final @NonNull IntegerGauge rpcDispatchThreadRunning;
+    private final IntegerGauge rpcReadThreadRunning;
+    private final IntegerGauge rpcWriteThreadRunning;
+    private final IntegerGauge rpcDispatchThreadRunning;
     private final IntegerGauge syncsInProgress;
 
     /**

@@ -10,12 +10,12 @@ import org.hiero.consensus.model.node.NodeId;
  * Empty implementation of fair sync selector, allowing every acquired and not depending on matching number of acquires
  * and releases.
  */
-public class NoopFairSyncSelector implements FairSyncSelector {
+public class NoopSyncGuard implements SyncGuard {
     /**
      * {@inheritDoc}
      */
     @Override
-    public boolean tryAcquire(@NonNull final NodeId nodeId) {
+    public boolean isSyncAllowed(@NonNull final NodeId nodeId) {
         return true;
     }
 
@@ -23,7 +23,7 @@ public class NoopFairSyncSelector implements FairSyncSelector {
      * {@inheritDoc}
      */
     @Override
-    public void forceAcquire(@NonNull final NodeId nodeId) {
+    public void onForcedSync(@NonNull final NodeId nodeId) {
         // no-op
     }
 
@@ -31,7 +31,7 @@ public class NoopFairSyncSelector implements FairSyncSelector {
      * {@inheritDoc}
      */
     @Override
-    public void releaseIfAcquired(@NonNull final NodeId nodeId) {
+    public void onSyncCompleted(@NonNull final NodeId nodeId) {
         // no-op
     }
 

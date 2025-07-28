@@ -3,9 +3,9 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.gossip.permits.FairSyncSelector;
-import com.swirlds.platform.gossip.permits.LruFairSyncSelector;
-import com.swirlds.platform.gossip.permits.NoopFairSyncSelector;
+import com.swirlds.platform.gossip.permits.SyncGuard;
+import com.swirlds.platform.gossip.permits.LruSyncGuard;
+import com.swirlds.platform.gossip.permits.NoopSyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -39,7 +39,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     private final Duration sleepAfterSync;
 
-    private final FairSyncSelector fairSyncSelector;
+    private final SyncGuard syncGuard;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -84,9 +84,9 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                         : syncConfig.fairMinimalRoundRobinSize() * numberOfNodes);
 
         if (maxConcurrentSyncs <= 0) {
-            this.fairSyncSelector = new NoopFairSyncSelector();
+            this.syncGuard = new NoopSyncGuard();
         } else {
-            this.fairSyncSelector = new LruFairSyncSelector(maxConcurrentSyncs, minimalRoundRobinSize);
+            this.syncGuard = new LruSyncGuard(maxConcurrentSyncs, minimalRoundRobinSize);
         }
     }
 
@@ -108,7 +108,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 time,
                 intakeEventCounter,
                 eventHandler,
-                fairSyncSelector);
+                syncGuard);
         return rpcPeerHandler;
     }
 
