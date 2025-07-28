@@ -54,11 +54,12 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
@@ -102,6 +103,8 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
+
+        LogConfigBuilder.configureTest();
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -211,7 +214,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeConsensusResult getConsensusResult() {
+    public SingleNodeConsensusResult newConsensusResult() {
         return resultsCollector.getConsensusResult();
     }
 
@@ -220,7 +223,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeLogResult getLogResult() {
+    public SingleNodeLogResult newLogResult() {
         return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
@@ -229,7 +232,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePlatformStatusResults getPlatformStatusResults() {
+    public SingleNodePlatformStatusResult newPlatformStatusResult() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -238,7 +241,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePcesResult getPcesResult() {
+    public SingleNodePcesResult newPcesResult() {
         throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
@@ -257,8 +260,8 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public @NotNull SingleNodeReconnectResult getReconnectResults() {
-        return new SingleNodeReconnectResultImpl(selfId, getPlatformStatusResults(), getLogResult());
+    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+        return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
     }
 
     /**
@@ -269,12 +272,14 @@ public class ContainerNode extends AbstractNode implements Node {
     // ignoring the Empty answer from destroyContainer
     void destroy() throws IOException {
         // copy logs from container to the local filesystem
-        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
-        Files.createDirectories(logPath);
-        Files.deleteIfExists(logPath.resolve("swirlds.log"));
-        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
-        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
-        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+        Files.createDirectories(logPath.resolve("swirlds-hashstream"));
+
+        container.copyFileFromContainer(
+                "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+        container.copyFileFromContainer(
+                "output/swirlds-hashstream/swirlds-hashstream.log",
+                logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
