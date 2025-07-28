@@ -154,7 +154,7 @@ public class AtomicFileUpdateSuite {
                 atomicBatch(fileUpdate("test")
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .contents(new4k)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -198,7 +198,7 @@ public class AtomicFileUpdateSuite {
                 fileCreate("test"),
                 doWithStartupConfig("entities.maxLifetime", maxLifetime -> atomicBatch(fileUpdate("test")
                                 .lifetime(parseLong(maxLifetime) + 12_345L)
-                                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));

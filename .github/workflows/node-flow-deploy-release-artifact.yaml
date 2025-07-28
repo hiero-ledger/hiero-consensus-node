@@ -186,6 +186,7 @@ jobs:
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - release-branch
     steps:
@@ -228,7 +229,7 @@ jobs:
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.dry-run-enabled == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
@@ -270,7 +271,10 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    if:
+      ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false &&
+      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
+      !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

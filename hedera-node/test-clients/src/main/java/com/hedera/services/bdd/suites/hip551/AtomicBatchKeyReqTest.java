@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -53,7 +54,8 @@ public class AtomicBatchKeyReqTest {
                                 .memo("new memo")
                                 .batchKey("batchOperator")
                                 .payingWith(DEFAULT_PAYER)
-                                .signedBy(DEFAULT_PAYER))
+                                .signedBy(DEFAULT_PAYER)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith("batchOperator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account key signature, so should succeed
@@ -81,7 +83,8 @@ public class AtomicBatchKeyReqTest {
                                     .entityMemo("new memo1")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // admin key signature, so should succeed
@@ -106,7 +109,8 @@ public class AtomicBatchKeyReqTest {
                                     .withCustom(fixedHbarFee(1L, "collector"))
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // fee schedule key signature, so should succeed
@@ -130,7 +134,8 @@ public class AtomicBatchKeyReqTest {
                                     .newMetadata("new metadata")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // metadata key signature, so should succeed
@@ -155,7 +160,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(tokenFreeze("testToken", "toBeFrozen")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // freeze key signature, so should succeed
@@ -177,7 +183,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(tokenPause("testToken")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // pause key signature, so should succeed
@@ -202,7 +209,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(wipeTokenAccount("testToken", "receiver", 5L)
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // wipe key signature, so should succeed
@@ -226,7 +234,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(grantTokenKyc("testToken", "toBeKycGranted")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // kyc key signature, so should succeed
@@ -248,7 +257,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(mintToken("testToken", 100)
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // supply key signature, so should succeed

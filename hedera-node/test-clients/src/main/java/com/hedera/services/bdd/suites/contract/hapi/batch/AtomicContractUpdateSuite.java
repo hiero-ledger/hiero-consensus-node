@@ -161,7 +161,7 @@ public class AtomicContractUpdateSuite {
                         .payingWith(BATCH_OPERATOR),
                 atomicBatch(contractUpdate(CONTRACT)
                                 .newMemo(ZERO_BYTE_MEMO)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),

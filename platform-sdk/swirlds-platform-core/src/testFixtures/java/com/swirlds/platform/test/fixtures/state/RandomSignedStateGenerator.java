@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -84,6 +85,7 @@ public class RandomSignedStateGenerator {
     private boolean deleteOnBackgroundThread;
     private boolean pcesRound;
     private boolean useBlockingState = false;
+    private boolean calculateHash = false;
 
     /**
      * Create a new signed state generator with a random seed.
@@ -153,10 +155,13 @@ public class RandomSignedStateGenerator {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);
             } else {
-                stateInstance = new TestMerkleStateRoot();
+                final String virtualMapLabel =
+                        "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                stateInstance = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
             }
             stateInstance.init(
                     Time.getCurrent(),
+                    CONFIGURATION,
                     new NoOpMetrics(),
                     TestMerkleCryptoFactory.getInstance(),
                     () -> platformStateFacade.roundOf(stateInstance));
@@ -242,7 +247,10 @@ public class RandomSignedStateGenerator {
                 platformStateFacade);
         signedState.init(PlatformContext.create(configuration));
 
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
+        if (calculateHash) {
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
+        }
+
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -472,6 +480,16 @@ public class RandomSignedStateGenerator {
      */
     public RandomSignedStateGenerator setUseBlockingState(boolean useBlockingState) {
         this.useBlockingState = useBlockingState;
+        return this;
+    }
+
+    /**
+     * FUTURE WORK: <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19905">See GitHub Issue</a>
+     * @param calculateHash  Set true if the state needs root hash calculated
+     * @return this object
+     */
+    public RandomSignedStateGenerator setCalculateHash(final boolean calculateHash) {
+        this.calculateHash = calculateHash;
         return this;
     }
 

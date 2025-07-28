@@ -67,7 +67,7 @@ env:
   NAMESPACE_PREFIX: solo-sdpt-n
   DEFAULT_NAMESPACE: AdHoc5
   DEFAULT_HCN_VERSION: main
-  TIMEOUT_6H_LIMIT: 330
+  TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
@@ -1030,6 +1030,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Publish logs
+        if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1077,6 +1078,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Publish logs
+        if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
 

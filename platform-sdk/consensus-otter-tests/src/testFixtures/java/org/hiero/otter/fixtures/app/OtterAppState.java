@@ -2,49 +2,29 @@
 package org.hiero.otter.fixtures.app;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.roster.RosterUtils;
 
-public class OtterAppState extends MerkleStateRoot<OtterAppState> implements MerkleNodeState {
-
-    private static final long CLASS_ID = 0x107F552E92071390L;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
-
-    /**
-     * Creates an initialized {@code TurtleAppState}.
-     *
-     * @param configuration the configuration used during initialization
-     * @param roster the initial roster stored in the state
-     * @param version the software version to set in the state
-     * @return merkle tree root
-     */
-    @NonNull
-    public static OtterAppState createGenesisState(
-            @NonNull final Configuration configuration,
-            @NonNull final Roster roster,
-            @NonNull final SemanticVersion version) {
-        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
-        final OtterAppState state = new OtterAppState();
-        initializer.initStates(state);
-        RosterUtils.setActiveRoster(state, roster, 0L);
-        DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
-        return state;
-    }
+public class OtterAppState extends VirtualMapState<OtterAppState> implements MerkleNodeState {
 
     long state;
 
-    public OtterAppState() {
-        // empty
+    public OtterAppState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        super(configuration, metrics);
+    }
+
+    public OtterAppState(@NonNull final VirtualMap virtualMap) {
+        super(virtualMap);
     }
 
     /**
@@ -52,25 +32,32 @@ public class OtterAppState extends MerkleStateRoot<OtterAppState> implements Mer
      *
      * @param from the object to copy
      */
-    private OtterAppState(@NonNull final OtterAppState from) {
+    public OtterAppState(@NonNull final OtterAppState from) {
         super(from);
         this.state = from.state;
     }
 
     /**
-     * {@inheritDoc}
+     * Creates an initialized {@code TurtleAppState}.
+     *
+     * @param configuration the configuration used during initialization
+     * @param roster        the initial roster stored in the state
+     * @param metrics       the metrics to be registered with virtual map
+     * @param version       the software version to set in the state
+     * @return state root
      */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
+    @NonNull
+    public static OtterAppState createGenesisState(
+            @NonNull final Configuration configuration,
+            @NonNull final Roster roster,
+            @NonNull final Metrics metrics,
+            @NonNull final SemanticVersion version) {
+        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
+        final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
+        initializer.initStates(state);
+        RosterUtils.setActiveRoster(state, roster, 0L);
+        DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
+        return state;
     }
 
     /**
@@ -79,24 +66,16 @@ public class OtterAppState extends MerkleStateRoot<OtterAppState> implements Mer
     @NonNull
     @Override
     public OtterAppState copy() {
-        throwIfImmutable();
-        setImmutable(true);
         return new OtterAppState(this);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected OtterAppState copyingConstructor() {
         return new OtterAppState(this);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.ORIGINAL;
+    protected OtterAppState newInstance(@NonNull VirtualMap virtualMap) {
+        return new OtterAppState(virtualMap);
     }
 }

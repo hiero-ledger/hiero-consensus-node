@@ -256,7 +256,8 @@ public class DataFileCompactor {
                         } catch (final IOException z) {
                             logger.error(
                                     EXCEPTION.getMarker(),
-                                    "Failed to copy data item {} / {}",
+                                    "[{}] Failed to copy data item {} / {}",
+                                    storeName,
                                     fileIndex,
                                     fileOffset,
                                     z);
@@ -318,6 +319,7 @@ public class DataFileCompactor {
         final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
         final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
         currentReader.set(newFileReader);
+        logger.info(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
     /**
@@ -334,6 +336,11 @@ public class DataFileCompactor {
         currentWriter.set(null);
         // Now include the file in future compactions
         currentReader.get().setFileCompleted();
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Compaction file written, fileNum={}",
+                storeName,
+                currentReader.get().getIndex());
         currentReader.set(null);
     }
 
@@ -414,6 +421,13 @@ public class DataFileCompactor {
     // A helper method to avoid using a lambda in compactFiles()
     public boolean notInterrupted() {
         return !interruptFlag;
+    }
+
+    /**
+     * @return true if compaction is currently running, false otherwise.
+     */
+    public boolean isCompactionRunning() {
+        return currentCompactionStartTime.get() != null;
     }
 
     /**

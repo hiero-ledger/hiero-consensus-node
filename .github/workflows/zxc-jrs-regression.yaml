@@ -77,12 +77,12 @@ on:
         description: ""
         required: false
         type: string
-        default: "35.247.76.217"
+        default: "jrs.reports.eng.hashgraph.io"
       jrs-web-port:
         description: ""
         required: false
         type: number
-        default: 8095
+        default: 0
       summary-bucket:
         description: ""
         required: false

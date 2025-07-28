@@ -7,8 +7,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Function;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -52,12 +54,28 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     void run();
 
     /**
-     * Instantiate and return a root node of the merkle state tree for this SwirldMain object.
+     * Instantiate and return a state root object for this SwirldMain object.
+     * The returned state root object could be one of the following:
+     * <ul>
+     *     <li>(Deprecated) Actual root node of the merkle state tree
+     *         - an instance of {@code HederaStateRoot}.
+     *     </li>
+     *     <li>A wrapper around the root node
+     *         - an instance of {@code HederaVirtualMapState}.
+     *     </li>
+     * </ul>
      *
-     * @return merkle state tree root node
+     * @return state root object
      */
     @NonNull
     T newStateRoot();
+
+    /**
+     * A function to instantiate the state root object from a Virtual Map.
+     *
+     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
+     */
+    Function<VirtualMap, T> stateRootFromVirtualMap();
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.

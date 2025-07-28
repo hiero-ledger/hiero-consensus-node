@@ -142,7 +142,7 @@ public class AtomicExchangeRateControlSuite {
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith("randomAccount")
-                                .hasPrecheck(AUTHORIZATION_FAILED)
+                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

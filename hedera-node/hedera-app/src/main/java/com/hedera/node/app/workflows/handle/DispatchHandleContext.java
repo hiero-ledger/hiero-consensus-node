@@ -48,6 +48,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -354,6 +355,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
+        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -364,9 +366,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 storeFactory.asReadOnly(),
                 consensusNow,
                 shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody)
-                        ? txnInfo.signatureMap().sigPair().size()
-                        : 0));
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
@@ -414,7 +414,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                     batchInnerTxnBytes,
                     maybeReusablePreHandleResult,
                     (s) -> {},
-                    PreHandleWorkflow.InnerTransaction.YES);
+                    InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(

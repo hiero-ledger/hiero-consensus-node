@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Set;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -32,7 +32,6 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
-    public static final Set<Capability> CAPABILITIES = Set.of();
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
     static final String APP_NAME = "otter";
@@ -86,6 +85,16 @@ public class TurtleTestEnvironment implements TestEnvironment {
         network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
 
         timeManager.addTimeTickReceiver(network);
+    }
+
+    /**
+     * Checks if the Turtle test environment supports the given capabilities.
+     *
+     * @param requiredCapabilities the list of capabilities required by the test
+     * @return {@code true} if the Turtle test environment supports the required capabilities, {@code false} otherwise
+     */
+    public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
+        return requiredCapabilities.isEmpty();
     }
 
     /**

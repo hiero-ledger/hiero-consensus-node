@@ -6,7 +6,6 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.hedera.node.app.workflows.handle.metric.UnavailableMetrics.UNAVAILABLE_METRICS;
 import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 
@@ -15,11 +14,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -29,15 +23,10 @@ import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
-import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.singleton.SingletonNode;
+import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.WritableStates;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Comparator;
@@ -49,7 +38,6 @@ import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * An implementation of {@link SchemaRegistry}.
@@ -173,7 +161,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @NonNull final Metrics metrics,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final MigrationStateChanges migrationStateChanges,
             @NonNull final StartupNetworks startupNetworks,
@@ -182,7 +169,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
-        requireNonNull(metrics);
         requireNonNull(sharedValues);
         requireNonNull(migrationStateChanges);
         if (isSoOrdered(currentVersion, previousVersion)) {
@@ -228,8 +214,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                 && previousVersion != null
                                 && alreadyIncludesStateDefs(previousVersion, s.getVersion()))
                         .toList();
-                final var redefinedWritableStates = applyStateDefinitions(
-                        schema, schemasAlreadyInState, appConfig, platformConfig, metrics, stateRoot);
+                final var redefinedWritableStates =
+                        applyStateDefinitions(schema, schemasAlreadyInState, appConfig, stateRoot);
                 writableStates = redefinedWritableStates.beforeStates();
                 newStates = redefinedWritableStates.afterStates();
             } else {
@@ -265,8 +251,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Schema schema,
             @NonNull final List<Schema> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
-            @NonNull final Configuration platformConfiguration,
-            @NonNull final Metrics metrics,
             @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
         // expand the set of states that the migration code will see
@@ -281,72 +265,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     }
                     logger.info("  Ensuring {} has state {}", serviceName, stateKey);
                     final var md = new StateMetadata<>(serviceName, schema, def);
-                    if (def.singleton()) {
-                        stateRoot.putServiceStateIfAbsent(
-                                md,
-                                () -> new SingletonNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateKey(),
-                                        md.singletonClassId(),
-                                        md.stateDefinition().valueCodec(),
-                                        null));
-
-                    } else if (def.queue()) {
-                        stateRoot.putServiceStateIfAbsent(
-                                md,
-                                () -> new QueueNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateKey(),
-                                        md.queueNodeClassId(),
-                                        md.singletonClassId(),
-                                        md.stateDefinition().valueCodec()));
-
-                    } else if (!def.onDisk()) {
-                        stateRoot.putServiceStateIfAbsent(md, () -> {
-                            final var map = new MerkleMap<>();
-                            map.setLabel(StateMetadata.computeLabel(serviceName, stateKey));
-                            return map;
-                        });
-                    } else {
-                        stateRoot.putServiceStateIfAbsent(
-                                md,
-                                () -> {
-                                    final var keySerializer = new OnDiskKeySerializer<>(
-                                            md.onDiskKeySerializerClassId(),
-                                            md.onDiskKeyClassId(),
-                                            md.stateDefinition().keyCodec());
-                                    final var valueSerializer = new OnDiskValueSerializer<>(
-                                            md.onDiskValueSerializerClassId(),
-                                            md.onDiskValueClassId(),
-                                            md.stateDefinition().valueCodec());
-                                    // MAX_IN_MEMORY_HASHES (ramToDiskThreshold) = 8388608
-                                    // PREFER_DISK_BASED_INDICES = false
-                                    final MerkleDbConfig merkleDbConfig =
-                                            platformConfiguration.getConfigData(MerkleDbConfig.class);
-                                    final var tableConfig = new MerkleDbTableConfig(
-                                            (short) 1,
-                                            DigestType.SHA_384,
-                                            // Future work: drop StateDefinition.maxKeysHint and load VM size
-                                            // from VirtualMapConfig.size instead
-                                            def.maxKeysHint(),
-                                            merkleDbConfig.hashesRamToDiskThreshold());
-                                    final var label = StateMetadata.computeLabel(serviceName, stateKey);
-                                    final var dsBuilder =
-                                            new MerkleDbDataSourceBuilder(tableConfig, platformConfiguration);
-                                    final var virtualMap = new VirtualMap<>(
-                                            label, keySerializer, valueSerializer, dsBuilder, platformConfiguration);
-                                    return virtualMap;
-                                },
-                                // Register the metrics for the virtual map if they are available.
-                                // Early rounds of migration done by services such as PlatformStateService,
-                                // EntityIdService and RosterService will not have metrics available yet, but their
-                                // later rounds of migration will.
-                                // Therefore, for the first round of migration, we will not register the metrics for
-                                // virtual maps.
-                                UNAVAILABLE_METRICS.equals(metrics)
-                                        ? virtualMap -> {}
-                                        : virtualMap -> virtualMap.registerMetrics(metrics));
-                    }
+                    stateRoot.initializeState(md);
                 });
 
         // Create the "before" and "after" writable states (we won't commit anything

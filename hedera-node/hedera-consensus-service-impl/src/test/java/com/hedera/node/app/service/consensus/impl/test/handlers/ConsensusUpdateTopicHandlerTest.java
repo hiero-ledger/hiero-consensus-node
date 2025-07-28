@@ -430,21 +430,14 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @DisplayName("Check if there is memo update")
     void memoMutationsIsNonExpiry() {
         final var op = OP_BUILDER.memo("HI").build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
+        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryOrSubmitKeyField(op));
     }
 
     @Test
     @DisplayName("Check if there is adminKey update")
     void adminKeyMutationIsNonExpiry() {
         final var op = OP_BUILDER.adminKey(key).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Check if there is submitKey update")
-    void submitKeyMutationIsNonExpiry() {
-        final var op = OP_BUILDER.submitKey(key).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
+        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryOrSubmitKeyField(op));
     }
 
     @Test
@@ -452,14 +445,14 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     void autoRenewPeriodMutationIsNonExpiry() {
         final var autoRenewPeriod = Duration.newBuilder().seconds(123L).build();
         final var op = OP_BUILDER.autoRenewPeriod(autoRenewPeriod).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
+        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryOrSubmitKeyField(op));
     }
 
     @Test
     @DisplayName("Check if there is autoRenewAccount update")
     void autoRenewAccountMutationIsNonExpiry() {
         final var op = OP_BUILDER.autoRenewAccount(autoRenewId).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
+        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryOrSubmitKeyField(op));
     }
 
     @Test
@@ -467,7 +460,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     void expiryMutationIsExpiry() {
         final var expiryTime = Timestamp.newBuilder().seconds(123L).build();
         final var op = OP_BUILDER.expirationTime(expiryTime).build();
-        assertFalse(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
+        assertFalse(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryOrSubmitKeyField(op));
     }
 
     @Test

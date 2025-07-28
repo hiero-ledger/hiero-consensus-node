@@ -3,7 +3,7 @@
 # Define Global Build Arguments
 #
 ########################################################################################################################
-ARG UBUNTU_TAG="mantic-20240216"
+ARG UBUNTU_TAG="bookworm-20250630-slim"
 ARG S6_OVERLAY_VERSION="3.1.6.2"
 ARG SOURCE_DATE_EPOCH="0"
 
@@ -12,7 +12,7 @@ ARG SOURCE_DATE_EPOCH="0"
 # Setup Ephemeral Java Downloader Layer
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS java-builder-interim
+FROM debian:${UBUNTU_TAG} AS java-builder-interim
 # Define Build Arguments
 ARG SOURCE_DATE_EPOCH
 
@@ -55,7 +55,7 @@ RUN set -eux; \
             ;; \
         esac; \
     curl -LfsSo /tmp/openjdk.tar.gz ${BINARY_URL}; \
-    echo "${ESUM} */tmp/openjdk.tar.gz" | sha256sum -c -; \
+    echo "${ESUM} /tmp/openjdk.tar.gz" | sha256sum -c -; \
     mkdir -p /usr/local/java; \
     tar --extract \
     	      --file /tmp/openjdk.tar.gz \
@@ -85,7 +85,7 @@ COPY --from=java-builder-interim / /
 # Setup S6 Overlay Base Layer
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS s6-overlay-interim
+FROM debian:${UBUNTU_TAG} AS s6-overlay-interim
 # Define Build Arguments
 ARG SOURCE_DATE_EPOCH
 ARG S6_OVERLAY_VERSION
@@ -94,7 +94,7 @@ ARG S6_OVERLAY_VERSION
 RUN --mount=type=bind,source=./repro-sources-list.sh,target=/usr/local/bin/repro-sources-list.sh \
     repro-sources-list.sh && \
     apt-get update && \
-    apt-get install --yes --no-install-recommends tar gzip openssl zlib1g libsodium23 libreadline8 sudo netcat-traditional net-tools xz-utils curl
+    apt-get install --yes --no-install-recommends tar gzip openssl zlib1g libsodium23 libreadline8 sudo netcat-traditional net-tools xz-utils curl ca-certificates
 
 ###########################
 ####    S6 Install     ####
@@ -123,8 +123,8 @@ RUN set -eux; \
         esac; \
     curl -sSLo /tmp/s6-overlay-noarch.tar.xz ${NOARCH_BINARY_URL}; \
     curl -sSLo /tmp/s6-overlay-arch.tar.xz ${ARCH_BINARY_URL}; \
-    echo "${NOARCH_PKG_ESUM} */tmp/s6-overlay-noarch.tar.xz" | sha256sum -c -; \
-    echo "${ARCH_PKG_ESUM} */tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; \
+    echo "${NOARCH_PKG_ESUM} /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c -; \
+    echo "${ARCH_PKG_ESUM} /tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; \
     tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz; \
     tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
     rm -f /tmp/s6-overlay-noarch.tar.xz; \

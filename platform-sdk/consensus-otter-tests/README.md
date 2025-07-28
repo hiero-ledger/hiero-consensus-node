@@ -22,10 +22,8 @@ This example demonstrates a simple test that checks if consensus is reached and 
         // 4. Wait 30 seconds while the network is running
         timeManager.waitFor(Duration.ofSeconds(30));
 
-        // 5. Verify consensus was reached
-        assertThat(network.getConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+        // 5. Verify consensus was reached and advanced past round 2
+        assertThat(network.getConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
 
         // 6. Check for no error-level log messages
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();

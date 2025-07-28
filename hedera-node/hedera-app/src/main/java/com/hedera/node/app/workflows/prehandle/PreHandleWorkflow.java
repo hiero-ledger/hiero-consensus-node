@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -166,10 +167,5 @@ public interface PreHandleWorkflow {
                 platformTxn.getApplicationTransaction(),
                 previousResult,
                 stateSignatureTxnCallback);
-    }
-
-    enum InnerTransaction {
-        YES,
-        NO
     }
 }

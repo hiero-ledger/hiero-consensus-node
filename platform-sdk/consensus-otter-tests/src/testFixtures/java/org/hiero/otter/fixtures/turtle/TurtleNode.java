@@ -62,7 +62,8 @@ import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.jetbrains.annotations.NotNull;
@@ -129,7 +130,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.keysAndCerts = requireNonNull(keysAndCerts);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
-            this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
+            this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
 
         } finally {
@@ -233,7 +234,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public SingleNodeConsensusResult getConsensusResult() {
+    public SingleNodeConsensusResult newConsensusResult() {
         return resultsCollector.getConsensusResult();
     }
 
@@ -242,7 +243,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @NonNull
     @Override
-    public SingleNodeLogResult getLogResult() {
+    public SingleNodeLogResult newLogResult() {
         return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
@@ -251,7 +252,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public SingleNodePlatformStatusResults getPlatformStatusResults() {
+    public SingleNodePlatformStatusResult newPlatformStatusResult() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -260,8 +261,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public SingleNodePcesResult getPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext);
+    public SingleNodePcesResult newPcesResult() {
+        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
+     */
+    @Override
+    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+        throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 
     /**
@@ -315,7 +326,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private void doStartNode() {
 
-        final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
+        final Configuration currentConfiguration = nodeConfiguration.current();
         final org.hiero.consensus.model.node.NodeId legacyNodeId =
                 org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
@@ -344,12 +355,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
-                platformContext);
+                platformContext,
+                OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
@@ -365,7 +377,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         legacyNodeId,
                         eventStreamLoc,
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)

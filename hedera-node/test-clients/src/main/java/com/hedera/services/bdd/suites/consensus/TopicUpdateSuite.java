@@ -325,14 +325,6 @@ public class TopicUpdateSuite {
                 getTopicInfo("testTopic").hasNoAdminKey());
     }
 
-    @HapiTest
-    final Stream<DynamicTest> updateSubmitKeyOnTopicWithNoAdminKeyFails() {
-        return hapiTest(
-                newKeyNamed("submitKey"),
-                createTopic("testTopic"),
-                updateTopic("testTopic").submitKey("submitKey").hasKnownStatus(UNAUTHORIZED));
-    }
-
     // TOPIC_RENEW_18
     @HapiTest
     final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewInvalidAutoRenewAccountAdded() {
@@ -365,5 +357,148 @@ public class TopicUpdateSuite {
                             updateTopic("testTopic").expiry(newExpiry),
                             getTopicInfo("testTopic").hasExpiry(newExpiry));
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithoutAdminKey() {
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasNoSubmitKey());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithoutAdminKey() {
+        final var submitKey = "submitKey";
+        final var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(newSubmitKey).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithRandomKey() {
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic)
+                        .submitKey(EMPTY_KEY)
+                        .signedBy(randomKey)
+                        .payingWith(randomKey)
+                        .hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
+        final var newSubmitKey = "newSubmitKey";
+        return hapiTest(
+                cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic)
+                        .submitKey(newSubmitKey)
+                        .signedBy(randomKey)
+                        .payingWith(randomKey)
+                        .hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> adminKeyCanSetItselfToSentinelAndItRemainsSentinel() {
+        var adminKey = "adminKey";
+        var newAdminKey = "newAdminKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(newAdminKey),
+                createTopic(topic).adminKeyName(adminKey),
+                getTopicInfo(topic).hasAdminKey(adminKey),
+                updateTopic(topic).adminKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoAdminKey(),
+                updateTopic(topic)
+                        .adminKey(newAdminKey)
+                        .signedBy(adminKey)
+                        .payingWith(adminKey)
+                        .hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withAdminKeyCanMakeSubmitKeySentinelAndThenUpdateIt() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                updateTopic(topic).submitKey(newSubmitKey).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withoutAdminKeyWhenSubmitKeyIsSentinelItCannotBeUpdatedBack() {
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                getTopicInfo(topic).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                updateTopic(topic)
+                        .submitKey(newSubmitKey)
+                        .signedBy(submitKey)
+                        .payingWith(submitKey)
+                        .hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> removingAdminAndSubmitKeys() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasNoSubmitKey(),
+                updateTopic(topic).adminKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoAdminKey().hasNoSubmitKey());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateOnlySubmitKeySignWithSubmitWithAdminKeyPresent() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasNoSubmitKey());
     }
 }

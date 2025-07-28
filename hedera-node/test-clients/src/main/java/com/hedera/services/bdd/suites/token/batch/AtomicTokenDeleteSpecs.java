@@ -59,14 +59,14 @@ public class AtomicTokenDeleteSpecs {
                 tokenDissociate(TOKEN_TREASURY, FIRST_TBD).hasKnownStatus(ACCOUNT_IS_TREASURY),
                 atomicBatch(
                                 tokenDelete(FIRST_TBD).batchKey(BATCH_OPERATOR),
-                                tokenDissociate(TOKEN_TREASURY, FIRST_TBD).batchKey(BATCH_OPERATOR),
-                                tokenDelete(SECOND_TBD).batchKey(BATCH_OPERATOR))
+                                tokenDissociate(TOKEN_TREASURY, FIRST_TBD).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
                 atomicBatch(cryptoDelete(TOKEN_TREASURY)
                                 .hasKnownStatus(ACCOUNT_IS_TREASURY)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                tokenDelete(SECOND_TBD),
                 tokenDissociate(TOKEN_TREASURY, SECOND_TBD),
                 cryptoDelete(TOKEN_TREASURY));
     }

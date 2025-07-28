@@ -11,34 +11,34 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
- * Continuous assertions for {@link SingleNodePlatformStatusResults}.
+ * Continuous assertions for {@link SingleNodePlatformStatusResult}.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodePlatformStatusResultContinuousAssert
         extends AbstractContinuousAssertion<
-                SingleNodePlatformStatusResultContinuousAssert, SingleNodePlatformStatusResults> {
+                SingleNodePlatformStatusResultContinuousAssert, SingleNodePlatformStatusResult> {
 
     /**
-     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the actual {@link SingleNodePlatformStatusResults} to assert
+     * @param actual the actual {@link SingleNodePlatformStatusResult} to assert
      */
-    public SingleNodePlatformStatusResultContinuousAssert(@Nullable final SingleNodePlatformStatusResults actual) {
+    public SingleNodePlatformStatusResultContinuousAssert(@Nullable final SingleNodePlatformStatusResult actual) {
         super(actual, SingleNodePlatformStatusResultContinuousAssert.class);
     }
 
     /**
-     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResults}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultContinuousAssert assertContinuouslyThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return new SingleNodePlatformStatusResultContinuousAssert(actual);
     }
 

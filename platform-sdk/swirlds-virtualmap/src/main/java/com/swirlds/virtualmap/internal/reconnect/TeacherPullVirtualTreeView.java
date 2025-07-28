@@ -15,11 +15,9 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
@@ -40,14 +38,8 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  *
  * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
  * learner side.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements TeacherTreeView<Long> {
+public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
 
@@ -56,7 +48,7 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor<K, V> records;
+    private RecordAccessor records;
 
     /**
      * This latch counts down when the view is fully initialized and ready for use.
@@ -73,8 +65,8 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
      *
      * @param threadManager
      * 		responsible for creating and managing threads
-     * @param root
-     * 		The root node on the teacher side of the saved state that we are going to reconnect.
+     * @param map
+     * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
      * 		The state of the virtual tree that we are synchronizing.
      * @param pipeline
@@ -83,16 +75,16 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     public TeacherPullVirtualTreeView(
             final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final VirtualStateAccessor state,
-            final VirtualPipeline<K, V> pipeline) {
+            final VirtualMap map,
+            final VirtualMapMetadata state,
+            final VirtualPipeline pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(root, state, state);
+        super(map, state, state);
         this.reconnectConfig = reconnectConfig;
         new ThreadConfiguration(threadManager)
                 .setRunnable(() -> {
                     try {
-                        records = pipeline.pausePipelineAndRun("copy", root::detach);
+                        records = pipeline.pausePipelineAndRun("copy", map::detach);
                         ready.set(true);
                     } finally {
                         readyLatch.countDown();
@@ -147,7 +139,7 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
             out.writeLong(reconnectState.getLastLeafPath());
         }
         if (!isClean && isLeaf(path) && (reconnectState.getFirstLeafPath() > 0)) {
-            out.writeSerializable(records.findLeafRecord(path, false), false);
+            VirtualReconnectUtils.writeLeafRecord(out, records.findLeafRecord(path));
         }
     }
 

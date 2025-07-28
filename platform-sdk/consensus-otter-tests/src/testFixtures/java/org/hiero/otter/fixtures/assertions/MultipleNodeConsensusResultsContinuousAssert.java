@@ -12,11 +12,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
-import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Continuous assertions for {@link MultipleNodeConsensusResults}.
@@ -57,36 +58,15 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert haveConsistentRounds() {
-        isNotNull();
-
-        final ConsensusRoundSubscriber subscriber = new ConsensusRoundSubscriber() {
-
-            // For some validations to function properly, we have to prepend the last round
-            private ConsensusRound lastRound = null;
-
-            @Override
-            public SubscriberAction onConsensusRounds(
-                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
-                return switch (state) {
-                    case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId)) {
-                            final List<ConsensusRound> includingLast = Stream.concat(
-                                            Stream.ofNullable(lastRound), rounds.stream())
-                                    .toList();
-                            ConsensusRoundValidator.validate(includingLast);
-                            lastRound = rounds.getLast();
-                        }
-                        yield CONTINUE;
-                    }
-                    case PAUSED -> CONTINUE;
-                    case DESTROYED -> UNSUBSCRIBE;
-                };
-            }
-        };
-
-        actual.subscribe(subscriber);
-
-        return this;
+        // For some validations to function properly, we have to prepend the last round
+        final AtomicReference<ConsensusRound> lastRound = new AtomicReference<>(null);
+        return checkContinuously((nodeId, rounds) -> {
+            final List<ConsensusRound> includingLast = Stream.concat(
+                            Stream.ofNullable(lastRound.get()), rounds.stream())
+                    .toList();
+            ConsensusRoundValidator.validate(includingLast);
+            lastRound.set(rounds.getLast());
+        });
     }
 
     /**
@@ -98,38 +78,37 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert haveEqualRounds() {
+        final Map<Long, RoundFromNode> referenceRounds = new ConcurrentHashMap<>();
+        return checkContinuously((nodeId, rounds) -> {
+            for (final ConsensusRound round : rounds) {
+                final RoundFromNode reference =
+                        referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
+                if (!nodeId.equals(reference.nodeId)) {
+                    RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
+                }
+            }
+        });
+    }
+
+    private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+
+    private MultipleNodeConsensusResultsContinuousAssert checkContinuously(
+            @NonNull final BiConsumer<NodeId, List<ConsensusRound>> check) {
         isNotNull();
 
-        final ConsensusRoundSubscriber subscriber = new ConsensusRoundSubscriber() {
-
-            final Map<Long, RoundFromNode> referenceRounds = new ConcurrentHashMap<>();
-
-            @Override
-            public SubscriberAction onConsensusRounds(
-                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
-                return switch (state) {
-                    case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId)) {
-                            for (final ConsensusRound round : rounds) {
-                                final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                                if (!nodeId.equals(reference.nodeId)) {
-                                    RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
-                                }
-                            }
-                        }
-                        yield CONTINUE;
-                    }
-                    case PAUSED -> CONTINUE;
-                    case DESTROYED -> UNSUBSCRIBE;
-                };
+        final ConsensusRoundSubscriber subscriber = (nodeId, rounds) -> switch (state) {
+            case ACTIVE -> {
+                if (!suppressedNodeIds.contains(nodeId)) {
+                    check.accept(nodeId, rounds);
+                }
+                yield CONTINUE;
             }
+            case PAUSED -> CONTINUE;
+            case DESTROYED -> UNSUBSCRIBE;
         };
 
         actual.subscribe(subscriber);
 
         return this;
     }
-
-    private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 }

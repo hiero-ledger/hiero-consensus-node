@@ -5,8 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.compactPreconsensusEventFile;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.fileSanityChecks;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,25 +33,30 @@ public class PcesFileReader {
     /**
      * Scan the file system for event files and add them to the collection of tracked files.
      *
-     * @param platformContext   the platform context
+     * @param configuration the platform configuration
+     * @param recycleBin the recycle bin to use for deleted files
      * @param databaseDirectory the directory to scan for files
-     * @param startingRound     the round to start reading from
-     * @param permitGaps        if gaps are permitted in sequence number
+     * @param startingRound the round to start reading from
+     * @param permitGaps if gaps are permitted in sequence number
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
     public static PcesFileTracker readFilesFromDisk(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final RecycleBin recycleBin,
             @NonNull final Path databaseDirectory,
             final long startingRound,
             final boolean permitGaps)
             throws IOException {
 
-        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(recycleBin);
         Objects.requireNonNull(databaseDirectory);
 
-        final PcesFileTracker files = new PcesFileTracker();
+        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final boolean doInitialSpanCompaction = pcesConfig.compactLastFileOnStartup();
 
+        final PcesFileTracker files = new PcesFileTracker();
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
             fileStream
                     .filter(f -> !Files.isDirectory(f))
@@ -61,15 +66,11 @@ public class PcesFileReader {
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
 
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final boolean doInitialSpanCompaction = preconsensusEventStreamConfig.compactLastFileOnStartup();
-
         if (files.getFileCount() != 0 && doInitialSpanCompaction) {
             compactSpanOfLastFile(files);
         }
 
-        resolveDiscontinuities(databaseDirectory, files, platformContext.getRecycleBin(), startingRound);
+        resolveDiscontinuities(databaseDirectory, files, recycleBin, startingRound);
 
         return files;
     }
@@ -137,9 +138,9 @@ public class PcesFileReader {
      * come after the discontinuity.
      *
      * @param databaseDirectory the directory where PCES files are stored
-     * @param files             the files that have been read from disk
+     * @param files the files that have been read from disk
      * @param recycleBin the recycleBin
-     * @param startingRound     the round the system is starting from
+     * @param startingRound the round the system is starting from
      * @throws IOException if there is an error deleting files
      */
     private static void resolveDiscontinuities(

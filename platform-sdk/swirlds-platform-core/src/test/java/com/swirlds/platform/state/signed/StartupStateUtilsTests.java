@@ -21,17 +21,19 @@ import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -41,7 +43,6 @@ import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
@@ -84,9 +85,9 @@ public class StartupStateUtilsTests {
     }
 
     @AfterEach
-    void afterEach() throws IOException {
-        FileUtils.deleteDirectory(testDirectory);
+    void afterEach() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @BeforeAll
@@ -94,7 +95,6 @@ public class StartupStateUtilsTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
     }
 
     @NonNull
@@ -132,6 +132,9 @@ public class StartupStateUtilsTests {
 
         // make the state immutable
         signedState.getState().copy().release();
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
+        TestMerkleCryptoFactory.getInstance()
+                .digestTreeSync(signedState.getState().getRoot());
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
@@ -152,6 +155,7 @@ public class StartupStateUtilsTests {
             writer.close();
         }
 
+        signedState.getState().release();
         return signedState;
     }
 
@@ -167,6 +171,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -197,6 +202,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -231,6 +237,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -277,6 +284,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

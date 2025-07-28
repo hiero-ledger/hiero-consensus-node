@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.validators;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ALLOWANCES_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.aggregateApproveNftAllowances;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.getEffectiveOwner;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
@@ -45,7 +46,7 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .value(payerId, account)
                 .value(spenderId, spenderAccount)
                 .build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
@@ -115,7 +116,7 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder()
                 .value(deleteAccountId, deleteAccount)
                 .build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         assertThatThrownBy(
                         () -> getEffectiveOwner(deleteAccountId, deleteAccount, readableAccountStore, expiryValidator))

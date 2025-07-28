@@ -18,6 +18,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.workflows.InnerTransaction.NO;
+import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
@@ -45,6 +47,7 @@ import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -107,7 +110,7 @@ public final class IngestChecker {
         @Nullable
         private TransactionInfo txnInfo;
 
-        private List<ThrottleUsage> throttleUsages = List.of();
+        private List<ThrottleUsage> throttleUsages = new ArrayList<>();
 
         public @NonNull TransactionInfo txnInfoOrThrow() {
             return requireNonNull(txnInfo);
@@ -218,6 +221,16 @@ public final class IngestChecker {
             @NonNull final Configuration configuration,
             @NonNull final Result result)
             throws PreCheckException {
+        runAllChecks(state, serializedTransaction, configuration, result, NO);
+    }
+
+    private void runAllChecks(
+            @NonNull final State state,
+            @NonNull final Bytes serializedTransaction,
+            @NonNull final Configuration configuration,
+            @NonNull final Result result,
+            @NonNull final InnerTransaction innerTransaction)
+            throws PreCheckException {
         requireNonNull(result);
 
         // During ingest we approximate consensus time with wall clock time
@@ -225,15 +238,21 @@ public final class IngestChecker {
 
         // 1. Check the syntax
         final var maxBytes = maxIngestParseSize(configuration);
-        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
-        result.setTxnInfo(txInfo);
+        TransactionInfo txInfo;
+        if (innerTransaction == YES) {
+            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction, maxBytes);
+        } else {
+            txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+            result.setTxnInfo(txInfo);
+        }
+
         // check jumbo size after parsing
         transactionChecker.checkJumboTransactionBody(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        if (!nodeAccount.equals(txBody.nodeAccountID())) {
+        if (!nodeAccount.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 
@@ -251,18 +270,12 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        final List<ThrottleUsage> throttleUsages = new ArrayList<>();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-
         try {
-            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
-            if (functionality == ATOMIC_BATCH) {
-                checkThrottlesForInnerTxns(
-                        state, configuration, txBody.atomicBatch().transactions(), throttleUsages);
-            }
+            checkThrottles(txInfo, state, hederaConfig, result.throttleUsages());
         } finally {
             // Always keep throttle usages up to date for refund logic
-            result.setThrottleUsages(throttleUsages);
+            result.setThrottleUsages(result.throttleUsages());
         }
 
         // 4a. Run pure checks
@@ -300,6 +313,13 @@ public final class IngestChecker {
                 dispatcher);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
+
+        // 8. Re-run checks against inner transactions
+        if (functionality == ATOMIC_BATCH) {
+            for (final Bytes bytes : txBody.atomicBatch().transactions()) {
+                runAllChecks(state, bytes, configuration, result, YES);
+            }
+        }
     }
 
     private void checkThrottles(
@@ -313,34 +333,6 @@ public final class IngestChecker {
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
             throw new PreCheckException(BUSY);
-        }
-    }
-
-    /**
-     * Validates throttling constraints for inner transactions part of Atomic Batch.
-     *
-     * @param state Current network state for throttle evaluation
-     * @param configuration System configuration
-     * @param innerTxnsBytes Serialized inner transactions to validate
-     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
-     */
-    private void checkThrottlesForInnerTxns(
-            @NonNull final State state,
-            @NonNull final Configuration configuration,
-            @NonNull final List<Bytes> innerTxnsBytes,
-            @NonNull final List<ThrottleUsage> throttleUsages)
-            throws PreCheckException {
-
-        if (innerTxnsBytes.isEmpty()) {
-            return;
-        }
-
-        final var maxParseSize = maxIngestParseSize(configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-
-        for (final var bytes : innerTxnsBytes) {
-            final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
-            checkThrottles(innerTxn, state, hederaConfig, throttleUsages);
         }
     }
 

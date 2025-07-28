@@ -639,7 +639,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                         new byte[][] {})
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
@@ -669,7 +670,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                         new byte[][] {TEST_METADATA_1.getBytes()})
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
@@ -706,7 +708,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                         new byte[][] {TEST_METADATA_1.getBytes()})
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(SIGNER))
+                                .payingWith(SIGNER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
@@ -745,7 +748,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
                                 .payingWith(SIGNER)
-                                .hasRetryPrecheckFrom(BUSY))
+                                .hasRetryPrecheckFrom(BUSY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
@@ -781,7 +785,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                         new byte[][] {})
                                 .via(STATIC_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
@@ -815,7 +820,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                         new byte[][] {TEST_METADATA_1.getBytes()})
                                 .via(STATIC_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
@@ -848,7 +854,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                 .sending(ONE_HUNDRED_HBARS)
                                 .via(CALLCODE_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
@@ -883,7 +890,8 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                 .sending(ONE_HUNDRED_HBARS)
                                 .via(CALLCODE_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(TOKEN_TREASURY))
+                                .payingWith(TOKEN_TREASURY)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0

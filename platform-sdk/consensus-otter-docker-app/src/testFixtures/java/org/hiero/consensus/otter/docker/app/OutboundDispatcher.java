@@ -19,7 +19,7 @@ import org.hiero.otter.fixtures.container.proto.EventMessage;
  */
 public final class OutboundDispatcher {
 
-    private static final Logger LOGGER = LogManager.getLogger(OutboundDispatcher.class);
+    private static final Logger log = LogManager.getLogger(OutboundDispatcher.class);
 
     /** Queue used to hand over messages from the platform threads to the dispatcher thread. */
     private final BlockingQueue<EventMessage> outboundQueue = new LinkedBlockingQueue<>();
@@ -90,7 +90,7 @@ public final class OutboundDispatcher {
                     observer.onNext(msg);
                 } catch (final RuntimeException e) {
                     // Any exception here implies that the stream is no longer writable.
-                    LOGGER.error("Unexpected error while sending event message", e);
+                    log.error("Unexpected error while sending event message", e);
                     cancelled.set(true);
                 }
             }

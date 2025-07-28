@@ -11,14 +11,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.apache.logging.log4j.core.filter.LevelRangeFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
@@ -39,7 +42,8 @@ public class InMemoryAppender extends AbstractAppender {
     private static final List<LogSubscriber> subscribers = new CopyOnWriteArrayList<>();
 
     /** No filtering is applied to the log events */
-    private static final Filter NO_FILTER = null;
+    private static final Filter INFO_LEVEL_FILTER =
+            LevelRangeFilter.createFilter(null, Level.INFO, Result.NEUTRAL, Result.DENY);
 
     /**
      * The default layout is used to format log events.
@@ -60,7 +64,7 @@ public class InMemoryAppender extends AbstractAppender {
      * @param name The name of the appender.
      */
     protected InMemoryAppender(@NonNull final String name) {
-        super(name, NO_FILTER, DEFAULT_LAYOUT, PROPAGATE_EXCEPTIONS, NO_PROPERTIES);
+        super(name, INFO_LEVEL_FILTER, DEFAULT_LAYOUT, PROPAGATE_EXCEPTIONS, NO_PROPERTIES);
     }
 
     /**

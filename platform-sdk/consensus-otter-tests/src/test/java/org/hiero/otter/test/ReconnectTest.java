@@ -2,7 +2,6 @@
 package org.hiero.otter.test;
 
 import static org.assertj.core.api.Fail.fail;
-import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -16,6 +15,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import java.time.Duration;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -33,7 +33,7 @@ public class ReconnectTest {
     private static final long ROUNDS_EXPIRED = 10L;
 
     @Disabled("Disabled until the container networks are fully supported")
-    @OtterTest
+    @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -50,7 +50,7 @@ public class ReconnectTest {
                     .set(ConsensusConfig_.ROUNDS_EXPIRED, String.valueOf(ROUNDS_EXPIRED));
         });
 
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();
 
         // Wait for thirty seconds minutes
@@ -61,9 +61,9 @@ public class ReconnectTest {
         nodeToReconnect.killImmediately();
 
         // Verify that the node was healthy prior to being killed
-        assertThat(nodeToReconnect.getPlatformStatusResults())
+        assertThat(nodeToReconnect.newPlatformStatusResult())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-        nodeToReconnect.getPlatformStatusResults().clear();
+        nodeToReconnect.newPlatformStatusResult().clear();
 
         // Wait for the node we just killed to fall behind
         if (!timeManager.waitForCondition(
@@ -78,18 +78,18 @@ public class ReconnectTest {
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(network.getConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+        assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
+
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
-        assertThat(network.getPlatformStatusResults().suppressingNode(nodeToReconnect))
+        assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         // The reconnected node should have gone through the reconnect status progression since restarting
-        assertThat(nodeToReconnect.getPlatformStatusResults())
+        assertThat(nodeToReconnect.newPlatformStatusResult())
                 .hasSteps(target(ACTIVE)
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
     }

@@ -52,7 +52,7 @@ public abstract class AbstractNode implements Node {
      * @param weight the weight of this node
      */
     protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
-        this.selfId = selfId;
+        this.selfId = requireNonNull(selfId, "selfId must not be null");
         this.weight = weight;
     }
 
@@ -140,11 +140,23 @@ public abstract class AbstractNode implements Node {
     /**
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
      *
-     * @param expected the expected lifecycle state
-     * @param message the message for the exception
+     * @param expected throw if the node is in this lifecycle state
+     * @param message  the message for the exception
      */
     protected void throwIfIn(@NonNull final LifeCycle expected, @NonNull final String message) {
         if (lifeCycle == expected) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Throws an {@link IllegalStateException} if the node is not in the specified lifecycle state.
+     *
+     * @param expected throw if the lifecycle is not in this state
+     * @param message  the message for the exception
+     */
+    protected void throwIfNotIn(@NonNull final LifeCycle expected, @NonNull final String message) {
+        if (lifeCycle != expected) {
             throw new IllegalStateException(message);
         }
     }
