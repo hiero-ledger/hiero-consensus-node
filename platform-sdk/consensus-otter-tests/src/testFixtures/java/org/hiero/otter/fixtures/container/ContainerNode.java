@@ -54,6 +54,7 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -102,6 +103,8 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
+
+        LogConfigBuilder.configureTest();
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -269,12 +272,14 @@ public class ContainerNode extends AbstractNode implements Node {
     // ignoring the Empty answer from destroyContainer
     void destroy() throws IOException {
         // copy logs from container to the local filesystem
-        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
-        Files.createDirectories(logPath);
-        Files.deleteIfExists(logPath.resolve("swirlds.log"));
-        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
-        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
-        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+        final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+        Files.createDirectories(logPath.resolve("swirlds-hashstream"));
+
+        container.copyFileFromContainer(
+                "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+        container.copyFileFromContainer(
+                "output/swirlds-hashstream/swirlds-hashstream.log",
+                logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
