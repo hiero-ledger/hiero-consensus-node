@@ -42,7 +42,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer;
 
     /**
-     * Matrics for sync related numbers
+     * Metrics for sync related numbers
      */
     private final SyncMetrics syncMetrics;
     /**
