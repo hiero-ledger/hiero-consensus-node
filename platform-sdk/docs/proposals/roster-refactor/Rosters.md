@@ -108,14 +108,18 @@ Consumes Roster via different utility classes:
 
 ## Proposed changes
 
+The following changes are described as a two stage effort. One part previous to DAB, and the second one once we decide to tackle that project.
+
+### List of tasks previous to DAB
+
 We need new abstractions built from `Roster` objects that provide better search capabilities.
-We also need to provide the possibility for all components to cache data they need to access from a roster for a particular round.
-This logic will be repeated for different use cases in the platform code, so it's better to have it as centralized piece that can be reused.
-We need to make sure that each component have its own local copy of these elements and we don't have a single shared data structure that needs to deal with concurrent changes.
+We need to enable platform code to be able to use those new abstractions.
 
-### New Abstractions
+#### Create all new objects
 
-![roster-data-all.png](roster-data-all.png)
+##### Diagram
+
+![roster-data-change.png](roster-data-change.png)
 
 * `RosterData` class:
   Encapsulates roster information as an immutable data structure:
@@ -127,32 +131,13 @@ We need to make sure that each component have its own local copy of these elemen
 * `RosterHistory`: Tracks the history of rosters across rounds and allows retrieval based on round numbers or hashes. A replacement for `org.hiero.consensus.roster.RosterHistory`.
   It will be mutable, it will return RosterData objects, it will allow components to maintain their own history and manage its updates, it will cache values.
 
-* `CustomRosterDataMap`: mutable data map with custom transformation support and caching of information retrieved from a roster, a nodeId and a round number.
+* `SignaturesMap`: Specialized mutable data map with custom transformation support and caching of `Signature` retrieved from a roster, a nodeId and a round number.
 
-* `WeightMap`: Specialized CustomRosterDataMap providing fast access to node weights.
-
-* `SignaturesMap`: Specialized CustomRosterDataMap providing cached Signature instances by node and round
-
-### Roster's updated interactions
-
-#### List of tasks previous to DAB
-
-##### Create all new objects
-
-Create all the new objects according to the class diagram and description on top. Place all new objects on `consensus-model` module.
-* `RosterData`
-* `RosterDataEntry`
-* `RosterHistory`
-* `RosterHistoryBuilder`
-* `CustomRosterDataMap`
-* `WeightMap`
-* `SignaturesMap`
-
-##### Change all uses of `Roster` to `RosterData`
+#### Change all uses of `Roster` to `RosterData`
 
 Change all protobuf `Roster` usages to `RosterData`. After this task is completed platform should not use Roster protobuf object directly.
 
-###### Affected pieces
+##### Affected pieces
 
 * Components:
   * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
@@ -200,11 +185,17 @@ after this change, `ConsensusImpl` will not require a node-to-roster-index map a
 #### Change`RosterData` to `RosterHistory` as component's construction parameter
 
 Components needing a `RosterData` will receive a `RosterHistory` instance instead.
-`PlatformComponentBuilder` will receive a `RosterHistoryBuilder` initialized with the list of roundRoster pairs and the list of rosters.
-At the moment of creation of each component, the `PlatformComponentBuilder` will use the `RosterHistoryBuilder` to create a new instance of the rosterHistory and provide it to the components.
-The old RosterHistory object is removed from platformBuildingBlocks, each component will have their own `RosterHistory` in order to avoid making that class thread-safe.
+The old RosterHistory object is removed from platformBuildingBlocks.
 
-When using the rosterHistory to retrieve a RosterData object we can still use `getCurrentRoster` at this stage.
+When using the rosterHistory to retrieve a `RosterData` object we can still use `getCurrentRoster` at this stage.
+
+Note on this version of `RosterHistory`:
+
+```text
+At this stage of the change RosterHistory is going to be immutable. The creation of RosterHistory will be performed once, and feed to each component needing it.
+The future idea is to make it a mutable class that can receive updates from input wires and have the ConsensusComponent provide the information that will be used to update the history.
+Each component will then need to use its own local copy of the RosterHistory and update it accordingly.
+```
 
 After this task, the old RosterHistory object will be deleted.
 
@@ -225,37 +216,65 @@ As Tipset objects store `roster` objects, is still unknown what should happen wi
 * `org.hiero.consensus.event.creator.impl.tipset.Tipset`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetMetrics`
 
-#### retrieve `RosterData` form `RosterHistory` using `RosterHistory#getRosterForRound`
+#### `DefaultEventSignatureValidator` should use `SignatureDataMap`
+
+- Use a data structure that allows to create and cache `Signature` instances in `DefaultEventSignatureValidator`.
+
+#### List of tasks after DAB
+
+The goal of this stage is to provide the possibility to all components to cache data they need to access from a roster for a particular round.
+[See:](../consensus-layer/Consensus-Layer.md#roster-and-configuration-changes)
+
+After DAB the relationship between the components will be as follows:
+![roster-data-all.png](roster-data-all.png)
+![roster-updates.png](roster-updates.png)
+
+##### Make `RosterHistory` mutable and have every component receive its own local copy
+
+`RosterHistory` will become mutable by adding the possibility to update (add new roster-round elements) and clean elements associated to expired rounds.
+To avoid the need of making the object support concurrent modifications, each component will have their own `RosterHistory`.
+`PlatformComponentBuilder` will receive a `RosterHistoryBuilder` initialized with the list of roundRoster pairs and the list of rosters.
+At the moment of creation of each component, the `PlatformComponentBuilder` will use the `RosterHistoryBuilder` to create a new instance of the rosterHistory and provide it to the components.
+
+##### retrieve `RosterData` form `RosterHistory` using `RosterHistory#getRosterForRound`
 
 For DAB, all accesses to the RosterHistory needs to provide the round to get the applicable roster.
 
 * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`: is already accessing using the history and the round, so no impact here.
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`: `#reportBranch` will use the event's birth round. `#updateEventWindow` will use the event's window latestConsensusRound. The constructor will still use getCurrentRoster.
-* `com.swirlds.platform.ConsensusImpl`: In all places where consensus is using the roster we have access to the event's birth round
+* `com.swirlds.platform.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`: `#registerEvent` can use the event's birth round. TipsetEventCreator's constructor will still use  `rosterHistory.getCurrentRoster()` for the creation of tipsetTracker, tipsetMetrics, tipsetWeightCalculator. networkSize field can be removed and calculated dynamically using the event window.
 * `com.swirlds.platform.state.iss.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
 * `com.swirlds.platform.gossip.SyncGossipModular` The constructor will still use  `rosterHistory.getCurrentRoster()` unless we can create the component sending the round as another parameter.
 
-#### Modify components to a subtype of `CustomRosterDataMap`
+##### Create a hierarchy of `CustomRosterDataMap`
 
-- Use a `WeightMap` in:
+We need to provide the possibility for all components to cache data they need to access from a roster for a particular round.
+This logic will be repeated for different use cases in the platform code, so it's better to have it as centralized piece that can be reused.
+We'll create a class hierarchy based on the previously added SignatureMap
+
+- Create a `CustomRosterDataMap` with all the common logic for retrieving particular node's information on the roster for a round.
+- create a `WeightMap`: that allows to store individual weights and total weights.
+- Use the `WeightMap` in:
   - `IssDetector`
   - `DefaultBranchReporter`
   - `ConsensusImpl`
-- Use a `CustomRosterDataMap` that allows to create `Signature` in `DefaultEventSignatureValidator`.
-- Use a `CustomRosterDataMap` that allows to create `PeerInfo` instances in `SyncGossipModular` (this will be a future task given that is only possible if Gossip processes some sort of round)
+- It is possible that `SyncGossipModular` will need a similar  `PeerInfo` map, but at this stage its is not defined how gossip will react to the updates of the roster.
 
-#### List of tasks after DAB
+##### Consensus needs to inform all the other components about new rosters for future rounds
 
-After DAB the relationship between the components will be as follows:
-![roster-updates.png](roster-updates.png)
+This will be done by adding new input wires connected from Consensus using the newly exposed round metadata
+[See:](../consensus-layer/Consensus-Layer.md#roster-changes)
 
-#### Consensus needs to inform all the other components about new rosters for future rounds
+##### Components should update their local copy of the `RosterHistory`
 
-#### Components should update their local copy of the RosterHistory
+The implementation of all wires receiving round metadata should be to update the local RosterHistory information.
+The implementation of all wires receiving an event-window should be to remove all registered information in the RosterHistory associated to expired rounds.
 
-#### Tipsets needs to be refreshed when a new RosterData applies to the current Round
+##### Tipsets needs to be refreshed when a new RosterData applies to the current Round
 
-#### Gossip needs to update its internal state according to the roster for newer rounds
+Tipset objects store the roster internally, a change of roster renders all previously calculated tipsets void. They will need to be recalculated.
 
-#### Event window processing should clean their local copy of the `RosterHistory`
+##### Gossip needs to update its internal state according to the roster for newer rounds
+
+[See:](../consensus-layer/Consensus-Layer.md#roster-changes)
