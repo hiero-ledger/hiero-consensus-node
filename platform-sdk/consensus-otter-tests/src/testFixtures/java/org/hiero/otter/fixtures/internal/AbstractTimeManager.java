@@ -14,7 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * A time manager for the turtle network.
+ * An abstract implementation of {@link TimeManager} that contains all functionality shared between the different
+ * concrete implementations.
  *
  * <p>This class implements the {@link TimeManager} interface and provides methods to control the time
  * in the turtle network. Time is simulated in the turtle framework.

@@ -286,7 +286,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    // ignoring the Empty answer from destroyContainer
     void destroy() {
         try {
             // copy logs from container to the local filesystem

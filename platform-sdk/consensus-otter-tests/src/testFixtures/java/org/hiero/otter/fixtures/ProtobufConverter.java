@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
-import org.hiero.otter.fixtures.container.proto.MarkerFileAdded;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 
 public class ProtobufConverter {
@@ -674,9 +673,5 @@ public class ProtobufConverter {
                 .setMarker(sourceLog.marker() != null ? sourceLog.marker().toString() : "")
                 .setNodeId(sourceLog.nodeId() != null ? sourceLog.nodeId().id() : -1L)
                 .build();
-    }
-
-    public static List<String> toPbj(@NonNull final MarkerFileAdded markerFileAdded) {
-        return markerFileAdded.getMarkerFileNameList().stream().toList();
     }
 }

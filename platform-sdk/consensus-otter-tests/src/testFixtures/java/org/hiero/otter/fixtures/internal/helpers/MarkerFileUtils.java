@@ -21,6 +21,8 @@ import java.util.List;
  */
 public class MarkerFileUtils {
 
+    private MarkerFileUtils() {}
+
     /**
      * Start observing the given directory for marker files.
      *
