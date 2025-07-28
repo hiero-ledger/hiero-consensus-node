@@ -168,7 +168,7 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT} --email {{ .SOLO_EMAIL }}
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
 
   solo:deployment:create:
     silent: true

@@ -53,9 +53,6 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
-      solo-email:
-        required: true
-        description: "Solo email for SOLO deployment"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -233,7 +230,6 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          SOLO_EMAIL: ${{ secrets.solo-email }}
         run: |
           set +x
           set +e
