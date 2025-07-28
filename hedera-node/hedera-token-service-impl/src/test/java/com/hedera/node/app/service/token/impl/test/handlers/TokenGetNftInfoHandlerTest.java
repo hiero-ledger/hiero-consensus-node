@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,6 +26,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfoHandler;
@@ -86,8 +88,9 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidNft() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
-        given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS_KEY)
+                .build();
+        given(readableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createTokenGetNftInfoQuery(nftIdSl1);
@@ -123,8 +126,9 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidNftInTrans() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
-        given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS_KEY)
+                .build();
+        given(readableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
 
@@ -157,8 +161,9 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void getsResponseIfInvalidNft() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
-        given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS_KEY)
+                .build();
+        given(readableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
         final var tokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
@@ -195,10 +200,10 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
                 .mintTime(consensusTimestamp)
                 .metadata(Bytes.wrap(evmAddress))
                 .build();
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS)
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS_KEY)
                 .value(nftIdSl1, nftSl1)
                 .build();
-        given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
+        given(readableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
         final var tokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
@@ -218,10 +223,10 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
                 .mintTime(consensusTimestamp)
                 .metadata(Bytes.wrap(evmAddress))
                 .build();
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS)
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS_KEY)
                 .value(nftIdSl1, nftSl1)
                 .build();
-        given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
+        given(readableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
         final var tokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);

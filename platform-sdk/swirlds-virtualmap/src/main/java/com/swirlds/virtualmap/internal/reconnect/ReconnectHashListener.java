@@ -3,9 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Hash;
@@ -21,21 +19,17 @@ import org.hiero.base.crypto.Hash;
  * and memory reasons, since during reconnect we may need to process the entire data set, which is too
  * large to fit in memory.
  *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public class ReconnectHashListener<K extends VirtualKey, V extends VirtualValue> implements VirtualHashListener<K, V> {
+public class ReconnectHashListener implements VirtualHashListener {
 
-    private final ReconnectHashLeafFlusher<K, V> flusher;
+    private final ReconnectHashLeafFlusher flusher;
 
     /**
      * Create a new {@link ReconnectHashListener}.
      *
      * @param flusher Hash / leaf flusher to use to flush data to disk
      */
-    public ReconnectHashListener(@NonNull final ReconnectHashLeafFlusher<K, V> flusher) {
+    public ReconnectHashListener(@NonNull final ReconnectHashLeafFlusher flusher) {
         this.flusher = requireNonNull(flusher);
     }
 
@@ -59,7 +53,7 @@ public class ReconnectHashListener<K extends VirtualKey, V extends VirtualValue>
      * {@inheritDoc}
      */
     @Override
-    public void onLeafHashed(final VirtualLeafRecord<K, V> leaf) {
+    public void onLeafHashed(final VirtualLeafBytes leaf) {
         flusher.updateLeaf(leaf);
     }
 

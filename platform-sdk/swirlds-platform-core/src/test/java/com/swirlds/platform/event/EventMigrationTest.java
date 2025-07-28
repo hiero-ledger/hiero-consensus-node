@@ -2,7 +2,7 @@
 package com.swirlds.platform.event;
 
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
@@ -76,11 +76,10 @@ public class EventMigrationTest {
             }
             case PCES -> {
                 final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                        TestPlatformContextBuilder.create()
-                                .withConfiguration(new TestConfigBuilder()
-                                        .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
-                                        .getOrCreateConfig())
-                                .build(),
+                        new TestConfigBuilder()
+                                .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
+                                .getOrCreateConfig(),
+                        new NoOpRecycleBin(),
                         path,
                         0L,
                         false);
