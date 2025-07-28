@@ -78,5 +78,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5ms") Duration rpcSleepAfterSync,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
-        @ConfigProperty(defaultValue = "0.5") double fairMaxConcurrentSyncs,
+        @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize) {}
