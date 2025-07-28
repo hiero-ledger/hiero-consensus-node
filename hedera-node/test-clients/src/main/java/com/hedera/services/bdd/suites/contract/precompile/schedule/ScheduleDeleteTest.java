@@ -1,21 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import java.math.BigInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -23,6 +8,22 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
+
+import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests success scenarios of the HRC-1215 functions when enabled
@@ -47,14 +48,49 @@ public class ScheduleDeleteTest {
     }
 
     @HapiTest
+    @DisplayName("deleteSchedule(address)")
+    public Stream<DynamicTest> deleteScheduleTest() {
+        return deleteScheduleTest("deleteScheduleExample", BigInteger.valueOf(40));
+    }
+
+    @HapiTest
     @DisplayName("redirect proxy deleteSchedule()")
     public Stream<DynamicTest> deleteScheduleProxyTest() {
+        // TODO Glib: proxy delete return CONTRACT_REVERT_EXECUTED
+        return deleteScheduleTest("deleteScheduleProxyExample", BigInteger.valueOf(41));
+    }
+
+    @HapiTest
+    @DisplayName(
+            "hasScheduleCapacity(uint256,uint256) -> scheduleCall(address,uint256,uint256,uint64,bytes) -> deleteSchedule(address)")
+    public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();
             allRunFor(
                     spec,
-                    contract.call("scheduleCallExample", BigInteger.valueOf(60))
+                    contract.call("scheduleCallWithCapacityCheckAndDeleteExample", BigInteger.valueOf(42))
+                            .gas(2_000_000L)
+                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
+                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
+            allRunFor(
+                    spec,
+                    // check schedule deleted
+                    getScheduleInfo(scheduleIDString)
+                            .hasScheduleId(scheduleIDString)
+                            .isDeleted());
+        }));
+    }
+
+    private Stream<DynamicTest> deleteScheduleTest(String deleteFunction, @NonNull final Object... parameters) {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            // create schedule
+            final var scheduleAddress = new AtomicReference<Address>();
+            allRunFor(
+                    spec,
+                    contract.call("scheduleCallExample", parameters)
                             .gas(2_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
@@ -67,14 +103,12 @@ public class ScheduleDeleteTest {
                             .hasScheduleId(scheduleIDString)
                             .isNotExecuted(),
                     // delete schedule
-                    contract.call("deleteScheduleProxyExample", scheduleAddress.get())
-                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS))
-                    // check schedule deleted //TODO Glib: add delete checker
-//                    getScheduleInfo(scheduleIDString)
-//                            .hasScheduleId(scheduleIDString)
-//                            .isNotDeleted()
-            );
+                    contract.call(deleteFunction, scheduleAddress.get())
+                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
+                    // check schedule deleted
+                    getScheduleInfo(scheduleIDString)
+                            .hasScheduleId(scheduleIDString)
+                            .isDeleted());
         }));
     }
-
 }

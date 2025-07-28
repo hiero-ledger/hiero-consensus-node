@@ -74,6 +74,6 @@ public class GetScheduledNonFungibleTokenCreateCall extends AbstractCall {
                                         SUCCESS.protoOrdinal(), nftTokenInfoTupleFor(tokenCreation, ledgerId, 1))),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
-                true);
+                isViewCall);
     }
 }

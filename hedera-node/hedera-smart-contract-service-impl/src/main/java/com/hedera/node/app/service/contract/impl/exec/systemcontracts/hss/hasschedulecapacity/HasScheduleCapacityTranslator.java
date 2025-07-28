@@ -45,7 +45,7 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
-        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractDeleteScheduleEnabled()) {
+        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractHasScheduleCapacityEnabled()) {
             return attempt.isMethod(HAS_SCHEDULE_CAPACITY);
         } else {
             return Optional.empty();
@@ -58,11 +58,9 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
         final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
         final BigInteger expirySecond = call.get(EXPIRY_SECOND_INDEX);
         final BigInteger gasLimit = call.get(GAS_LIMIT_INDEX);
+        // TODO Glib: call hasScheduleCapacity when it will be implemented
 
-        // TODO Glib: how to call hasScheduleCapacity?
-        //  add stab
-
-        return null;
+        return new HasScheduleCapacityCallStub(attempt);
     }
 
     /**

@@ -51,8 +51,7 @@ public class ScheduleCallTest {
 
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     @HapiTest
@@ -65,13 +64,13 @@ public class ScheduleCallTest {
     @HapiTest
     @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
-        return scheduledCallTest(sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(40));
+        return scheduledCallTest(sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(31));
     }
 
     @HapiTest
     @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
-        return scheduledCallTest(sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(50));
+        return scheduledCallTest(sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(32));
     }
 
     private Stream<DynamicTest> scheduledCallTest(

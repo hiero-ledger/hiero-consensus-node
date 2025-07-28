@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCre
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.getRelativeExpiry;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -35,7 +36,6 @@ import java.util.function.BiFunction;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
 
 public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     private static final Logger LOG = LogManager.getLogger(HapiGetScheduleInfo.class);
@@ -53,6 +53,7 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
 
     boolean shouldBeExecuted = false;
     boolean shouldNotBeExecuted = false;
+    boolean shouldBeDeleted = false;
     boolean shouldNotBeDeleted = false;
     boolean checkForRecordedScheduledTxn = false;
     Optional<String> deletionTxn = Optional.empty();
@@ -81,6 +82,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
 
     public HapiGetScheduleInfo isNotExecuted() {
         shouldNotBeExecuted = true;
+        return this;
+    }
+
+    public HapiGetScheduleInfo isDeleted() {
+        shouldBeDeleted = true;
         return this;
     }
 
@@ -189,11 +195,15 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         }
 
         if (shouldNotBeExecuted) {
-            Assertions.assertFalse(actualInfo.hasExecutionTime(), "Was already executed!");
+            assertFalse(actualInfo.hasExecutionTime(), "Was already executed!");
+        }
+
+        if (shouldBeDeleted) {
+            assertTrue(actualInfo.hasDeletionTime(), "Wasn't already deleted!");
         }
 
         if (shouldNotBeDeleted) {
-            Assertions.assertFalse(actualInfo.hasDeletionTime(), "Was already deleted!");
+            assertFalse(actualInfo.hasDeletionTime(), "Was already deleted!");
         }
 
         if (deletionTxn.isPresent()) {

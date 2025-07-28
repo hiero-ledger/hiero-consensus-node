@@ -107,13 +107,13 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                 attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
 
         // TODO Glib: test for delete
-        Set<Key> keys =  attempt.keySetFor();
+        Set<Key> keys = attempt.keySetFor();
         // create TransactionBody
         TransactionBody body = TransactionBody.newBuilder()
                 .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
                 // create ScheduleCreateTransactionBody
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
-                        // TODO Glib: set admin key to be abl to delete the schedule
+                        // TODO Glib: set admin key to be able to delete the schedule
                         .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
                                 .contractCall(ContractCallTransactionBody.newBuilder()
                                         .contractID(contractId)

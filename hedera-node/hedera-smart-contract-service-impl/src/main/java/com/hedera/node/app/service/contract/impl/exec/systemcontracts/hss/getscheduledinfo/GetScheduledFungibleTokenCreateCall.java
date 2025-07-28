@@ -74,6 +74,6 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
                                         SUCCESS.protoOrdinal(), fungibleTokenInfoTupleFor(tokenCreation, ledgerId, 1))),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
-                true);
+                isViewCall);
     }
 }
