@@ -115,7 +115,7 @@ public class InboundConnectionHandler {
             logger.warn(
                     SOCKET_EXCEPTIONS.getMarker(),
                     "Inbound connection from {} to {} was interrupted: {}",
-                    "unknown",
+                    remoteIp,
                     selfId,
                     formattedException);
             NetworkUtils.close(clientSocket);
