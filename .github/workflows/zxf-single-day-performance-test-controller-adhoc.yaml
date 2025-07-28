@@ -136,6 +136,7 @@ jobs:
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      solo-email: ${{ vars.SOLO_EMAIL }}
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
