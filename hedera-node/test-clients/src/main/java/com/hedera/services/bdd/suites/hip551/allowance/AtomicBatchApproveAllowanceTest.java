@@ -44,10 +44,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -95,12 +93,10 @@ import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hederahashgraph.api.proto.java.NftTransfer;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -319,9 +315,9 @@ public class AtomicBatchApproveAllowanceTest {
                                                                 .build())))
                                         .payingWith(SPENDER)
                                         .signedBy(SPENDER, OWNER)
-                                        .via("transferTxn"))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("transferTxn", INVALID_NFT_ID));
+                                        .via("transferTxn")
+                                        .hasKnownStatus(INVALID_NFT_ID))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -380,15 +376,14 @@ public class AtomicBatchApproveAllowanceTest {
                                 .cryptoAllowancesCount(0)
                                 .tokenAllowancesCount(0)
                                 .nftApprovedForAllAllowancesCount(1)),
-                logIt("SO FAR SO GOOD!"),
                 // It should not be possible to remove approveForAllNftAllowance
                 // and also add allowance to serials
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(OWNER)
                                 .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                                .via("removeApproveForAllButSetSerials"))
+                                .via("removeApproveForAllButSetSerials")
+                                .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("removeApproveForAllButSetSerials", INVALID_ALLOWANCE_SPENDER_ID),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -520,27 +515,22 @@ public class AtomicBatchApproveAllowanceTest {
                                 .addDelegatedNftAllowance(
                                         OWNER, NON_FUNGIBLE_TOKEN, newSpender, delegatingSpender, false, List.of(1L))
                                 .signedBy(DEFAULT_PAYER, OWNER)
-                                .via("invalidSignatureTxn"))
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("invalidSignatureTxn", INVALID_SIGNATURE),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(DEFAULT_PAYER)
                                 .addDelegatedNftAllowance(
                                         OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, newSpender, false, List.of(2L))
                                 .signedBy(DEFAULT_PAYER, newSpender)
-                                .via("invalidDelegatingSpenderTxn"))
+                                .hasKnownStatus(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("invalidDelegatingSpenderTxn", DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(DEFAULT_PAYER)
                                 .addDelegatedNftAllowance(
                                         OWNER, NON_FUNGIBLE_TOKEN, newSpender, delegatingSpender, true, List.of())
                                 .signedBy(DEFAULT_PAYER, OWNER)
-                                .via("delegatingSpenderCannotGrantApproveForAllTxn"))
+                                .hasKnownStatus(DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus(
-                        "delegatingSpenderCannotGrantApproveForAllTxn",
-                        DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(newSpender),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(delegatingSpender),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
@@ -606,12 +596,12 @@ public class AtomicBatchApproveAllowanceTest {
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .addNftAllowance(TOKEN_TREASURY, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(4L))
                                 .signedBy(TOKEN_TREASURY, DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER))
+                                .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatchDefaultOperator(cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(TOKEN_TREASURY, NON_FUNGIBLE_TOKEN, List.of(4L))
                                 .signedBy(TOKEN_TREASURY, DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER))
+                                .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatchDefaultOperator(
                         cryptoApproveAllowance()
@@ -665,23 +655,25 @@ public class AtomicBatchApproveAllowanceTest {
                                 .payingWith(PAYER)
                                 .addCryptoAllowance(OWNER, SPENDER, 100L)
                                 .signedBy(PAYER, OWNER)
-                                .blankMemo())
+                                .blankMemo()
+                                .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("invalidOwnerTxn", INVALID_ALLOWANCE_OWNER_ID));
-        //                atomicBatchDefaultOperator(cryptoApproveAllowance()
-        //                        .payingWith(PAYER)
-        //                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-        //                        .signedBy(PAYER, OWNER)
-        //                        .blankMemo())
-        //                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
-        //                atomicBatchDefaultOperator(cryptoApproveAllowance()
-        //                        .payingWith(PAYER)
-        //                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-        //                        .signedBy(PAYER, OWNER)
-        //                        .via(BASE_APPROVE_TXN)
-        //                        .blankMemo())
-        //                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
-        //                getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)).payingWith(GENESIS));
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(PAYER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                .signedBy(PAYER, OWNER)
+                                .blankMemo()
+                                .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+                                .signedBy(PAYER, OWNER)
+                                .via(BASE_APPROVE_TXN)
+                                .blankMemo()
+                                .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)));
     }
 
     @HapiTest
@@ -721,24 +713,21 @@ public class AtomicBatchApproveAllowanceTest {
                                 .payingWith(OWNER)
                                 .addCryptoAllowance(OWNER, SPENDER, 100L)
                                 .blankMemo()
-                                .via("cryptoAllowance"))
+                                .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("cryptoAllowance", INVALID_ALLOWANCE_SPENDER_ID),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(OWNER)
                                 .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                                 .blankMemo()
-                                .via("allowanceForFungibleToken"))
+                                .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("allowanceForFungibleToken", INVALID_ALLOWANCE_SPENDER_ID),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(OWNER)
                                 .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                                 .via(BASE_APPROVE_TXN)
                                 .blankMemo()
-                                .via("allowanceForNft"))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertStatus("allowanceForNft", INVALID_ALLOWANCE_SPENDER_ID));
+                                .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -783,9 +772,7 @@ public class AtomicBatchApproveAllowanceTest {
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsd(APPROVE_TXN, 0.05, 0.01),
-                getTxnRecord(APPROVE_TXN),
-                //                validateInnerTxnChargedUsd(APPROVE_TXN, "batchApproveTxn", 0.05),
+                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1756,9 +1743,5 @@ public class AtomicBatchApproveAllowanceTest {
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
                 .payingWith(DEFAULT_BATCH_OPERATOR);
-    }
-
-    private HapiSpecOperation assertStatus(String txnName, ResponseCodeEnum expectedStatus) {
-        return getTxnRecord(txnName).hasPriority(recordWith().status(expectedStatus));
     }
 }
