@@ -3,7 +3,6 @@ package com.hedera.statevalidation.parameterresolver;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.statevalidation.Constants.VM_LABEL;
-import static com.hedera.statevalidation.parameterresolver.StateResolver.readVersion;
 import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
 import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
@@ -204,7 +203,6 @@ public class InitUtils {
                         configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
-        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> readVersion());
 
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
         Set.of(
@@ -256,13 +254,13 @@ public class InitUtils {
     static void initServiceMigrator(State state, Configuration configuration, ServicesRegistry servicesRegistry) {
         final var serviceMigrator = new OrderedServiceMigrator();
         final var platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        final var deserializedVersion = platformFacade.creationSoftwareVersionOf(state);
-        final var nodeStartupVersion = readVersion();
+        final var version = platformFacade.creationSoftwareVersionOf(state);
+        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);
         serviceMigrator.doMigrations(
                 (MerkleNodeState) state,
                 servicesRegistry,
-                deserializedVersion,
-                nodeStartupVersion,
+                version,
+                version,
                 configuration,
                 configuration,
                 new FakeStartupNetworks(Network.newBuilder().build()),
