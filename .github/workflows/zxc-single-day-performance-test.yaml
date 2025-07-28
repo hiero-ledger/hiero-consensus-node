@@ -1194,7 +1194,8 @@ jobs:
             HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} \n\
             SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }}"
           #last line is 6, it does not need comma block separator
-          freport="$(/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);')"
+          # use back-ticks for proper substitution in the json report
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
 
           cat <<EOF > slack_payload.json
