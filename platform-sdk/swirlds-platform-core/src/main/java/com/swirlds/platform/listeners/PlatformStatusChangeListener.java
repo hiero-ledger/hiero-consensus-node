@@ -11,4 +11,3 @@ import com.swirlds.common.notification.Listener;
  */
 @DispatchModel(mode = DispatchMode.SYNC, order = DispatchOrder.ORDERED)
 public interface PlatformStatusChangeListener extends Listener<PlatformStatusChangeNotification> {}
-// TODO delete all usages of this

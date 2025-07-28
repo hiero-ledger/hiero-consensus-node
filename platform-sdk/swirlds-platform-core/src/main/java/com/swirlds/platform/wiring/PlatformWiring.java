@@ -317,9 +317,6 @@ public class PlatformWiring {
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
-        statusStateMachineWiring
-                .getOutputWire()
-                .solderTo("ExecutionStatusHandler", "status updates", executionCallback::updatePlatformStatus);
     }
 
     /**
@@ -569,10 +566,9 @@ public class PlatformWiring {
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
-        // TODO maybe wire to app
-        //        statusStateMachineWiring
-        //                .getOutputWire()
-        //                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
+        statusStateMachineWiring
+                .getOutputWire()
+                .solderTo("ExecutionStatusHandler", "status updates", executionCallback::updatePlatformStatus);
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
