@@ -29,7 +29,7 @@ import java.util.Objects;
  * <p>Protobuf schema:
  *
  * <pre>
- * message LeafRecord {
+ * message StateItem {
  *
  *     // Virtual node path
  *     optional fixed64 path = 1;
@@ -44,6 +44,8 @@ import java.util.Objects;
  */
 public class VirtualLeafBytes<V> {
 
+    public static final FieldDefinition FIELD_MERKLELEAF_STATEITEM =
+            new FieldDefinition("state_item", FieldType.MESSAGE, false, false, true, 3);
     public static final FieldDefinition FIELD_LEAFRECORD_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_LEAFRECORD_KEY =
@@ -237,28 +239,45 @@ public class VirtualLeafBytes<V> {
     }
 
     public int getSizeInBytesForHashing() {
-        int len = 0;
-        len += 1; // 0x00 prefix
         final Bytes kb = keyBytes();
-        len += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(kb.length()));
+        final int keyLen = Math.toIntExact(kb.length());
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
+
         final Bytes vb = valueBytes();
-        if (vb != null) {
-            len += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, Math.toIntExact(vb.length()));
+        final int valueLen = (vb != null) ? Math.toIntExact(vb.length()) : -1;
+        if (valueLen >= 0) {
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
         }
-        return len;
+
+        // `1 +` for 0x00 prefix
+        return 1 + ProtoWriterTools.sizeOfDelimited(FIELD_MERKLELEAF_STATEITEM, innerLen);
     }
 
     // Output size must be at least getSizeInBytesForHashing()
     public void writeToForHashing(final BufferedData out) {
         out.reset();
         assert out.remaining() >= getSizeInBytesForHashing();
+
         out.writeByte((byte) 0x00);
+
         final Bytes kb = keyBytes();
-        ProtoWriterTools.writeDelimited(out, FIELD_LEAFRECORD_KEY, Math.toIntExact(kb.length()), kb::writeTo);
+        final int keyLen = Math.toIntExact(kb.length());
+
         final Bytes vb = valueBytes();
-        if (vb != null) {
-            ProtoWriterTools.writeDelimited(out, FIELD_LEAFRECORD_VALUE, Math.toIntExact(vb.length()), vb::writeTo);
+        final int valueLen = (vb != null) ? Math.toIntExact(vb.length()) : -1;
+
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
+        if (valueLen >= 0) {
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
         }
+
+        ProtoWriterTools.writeDelimited(out, FIELD_MERKLELEAF_STATEITEM, innerLen, innerOut -> {
+            ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_KEY, keyLen, kb::writeTo);
+            if (vb != null) {
+                ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
+            }
+        });
+
         assert out.position() == getSizeInBytesForHashing();
     }
 
