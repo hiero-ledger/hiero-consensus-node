@@ -16,7 +16,6 @@ import org.hiero.base.constructable.ConstructableIgnored;
  * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
 @Deprecated
-@ConstructableIgnored
 public class HederaStateRoot extends MerkleStateRoot<HederaStateRoot> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0x8e300b0dfdafbb1aL;

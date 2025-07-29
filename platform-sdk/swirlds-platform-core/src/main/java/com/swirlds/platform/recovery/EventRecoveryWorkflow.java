@@ -8,6 +8,8 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
 import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
+import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
@@ -57,6 +59,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.CesEvent;
@@ -118,6 +121,12 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         setupConstructableRegistry();
+        try {
+            setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
+            registerVirtualMapConstructables(platformContext.getConfiguration());
+        } catch (ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
 
         final PathsConfig defaultPathsConfig = ConfigurationBuilder.create()
                 .withConfigDataType(PathsConfig.class)

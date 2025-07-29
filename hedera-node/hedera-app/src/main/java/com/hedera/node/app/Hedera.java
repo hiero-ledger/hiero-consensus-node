@@ -544,18 +544,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                                 platformStateFacade),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
-        try {
             consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-            // And the factory for the MerkleStateRoot class id must be ours
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(HederaStateRoot.class, () -> new HederaStateRoot()));
-        } catch (final ConstructableRegistryException e) {
-            logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
-            throw new IllegalStateException(e);
-        }
     }
 
     /**
