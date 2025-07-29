@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
@@ -37,7 +38,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * peers stop gossiping. Therefore, we can validate that a scheduled log error doesn't occur, due to consensus coming to
  * a halt, even if an ISS isn't detected.
  */
-public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
+public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 
@@ -61,8 +62,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     }
 
     private Platform platform;
-    /** the transaction pool, stores transactions that should be sumbitted to the network */
-    private TransactionPoolNexus transactionPool;
 
     /**
      * Constructor
@@ -77,11 +76,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public void init(final Platform platform, final NodeId id) {
         this.platform = platform;
-        transactionPool = new TransactionPoolNexus(
-                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                100_000,
-                platform.getContext().getMetrics());
-
         platform.getNotificationEngine().register(IssListener.class, this::issListener);
     }
 
@@ -100,7 +94,7 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, transactionPool, testingToolConfig.transactionsPerSecond())
+        new TransactionGenerator(new Random(), platform, getTransactionPool(), testingToolConfig.transactionsPerSecond())
                 .start();
     }
 
@@ -146,26 +140,5 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ISSTestingToolConfig.class);
-    }
-
-    @Override
-    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
-    }
-
-    @NonNull
-    @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
-    }
-
-    @Override
-    public boolean hasBufferedSignatureTransactions() {
-        return transactionPool.hasBufferedSignatureTransactions();
-    }
-
-    @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        transactionPool.updatePlatformStatus(platformStatus);
     }
 }

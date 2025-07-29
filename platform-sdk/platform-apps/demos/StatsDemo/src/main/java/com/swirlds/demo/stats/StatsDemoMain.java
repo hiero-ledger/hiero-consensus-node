@@ -23,6 +23,7 @@ import com.swirlds.common.threading.framework.config.StoppableThreadConfiguratio
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -44,7 +45,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction is 100
  * random bytes. So StatsDemoState.handleTransaction doesn't actually do anything.
  */
-public class StatsDemoMain implements SwirldMain<StatsDemoState> {
+public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
 
     /** bytes in each transaction */
@@ -56,9 +57,6 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     private Platform platform;
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
     private Random random = new java.util.Random();
-    /** the transaction pool, stores transactions that should be sumbitted to the network */
-    private TransactionPoolNexus transactionPool;
-
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -107,7 +105,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
                 break; // don't create too many transactions per second
             }
             random.nextBytes(transaction); // random, so it's non-compressible
-            if (!transactionPool.submitApplicationTransaction(Bytes.wrap(transaction))) {
+            if (!getTransactionPool().submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
             toCreate--;
@@ -123,10 +121,6 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         final String[] parameters = ParameterProvider.getInstance().getParameters();
         bytesPerTrans = parameters.length > 0 ? Integer.parseInt(parameters[0]) : 100;
         transPerSecToCreate = parameters.length > 1 ? Integer.parseInt(parameters[1]) : 200;
-        transactionPool = new TransactionPoolNexus(
-                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                100_000,
-                platform.getContext().getMetrics());
     }
 
     @Override
@@ -165,26 +159,5 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
-    }
-
-    @Override
-    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
-    }
-
-    @NonNull
-    @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
-    }
-
-    @Override
-    public boolean hasBufferedSignatureTransactions() {
-        return transactionPool.hasBufferedSignatureTransactions();
-    }
-
-    @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        transactionPool.updatePlatformStatus(platformStatus);
     }
 }

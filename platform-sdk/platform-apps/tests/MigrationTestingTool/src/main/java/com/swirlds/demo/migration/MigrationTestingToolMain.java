@@ -7,15 +7,14 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,17 +27,14 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * An application designed for testing migration from version to version.
  * <p>
  * Command line arguments: Seed(long), TransactionsPerNode(int)
  */
-public class MigrationTestingToolMain implements SwirldMain<MigrationTestingToolState> {
+public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
@@ -61,8 +57,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private int transactionsCreated;
     private TransactionGenerator generator;
     private Platform platform;
-    /** the transaction pool, stores transactions that should be sumbitted to the network */
-    private TransactionPoolNexus transactionPool;
 
     /** transactions in each Event */
     private int transPerSecToCreate = 1000;
@@ -95,11 +89,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
-
-        transactionPool = new TransactionPoolNexus(
-                platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                100_000,
-                platform.getContext().getMetrics());
 
         // Initialize application statistics
         initAppStats();
@@ -162,7 +151,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
 
                 final byte[] transactionData = generator.generateTransaction();
 
-                while (!transactionPool.submitApplicationTransaction(Bytes.wrap(transactionData))) {
+                while (!getTransactionPool().submitApplicationTransaction(Bytes.wrap(transactionData))) {
                     Thread.sleep(100);
                 }
 
@@ -217,26 +206,5 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
-    }
-
-    @Override
-    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
-    }
-
-    @NonNull
-    @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
-    }
-
-    @Override
-    public boolean hasBufferedSignatureTransactions() {
-        return transactionPool.hasBufferedSignatureTransactions();
-    }
-
-    @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        transactionPool.updatePlatformStatus(platformStatus);
     }
 }
