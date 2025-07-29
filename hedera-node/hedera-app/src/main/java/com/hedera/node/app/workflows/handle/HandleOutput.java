@@ -31,17 +31,17 @@ import java.util.List;
  *
  * @param blockRecordSource maybe the block stream output items
  * @param recordSource maybe record source derived from the V6 record stream items
- * @param firstAssignedConsensusTime the first consensus time assigned to a transaction in the output
+ * @param lastAssignedConsensusTime the last consensus time assigned to a transaction in the output
  */
 public record HandleOutput(
         @Nullable BlockRecordSource blockRecordSource,
         @Nullable RecordSource recordSource,
-        @NonNull Instant firstAssignedConsensusTime) {
+        @NonNull Instant lastAssignedConsensusTime) {
     public HandleOutput {
         if (blockRecordSource == null) {
             requireNonNull(recordSource);
         }
-        requireNonNull(firstAssignedConsensusTime);
+        requireNonNull(lastAssignedConsensusTime);
     }
 
     /**

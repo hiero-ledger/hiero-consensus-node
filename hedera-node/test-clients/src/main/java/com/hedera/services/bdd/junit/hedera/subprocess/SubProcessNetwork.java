@@ -236,8 +236,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
                         .orTimeout(10, TimeUnit.SECONDS)
                         .join());
-                nodes.forEach(node -> node.logFuture("TSS protocol ready")
-                        .orTimeout(30, TimeUnit.MINUTES)
+                nodes.forEach(node -> CompletableFuture.anyOf(
+                                node.logFuture("TSS protocol ready").orTimeout(30, TimeUnit.MINUTES),
+                                node.logFuture("blockStream.streamMode = RECORDS")
+                                        .orTimeout(3, TimeUnit.MINUTES))
                         .join());
                 this.clients = HapiClients.clientsFor(this);
             });

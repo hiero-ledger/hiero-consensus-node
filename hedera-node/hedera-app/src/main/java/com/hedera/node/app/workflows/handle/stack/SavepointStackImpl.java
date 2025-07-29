@@ -611,9 +611,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             blockRecordSource = new BlockRecordSource(outputs);
         }
         final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
-        final var firstAssignedConsensusTime =
-                indexOfParentBuilder == 0 ? consensusTime : consensusTime.minusNanos(indexOfParentBuilder);
-        return new HandleOutput(blockRecordSource, recordSource, firstAssignedConsensusTime);
+        return new HandleOutput(blockRecordSource, recordSource, lastAssignedConsenusTime);
     }
 
     private void setupFirstSavepoint(@NonNull final TransactionCategory category) {

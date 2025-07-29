@@ -249,9 +249,9 @@ class BlockStreamManagerImplTest {
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
 
-        assertSame(Instant.EPOCH, subject.lastHandleTime());
-        subject.setLastHandleTime(CONSENSUS_NOW);
-        assertEquals(CONSENSUS_NOW, subject.lastHandleTime());
+        assertSame(Instant.EPOCH, subject.lastTopLevelConsensusTime());
+        subject.setLastTopLevelTime(CONSENSUS_NOW);
+        assertEquals(CONSENSUS_NOW, subject.lastTopLevelConsensusTime());
     }
 
     @Test
