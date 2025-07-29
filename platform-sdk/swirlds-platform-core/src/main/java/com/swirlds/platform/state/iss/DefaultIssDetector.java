@@ -209,8 +209,7 @@ public class DefaultIssDetector implements IssDetector {
 
         previousRound = roundNumber;
         roundData.put(
-                roundNumber,
-                new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), stateJson, issMetrics));
+                roundNumber, new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), issMetrics));
 
         return removedRounds.stream()
                 .map(this::handleRemovedRound)
@@ -522,7 +521,6 @@ public class DefaultIssDetector implements IssDetector {
         final long round = roundHashValidator.getRound();
         final Hash selfHash = roundHashValidator.getSelfStateHash();
         final Hash consensusHash = roundHashValidator.getConsensusHash();
-        final String stateJson = roundHashValidator.getStateJson();
 
         final long skipCount = selfIssRateLimiter.getDeniedRequests();
         if (selfIssRateLimiter.requestAndTrigger()) {
@@ -542,8 +540,7 @@ public class DefaultIssDetector implements IssDetector {
                             round,
                             Mnemonics.generateMnemonic(selfHash),
                             Mnemonics.generateMnemonic(consensusHash),
-                            false,
-                            stateJson));
+                            false));
         }
     }
 
@@ -570,8 +567,7 @@ public class DefaultIssDetector implements IssDetector {
             writeSkippedLogCount(sb, skipCount);
 
             final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
-            final String stateJson = roundHashValidator.getStateJson();
-            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true, stateJson));
+            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true));
         }
     }
 
