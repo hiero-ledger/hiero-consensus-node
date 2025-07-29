@@ -100,7 +100,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private Platform platform;
 
     @Nullable
-    private OtterExecutionLayer executionCallback;
+    private OtterExecutionLayer executionLayer;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -219,9 +219,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert executionCallback != null; // platform must be initialized if lifeCycle is STARTED
+            assert executionLayer != null; // platform must be initialized if lifeCycle is STARTED
 
-            executionCallback.submitApplicationTransaction(transaction);
+            executionLayer.submitApplicationTransaction(transaction);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -394,7 +394,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
-        this.executionCallback = new OtterExecutionLayer(
+        this.executionLayer = new OtterExecutionLayer(
                 platformContext.getConfiguration().getConfigData(TransactionConfig.class),
                 platformContext.getMetrics());
 
@@ -412,7 +412,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionCallback(executionCallback)
+                .withExecutionLayer(executionLayer)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()));
 

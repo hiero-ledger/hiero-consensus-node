@@ -298,7 +298,7 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    public PlatformBuilder withExecutionCallback(@NonNull final ExecutionLayer execution) {
+    public PlatformBuilder withExecutionLayer(@NonNull final ExecutionLayer execution) {
         throwIfAlreadyUsed();
         this.execution = Objects.requireNonNull(execution);
         return this;

@@ -12,6 +12,9 @@ import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
+/**
+ * An implementation of the {@link ExecutionLayer} for the Otter tests.
+ */
 public class OtterExecutionLayer implements ExecutionLayer {
     /** The maximum number of transaction to store in the transaction pool */
     private static final int TX_QUEUE_SIZE = 100_000;
@@ -29,6 +32,11 @@ public class OtterExecutionLayer implements ExecutionLayer {
                 TransactionFactory.createStateSignatureTransaction(transaction).toByteArray()));
     }
 
+    /**
+     * Submits a transaction to the transaction pool.
+     * @param transaction the transaction to submit
+     * @return true if the transaction was successfully submitted, false otherwise
+     */
     public boolean submitApplicationTransaction(@NonNull final byte[] transaction) {
         return transactionPool.submitApplicationTransaction(Bytes.wrap(transaction));
     }

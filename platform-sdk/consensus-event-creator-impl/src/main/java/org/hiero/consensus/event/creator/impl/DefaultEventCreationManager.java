@@ -65,17 +65,17 @@ public class DefaultEventCreationManager implements EventCreationManager {
     /**
      * Constructor.
      *
-     * @param configuration        provides the configuration for the event creator
-     * @param metrics              provides the metrics for the event creator
-     * @param time                 provides the time source for the event creator
-     * @param hasBufferedSignatureTransactions TODO
-     * @param creator              creates events
+     * @param configuration             provides the configuration for the event creator
+     * @param metrics                   provides the metrics for the event creator
+     * @param time                      provides the time source for the event creator
+     * @param signatureTransactionCheck checks for pending signature transactions
+     * @param creator                   creates events
      */
     public DefaultEventCreationManager(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final SignatureTransactionCheck hasBufferedSignatureTransactions,
+            @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
@@ -84,8 +84,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(
-                this::getPlatformStatus, hasBufferedSignatureTransactions::hasBufferedSignatureTransactions));
+        rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);

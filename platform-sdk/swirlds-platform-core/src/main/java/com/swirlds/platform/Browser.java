@@ -316,7 +316,7 @@ public class Browser {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
-            builder.withExecutionCallback(appMain);
+            builder.withExecutionLayer(appMain);
 
             // Build platform using the Inversion of Control pattern by injecting all needed
             // dependencies into the PlatformBuilder.

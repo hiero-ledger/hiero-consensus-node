@@ -21,13 +21,12 @@ public class PlatformStatusRule implements EventCreationRule {
     /**
      * Constructor.
      *
-     * @param platformStatusSupplier provides the current platform status
-     * @param signatureTransactionCheck   TODO
+     * @param platformStatusSupplier    provides the current platform status
+     * @param signatureTransactionCheck checks for pending signature transactions
      */
     public PlatformStatusRule(
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
-
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
         this.signatureTransactionCheck = Objects.requireNonNull(signatureTransactionCheck);
     }
