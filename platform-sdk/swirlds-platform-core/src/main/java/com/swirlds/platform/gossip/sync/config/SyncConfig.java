@@ -47,6 +47,17 @@ import java.time.Duration;
  *                                           second, regardless of this setting)
  * @param rpcIdleDispatchPollTimeout         how long should gossip rpc mechanism wait between dispatch actions if no
  *                                           events are ready to be processed (for example synchronization start)
+ * @param fairMaxConcurrentSyncs             maximum number of concurrent syncs running after which we won't initiate
+ *                                           any more outgoing syncs (but can accept incoming ones) if set &lt;= 0,
+ *                                           disabled entire fair sync logic (syncs will always be initiated if no other
+ *                                           reasons block them) if set &gt; 0 and &lt;= 1, this number is set as a ratio of
+ *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
+ *                                           as limit of concurrent syncs
+ * @param fairMinimalRoundRobinSize          minimal number of synchronizations which happened in the past and are not
+ *                                           currently running which has to be breached before sync against same peer
+ *                                           can be considered if set &gt; 0 and &lt;= 1, this number is set as a ratio of
+ *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
+ *                                           as minimal round robin size
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -62,8 +73,10 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5000") int maxSyncEventCount,
         @ConfigProperty(defaultValue = "1s") Duration unhealthyGracePeriod,
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
-        @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
+        @ConfigProperty(defaultValue = "1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "0ms") Duration rpcSleepAfterSync,
+        @ConfigProperty(defaultValue = "5ms") Duration rpcSleepAfterSync,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
-        @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout) {}
+        @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
+        @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
+        @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize) {}

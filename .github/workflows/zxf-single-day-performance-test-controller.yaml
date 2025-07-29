@@ -70,7 +70,7 @@ jobs:
     with:
       test-asset: "SDPT1"
       ref: "${{ inputs.ref }}"
-      solo-version: "latest_tested_solo-charts0.59"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
       nlg-time: "330"
       add-app-props: ""
