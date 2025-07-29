@@ -5,17 +5,19 @@ import static org.hiero.otter.fixtures.internal.helpers.LogPayloadUtils.parsePay
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.function.Consumer;
-import org.hiero.otter.fixtures.logging.StructuredLog;
-import org.hiero.otter.fixtures.result.LogSubscriber;
+import java.util.function.BiConsumer;
+import org.hiero.otter.fixtures.result.ReconnectFailurePayloadSubscriber;
+import org.hiero.otter.fixtures.result.ReconnectStartPayloadSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.hiero.otter.fixtures.result.SynchronizationCompletePayloadSubscriber;
 
 /**
  * Continuous assertions for {@link SingleNodeReconnectResult}.
@@ -37,7 +39,7 @@ public class SingleNodeReconnectResultContinuousAssert
      * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
      *
      * @param actual the {@link SingleNodePlatformStatusResult} to assert
-     * @return  this assertion object for method chaining
+     * @return this assertion object for method chaining
      */
     @NonNull
     public static SingleNodeReconnectResultContinuousAssert assertContinuouslyThat(
@@ -48,16 +50,14 @@ public class SingleNodeReconnectResultContinuousAssert
     /**
      * Asserts that the node has no failed reconnects.
      *
-     * @return  this assertion object for method chaining
+     * @return this assertion object for method chaining
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
-        return checkContinuously(logEntry -> {
-            if (logEntry.message().contains(ReconnectFailurePayload.class.toString())) {
-                failWithMessage(
-                        "Expected no failed reconnects, but found %s on node %s",
-                        logEntry.message(), logEntry.nodeId());
-            }
+        return continuouslyCheckReconnectFailures((failurePayload, nodeId) -> {
+            failWithMessage("Expected no failed reconnects, but node %s had %n%s",
+                    nodeId == null ? "unknown" : nodeId.id(),
+                    failurePayload);
         });
     }
 
@@ -68,12 +68,11 @@ public class SingleNodeReconnectResultContinuousAssert
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert doesNotAttemptToReconnect() {
-        return checkContinuously(logEntry -> {
-            if (logEntry.message().contains(ReconnectStartPayload.class.toString())) {
-                failWithMessage(
-                        "Expected no attempted reconnects, but found %s on node %s",
-                        logEntry.message(), logEntry.nodeId());
-            }
+        return continuouslyCheckReconnectStart((startPayload, nodeId) -> {
+            failWithMessage(
+                    "Expected no attempted reconnects, but node %s had %n%s",
+                    nodeId == null ? "unknown" : nodeId.id(),
+                    startPayload);
         });
     }
 
@@ -81,22 +80,19 @@ public class SingleNodeReconnectResultContinuousAssert
      * Asserts that the node has no reconnects that take longer than the provided time.
      *
      * @param maximumReconnectTime the maximum allowed reconnect time
-     * @return  this assertion object for method chaining
+     * @return this assertion object for method chaining
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumReconnectTime(
             @NonNull final Duration maximumReconnectTime) {
-        return checkContinuously(logEntry -> {
-            if (logEntry.message().contains(SynchronizationCompletePayload.class.toString())) {
-                final SynchronizationCompletePayload payload =
-                        parsePayload(SynchronizationCompletePayload.class, logEntry.message());
-                if (payload.getTimeInSeconds() > (double) maximumReconnectTime.getSeconds()) {
-                    failWithMessage(
-                            "Expected maximum reconnect time to be <%s> but found <%s> on node %s",
-                            maximumReconnectTime,
-                            Duration.ofSeconds((long) payload.getTimeInSeconds()),
-                            logEntry.nodeId());
-                }
+        return continuouslyCheckSynchronizationComplete((syncCompletePayload, nodeId) -> {
+            if (syncCompletePayload.getTimeInSeconds() > (double) maximumReconnectTime.getSeconds()) {
+                failWithMessage(
+                        "Expected maximum reconnect time to be <%s> but node %s took <%s>%n%s",
+                        maximumReconnectTime,
+                        nodeId == null ? "unknown" : nodeId.id(),
+                        Duration.ofSeconds((long) syncCompletePayload.getTimeInSeconds()),
+                        syncCompletePayload);
             }
         });
     }
@@ -110,28 +106,65 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumTreeInitializationTime(
             final Duration maximumTreeInitializationTime) {
-        return checkContinuously(logEntry -> {
-            if (logEntry.message().contains(SynchronizationCompletePayload.class.toString())) {
-                final SynchronizationCompletePayload payload =
-                        parsePayload(SynchronizationCompletePayload.class, logEntry.message());
-                if (payload.getInitializationTimeInSeconds() > (double) maximumTreeInitializationTime.getSeconds()) {
-                    failWithMessage(
-                            "Expected maximum tree initialization time to be <%s> but found <%s> on node %s",
-                            maximumTreeInitializationTime,
-                            Duration.ofSeconds((long) payload.getInitializationTimeInSeconds()),
-                            logEntry.nodeId());
-                }
+        return continuouslyCheckSynchronizationComplete((syncCompletePayload, nodeId) -> {
+            if (syncCompletePayload.getInitializationTimeInSeconds()
+                    > (double) maximumTreeInitializationTime.getSeconds()) {
+                failWithMessage(
+                        "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
+                        maximumTreeInitializationTime,
+                        nodeId == null ? "unknown" : nodeId.id(),
+                        Duration.ofSeconds((long) syncCompletePayload.getInitializationTimeInSeconds()),
+                        syncCompletePayload);
             }
         });
     }
 
     @NonNull
-    private SingleNodeReconnectResultContinuousAssert checkContinuously(@NonNull final Consumer<StructuredLog> check) {
+    private SingleNodeReconnectResultContinuousAssert continuouslyCheckReconnectFailures(
+            @NonNull final BiConsumer<ReconnectFailurePayload, NodeId> check) {
         isNotNull();
 
-        final LogSubscriber subscriber = logEntry -> switch (state) {
+        final ReconnectFailurePayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
             case ACTIVE -> {
-                check.accept(logEntry);
+                check.accept(payload, nodeId);
+                yield CONTINUE;
+            }
+            case PAUSED -> CONTINUE;
+            case DESTROYED -> UNSUBSCRIBE;
+        };
+
+        actual.subscribe(subscriber);
+
+        return this;
+    }
+
+    @NonNull
+    private SingleNodeReconnectResultContinuousAssert continuouslyCheckReconnectStart(
+            @NonNull final BiConsumer<ReconnectStartPayload, NodeId> check) {
+        isNotNull();
+
+        final ReconnectStartPayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
+            case ACTIVE -> {
+                check.accept(payload, nodeId);
+                yield CONTINUE;
+            }
+            case PAUSED -> CONTINUE;
+            case DESTROYED -> UNSUBSCRIBE;
+        };
+
+        actual.subscribe(subscriber);
+
+        return this;
+    }
+
+    @NonNull
+    private SingleNodeReconnectResultContinuousAssert continuouslyCheckSynchronizationComplete(
+            @NonNull final BiConsumer<SynchronizationCompletePayload, NodeId> check) {
+        isNotNull();
+
+        final SynchronizationCompletePayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
+            case ACTIVE -> {
+                check.accept(payload, nodeId);
                 yield CONTINUE;
             }
             case PAUSED -> CONTINUE;

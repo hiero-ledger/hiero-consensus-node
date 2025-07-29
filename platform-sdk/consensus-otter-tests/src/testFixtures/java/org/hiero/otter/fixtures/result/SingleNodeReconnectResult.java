@@ -2,6 +2,8 @@
 package org.hiero.otter.fixtures.result;
 
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -37,22 +39,25 @@ public interface SingleNodeReconnectResult extends OtterResult {
     int numFailedReconnects();
 
     /**
-     * Subscribes to {@link StructuredLog} entries logged by the node.
+     * Subscribes to the {@link ReconnectStartPayload} log payloads for this node.
      *
-     * <p>The subscriber will be notified every time a new log entry is created by the node.
-     *
-     * @param subscriber the subscriber that will receive the log entries
+     * @param subscriber the subscriber to be notified of reconnect start payloads
      */
-    void subscribe(@NonNull LogSubscriber subscriber);
+    void subscribe(@NonNull ReconnectStartPayloadSubscriber subscriber);
 
     /**
-     * Subscribes to platform status updates for the node.
+     * Subscribes to the {@link ReconnectFailurePayload} log payloads for this node.
      *
-     * <p>The subscriber will be notified every time the platform status changes for the node.</p>
-     *
-     * @param subscriber the subscriber that will receive platform status updates
+     * @param subscriber the subscriber to be notified of reconnect failure payloads
      */
-    void subscribe(@NonNull PlatformStatusSubscriber subscriber);
+    void subscribe(@NonNull ReconnectFailurePayloadSubscriber subscriber);
+
+    /**
+     * Subscribes to the {@link SynchronizationCompletePayload} log payloads for this node.
+     *
+     * @param subscriber the subscriber to be notified of reconnect failure payloads
+     */
+    void subscribe(@NonNull SynchronizationCompletePayloadSubscriber subscriber);
 
     /**
      * Returns a list of {@link SynchronizationCompletePayload} entries logged by the node.

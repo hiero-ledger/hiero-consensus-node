@@ -2,6 +2,9 @@
 package org.hiero.otter.fixtures.result;
 
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
+import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
@@ -43,9 +46,23 @@ public interface MultipleNodeReconnectResults {
     }
 
     /**
-     * Subscribes to log entries logged by the nodes.
+     * Subscribes to the {@link ReconnectStartPayload} log payloads for this node.
      *
-     * @param subscriber the subscriber that will receive the log entries
+     * @param subscriber the subscriber to be notified of reconnect start payloads
      */
-    void subscribe(@NonNull LogSubscriber subscriber);
+    void subscribe(@NonNull ReconnectStartPayloadSubscriber subscriber);
+
+    /**
+     * Subscribes to the {@link ReconnectFailurePayload} log payloads for this node.
+     *
+     * @param subscriber the subscriber to be notified of reconnect failure payloads
+     */
+    void subscribe(@NonNull ReconnectFailurePayloadSubscriber subscriber);
+
+    /**
+     * Subscribes to the {@link SynchronizationCompletePayload} log payloads for this node.
+     *
+     * @param subscriber the subscriber to be notified of reconnect failure payloads
+     */
+    void subscribe(@NonNull SynchronizationCompletePayloadSubscriber subscriber);
 }
