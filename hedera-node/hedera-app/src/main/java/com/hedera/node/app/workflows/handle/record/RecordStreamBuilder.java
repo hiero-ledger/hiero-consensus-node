@@ -509,31 +509,31 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public EthereumTransactionStreamBuilder newSenderNonce(long senderNonce) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -553,7 +553,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -909,7 +909,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public RecordStreamBuilder createdEvmAddress(@Nullable final Bytes evmAddress) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -1134,19 +1134,19 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     /**
