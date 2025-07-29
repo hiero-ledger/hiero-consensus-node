@@ -364,8 +364,8 @@ public class StreamBuilderTest {
                 0L);
 
         // Test contract call result clearing
-        final var callBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
-                .transaction(transaction)
+        final var callBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
                 .contractCallResult(contractFunctionResult);
         callBuilder.nullOutSideEffectFields();
         final var callRecord = callBuilder.build();
@@ -374,8 +374,8 @@ public class StreamBuilderTest {
                 .isEqualTo(emptyList());
 
         // Test contract create result clearing
-        final var createBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
-                .transaction(transaction)
+        final var createBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
                 .createdContractID(ContractID.DEFAULT)
                 .contractCallResult(contractFunctionResult);
         createBuilder.nullOutSideEffectFields();
