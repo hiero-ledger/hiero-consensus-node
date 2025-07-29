@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.AbstractAssert;
-import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -113,49 +112,6 @@ public class MultipleNodeConsensusResultsAssert
             final List<ConsensusRound> expectedRounds =
                     longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
             ConsensusRoundValidator.validate(roundsToAssert, expectedRounds);
-        }
-
-        return this;
-    }
-
-    /**
-     * Verifies that the difference in the number of rounds produced by the fastest and the slowest node is less than or
-     * equal to the given percentage.
-     *
-     * @param expectedDifference the percentage of difference in number of consensus rounds that is allowed between the
-     *                           fastest and the slowest node
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsAssert haveMaxDifferenceInLastRoundNum(
-            @NonNull final Percentage expectedDifference) {
-        isNotNull();
-
-        // create list of current rounds
-        final List<NodeRoundsResult> currentRoundResults = actual.results().stream()
-                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
-                .toList();
-
-        // find longest and shortest list
-        final Optional<NodeRoundsResult> optionalLongestResult =
-                currentRoundResults.stream().max(comparingInt(NodeRoundsResult::size));
-        if (optionalLongestResult.isEmpty()) {
-            // no consensus rounds collected
-            return this;
-        }
-        final NodeRoundsResult longestResult = optionalLongestResult.get();
-        final int longestSize = longestResult.size();
-        final int shortestSize = currentRoundResults.stream()
-                .min(comparingInt(NodeRoundsResult::size))
-                .orElseThrow()
-                .size();
-
-        // Check if difference is within bounds
-        final double actualDifference = 100.0 * (longestSize - shortestSize) / longestSize;
-        if (actualDifference > expectedDifference.value) {
-            failWithMessage(
-                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %.2f %%",
-                    expectedDifference, actualDifference);
         }
 
         return this;

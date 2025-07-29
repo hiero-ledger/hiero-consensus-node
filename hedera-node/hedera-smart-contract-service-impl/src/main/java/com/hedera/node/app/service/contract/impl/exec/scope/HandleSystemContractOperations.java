@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -13,12 +13,12 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -108,7 +108,7 @@ public class HandleSystemContractOperations implements SystemContractOperations 
 
         return context.savepointStack()
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, functionality)
-                .transaction(transactionWith(syntheticBody))
+                .signedTx(signedTxWith(syntheticBody))
                 .status(preemptingStatus);
     }
 
@@ -116,22 +116,22 @@ public class HandleSystemContractOperations implements SystemContractOperations 
     public void externalizeResult(
             @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final ResponseCodeEnum responseStatus,
-            @NonNull final Transaction transaction,
+            @NonNull final SignedTransaction signedTx,
             @NonNull final EvmTransactionResult txResult) {
-        requireNonNull(transaction);
+        requireNonNull(signedTx);
         requireNonNull(result);
         requireNonNull(responseStatus);
         requireNonNull(txResult);
         context.savepointStack()
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL)
-                .transaction(transaction)
+                .signedTx(signedTx)
                 .status(responseStatus)
                 .contractCallResult(result)
                 .evmCallTransactionResult(txResult);
     }
 
     @Override
-    public Transaction syntheticTransactionForNativeCall(
+    public SignedTransaction syntheticSignedTxForNativeCall(
             @NonNull final Bytes input, @NonNull final ContractID contractID, boolean isViewCall) {
         requireNonNull(input);
         requireNonNull(contractID);
@@ -145,7 +145,7 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 .transactionID(TransactionID.DEFAULT)
                 .contractCall(contractCallBodyBuilder.build())
                 .build();
-        return transactionWith(transactionBody);
+        return signedTxWith(transactionBody);
     }
 
     @Override

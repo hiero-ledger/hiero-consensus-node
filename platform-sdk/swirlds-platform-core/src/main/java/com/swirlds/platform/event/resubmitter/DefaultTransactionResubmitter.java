@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.resubmitter;
 
-import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,12 +40,12 @@ public class DefaultTransactionResubmitter implements TransactionResubmitter {
      */
     @Override
     @NonNull
-    public List<EventTransaction> resubmitStaleTransactions(@NonNull final PlatformEvent event) {
+    public List<Bytes> resubmitStaleTransactions(@NonNull final PlatformEvent event) {
         if (eventWindow == null) {
             throw new IllegalStateException("Event window is not set");
         }
 
-        final List<EventTransaction> transactionsToResubmit = new ArrayList<>();
+        final List<Bytes> transactionsToResubmit = new ArrayList<>();
         // turning off this functionality for now
         //        final Iterator<Transaction> iterator = event.transactionIterator();
         //        while (iterator.hasNext()) {

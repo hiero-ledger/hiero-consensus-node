@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
@@ -12,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
-import static com.hedera.node.app.spi.workflows.ResourceExhaustedException.validateResource;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 
@@ -289,8 +287,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public @NonNull List<StorageAccesses> pendingStorageUpdates() {
-        return evmFrameState.getStorageChanges();
+    public @NonNull TxStorageUsage getTxStorageUsage() {
+        throw new UnsupportedOperationException("Only root updater can summarize transaction storage usage");
     }
 
     /**
@@ -501,12 +499,5 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);
-    }
-
-    public void checkOpsDurationThrottle(final long currentOpsDuration) {
-        final var throttleAdviser = enhancement.operations().getThrottleAdviser();
-        if (throttleAdviser != null) {
-            validateResource(!throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration), THROTTLED_AT_CONSENSUS);
-        }
     }
 }

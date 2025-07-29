@@ -6,6 +6,8 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.QueueState;
+import com.hedera.hapi.platform.state.VirtualMapValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -30,7 +32,6 @@ import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
-import com.swirlds.state.merkle.queue.QueueState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -581,11 +582,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         static Codec<?> extractKeyCodec(@NonNull final StateMetadata<?, ?> md) {
             return md.stateDefinition().keyCodec();
         }
-
-        @NonNull
-        static Codec<?> extractValueCodec(@NonNull final StateMetadata<?, ?> md) {
-            return md.stateDefinition().valueCodec();
-        }
     }
 
     /**
@@ -606,22 +602,19 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @Override
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
-            return new OnDiskReadableKVState<>(
-                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+            return new OnDiskReadableKVState<>(md.serviceName(), extractStateKey(md), extractKeyCodec(md), virtualMap);
         }
 
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
-            return new OnDiskReadableSingletonState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+            return new OnDiskReadableSingletonState<>(md.serviceName(), extractStateKey(md), virtualMap);
         }
 
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md) {
-            return new OnDiskReadableQueueState(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+            return new OnDiskReadableQueueState(md.serviceName(), extractStateKey(md), virtualMap);
         }
     }
 
@@ -684,8 +677,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @Override
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableKVState<>(
-                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+            final var state =
+                    new OnDiskWritableKVState<>(md.serviceName(), extractStateKey(md), extractKeyCodec(md), virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(MAP)) {
                     registerKVListener(serviceName, state, listener);
@@ -697,8 +690,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @Override
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableSingletonState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+            final var state = new OnDiskWritableSingletonState<>(md.serviceName(), extractStateKey(md), virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(serviceName, state, listener);
@@ -710,8 +702,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         @Override
         protected WritableQueueState<?> createReadableQueueState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableQueueState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+            final var state = new OnDiskWritableQueueState<>(md.serviceName(), extractStateKey(md), virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(serviceName, state, listener);
@@ -848,8 +839,14 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                         singletonJson.put("hash", hash);
                         singletonJson.put("path", leafBytes.path());
                         try {
-                            singletonJson.put(
-                                    "value", stateDefinition.valueCodec().parse(leafBytes.valueBytes()));
+                            final VirtualMapValue virtualMapValue =
+                                    VirtualMapValue.PROTOBUF.parse(leafBytes.valueBytes());
+                            final var typedSingletonValue = stateDefinition
+                                    .valueCodec()
+                                    .getDefaultInstance()
+                                    .getClass()
+                                    .cast(virtualMapValue.value().as());
+                            singletonJson.put("value", typedSingletonValue);
                         } catch (ParseException e) {
                             singletonJson.put("value", "ParseException: " + e.getMessage());
                         }
@@ -860,12 +857,18 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                     final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
                     if (leafBytes != null) {
-                        final QueueState queueState = new QueueState(leafBytes.valueBytes());
-                        final JSONObject queueJson = new JSONObject();
-                        queueJson.put("head", queueState.getHead());
-                        queueJson.put("tail", queueState.getTail());
-                        queueJson.put("path", leafBytes.path());
-                        queues.put(StateUtils.computeLabel(serviceName, stateKey), queueJson);
+                        try {
+                            final VirtualMapValue virtualMapValue =
+                                    VirtualMapValue.PROTOBUF.parse(leafBytes.valueBytes());
+                            final QueueState queueState = virtualMapValue.queueState();
+                            final JSONObject queueJson = new JSONObject();
+                            queueJson.put("head", queueState.head());
+                            queueJson.put("tail", queueState.tail());
+                            queueJson.put("path", leafBytes.path());
+                            queues.put(StateUtils.computeLabel(serviceName, stateKey), queueJson);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }
             });

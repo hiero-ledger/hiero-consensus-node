@@ -58,7 +58,6 @@ import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
@@ -511,21 +510,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final long path = index + 1L;
         final T node;
         if (path < state.getFirstLeafPath()) {
-            final Hash hash = records.findHash(path);
-            final VirtualHashRecord virtualHashRecord =
-                    new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
             //noinspection unchecked
-            node = (T) (new VirtualInternalNode(this, virtualHashRecord));
+            node = (T) VirtualInternalNode.getInternalNode(this, path);
         } else if (path <= state.getLastLeafPath()) {
-            final VirtualLeafBytes leafRecord = records.findLeafRecord(path);
-            if (leafRecord == null) {
-                throw new IllegalStateException("Invalid null record for child index " + index + " (path = "
-                        + path + "). First leaf path = " + state.getFirstLeafPath() + ", last leaf path = "
-                        + state.getLastLeafPath() + ".");
-            }
-            final Hash hash = records.findHash(path);
             //noinspection unchecked
-            node = (T) (new VirtualLeafNode(leafRecord, hash != VirtualNodeCache.DELETED_HASH ? hash : null));
+            node = (T) VirtualInternalNode.getLeafNode(this, path);
         } else {
             // The index is out of bounds. Maybe we have a root node with one leaf and somebody has asked
             // for the second leaf, in which case it would be null.
@@ -762,7 +751,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
                 assert sibling != null;
                 cache.clearLeafPath(lastLeafSibling);
-                cache.deleteHash(lastLeafParent);
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths

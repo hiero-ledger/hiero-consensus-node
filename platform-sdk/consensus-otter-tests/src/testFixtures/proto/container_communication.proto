@@ -156,6 +156,12 @@ message ProtoConsensusRounds {
   repeated ProtoConsensusRound rounds = 1;
 }
 
+// Notification of a new marker file.
+message MarkerFileAdded {
+  // names of the marker files that were created.
+  repeated string marker_file_name = 1;
+}
+
 // Wrapper for different types of event messages.
 message EventMessage {
   // Oneof field to represent different event types.
@@ -166,6 +172,8 @@ message EventMessage {
     LogEntry log_entry = 2;
     // Consensus rounds event.
     ProtoConsensusRounds consensus_rounds = 3;
+    // Marker file event.
+    MarkerFileAdded marker_file_added = 4;
   }
 }
 

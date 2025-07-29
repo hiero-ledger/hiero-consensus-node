@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -19,7 +18,6 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doReturn;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -623,7 +621,6 @@ public class TestHelpers {
             null,
             null,
             null,
-            null,
             null);
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
@@ -954,14 +951,8 @@ public class TestHelpers {
                 .build();
     }
 
-    public static void givenDefaultConfigInFrame(@NonNull final MessageFrame frame) {
-        givenConfigInFrame(frame, DEFAULT_CONFIG);
-    }
-
-    public static void givenConfigInFrame(@NonNull final MessageFrame frame, @NonNull final Configuration config) {
+    public static void givenFrameStack(@NonNull final MessageFrame frame) {
         final Deque<MessageFrame> stack = new ArrayDeque<>();
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        doReturn(config).when(frame).getContextVariable(CONFIG_CONTEXT_VARIABLE);
         given(frame.getMessageFrameStack()).willReturn(stack);
     }
 
@@ -979,7 +970,7 @@ public class TestHelpers {
                 processor,
                 HederaEvmVersion.VERSION_051,
                 processor,
-                HederaEvmVersion.VERSION_062,
+                HederaEvmVersion.VERSION_065,
                 processor);
     }
 
@@ -1071,10 +1062,9 @@ public class TestHelpers {
                 null,
                 requireNonNull(logs),
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 null,
                 actions,
+                null,
                 null);
     }
 }
