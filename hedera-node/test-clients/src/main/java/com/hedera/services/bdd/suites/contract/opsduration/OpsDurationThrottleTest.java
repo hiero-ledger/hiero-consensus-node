@@ -213,13 +213,13 @@ public class OpsDurationThrottleTest {
         final AtomicDouble duration = new AtomicDouble(0.0);
         return hapiTest(
                 overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, "true"),
-                overriding(MAX_OPS_DURATION, DURATION_PERIOD),
+                overriding(MAX_OPS_DURATION, RUN_MULTI_DURATION_PERIOD),
                 uploadInitCode(OPS_DURATION_COUNTER),
                 contractCreate(OPS_DURATION_COUNTER).gas(2_000_000L),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
-                            inParallel(IntStream.range(0, 400)
+                            inParallel(IntStream.range(0, 650)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "opsRun")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
