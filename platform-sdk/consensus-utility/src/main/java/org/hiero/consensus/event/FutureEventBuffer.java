@@ -45,15 +45,21 @@ public class FutureEventBuffer {
 
     /**
      * Constructor.
+     *
+     * @param metrics the metrics instance to use for tracking the number of buffered events
+     * @param bufferingOption the buffering option that defines how future events are buffered
+     * @param name the name of the future event buffer, used for metrics
      */
     public FutureEventBuffer(
-            @NonNull final Metrics metrics, @NonNull final FutureEventBufferingOption bufferingOption) {
+            @NonNull final Metrics metrics,
+            @NonNull final FutureEventBufferingOption bufferingOption,
+            @NonNull final String name) {
         this.bufferingOption = bufferingOption;
         eventWindow = EventWindow.getGenesisEventWindow();
 
         metrics.getOrCreate(
-                new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)
-                        .withDescription("the number of events sitting in the future event buffer")
+                new FunctionGauge.Config<>("platform", "futureEventBuffer_" + name, Long.class, bufferedEventCount::get)
+                        .withDescription(String.format("the number of events sitting in the %s future event buffer", name))
                         .withUnit("count"));
     }
 
