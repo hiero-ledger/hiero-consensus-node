@@ -79,8 +79,8 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     }
 
     /**
-     * Extracts the schedule ID from a {@code deleteSchedule(address)} call or return the redirect schedule ID if the call
-     * via the proxy contract
+     * Extracts the schedule ID from a {@code deleteSchedule(address)} call or return the redirect schedule ID if the
+     * call via the proxy contract
      *
      * @param attempt the call attempt
      * @return the schedule ID

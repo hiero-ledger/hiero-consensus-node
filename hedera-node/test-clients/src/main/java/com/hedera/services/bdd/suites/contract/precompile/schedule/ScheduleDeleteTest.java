@@ -18,6 +18,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -41,7 +42,8 @@ public class ScheduleDeleteTest {
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
-    @Account
+
+    @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
     static SpecAccount sender;
     // COUNTER is used to create scheduled with different expirySecond, to prevent identical schedule creation
     static AtomicInteger COUNTER = new AtomicInteger();
@@ -56,26 +58,35 @@ public class ScheduleDeleteTest {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallDeleteTest() {
-        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
-                deleteFunc -> deleteScheduleTest("scheduleCallExample", deleteFunc, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
+                .flatMap(deleteFunc -> deleteScheduleTest(
+                        "scheduleCallExample", deleteFunc, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderDeleteTest() {
-        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
-                deleteFunc -> deleteScheduleTest("scheduleCallWithSenderExample", deleteFunc, sender, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
+                .flatMap(deleteFunc -> deleteScheduleTest(
+                        "scheduleCallWithSenderExample",
+                        deleteFunc,
+                        sender,
+                        BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureDeleteTest() {
-        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
-                deleteFunc -> deleteScheduleTest("executeCallOnSenderSignatureExample", deleteFunc, sender, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
+                .flatMap(deleteFunc -> deleteScheduleTest(
+                        "executeCallOnSenderSignatureExample",
+                        deleteFunc,
+                        sender,
+                        BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    private Stream<DynamicTest> deleteScheduleTest(String scheduleFunction, String deleteFunction,
-            @NonNull final Object... parameters) {
+    private Stream<DynamicTest> deleteScheduleTest(
+            String scheduleFunction, String deleteFunction, @NonNull final Object... parameters) {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();
@@ -98,6 +109,17 @@ public class ScheduleDeleteTest {
                     contract.call(deleteFunction, scheduleAddress.get())
                             .gas(200_000L)
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
+                    // TODO Glib: test delete from EOA
+                    //    public static final String DELETE_SCHEDULE = "deleteSchedule";
+                    //    public static final String IHIP1215 = "IHIP1215ScheduleFacade";
+                    //                    contractCallWithFunctionAbi(
+                    //                            scheduleIDString,
+                    //                            getABIFor(
+                    //                                    FUNCTION,
+                    //                                    DELETE_SCHEDULE,
+                    //                                    IHIP1215))
+                    //                            .payingWith(sender.name())
+                    //                            .gas(1_000_000),
                     // check schedule deleted
                     getScheduleInfo(scheduleIDString)
                             .hasScheduleId(scheduleIDString)

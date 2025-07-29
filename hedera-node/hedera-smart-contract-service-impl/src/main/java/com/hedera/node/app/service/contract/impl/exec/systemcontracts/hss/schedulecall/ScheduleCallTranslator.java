@@ -106,21 +106,20 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         final var contractId = ConversionUtils.asContractId(
                 attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
 
-        // TODO Glib: test for delete
         Set<Key> keys = attempt.keySetFor();
         // create TransactionBody
         TransactionBody body = TransactionBody.newBuilder()
                 .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
                 // create ScheduleCreateTransactionBody
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
-                        // TODO Glib: set admin key to be able to delete the schedule
                         .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
                                 .contractCall(ContractCallTransactionBody.newBuilder()
                                         .contractID(contractId)
                                         .gas(gasLimit.longValueExact())
                                         .amount(value.longValueExact())
                                         .functionParameters(callData)))
-                        .adminKey(keys.stream().findFirst().get())
+                        // we need to set adminKey for make schedule not immutable and to be able to delete schedule
+                        .adminKey(keys.stream().findFirst().orElse(null))
                         .expirationTime(Timestamp.newBuilder().seconds(expiry.longValueExact()))
                         .payerAccountID(sender)
                         .waitForExpiry(waitForExpiry))
@@ -133,7 +132,7 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,
-                // TODO Glib: should we add sender key on call with sender?
+                // TODO Glib: should we add sender key on call with sender? should we put sender key as adminKey?
                 keys,
                 DispatchForResponseCodeHssCall::scheduleCreateResultEncode);
     }

@@ -27,7 +27,6 @@ public class HasScheduleCapacityCallStub extends AbstractCall {
     public HasScheduleCapacityCallStub(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator) {
-        // TODO Glib: should it be a view call? It will produce a child record
         super(gasCalculator, enhancement, true);
     }
 
