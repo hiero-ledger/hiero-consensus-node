@@ -7,9 +7,12 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.constructable.ConstructableIgnored;
+
 import java.io.IOException;
 import java.util.Random;
 
+@ConstructableIgnored
 public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
 
     public static final ExampleFixedValueCodec CODEC = new ExampleFixedValueCodec();

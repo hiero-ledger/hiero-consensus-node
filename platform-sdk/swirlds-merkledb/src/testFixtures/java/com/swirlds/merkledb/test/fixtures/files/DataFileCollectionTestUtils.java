@@ -8,8 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.files.DataFileCollection;
+import org.hiero.base.constructable.ConstructableIgnored;
+
 import java.util.Arrays;
 
+@ConstructableIgnored
 public class DataFileCollectionTestUtils {
 
     /**
