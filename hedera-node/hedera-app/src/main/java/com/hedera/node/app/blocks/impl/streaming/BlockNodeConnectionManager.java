@@ -18,12 +18,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.helidon.common.tls.Tls;
-import io.helidon.webclient.grpc.GrpcClient;
-import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import io.helidon.webclient.grpc.GrpcServiceClient;
-import io.helidon.webclient.grpc.GrpcServiceDescriptor;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,7 +44,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.protoc.BlockNodeServiceGrpc;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
 
 /**
@@ -83,6 +79,10 @@ public class BlockNodeConnectionManager {
      * The gRPC endpoint used to establish communication between the consensus node and block node.
      */
     private final String grpcEndpoint;
+    /**
+     * The gRPC endpoint used to get the block node server status.
+     */
+    private final String blockNodeStatusEndpoint;
     /**
      * Tracks what the last verified block for each connection is. Note: The data maintained here is based on what the
      * block node has informed the consensus node of. If a block node is not actively connected, then this data may be
@@ -174,6 +174,9 @@ public class BlockNodeConnectionManager {
         final String endpoint =
                 BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
         grpcEndpoint = requireNonNull(endpoint, "gRPC endpoint is missing");
+        final String serverStatusEndpoint =
+                BlockNodeServiceGrpc.getServerStatusMethod().getBareMethodName();
+        blockNodeStatusEndpoint = requireNonNull(serverStatusEndpoint, "Block node server status endpoint is missing");
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -253,36 +256,10 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    /**
-     * Creates a new gRPC client based on the specified configuration.
-     *
-     * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
-     */
-    private @NonNull GrpcServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
-        requireNonNull(nodeConfig);
-
-        final GrpcClient client = GrpcClient.builder()
-                .tls(Tls.builder().enabled(false).build())
-                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .protocolConfig(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
-                        .build())
-                .keepAlive(true)
+    protected @NonNull ManagedChannel createNewManagedChannel(@NonNull final BlockNodeConfig nodeConfig) {
+        return ManagedChannelBuilder.forAddress(nodeConfig.address(), nodeConfig.port())
+                .usePlaintext()
                 .build();
-
-        return client.serviceClient(GrpcServiceDescriptor.builder()
-                .serviceName(BlockStreamPublishServiceGrpc.SERVICE_NAME)
-                .putMethod(
-                        grpcEndpoint,
-                        GrpcClientMethodDescriptor.bidirectional(
-                                        BlockStreamPublishServiceGrpc.SERVICE_NAME, grpcEndpoint)
-                                .requestType(PublishStreamRequest.class)
-                                .responseType(PublishStreamResponse.class)
-                                .marshallerSupplier(new RequestResponseMarshaller.Supplier())
-                                .build())
-                .build());
     }
 
     /**
@@ -510,13 +487,81 @@ public class BlockNodeConnectionManager {
         logger.info("Scheduling connection attempt for block node {}:{}", nodeConfig.address(), nodeConfig.port());
 
         // Create the connection object
-        final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+        final ManagedChannel managedChannel = createNewManagedChannel(nodeConfig);
+
+        // Call serverStatus endpoint before establishing the BlockNodeConnection
+        try {
+            // Create a blocking stub for the BlockNodeService
+            BlockNodeServiceGrpc.BlockNodeServiceBlockingStub blockingStub =
+                    BlockNodeServiceGrpc.newBlockingStub(managedChannel);
+
+            // Build the request
+            org.hiero.block.api.protoc.ServerStatusRequest statusRequest =
+                    org.hiero.block.api.protoc.ServerStatusRequest.newBuilder().build();
+
+            // Make the unary call
+            org.hiero.block.api.protoc.ServerStatusResponse statusResponse = blockingStub.serverStatus(statusRequest);
+
+            final long lastAvailableBlockFromBlockNode = statusResponse.getLastAvailableBlock();
+            final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+            final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+
+            // If the block node is too far behind, log and return
+            if (lastAvailableBlockFromBlockNode < earliestBlockNumber && lastAvailableBlockFromBlockNode != -1) {
+                logger.warn(
+                        "Block node {}:{} is too far behind (lastAvailableBlockFromBlockNode={}, earliestAvailableBlockFromConsensusNode={}). Not establishing connection.",
+                        nodeConfig.address(),
+                        nodeConfig.port(),
+                        lastAvailableBlockFromBlockNode,
+                        earliestBlockNumber);
+                managedChannel.shutdown();
+                return;
+            }
+
+            // If the block node is behind, but we have the block in buffer, jump to the block we have
+            if (lastAvailableBlockFromBlockNode < highestAckedBlock) {
+                logger.info(
+                        "Block node {}:{} is behind but block {} is available in buffer. Will jump to this block.",
+                        nodeConfig.address(),
+                        nodeConfig.port(),
+                        lastAvailableBlockFromBlockNode + 1);
+                final BlockNodeConnection connection = new BlockNodeConnection(
+                        configProvider,
+                        nodeConfig,
+                        this,
+                        blockBufferService,
+                        managedChannel,
+                        blockStreamMetrics,
+                        grpcEndpoint,
+                        sharedExecutorService);
+                connections.put(nodeConfig, connection);
+                scheduleConnectionAttempt(connection, Duration.ZERO, lastAvailableBlockFromBlockNode + 1);
+                return;
+            }
+
+            // Otherwise, proceed with establishing the connection as normal
+            logger.info(
+                    "Server status for node {}:{}: firstAvailableBlock={}, lastAvailableBlock={}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    statusResponse.getFirstAvailableBlock(),
+                    statusResponse.getLastAvailableBlock());
+        } catch (Exception e) {
+            logger.error(
+                    "Failed to get server status from block node {}:{}: {}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    e.getMessage(),
+                    e);
+            return;
+        }
+
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                grpcClient,
+                managedChannel,
                 blockStreamMetrics,
                 grpcEndpoint,
                 sharedExecutorService);
@@ -636,9 +681,12 @@ public class BlockNodeConnectionManager {
                     requestIndex);
             final PublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
             if (publishStreamRequest != null) {
-                connection.sendRequest(publishStreamRequest);
-                blockState.markRequestSent(requestIndex);
-                requestIndex++;
+                if (connection.sendRequest(publishStreamRequest)) {
+                    blockState.markRequestSent(requestIndex);
+                    requestIndex++;
+                } else {
+                    return true; // If the stream observer is not ready, we should sleep and wait for the next iteration
+                }
             }
         }
 

@@ -14,14 +14,10 @@ mainModuleInfo {
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
-    runtimeOnly("io.helidon.grpc.core")
-    runtimeOnly("io.helidon.webclient")
-    runtimeOnly("io.helidon.webclient.grpc")
 }
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
-    requires("com.google.protobuf")
     requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.test.fixtures")
