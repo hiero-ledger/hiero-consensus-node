@@ -2,14 +2,13 @@
 version: 3
 includes:
   main:
-    taskfile: ../../Taskfile.examples.yml
+    taskfile: Taskfile.citr.yml
     flatten: true
 vars:
   solo_home_override_dir: "%HOME%/.solo"
 env:
   SOLO_NETWORK_SIZE: 7
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
-  SOLO_CHART_VERSION: 0.49.1
   CONSENSUS_NODE_VERSION: v0.59.0
   VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
