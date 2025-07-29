@@ -21,7 +21,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static com.hedera.node.app.workflows.InnerTransaction.NO;
 import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
-import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
@@ -56,11 +55,8 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -89,7 +85,6 @@ public final class IngestChecker {
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
-    private final StreamMode streamMode;
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockStreamManager blockStreamManager;
     private final TransactionChecker transactionChecker;
@@ -161,7 +156,6 @@ public final class IngestChecker {
             @NonNull final SignatureVerifier signatureVerifier,
             @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull final ConfigProvider configProvider,
             @NonNull final FeeManager feeManager,
             @NonNull final Authorizer authorizer,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
@@ -184,10 +178,6 @@ public final class IngestChecker {
         this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
         this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.streamMode = configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamMode();
     }
 
     /**
@@ -211,7 +201,7 @@ public final class IngestChecker {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             throw new PreCheckException(CREATING_SYSTEM_ENTITIES);
         }
-        if (streamMode != RECORDS && !blockStreamManager.hasLedgerId()) {
+        if (!blockStreamManager.hasLedgerId()) {
             throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
     }
