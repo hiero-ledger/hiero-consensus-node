@@ -17,7 +17,8 @@ Comprehensive guide to Docker-based testing with the Container environment for r
 
 ## 🎯 Overview
 
-The Container environment provides **realistic testing conditions** using actual Docker containers running consensus nodes. This environment is ideal for:
+The Container environment provides **realistic testing conditions** using actual Docker containers running consensus
+nodes. This environment is ideal for:
 
 - **Integration Testing**: Validate real network communication and Docker deployment
 - **Production Validation**: Test scenarios closer to production deployment
@@ -48,7 +49,10 @@ classDiagram
     ContainerTestEnvironment --* "1" ContainerTransactionGenerator
 ```
 
-The `ContainerTestEnvironment` is the main container that owns a single `ContainerNetwork`, `RegularTimeManager`, and `ContainerTransactionGenerator`. The `ContainerNetwork` can contain zero or more `ContainerNode` instances. `ContainerTestEnvironment` manages all the core components needed to run production-like tests with multiple nodes in a Docker container network.
+The `ContainerTestEnvironment` is the main container that owns a single `ContainerNetwork`, `RegularTimeManager`, and
+`ContainerTransactionGenerator`. The `ContainerNetwork` can contain zero or more `ContainerNode` instances.
+`ContainerTestEnvironment` manages all the core components needed to run production-like tests with multiple nodes in a
+Docker container network.
 
 ## 🏗️ Network and Node Management
 
@@ -101,7 +105,7 @@ classDiagram
         +nodes(): List~Node~
         +addNodes(int): List~Node~
         +addInstrumentedNode(): InstrumentedNode
-        ~destroy()
+        ~ destroy()
     }
     AbstractNetwork <|-- ContainerNetwork
 
@@ -149,7 +153,7 @@ classDiagram
         +getLogResult(): SingleNodeLogResult
         +getPlatformStatusResult(): SingleNodePlatformStatusResult
         +getPcesResult(): SingleNodePcesResult
-        ~destroy()
+        ~ destroy()
     }
     AbstractNode <|-- ContainerNode
     ContainerNetwork "1" --* "0..*" ContainerNode
@@ -162,13 +166,19 @@ classDiagram
     }
 ```
 
-The `Network` interface and its abstract implementation `AbstractNetwork` provide the foundation for managing collections of consensus nodes, with `ContainerNetwork` being a specific implementation that uses Testcontainers to run nodes in Docker containers. The `Node` interface and its `AbstractNode` base class represent individual consensus participants, with `ContainerNode` being the concrete implementation that integrates with the containerized network environment.
+The `Network` interface and its abstract implementation `AbstractNetwork` provide the foundation for managing
+collections of consensus nodes, with `ContainerNetwork` being a specific implementation that uses Testcontainers to run
+nodes in Docker containers. The `Node` interface and its `AbstractNode` base class represent individual consensus
+participants, with `ContainerNode` being the concrete implementation that integrates with the containerized network
+environment.
 
 ## 🐳 Docker Integration
 
 ### Image Building
 
-The framework automatically builds Docker images from the DockerApp implemented in the module `consensus-otter-docker-app`. The Dockerfile is generated based on the contents of the `apps` and `lib` directories in the module. The image is built using the Eclipse Temurin base image for Java 21:
+The framework automatically builds Docker images from the DockerApp implemented in the module
+`consensus-otter-docker-app`. The Dockerfile is generated based on the contents of the `apps` and `lib` directories in
+the module. The image is built using the Eclipse Temurin base image for Java 21:
 
 ```dockerfile
 FROM eclipse-temurin:21
@@ -183,7 +193,9 @@ CMD ["java", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]
 
 ### Container Startup Process
 
-When a `ContainerNode` is created, it starts a Docker container running the `DockerApp`. The container is configured to expose port 8080 for gRPC communication. The `DockerApp` initializes a gRPC server and listens for incoming connections from the `ContainerNode`.
+When a `ContainerNode` is created, it starts a Docker container running the `DockerApp`. The container is configured to
+expose port 8080 for gRPC communication. The `DockerApp` initializes a gRPC server and listens for incoming connections
+from the `ContainerNode`.
 
 The following sequence diagram shows the container startup process:
 
@@ -198,30 +210,29 @@ sequenceDiagram
     participant DockerManager
     participant ConsensusNodeManager
     participant Platform
-
-    Test->>ContainerNetwork: addNodes(4)
-
-    loop For each node
-        ContainerNetwork->>+ContainerNode: new ContainerNode()
-        ContainerNode->>+GenericContainer: new GenericContainer()
-        GenericContainer->>+Container: Start container
-        ContainerNode->>Container: start()
-        Container->>+DockerMain: java -jar DockerApp.jar
-        DockerMain->>+DockerManager: Initialize gRPC server
-        ContainerNode->>DockerManager: Establish gRPC connection
-      ContainerNode->>DockerManager: Send InitRequest
-    end
-
-    Test->>ContainerNetwork: start()
+    Test ->> ContainerNetwork: addNodes(4)
 
     loop For each node
-        ContainerNetwork->>ContainerNode: start()
-        ContainerNode->>DockerManager: Send StartRequest
-        DockerManager->>+ConsensusNodeManager: new ConsensusNodeManager()
-        ConsensusNodeManager->>+Platform: Initialize Platform
-        Note over ContainerNode,Platform: 🔄 Ongoing consensus and event streaming
+        ContainerNetwork ->>+ ContainerNode: new ContainerNode()
+        ContainerNode ->>+ GenericContainer: new GenericContainer()
+        GenericContainer ->>+ Container: Start container
+        ContainerNode ->> Container: start()
+        Container ->>+ DockerMain: java -jar DockerApp.jar
+        DockerMain ->>+ DockerManager: Initialize gRPC server
+        ContainerNode ->> DockerManager: Establish gRPC connection
+        ContainerNode ->> DockerManager: Send InitRequest
     end
-    
+
+    Test ->> ContainerNetwork: start()
+
+    loop For each node
+        ContainerNetwork ->> ContainerNode: start()
+        ContainerNode ->> DockerManager: Send StartRequest
+        DockerManager ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+        ConsensusNodeManager ->>+ Platform: Initialize Platform
+        Note over ContainerNode, Platform: 🔄 Ongoing consensus and event streaming
+    end
+
     deactivate ContainerNode
     deactivate GenericContainer
     deactivate Container
@@ -231,7 +242,10 @@ sequenceDiagram
     deactivate Platform
 ```
 
-When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. A `ContainerNode` creates a new Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing it to send requests and receive events.
+When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. A `ContainerNode` creates a new
+Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which
+initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing
+it to send requests and receive events.
 
 This process ensures each container runs an independent consensus node with real network communication.
 
@@ -301,45 +315,51 @@ sequenceDiagram
     participant DockerManager
     participant ConsensusNodeManager
     participant Platform
-
-    ContainerNode->>DockerManager: StartRequest via gRPC
-    DockerManager->>+ConsensusNodeManager: new ConsensusNodeManager()
-    ConsensusNodeManager->>+Platform: Initialize Platform
+    ContainerNode ->> DockerManager: StartRequest via gRPC
+    DockerManager ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+    ConsensusNodeManager ->>+ Platform: Initialize Platform
 
     loop Event Streaming
-        Platform->>ConsensusNodeManager: Notification via OutputWire
-        ConsensusNodeManager->>DockerManager: Notify event
-        DockerManager->>ContainerNode: Stream EventMessage
-        ContainerNode->>ContainerNode: Add EventMessage to Queue
+        Platform ->> ConsensusNodeManager: Notification via OutputWire
+        ConsensusNodeManager ->> DockerManager: Notify event
+        DockerManager ->> ContainerNode: Stream EventMessage
+        ContainerNode ->> ContainerNode: Add EventMessage to Queue
     end
 
     deactivate ConsensusNodeManager
     deactivate Platform
 ```
 
-Once a connection between the `ContainerNode` and the `DockerManager` is established, it can receive events. The `Platform` notifies the `ConsensusNodeManager` of various events such as status changes, log entries, and consensus rounds. The `ConsensusNodeManager` then relays these events to the `DockerManager`, which streams them back to the `ContainerNode` as `EventMessage` objects.
+Once a connection between the `ContainerNode` and the `DockerManager` is established, it can receive events. The
+`Platform` notifies the `ConsensusNodeManager` of various events such as status changes, log entries, and consensus
+rounds. The `ConsensusNodeManager` then relays these events to the `DockerManager`, which streams them back to the
+`ContainerNode` as `EventMessage` objects.
 
 ## ⏱️ Time Management
 
-The continuous assertions have to be evaluated on the main thread of the test, because otherwise JUnit would not be aware of thrown `AssertionErrors`.
+The continuous assertions have to be evaluated on the main thread of the test, because otherwise JUnit would not be
+aware of thrown `AssertionErrors`.
 
 ```mermaid
 sequenceDiagram
     participant Test Method
     participant RegularTimeManager
     participant ContainerNode
-
-    Test Method->>RegularTimeManager: waitFor(Duration.ofSeconds(30))
+    Test Method ->> RegularTimeManager: waitFor(Duration.ofSeconds(30))
 
     loop Every Granularity Period (10ms)
-        RegularTimeManager->>RegularTimeManager: advanceTime(granularity)
-        RegularTimeManager->>RegularTimeManager: Thread.sleep(granularity)
-        RegularTimeManager->>ContainerNode: tick(now)
-        ContainerNode->>ContainerNode: Process queued EventMessages
+        RegularTimeManager ->> RegularTimeManager: advanceTime(granularity)
+        RegularTimeManager ->> RegularTimeManager: Thread.sleep(granularity)
+        RegularTimeManager ->> ContainerNode: tick(now)
+        ContainerNode ->> ContainerNode: Process queued EventMessages
     end
 ```
 
-This sequence shows how time advancement is used to evaluate continuous assertions. When the test calls `waitFor()` or a related method on the `TimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified duration is reached. During each tick, every `Node` is given a chance to process incoming `EventMessages` which also evaluates continuous assertions defined on these messages. These ticks happen on the main test thread, ensuring that any `AssertionError` thrown during processing is caught by JUnit.
+This sequence shows how time advancement is used to evaluate continuous assertions. When the test calls `waitFor()` or a
+related method on the `TimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified
+duration is reached. During each tick, every `Node` is given a chance to process incoming `EventMessages` which also
+evaluates continuous assertions defined on these messages. These ticks happen on the main test thread, ensuring that any
+`AssertionError` thrown during processing is caught by JUnit.
 
 ## Debugging Container Tests
 
