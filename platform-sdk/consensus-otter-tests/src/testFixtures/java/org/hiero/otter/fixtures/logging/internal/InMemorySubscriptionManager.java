@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging.internal;
 
 import static java.util.Objects.requireNonNull;
@@ -16,7 +17,6 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  * unsubscribe by returning {@link SubscriberAction#UNSUBSCRIBE} from their callback method.
  */
 public enum InMemorySubscriptionManager {
-
     INSTANCE;
 
     private final List<LogSubscriber> subscribers = new CopyOnWriteArrayList<>();

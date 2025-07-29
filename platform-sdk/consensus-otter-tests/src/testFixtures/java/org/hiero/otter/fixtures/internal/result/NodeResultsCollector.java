@@ -99,8 +99,7 @@ public class NodeResultsCollector {
         requireNonNull(logEntry);
         if (!destroyed) {
             logEntries.add(logEntry);
-            logSubscribers.removeIf(
-                    subscriber -> subscriber.onLogEntry(logEntry) == SubscriberAction.UNSUBSCRIBE);
+            logSubscribers.removeIf(subscriber -> subscriber.onLogEntry(logEntry) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 
@@ -204,7 +203,8 @@ public class NodeResultsCollector {
      * @return the list of log entries
      */
     @NonNull
-    public List<StructuredLog> currentLogEntries(final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers) {
+    public List<StructuredLog> currentLogEntries(
+            final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers) {
         return logEntries.stream()
                 .skip(startIndex)
                 .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))

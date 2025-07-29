@@ -32,7 +32,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
      * @param collector the {@link NodeResultsCollector} that collects the results
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
      */
-    public SingleNodeLogResultImpl(@NonNull final NodeResultsCollector collector, @NonNull final Set<Marker> suppressedLogMarkers) {
+    public SingleNodeLogResultImpl(
+            @NonNull final NodeResultsCollector collector, @NonNull final Set<Marker> suppressedLogMarkers) {
         this.collector = requireNonNull(collector);
         this.suppressedLogMarkers = Set.copyOf(suppressedLogMarkers);
     }

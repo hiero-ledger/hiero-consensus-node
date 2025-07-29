@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.logging;
 
 import com.hedera.hapi.platform.state.NodeId;
@@ -58,6 +59,7 @@ public class DockerInMemoryAppender extends AbstractInMemoryAppender {
     @NonNull
     public static DockerInMemoryAppender createAppender(
             @PluginAttribute("name") @NonNull final String name, @PluginAttribute("nodeId") final long nodeId) {
-        return new DockerInMemoryAppender(name, nodeId < 0 ? null : NodeId.newBuilder().id(nodeId).build());
+        return new DockerInMemoryAppender(
+                name, nodeId < 0 ? null : NodeId.newBuilder().id(nodeId).build());
     }
 }

@@ -89,7 +89,8 @@ public final class DockerLogConfigBuilder {
         builder.add(consoleAppender);
 
         // In-memory appender for tests
-        builder.add(builder.newAppender("InMemory", "DockerInMemoryAppender").addAttribute("nodeId", nodeId == null? -1L : nodeId.id()));
+        builder.add(builder.newAppender("InMemory", "DockerInMemoryAppender")
+                .addAttribute("nodeId", nodeId == null ? -1L : nodeId.id()));
 
         final RootLoggerComponentBuilder root = builder.newRootLogger(Level.ALL)
                 .add(builder.newAppenderRef("InMemory"))
