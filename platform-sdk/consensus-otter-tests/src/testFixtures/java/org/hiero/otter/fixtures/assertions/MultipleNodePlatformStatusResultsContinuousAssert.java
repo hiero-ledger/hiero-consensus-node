@@ -81,12 +81,14 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     }
 
     private MultipleNodePlatformStatusResultsContinuousAssert checkContinuously(
-            final BiConsumer<NodeId, PlatformStatus> check) {
+            @NonNull final BiConsumer<NodeId, PlatformStatus> check) {
         isNotNull();
 
         final PlatformStatusSubscriber subscriber = (nodeId, status) -> switch (state) {
             case ACTIVE -> {
-                check.accept(nodeId, status);
+                if (!suppressedNodeIds.contains(nodeId)) {
+                    check.accept(nodeId, status);
+                }
                 yield CONTINUE;
             }
             case PAUSED -> CONTINUE;

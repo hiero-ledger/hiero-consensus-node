@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_IS_TREASURY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
@@ -31,7 +32,6 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
@@ -43,9 +43,11 @@ import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -135,18 +137,25 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull List<StorageAccesses> getStorageChanges() {
-        final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(HapiUtils.CONTRACT_ID_COMPARATOR);
-        contractStateStore.getModifiedSlotKeys().forEach(slotKey -> modifications
-                .computeIfAbsent(slotKey.contractID(), k -> new ArrayList<>())
-                .add(StorageAccess.newWrite(
-                        pbjToTuweniUInt256(slotKey.key()),
-                        valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
-                        valueOrZero(contractStateStore.getSlotValue(slotKey)))));
+    public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
+        final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
+        final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
+        contractStateStore.getModifiedSlotKeys().forEach(slotKey -> {
+            final var access = StorageAccess.newWrite(
+                    pbjToTuweniUInt256(slotKey.key()),
+                    valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
+                    valueOrZero(contractStateStore.getSlotValue(slotKey)));
+            modifications
+                    .computeIfAbsent(slotKey.contractID(), k -> new ArrayList<>())
+                    .add(access);
+            if (includeChangedKeys && access.isLogicalChange()) {
+                changedKeys.add(slotKey);
+            }
+        });
         final List<StorageAccesses> allChanges = new ArrayList<>();
         modifications.forEach(
                 (number, storageAccesses) -> allChanges.add(new StorageAccesses(number, storageAccesses)));
-        return allChanges;
+        return new TxStorageUsage(allChanges, changedKeys);
     }
 
     /**

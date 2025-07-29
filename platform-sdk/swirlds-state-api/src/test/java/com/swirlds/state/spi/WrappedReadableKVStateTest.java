@@ -17,12 +17,12 @@ import org.mockito.Mock;
  */
 class WrappedReadableKVStateTest extends StateTestBase {
     @Mock
-    private ReadableKVState<ProtoBytes, String> delegate;
+    private ReadableKVState<ProtoBytes, ProtoBytes> delegate;
 
     @Mock
     private Iterator<ProtoBytes> keys;
 
-    private WrappedReadableKVState<ProtoBytes, String> state;
+    private WrappedReadableKVState<ProtoBytes, ProtoBytes> state;
 
     @BeforeEach
     void setUp() {

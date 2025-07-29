@@ -75,7 +75,8 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             ingestChecker.runAllChecks(state, requestBuffer, configuration, checkerResult);
 
             // 7. Submit to platform
-            submissionManager.submit(checkerResult.txnInfoOrThrow().txBody(), requestBuffer);
+            final var txInfo = checkerResult.txnInfoOrThrow();
+            submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
         } catch (final InsufficientBalanceException e) {
             estimatedFee = e.getEstimatedFee();
             result = e.responseCode();

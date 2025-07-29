@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import org.hiero.otter.fixtures.Capability;
@@ -22,10 +23,14 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  */
 public class ContainerTestEnvironment implements TestEnvironment {
 
+    /** Capabilities supported by the container test environment */
     private static final Set<Capability> CAPABILITIES = Set.of(Capability.RECONNECT, Capability.BACK_PRESSURE);
 
+    /** The granularity of time defining how often continuous assertions are checked */
+    private static final Duration GRANULARITY = Duration.ofMillis(10);
+
     private final ContainerNetwork network;
-    private final RegularTimeManager timeManager = new RegularTimeManager();
+    private final RegularTimeManager timeManager = new RegularTimeManager(GRANULARITY);
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
@@ -85,7 +90,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException, IOException {
+    public void destroy() throws InterruptedException {
         network.destroy();
     }
 }
