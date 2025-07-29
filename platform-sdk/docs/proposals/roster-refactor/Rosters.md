@@ -146,7 +146,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
   * `com.swirlds.platform.event.branching.DefaultBranchReporter`
 
-```Note
+```text
 after this change, `ConsensusImpl` will not require a node-to-roster-index map anymore and will be able to use the roterData index operation with the same O(1) complexity
 ```
 
