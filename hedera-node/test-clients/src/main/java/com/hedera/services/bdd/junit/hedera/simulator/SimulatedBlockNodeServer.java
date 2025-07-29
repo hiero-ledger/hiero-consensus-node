@@ -58,6 +58,7 @@ public class SimulatedBlockNodeServer {
     private final Server server;
     private final int port;
     private final MockBlockStreamServiceImpl serviceImpl;
+    private final boolean highLatency;
 
     // Configuration for EndOfStream responses
     private final AtomicReference<EndOfStreamConfig> endOfStreamConfig = new AtomicReference<>();
@@ -88,9 +89,11 @@ public class SimulatedBlockNodeServer {
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
+     * @param highLatency whether to simulate high latency responses
      */
-    public SimulatedBlockNodeServer(final int port) {
+    public SimulatedBlockNodeServer(final int port, final boolean highLatency) {
         this.port = port;
+        this.highLatency = highLatency;
         this.serviceImpl = new MockBlockStreamServiceImpl();
         this.server = ServerBuilder.forPort(port).addService(serviceImpl).build();
     }
@@ -378,6 +381,12 @@ public class SimulatedBlockNodeServer {
                                         activeStreams.size(),
                                         port);
                                 for (final StreamObserver<PublishStreamResponse> observer : activeStreams) {
+                                    if (highLatency) {
+                                        // If the simulator is set to be with high latency, delay acknowledgements with
+                                        // 1500 ms (assuming CN considers 1000 ms delays as high latency)
+                                        Thread.sleep(1500);
+                                    }
+
                                     // Send Ack with blockAlreadyExists=false
                                     buildAndSendBlockAcknowledgement(blockNumber, observer, false);
                                 }
@@ -386,6 +395,8 @@ public class SimulatedBlockNodeServer {
                                 currentBlockNumber = null;
                             }
                         } // End of loop through BlockItems
+                    } catch (InterruptedException e) {
+                        log.warn("Interrupted while waiting for BlockAcknowledgement", e);
                     } finally {
                         blockTrackingLock.writeLock().unlock();
                     }
