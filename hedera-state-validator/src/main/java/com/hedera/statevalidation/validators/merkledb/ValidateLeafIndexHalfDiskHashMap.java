@@ -8,6 +8,8 @@ import static com.hedera.statevalidation.validators.ParallelProcessingUtil.proce
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
@@ -20,11 +22,7 @@ import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
@@ -43,14 +41,12 @@ public class ValidateLeafIndexHalfDiskHashMap {
 
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord<VirtualKey, VirtualValue> vmAndSource, Report report) {
+    public void validateIndex(VirtualMapAndDataSourceRecord vmAndSource, Report report) {
         if (vmAndSource.dataSource().getFirstLeafPath() == -1) {
             log.info("Skipping the validation for {} as the map is empty", vmAndSource.name());
             return;
         }
 
-        final KeySerializer keySerializer = vmAndSource.keySerializer();
-        final ValueSerializer valueSerializer = vmAndSource.valueSerializer();
         boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(vmAndSource.name());
         boolean skipIncorrectBucketIndexValidation =
                 VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(vmAndSource.name());
@@ -94,30 +90,26 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     // get path -> dataLocation
                     var dataLocation = pathToDiskLocationLeafNodes.get(path);
                     if (dataLocation == 0) {
-                        collectInfo(new StalePathInfo(path, parseKey(keySerializer, keyBytes)), stalePathsInfos);
+                        collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
                         continue;
                     }
                     final BufferedData leafData = leafStoreDFC.readDataItem(dataLocation);
                     if (leafData == null) {
                         printFileDataLocationError(log, "Record with null leafs!", dfc, bucketLocation);
-                        collectInfo(new NullLeafInfo(path, parseKey(keySerializer, keyBytes)), nullLeafsInfo);
+                        collectInfo(new NullLeafInfo(path, parseKey(keyBytes)), nullLeafsInfo);
                         continue;
                     }
                     final VirtualLeafBytes leafBytes = VirtualLeafBytes.parseFrom(leafData);
                     if (!keyBytes.equals(leafBytes.keyBytes())) {
                         printFileDataLocationError(log, "Record with unexpected key!", dfc, bucketLocation);
                         collectInfo(
-                                new UnexpectedKeyInfo(
-                                        path,
-                                        parseKey(keySerializer, keyBytes),
-                                        parseKey(keySerializer, leafBytes.keyBytes())),
+                                new UnexpectedKeyInfo(path, parseKey(keyBytes), parseKey(leafBytes.keyBytes())),
                                 unexpectedKeyInfos);
                     }
                     if (leafBytes.path() != path) {
                         printFileDataLocationError(log, "Record with unexpected path!", dfc, bucketLocation);
                         collectInfo(
-                                new PathMismatchInfo(path, leafBytes.path(), parseKey(keySerializer, keyBytes)),
-                                pathMismatchInfos);
+                                new PathMismatchInfo(path, leafBytes.path(), parseKey(keyBytes)), pathMismatchInfos);
                     }
                 }
             } catch (Exception e) {
@@ -175,8 +167,8 @@ public class ValidateLeafIndexHalfDiskHashMap {
                                         incorrectBucketIndexList));
     }
 
-    private static VirtualKey parseKey(KeySerializer keySerializer, Bytes keyBytes) {
-        return (VirtualKey) keySerializer.fromBytes(keyBytes);
+    private static VirtualMapKey parseKey(Bytes keyBytes) throws ParseException {
+        return VirtualMapKey.PROTOBUF.parse(keyBytes);
     }
 
     private static <T> void collectInfo(T info, CopyOnWriteArrayList<T> list) {
@@ -185,21 +177,21 @@ public class ValidateLeafIndexHalfDiskHashMap {
         }
     }
 
-    record StalePathInfo(long path, VirtualKey key) {
+    record StalePathInfo(long path, VirtualMapKey key) {
         @Override
         public String toString() {
             return "StalePathInfo{" + "path=" + path + ", key=" + key + "}\n";
         }
     }
 
-    private record NullLeafInfo(long path, VirtualKey key) {
+    private record NullLeafInfo(long path, VirtualMapKey key) {
         @Override
         public String toString() {
             return "NullLeafInfo{" + "path=" + path + ", key=" + key + "}\n";
         }
     }
 
-    record UnexpectedKeyInfo(long path, VirtualKey expectedKey, VirtualKey actualKey) {
+    record UnexpectedKeyInfo(long path, VirtualMapKey expectedKey, VirtualMapKey actualKey) {
         @Override
         public String toString() {
             return "UnexpectedKeyInfo{" + "path="
@@ -209,7 +201,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
         }
     }
 
-    private record PathMismatchInfo(long expectedPath, long actualPath, VirtualKey key) {
+    private record PathMismatchInfo(long expectedPath, long actualPath, VirtualMapKey key) {
         @Override
         public String toString() {
             return "PathMismatchInfo{" + "expectedPath="

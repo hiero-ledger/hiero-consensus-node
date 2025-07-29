@@ -20,6 +20,7 @@ import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -58,6 +59,7 @@ public class StateAnalyzer {
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
                 VirtualMapReport::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
+        System.out.println("[Report] Duplicates for path to key value storage:\n" + report);
     }
 
     @ParameterizedTest
@@ -70,6 +72,7 @@ public class StateAnalyzer {
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
                 VirtualMapReport::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
+        System.out.println("[Report] Duplicates for path to hash storage:\n" + report);
     }
 
     @ParameterizedTest
@@ -96,7 +99,11 @@ public class StateAnalyzer {
     }
 
     private static StorageReport createStoreReport(DataFileCollection dfc, Function<ReadableSequentialData, ?> deser) {
-        LongList itemCountByPath = new LongListHeap(50_000_000, CONFIGURATION);
+        MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        int goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
+        long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / goodAverageBucketEntryCount;
+
+        LongList itemCountByPath = new LongListHeap(bucketIndexCapacity, CONFIGURATION);
         List<DataFileReader> readers = dfc.getAllCompletedFiles();
 
         AtomicInteger duplicateItemCount = new AtomicInteger();

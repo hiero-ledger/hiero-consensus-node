@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
@@ -67,6 +66,7 @@ public class ContainerNetwork extends AbstractNetwork {
      *
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
+     * @param rootOutputDirectory the root output directory for the network
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
@@ -115,7 +115,6 @@ public class ContainerNetwork extends AbstractNetwork {
     public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
-        final List<ContainerNode> newNodes = new ArrayList<>();
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
@@ -142,20 +141,22 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        final List<ContainerNode> nodeList = sortedNodeIds.stream()
+        final List<ContainerNode> newNodes = sortedNodeIds.stream()
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
-        nodes.addAll(nodeList);
+        nodes.addAll(newNodes);
 
         transactionGenerator.setNodesSupplier(() -> publicNodes);
 
-        return Collections.unmodifiableList(newNodes);
+        return newNodes.stream().map(Node.class::cast).toList();
     }
 
     private ContainerNode createContainerNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node = new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+        timeManager.addTimeTickReceiver(node);
+        return node;
     }
 
     @NonNull
@@ -208,7 +209,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */
-    void destroy() throws IOException {
+    void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final ContainerNode node : nodes) {

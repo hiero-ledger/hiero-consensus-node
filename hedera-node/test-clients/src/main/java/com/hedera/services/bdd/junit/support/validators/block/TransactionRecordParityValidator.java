@@ -134,7 +134,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             final var diffOutput = roleFreeDiff.buildDiffOutput(roleFreeDiffs);
             final var errorMsg = new StringBuilder()
                     .append(diffOutput.size())
-                    .append(" differences found between role-based and role-free records");
+                    .append(" differences found between generated and translated records");
             diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
             Assertions.fail(errorMsg.toString());
         }
