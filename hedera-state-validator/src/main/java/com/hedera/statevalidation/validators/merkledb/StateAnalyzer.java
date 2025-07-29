@@ -57,6 +57,7 @@ public class StateAnalyzer {
                 labelAndDs,
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
+                vds.getPathToDiskLocationLeafNodes().size(),
                 VirtualMapReport::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
         System.out.println("[Report] Duplicates for path to key value storage:\n" + report);
@@ -70,6 +71,7 @@ public class StateAnalyzer {
                 labelAndDs,
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
+                vds.getPathToDiskLocationInternalNodes().size(),
                 VirtualMapReport::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
         System.out.println("[Report] Duplicates for path to hash storage:\n" + report);
@@ -87,30 +89,27 @@ public class StateAnalyzer {
             VirtualMapAndDataSourceRecord labelAndDs,
             Report report,
             DataFileCollection dataFileCollection,
+            long indexSize,
             BiConsumer<VirtualMapReport, StorageReport> vmReportUpdater,
             Function<ReadableSequentialData, ?> deser) {
         VirtualMapReport vmReport =
                 report.getVmapReportByName().computeIfAbsent(labelAndDs.name(), k -> new VirtualMapReport());
-        StorageReport storageReport = createStoreReport(dataFileCollection, deser);
+        StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deser);
         KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
         storageReport.setMinPath(validKeyRange.getMinValidKey());
         storageReport.setMaxPath(validKeyRange.getMaxValidKey());
         vmReportUpdater.accept(vmReport, storageReport);
     }
 
-    private static StorageReport createStoreReport(DataFileCollection dfc, Function<ReadableSequentialData, ?> deser) {
-        MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        int goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
-        long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / goodAverageBucketEntryCount;
-
-        LongList itemCountByPath = new LongListHeap(bucketIndexCapacity, CONFIGURATION);
+    private static StorageReport createStoreReport(DataFileCollection dfc, long indexSize, Function<ReadableSequentialData, ?> deser) {
+        LongList itemCountByPath = new LongListHeap(indexSize, CONFIGURATION);
         List<DataFileReader> readers = dfc.getAllCompletedFiles();
 
-        AtomicInteger duplicateItemCount = new AtomicInteger();
-        AtomicInteger failure = new AtomicInteger();
-        AtomicInteger itemCount = new AtomicInteger();
-        AtomicInteger fileCount = new AtomicInteger();
-        AtomicInteger sizeInMb = new AtomicInteger();
+        AtomicLong duplicateItemCount = new AtomicLong();
+        AtomicLong failure = new AtomicLong();
+        AtomicLong itemCount = new AtomicLong();
+        AtomicLong fileCount = new AtomicLong();
+        AtomicLong sizeInMb = new AtomicLong();
         AtomicLong wastedSpaceInBytes = new AtomicLong();
 
         Consumer<DataFileReader> dataFileProcessor = d -> {
@@ -145,15 +144,17 @@ public class StateAnalyzer {
                         } else {
                             throw new UnsupportedOperationException("Unsupported data item type");
                         }
-                        long oldVal = itemCountByPath.get(path);
+
+                        // Increment the counter atomically
+                        long oldVal;
+                        do {
+                            oldVal = itemCountByPath.get(path);
+                        } while (!itemCountByPath.putIfEqual(path, oldVal, oldVal + 1));
                         if (oldVal > 0) {
-                            itemCountByPath.put(path, oldVal + 1);
                             wastedSpaceInBytes.addAndGet(itemSize);
                             if (oldVal == 1) {
                                 duplicateItemCount.incrementAndGet();
                             }
-                        } else {
-                            itemCountByPath.put(path, 1);
                         }
                     } catch (Exception e) {
                         failure.incrementAndGet();

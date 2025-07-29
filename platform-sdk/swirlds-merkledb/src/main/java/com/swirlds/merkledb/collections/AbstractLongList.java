@@ -464,11 +464,13 @@ public abstract class AbstractLongList<C> implements LongList {
         checkIndex(index);
         checkValue(newValue);
         final int chunkIndex = toIntExact(index / longsPerChunk);
-        final C chunk = chunkList.get(chunkIndex);
+        C chunk = chunkList.get(chunkIndex);
         if (chunk == null) {
-            // quick optimization: we can quit early without creating new memory blocks
-            // unnecessarily
-            return false;
+            // quick optimization: we can quit early without creating new memory blocks unnecessarily
+            if (oldValue != 0) {
+                return false;
+            }
+            chunk = createOrGetChunk(index);
         }
         final int subIndex = toIntExact(index % longsPerChunk);
         boolean result = putIfEqual(chunk, subIndex, oldValue, newValue);
