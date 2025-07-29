@@ -48,7 +48,7 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -151,10 +151,7 @@ class StateFileManagerTests {
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
-                TestHederaVirtualMapState::new,
-                TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
+                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
@@ -361,7 +358,7 @@ class StateFileManagerTests {
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            TestHederaVirtualMapState::new,
+                                            TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))
                                     .reservedSignedState()

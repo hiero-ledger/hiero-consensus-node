@@ -24,7 +24,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -186,7 +186,7 @@ class SerializationTest extends MerkleTestBase {
             serializedBytes = writeTree(originalTree.getRoot(), dir);
         }
 
-        final TestHederaVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        final TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
 
         assertTree(loadedTree);
         try {
@@ -255,7 +255,7 @@ class SerializationTest extends MerkleTestBase {
         CRYPTO.digestTreeSync(copy.getRoot());
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
-        TestHederaVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
         ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY)).reset();
         populateVmCache(loadedTree);
 
@@ -267,7 +267,7 @@ class SerializationTest extends MerkleTestBase {
         final byte[] serializedBytesWithCache = writeTree(loadedTree.getRoot(), dir);
 
         // let's load it again and see if it works
-        TestHederaVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
+        TestVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
         ((OnDiskReadableKVState)
                         loadedTreeWithCache.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY))
                 .reset();
@@ -283,9 +283,9 @@ class SerializationTest extends MerkleTestBase {
         copy.release();
     }
 
-    private TestHederaVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
+    private TestVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
         final VirtualMap virtualMap = parseTree(serializedBytes, dir);
-        final TestHederaVirtualMapState loadedTree = new TestHederaVirtualMapState(virtualMap);
+        final TestVirtualMapState loadedTree = new TestVirtualMapState(virtualMap);
         initServices(schemaV1, loadedTree);
 
         return loadedTree;

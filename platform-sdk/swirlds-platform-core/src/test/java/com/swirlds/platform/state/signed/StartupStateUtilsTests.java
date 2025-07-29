@@ -33,7 +33,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -171,7 +171,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -202,7 +202,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -237,7 +237,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -284,7 +284,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

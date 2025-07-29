@@ -43,6 +43,8 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.Labeled;
+import com.swirlds.common.utility.RuntimeObjectRecord;
+import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -195,6 +197,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     public static class ClassVersion {
         public static final int REHASH_LEAVES = 3;
         public static final int NO_VIRTUAL_ROOT_NODE = 4;
+    }
+
+    /**
+     * Used to track the lifespan of this virtual map. The record is released when the map is destroyed.
+     */
+    private final RuntimeObjectRecord registryRecord;
+
+    {
+        registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
     public static final int MAX_LABEL_CHARS = 512;
@@ -531,6 +542,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     protected void destroyNode() {
+        registryRecord.release();
         if (pipeline != null) {
             pipeline.destroyCopy(this);
         } else {

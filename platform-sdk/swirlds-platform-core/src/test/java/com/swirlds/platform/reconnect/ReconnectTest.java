@@ -28,9 +28,9 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -120,7 +120,7 @@ final class ReconnectTest {
                     .setSigningNodeIds(nodeIds)
                     .setCalculateHash(true)
                     .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use
-                    // TestHederaVirtualMapState
+                    // TestVirtualMapState
                     .buildWithFacade();
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
@@ -197,6 +197,6 @@ final class ReconnectTest {
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
                 platformStateFacade,
-                TestHederaVirtualMapState::new);
+                TestVirtualMapState::new);
     }
 }

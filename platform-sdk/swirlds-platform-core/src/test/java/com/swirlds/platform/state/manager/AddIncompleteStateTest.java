@@ -106,7 +106,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestVirtualMapState
                 .build();
 
         // This is intentionally a different hash than the signed hash!
