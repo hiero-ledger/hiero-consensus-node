@@ -523,8 +523,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         Utils.maxIngestParseSize(bootstrapConfig),
                         bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent()),
                 bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent(),
-                metrics
-        );
+                metrics);
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(

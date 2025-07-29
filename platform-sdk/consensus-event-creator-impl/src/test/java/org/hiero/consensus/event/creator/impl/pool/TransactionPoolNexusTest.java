@@ -28,8 +28,7 @@ class TransactionPoolNexusTest {
 
     @BeforeEach
     public void beforeEach() {
-        final TransactionConfig txConfig =
-                new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        final TransactionConfig txConfig = new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
         nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics());
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

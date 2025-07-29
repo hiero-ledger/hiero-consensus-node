@@ -524,8 +524,7 @@ public class PlatformWiring {
         // send state signatures to execution
         stateSignerWiring
                 .getOutputWire()
-                .solderTo(
-                        "ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
+                .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.

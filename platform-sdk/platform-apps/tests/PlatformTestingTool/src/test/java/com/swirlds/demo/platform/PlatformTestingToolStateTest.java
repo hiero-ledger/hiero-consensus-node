@@ -177,7 +177,8 @@ class PlatformTestingToolStateTest {
                         .iterator());
 
         main.submitStateSignature(stateSignatureTransaction);
-        final var stateSignatureTransactionBytes = main.getTransactionsForEvent().getFirst();
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -230,7 +231,8 @@ class PlatformTestingToolStateTest {
         givenRoundAndEvent();
 
         main.submitStateSignature(stateSignatureTransaction);
-        final var stateSignatureTransactionBytes = main.getTransactionsForEvent().getFirst();
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -252,7 +254,8 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
 
         main.submitStateSignature(stateSignatureTransaction);
-        final var stateSignatureTransactionBytes = main.getTransactionsForEvent().getFirst();
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()

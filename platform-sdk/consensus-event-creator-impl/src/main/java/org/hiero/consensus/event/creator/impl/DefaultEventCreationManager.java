@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -85,7 +84,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(this::getPlatformStatus, hasBufferedSignatureTransactions::hasBufferedSignatureTransactions));
+        rules.add(new PlatformStatusRule(
+                this::getPlatformStatus, hasBufferedSignatureTransactions::hasBufferedSignatureTransactions));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);

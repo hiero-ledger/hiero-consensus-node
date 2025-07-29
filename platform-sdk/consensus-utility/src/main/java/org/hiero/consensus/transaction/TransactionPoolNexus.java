@@ -68,8 +68,10 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *                                     application transactions are rejected
      * @param metrics                      the metrics to use
      */
-    public TransactionPoolNexus(@NonNull final TransactionConfig transactionConfig,
-            final int throttleTransactionQueueSize, @NonNull final Metrics metrics) {
+    public TransactionPoolNexus(
+            @NonNull final TransactionConfig transactionConfig,
+            final int throttleTransactionQueueSize,
+            @NonNull final Metrics metrics) {
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
         this.throttleTransactionQueueSize = throttleTransactionQueueSize;
 
