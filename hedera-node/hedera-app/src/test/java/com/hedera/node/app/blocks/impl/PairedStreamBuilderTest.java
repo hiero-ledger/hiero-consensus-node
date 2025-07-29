@@ -3,10 +3,10 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -16,9 +16,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PairedStreamBuilderTest {
     private final RecordStreamBuilder recordBuilder =
-            new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, CHILD);
+            new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, CHILD);
     private final PairedStreamBuilder pairedBuilder =
-            new PairedStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, CHILD);
+            new PairedStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, CHILD);
 
     @Test
     void doesNotDelegateSlotUsagesToRecordBuilder() {
@@ -34,7 +34,7 @@ class PairedStreamBuilderTest {
 
     @Test
     void doesNotDelegateInitcodeToRecordBuilder() {
-        assertThrows(UnsupportedOperationException.class, () -> recordBuilder.addInitcode(ContractInitcode.DEFAULT));
-        assertDoesNotThrow(() -> pairedBuilder.addInitcode(ContractInitcode.DEFAULT));
+        assertThrows(UnsupportedOperationException.class, () -> recordBuilder.addInitcode(ExecutedInitcode.DEFAULT));
+        assertDoesNotThrow(() -> pairedBuilder.addInitcode(ExecutedInitcode.DEFAULT));
     }
 }

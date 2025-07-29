@@ -2,11 +2,13 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -23,10 +25,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -213,6 +218,55 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                         .payingWith(OPERATOR));
         // StreamValidationTest must not fail on the first two updates
         // just because the same slot they use is overwritten by the third one.
+    }
+
+    @HapiTest
+    @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
+    public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
+        final var token = "test";
+        final var adminKey = "adminKey";
+        final var newAdminKey = "newAdminKey";
+        final var treasury = "treasury";
+        final var treasury1 = "treasury1";
+        final var payer = "payer";
+        return hapiTest(flattened(
+                newKeyNamed(adminKey),
+                newKeyNamed(newAdminKey),
+                cryptoCreate(OPERATOR),
+                cryptoCreate(payer),
+                cryptoCreate(treasury).maxAutomaticTokenAssociations(-1),
+                cryptoCreate(treasury1).maxAutomaticTokenAssociations(-1),
+                // create keys, tokens and accounts
+                tokenCreate(token)
+                        .adminKey(adminKey)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000)
+                        .treasury(treasury)
+                        .supplyKey(adminKey),
+                // perform the atomic batch transaction
+                atomicBatch(
+                                tokenUpdate(token)
+                                        .adminKey(newAdminKey)
+                                        .payingWith(payer)
+                                        .signedBy(adminKey, newAdminKey, payer)
+                                        .via("updateTokenTxn")
+                                        .batchKey(OPERATOR),
+                                tokenUpdate(token)
+                                        .treasury(treasury1)
+                                        .payingWith(payer)
+                                        .signedBy(newAdminKey, treasury1, payer)
+                                        .via("updateTokenTxn")
+                                        .batchKey(OPERATOR))
+                        .payingWith(OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                // confirm token is updated
+                getTokenInfo(token).hasTreasury(treasury1),
+                withOpContext((spec, opLog) -> {
+                    final var newAdminKeyFromRegistry = spec.registry().getKey(newAdminKey);
+                    final var tokenInfoOperation = getTokenInfo(token).hasAdminKey(toPbj(newAdminKeyFromRegistry));
+                    allRunFor(spec, tokenInfoOperation);
+                })));
     }
 
     /**

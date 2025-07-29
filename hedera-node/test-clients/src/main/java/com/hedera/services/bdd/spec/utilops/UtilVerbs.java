@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.unti
 import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.untilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.CONTAINS;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.DOES_NOT_CONTAIN;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
@@ -150,7 +151,6 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
-import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
@@ -391,15 +391,6 @@ public class UtilVerbs {
                 .map(Integer::parseInt)
                 .orElse(0);
         return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
-    }
-
-    /**
-     * Returns an operation that validates the streams of the target network with dynamic validators
-     *
-     * @return the operation that validates the streams
-     */
-    public static BlockStreamValidationOp validateBlockStream() {
-        return new BlockStreamValidationOp();
     }
 
     /**
@@ -1367,11 +1358,10 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
-    public static Function<HapiSpec, RecordStreamAssertion> visibleItems(
-            @NonNull final VisibleItemsValidator validator, @NonNull final String... specTxnIds) {
-        requireNonNull(specTxnIds);
+    public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
+            @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
-        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, specTxnIds);
+        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, ALL_TX_IDS);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> selectedItems(
@@ -2432,9 +2422,8 @@ public class UtilVerbs {
             final var items = block.items();
             for (int i = 0, n = items.size(); i < n; i++) {
                 final var item = items.get(i);
-                if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.transactionIdOrThrow().equals(executionTxnId)) {
                         for (int j = i + 1; j < n; j++) {
                             final var followingItem = items.get(j);
@@ -2762,7 +2751,7 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
-    private static final class DurationConverter implements ConfigConverter<Duration> {
+    public static final class DurationConverter implements ConfigConverter<Duration> {
 
         /**
          * Regular expression for parsing durations. Looks for a number (with our without a decimal) followed by a unit.
@@ -2798,7 +2787,7 @@ public class UtilVerbs {
          * @return a Duration
          * @throws IllegalArgumentException if there is a problem parsing the string
          */
-        private static Duration parseDuration(final String str) {
+        public static Duration parseDuration(final String str) {
 
             final Matcher matcher = DURATION_REGEX.matcher(str);
 
