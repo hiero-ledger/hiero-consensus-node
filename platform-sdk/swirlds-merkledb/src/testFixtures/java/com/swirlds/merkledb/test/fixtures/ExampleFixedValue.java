@@ -34,6 +34,11 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
         return value.toByteArray(Integer.BYTES, Math.toIntExact(value.length() - Integer.BYTES));
     }
 
+    public ExampleFixedValue() {
+        this.id = 0;
+        this.data = new byte[256];
+    }
+
     public ExampleFixedValue(int id) {
         this.id = id;
         this.data = RANDOM_DATA;
