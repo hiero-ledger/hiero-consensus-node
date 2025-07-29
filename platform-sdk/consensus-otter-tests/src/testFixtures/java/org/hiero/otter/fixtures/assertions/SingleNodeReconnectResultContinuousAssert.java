@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static org.hiero.otter.fixtures.internal.helpers.LogPayloadUtils.parsePayload;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
@@ -55,9 +54,9 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
         return continuouslyCheckReconnectFailures((failurePayload, nodeId) -> {
-            failWithMessage("Expected no failed reconnects, but node %s had %n%s",
-                    nodeId == null ? "unknown" : nodeId.id(),
-                    failurePayload);
+            failWithMessage(
+                    "Expected no failed reconnects, but node %s had %n%s",
+                    nodeId == null ? "unknown" : nodeId.id(), failurePayload);
         });
     }
 
@@ -71,8 +70,7 @@ public class SingleNodeReconnectResultContinuousAssert
         return continuouslyCheckReconnectStart((startPayload, nodeId) -> {
             failWithMessage(
                     "Expected no attempted reconnects, but node %s had %n%s",
-                    nodeId == null ? "unknown" : nodeId.id(),
-                    startPayload);
+                    nodeId == null ? "unknown" : nodeId.id(), startPayload);
         });
     }
 

@@ -9,7 +9,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.ReconnectFailurePayloadSubscriber;
 import org.hiero.otter.fixtures.result.ReconnectStartPayloadSubscriber;
@@ -28,7 +27,8 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
     private final List<SingleNodeReconnectResult> results;
     private final List<ReconnectFailurePayloadSubscriber> reconnectFailureSubscribers = new CopyOnWriteArrayList<>();
     private final List<ReconnectStartPayloadSubscriber> reconnectStartSubscribers = new CopyOnWriteArrayList<>();
-    private final List<SynchronizationCompletePayloadSubscriber> synchronizationCompleteSubscribers = new CopyOnWriteArrayList<>();
+    private final List<SynchronizationCompletePayloadSubscriber> synchronizationCompleteSubscribers =
+            new CopyOnWriteArrayList<>();
 
     public MultipleNodeReconnectResultsImpl(@NonNull final List<SingleNodeReconnectResult> results) {
         this.results = unmodifiableList(requireNonNull(results));
@@ -67,25 +67,19 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final ReconnectStartPayloadSubscriber subscriber) {
-
-    }
+    public void subscribe(@NotNull final ReconnectStartPayloadSubscriber subscriber) {}
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final ReconnectFailurePayloadSubscriber subscriber) {
-
-    }
+    public void subscribe(@NotNull final ReconnectFailurePayloadSubscriber subscriber) {}
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final SynchronizationCompletePayloadSubscriber subscriber) {
-
-    }
+    public void subscribe(@NotNull final SynchronizationCompletePayloadSubscriber subscriber) {}
 
     /**
      * {@inheritDoc}

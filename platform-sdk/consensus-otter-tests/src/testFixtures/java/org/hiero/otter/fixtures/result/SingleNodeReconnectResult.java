@@ -7,7 +7,6 @@ import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 
 /**
  * Represents the result of any reconnect operations a single node may have performed in the Otter framework. This
