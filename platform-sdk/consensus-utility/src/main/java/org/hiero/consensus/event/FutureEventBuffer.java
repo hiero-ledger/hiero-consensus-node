@@ -57,10 +57,10 @@ public class FutureEventBuffer {
         this.bufferingOption = bufferingOption;
         eventWindow = EventWindow.getGenesisEventWindow();
 
-        metrics.getOrCreate(
-                new FunctionGauge.Config<>("platform", "futureEventBuffer_" + name, Long.class, bufferedEventCount::get)
-                        .withDescription(String.format("the number of events sitting in the %s future event buffer", name))
-                        .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        "platform", "futureEventBuffer_" + name, Long.class, bufferedEventCount::get)
+                .withDescription(String.format("the number of events sitting in the %s future event buffer", name))
+                .withUnit("count"));
     }
 
     /**
