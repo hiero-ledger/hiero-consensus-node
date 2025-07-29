@@ -146,9 +146,8 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
   * `com.swirlds.platform.event.branching.DefaultBranchReporter`
 
-```text
-after this change, `ConsensusImpl` will not require a node-to-roster-index map anymore and will be able to use the roterData index operation with the same O(1) complexity
-```
+> [!NOTE]
+> ℹ️ after this change, `ConsensusImpl` will not require a node-to-roster-index map anymore and will be able to use the roterData index operation with the same O(1) complexity
 
 * Platform support code:
   * `com.swirlds.platform.builder.PlatformBuilder`
@@ -191,11 +190,10 @@ When using the rosterHistory to retrieve a `RosterData` object we can still use 
 
 Note on this version of `RosterHistory`:
 
-```text
-At this stage of the change RosterHistory is going to be immutable. The creation of RosterHistory will be performed once, and feed to each component needing it.
-The future idea is to make it a mutable class that can receive updates from input wires and have the ConsensusComponent provide the information that will be used to update the history.
-Each component will then need to use its own local copy of the RosterHistory and update it accordingly.
-```
+> [!NOTE]
+> ℹ️ At this stage of the change RosterHistory is going to be immutable. The creation of RosterHistory will be performed once, and feed to each component needing it.
+> The future idea is to make it a mutable class that can receive updates from input wires and have the ConsensusComponent provide the information that will be used to update the history.
+> Each component will then need to use its own local copy of the RosterHistory and update it accordingly.
 
 After this task, the old RosterHistory object will be deleted.
 
