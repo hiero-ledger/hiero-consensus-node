@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -10,14 +11,17 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,65 +36,52 @@ import org.junit.jupiter.api.Tag;
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
 @Tag(SMART_CONTRACT)
-@DisplayName("Schedule call")
 @HapiTestLifecycle
 public class ScheduleDeleteTest {
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
+    @Account
+    static SpecAccount sender;
+    // COUNTER is used to create scheduled with different expirySecond, to prevent identical schedule creation
+    static AtomicInteger COUNTER = new AtomicInteger();
 
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
-                overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"),
-                overriding("contracts.systemContract.scheduleService.hasScheduleCapacity.enabled", "true"));
+                overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"));
     }
 
-    @HapiTest
-    @DisplayName("deleteSchedule(address)")
-    public Stream<DynamicTest> deleteScheduleTest() {
-        return deleteScheduleTest("deleteScheduleExample", BigInteger.valueOf(40));
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @DisplayName("deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> scheduleCallDeleteTest() {
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
+                deleteFunc -> deleteScheduleTest("scheduleCallExample", deleteFunc, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    @HapiTest
-    @DisplayName("redirect proxy deleteSchedule()")
-    public Stream<DynamicTest> deleteScheduleProxyTest() {
-        // TODO Glib: proxy delete return CONTRACT_REVERT_EXECUTED
-        return deleteScheduleTest("deleteScheduleProxyExample", BigInteger.valueOf(41));
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @DisplayName("deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> scheduleCallWithSenderDeleteTest() {
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
+                deleteFunc -> deleteScheduleTest("scheduleCallWithSenderExample", deleteFunc, sender, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    @HapiTest
-    @DisplayName(
-            "hasScheduleCapacity(uint256,uint256) -> scheduleCall(address,uint256,uint256,uint64,bytes) -> deleteSchedule(address)")
-    public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @DisplayName("deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
+    public Stream<DynamicTest> executeCallOnSenderSignatureDeleteTest() {
+        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample").flatMap(
+                deleteFunc -> deleteScheduleTest("executeCallOnSenderSignatureExample", deleteFunc, sender, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
+    }
+
+    private Stream<DynamicTest> deleteScheduleTest(String scheduleFunction, String deleteFunction,
+            @NonNull final Object... parameters) {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();
             allRunFor(
                     spec,
-                    contract.call("scheduleCallWithCapacityCheckAndDeleteExample", BigInteger.valueOf(42))
-                            .gas(2_000_000L)
-                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
-                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
-            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
-            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
-            allRunFor(
-                    spec,
-                    // check schedule deleted
-                    getScheduleInfo(scheduleIDString)
-                            .hasScheduleId(scheduleIDString)
-                            .isDeleted());
-        }));
-    }
-
-    private Stream<DynamicTest> deleteScheduleTest(String deleteFunction, @NonNull final Object... parameters) {
-        return hapiTest(withOpContext((spec, opLog) -> {
-            // create schedule
-            final var scheduleAddress = new AtomicReference<Address>();
-            allRunFor(
-                    spec,
-                    contract.call("scheduleCallExample", parameters)
+                    contract.call(scheduleFunction, parameters)
                             .gas(2_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
@@ -101,9 +92,11 @@ public class ScheduleDeleteTest {
                     // check schedule exists
                     getScheduleInfo(scheduleIDString)
                             .hasScheduleId(scheduleIDString)
-                            .isNotExecuted(),
+                            .isNotExecuted()
+                            .isNotDeleted(),
                     // delete schedule
                     contract.call(deleteFunction, scheduleAddress.get())
+                            .gas(200_000L)
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
                     // check schedule deleted
                     getScheduleInfo(scheduleIDString)

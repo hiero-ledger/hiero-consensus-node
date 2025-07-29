@@ -3,10 +3,15 @@ package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -15,6 +20,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +34,6 @@ import org.junit.jupiter.api.Tag;
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
 @Tag(SMART_CONTRACT)
-@DisplayName("Schedule call")
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
 
@@ -37,13 +42,16 @@ public class HasScheduleCapacityTest {
 
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.hasScheduleCapacity.enabled", "true"));
+        lifecycle.doAdhoc(
+                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
+                overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"),
+                overriding("contracts.systemContract.scheduleService.hasScheduleCapacity.enabled", "true"));
     }
 
     @HapiTest
     @DisplayName("hasScheduleCapacity(uint256,uint256)")
-    public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
-        return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(50))
+    public Stream<DynamicTest> hasScheduleCapacityTest() {
+        return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
                 .andAssert(txn -> txn.hasResults(
                         ContractFnResultAsserts.resultWith()
@@ -53,5 +61,29 @@ public class HasScheduleCapacityTest {
                         // for child record asserting, because hasScheduleCapacity is a view function
                         ContractFnResultAsserts.anyResult()))
                 .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+    }
+
+    @HapiTest
+    @DisplayName(
+            "hasScheduleCapacity(uint256,uint256) -> scheduleCall(address,uint256,uint256,uint64,bytes) -> deleteSchedule(address)")
+    public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            // create schedule
+            final var scheduleAddress = new AtomicReference<Address>();
+            allRunFor(
+                    spec,
+                    contract.call("scheduleCallWithCapacityCheckAndDeleteExample", BigInteger.valueOf(31))
+                            .gas(2_000_000L)
+                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
+                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
+            allRunFor(
+                    spec,
+                    // check schedule deleted
+                    getScheduleInfo(scheduleIDString)
+                            .hasScheduleId(scheduleIDString)
+                            .isDeleted());
+        }));
     }
 }

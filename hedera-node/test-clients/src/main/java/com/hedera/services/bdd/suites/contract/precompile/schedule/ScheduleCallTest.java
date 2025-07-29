@@ -39,7 +39,6 @@ import org.junit.jupiter.api.Tag;
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
 @Tag(SMART_CONTRACT)
-@DisplayName("Schedule call")
 @HapiTestLifecycle
 public class ScheduleCallTest {
 
@@ -58,20 +57,22 @@ public class ScheduleCallTest {
     @DisplayName("scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
-        return scheduledCallTest(contract.name(), "scheduleCallExample", BigInteger.valueOf(30));
+        return scheduledCallTest(contract.name(), "scheduleCallExample", BigInteger.valueOf(40));
     }
 
     @HapiTest
     @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
-        return scheduledCallTest(sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(31));
+        return scheduledCallTest(sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(41));
     }
 
     @HapiTest
     @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
-        return scheduledCallTest(sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(32));
+        return scheduledCallTest(sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(42));
     }
+
+    // TODO Glib: execute executeCallOnSenderSignature schedule
 
     private Stream<DynamicTest> scheduledCallTest(
             @NonNull final String payer, @NonNull final String functionName, @NonNull final Object... parameters) {
@@ -101,7 +102,9 @@ public class ScheduleCallTest {
                     getScheduleInfo(scheduleIDString)
                             .hasPayerAccountID(payer)
                             .hasScheduleId(scheduleIDString)
-                            .isNotExecuted());
+                            .isNotExecuted()
+                            .isNotDeleted()
+            );
         }));
     }
 }
