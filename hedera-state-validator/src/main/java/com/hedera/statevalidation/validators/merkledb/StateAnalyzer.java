@@ -20,7 +20,6 @@ import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -30,7 +29,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -101,7 +99,8 @@ public class StateAnalyzer {
         vmReportUpdater.accept(vmReport, storageReport);
     }
 
-    private static StorageReport createStoreReport(DataFileCollection dfc, long indexSize, Function<ReadableSequentialData, ?> deser) {
+    private static StorageReport createStoreReport(
+            DataFileCollection dfc, long indexSize, Function<ReadableSequentialData, ?> deser) {
         LongList itemCountByPath = new LongListHeap(indexSize, CONFIGURATION);
         List<DataFileReader> readers = dfc.getAllCompletedFiles();
 
