@@ -89,7 +89,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
-                new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND, "eventCreation");
+                new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND, "eventCreator");
 
         phase = new PhaseTimerBuilder<>(metrics, time, "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()
