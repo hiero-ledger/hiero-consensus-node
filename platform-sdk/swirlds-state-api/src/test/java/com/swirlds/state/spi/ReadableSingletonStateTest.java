@@ -3,6 +3,7 @@ package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.concurrent.atomic.AtomicReference;
@@ -11,9 +12,9 @@ import org.junit.jupiter.api.Test;
 
 public class ReadableSingletonStateTest extends StateTestBase {
 
-    protected AtomicReference<String> backingStore = new AtomicReference<>(AUSTRALIA);
+    protected AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(AUSTRALIA);
 
-    ReadableSingletonStateBase<String> createState() {
+    ReadableSingletonStateBase<ProtoBytes> createState() {
         return new FunctionReadableSingletonState<>(COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get);
     }
 
