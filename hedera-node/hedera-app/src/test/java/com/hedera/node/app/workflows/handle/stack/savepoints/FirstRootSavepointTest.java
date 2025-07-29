@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.handle.stack.savepoints;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -30,7 +30,7 @@ class FirstRootSavepointTest {
     void usesBlockStreamBuilderForBlocksStreamMode() {
         givenSubjectWithCapacities(1, 2);
 
-        final var builder = subject.createBuilder(REVERSIBLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, BLOCKS, false);
+        final var builder = subject.createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, BLOCKS, false);
 
         assertThat(builder).isInstanceOf(BlockStreamBuilder.class);
     }

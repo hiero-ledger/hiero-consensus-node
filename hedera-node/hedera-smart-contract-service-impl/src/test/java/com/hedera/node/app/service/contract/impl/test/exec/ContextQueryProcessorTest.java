@@ -72,9 +72,8 @@ class ContextQueryProcessorTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmQueryResult(),
+                null,
                 null,
                 null);
         assertEquals(expectedResult, subject.call());

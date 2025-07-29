@@ -38,7 +38,7 @@ message TraceData {
     /**
      * EVM trace data.
      */
-    EVMTraceData evm_trace_data = 1;
+    EvmTraceData evm_trace_data = 1;
 
     /**
      * Trace data for automatic token associations.
