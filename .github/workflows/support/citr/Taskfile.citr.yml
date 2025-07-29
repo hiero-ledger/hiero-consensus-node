@@ -375,7 +375,7 @@ tasks:
   solo:node:logs:
     silent: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
   start:
     desc: solo node start
