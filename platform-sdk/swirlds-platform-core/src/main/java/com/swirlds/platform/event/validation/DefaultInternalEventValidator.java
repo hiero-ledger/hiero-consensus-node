@@ -197,6 +197,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             tooManyTransactionBytesAccumulator.update(1);
             return false;
         }
+        //TODO check individual transaction byte counts
 
         return true;
     }

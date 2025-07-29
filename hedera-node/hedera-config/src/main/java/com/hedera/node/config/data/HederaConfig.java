@@ -7,6 +7,13 @@ import com.hedera.node.config.types.Profile;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
+/**
+ * @param throttleTransactionQueueSize Stop accepting new non-system transactions into the transaction queue if it
+ *                                     exceeds this limit
+ * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
+ *                                     event headers. if a single transaction exceeds this limit, then the event will
+ *                                     contain the single transaction only
+ */
 @ConfigData("hedera")
 public record HederaConfig(
         @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
@@ -39,4 +46,8 @@ public record HederaConfig(
                 long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
-                boolean ingestThrottleEnabled) {}
+                boolean ingestThrottleEnabled,
+        @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
+                int throttleTransactionQueueSize,
+        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "245760") @NetworkProperty
+                int maxTransactionBytesPerEvent) {}

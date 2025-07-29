@@ -13,12 +13,14 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
 public class OtterExecutionLayer implements ExecutionLayer {
+    /** The maximum number of transaction to store in the transaction pool */
+    private static final int TX_QUEUE_SIZE = 100_000;
 
     /** the transaction pool, stores transactions that should be sumbitted to the network */
     private final TransactionPoolNexus transactionPool;
 
     public OtterExecutionLayer(@NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
-        transactionPool = new TransactionPoolNexus(transactionConfig, metrics);
+        transactionPool = new TransactionPoolNexus(transactionConfig, TX_QUEUE_SIZE, metrics);
     }
 
     @Override

@@ -88,6 +88,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
         this.platform = Objects.requireNonNull(platform);
         transactionPool = new TransactionPoolNexus(
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                100_000,
                 platform.getContext().getMetrics());
 
         logger.info(STARTUP.getMarker(), "init called in Main for node {}.", nodeId);

@@ -125,6 +125,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         transPerSecToCreate = parameters.length > 1 ? Integer.parseInt(parameters[1]) : 200;
         transactionPool = new TransactionPoolNexus(
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                100_000,
                 platform.getContext().getMetrics());
     }
 

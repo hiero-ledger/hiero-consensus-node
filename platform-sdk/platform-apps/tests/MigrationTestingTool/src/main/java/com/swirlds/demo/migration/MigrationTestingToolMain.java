@@ -98,6 +98,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
 
         transactionPool = new TransactionPoolNexus(
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                100_000,
                 platform.getContext().getMetrics());
 
         // Initialize application statistics

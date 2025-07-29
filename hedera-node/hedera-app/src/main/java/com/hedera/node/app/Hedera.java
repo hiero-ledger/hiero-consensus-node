@@ -311,12 +311,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
+    /** the transaction pool, stores transactions that should be submitted to the network */
+    private final TransactionPoolNexus transactionPool;
+
     /**
      * The Hashgraph Platform. This is set during state initialization.
      */
     private Platform platform;
-    /** the transaction pool, stores transactions that should be sumbitted to the network */
-    private TransactionPoolNexus transactionPool;
     /**
      * The current status of the platform.
      */
@@ -517,6 +518,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
+        transactionPool = new TransactionPoolNexus(
+                new TransactionConfig(
+                        Utils.maxIngestParseSize(bootstrapConfig),
+                        bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent()),
+                bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent(),
+                metrics
+        );
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -725,7 +733,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
-        initTransactionPool(platform);
         if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
@@ -821,7 +828,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
         }
-        initTransactionPool(platform);
         assertEnvSanityChecks(nodeId);
         logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
         Locale.setDefault(Locale.US);
@@ -1131,21 +1137,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .build();
 
         return com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transaction);
-    }
-
-    /**
-     * Initializes the transaction pool if it has not been initialized yet.
-     *
-     * @param platform the platform instance to use for the transaction pool config
-     */
-    private void initTransactionPool(@NonNull final Platform platform) {
-        // When Hedera is started through the Browser class, init() is called before onStateInitialized()
-        // so the transaction pool needs to be instantiated only once, depending on which call happens first
-        if (transactionPool == null) {
-            transactionPool = new TransactionPoolNexus(
-                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                    platform.getContext().getMetrics());
-        }
     }
 
     @Override

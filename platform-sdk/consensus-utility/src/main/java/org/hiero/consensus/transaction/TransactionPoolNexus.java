@@ -63,12 +63,15 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param transactionConfig the configuration to use
-     * @param metrics       the metrics to use
+     * @param transactionConfig            the configuration to use
+     * @param throttleTransactionQueueSize the maximum number of transactions that can be buffered before new
+     *                                     application transactions are rejected
+     * @param metrics                      the metrics to use
      */
-    public TransactionPoolNexus(@NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
+    public TransactionPoolNexus(@NonNull final TransactionConfig transactionConfig,
+            final int throttleTransactionQueueSize, @NonNull final Metrics metrics) {
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
-        throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
+        this.throttleTransactionQueueSize = throttleTransactionQueueSize;
 
         transactionPoolMetrics = new TransactionPoolMetrics(
                 metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
@@ -152,6 +155,9 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
+        if (platformStatus == PlatformStatus.BEHIND) {
+            clear();
+        }
     }
 
     /**

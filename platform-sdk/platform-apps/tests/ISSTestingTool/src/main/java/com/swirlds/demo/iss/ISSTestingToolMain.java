@@ -79,6 +79,7 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         this.platform = platform;
         transactionPool = new TransactionPoolNexus(
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                100_000,
                 platform.getContext().getMetrics());
 
         platform.getNotificationEngine().register(IssListener.class, this::issListener);

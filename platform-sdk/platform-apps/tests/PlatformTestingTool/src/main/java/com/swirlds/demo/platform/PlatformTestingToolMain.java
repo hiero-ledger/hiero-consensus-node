@@ -564,6 +564,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         transactionPool = new TransactionPoolNexus(
                 platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                100_000,
                 platform.getContext().getMetrics());
 
         registerReconnectCompleteListener();

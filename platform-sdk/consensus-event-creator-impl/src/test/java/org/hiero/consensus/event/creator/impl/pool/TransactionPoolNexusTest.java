@@ -22,14 +22,15 @@ class TransactionPoolNexusTest {
 
     static final int MAX_TX_BYTES_PER_EVENT = 245_760;
     static final int TX_MAX_BYTES = 6_144;
+    static final int TX_QUEUE_SIZE = 100_000;
 
     TransactionPoolNexus nexus;
 
     @BeforeEach
     public void beforeEach() {
         final TransactionConfig txConfig =
-                new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, 245_760, 100_000);
-        nexus = new TransactionPoolNexus(txConfig, new NoOpMetrics());
+                new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics());
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
