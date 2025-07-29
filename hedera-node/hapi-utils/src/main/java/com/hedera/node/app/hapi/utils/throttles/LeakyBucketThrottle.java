@@ -65,6 +65,10 @@ public class LeakyBucketThrottle {
         bucket.leak(effectiveLeak(elapsedNanos));
     }
 
+    long capacityFree() {
+        return bucket.capacityFree();
+    }
+
     /**
      * Returns the percent of the throttle bucket's capacity that is used, given some number of
      * nanoseconds have elapsed since the last capacity test.
@@ -73,8 +77,30 @@ public class LeakyBucketThrottle {
      * @return the percent of the bucket that is used
      */
     double percentUsed(final long givenElapsedNanos) {
+        return 100.0 * capacityUsed(givenElapsedNanos) / bucket.totalCapacity();
+    }
+
+    /**
+     * Returns the available free capacity of the throttle bucket, given some number of
+     * nanoseconds have elapsed since the last capacity test.
+     *
+     * @param givenElapsedNanos time since last test
+     * @return the free capacity of the bucket
+     */
+    long capacityFree(final long givenElapsedNanos) {
+        return bucket.totalCapacity() - capacityUsed(givenElapsedNanos);
+    }
+
+    /**
+     * Returns the throttle bucket's capacity that is used, given some number of
+     * nanoseconds have elapsed since the last capacity test.
+     *
+     * @param givenElapsedNanos time since last test
+     * @return the used capacity of the bucket
+     */
+    long capacityUsed(final long givenElapsedNanos) {
         final var used = bucket.capacityUsed();
-        return 100.0 * (used - Math.min(used, effectiveLeak(givenElapsedNanos))) / bucket.totalCapacity();
+        return (used - Math.min(used, effectiveLeak(givenElapsedNanos)));
     }
 
     /**

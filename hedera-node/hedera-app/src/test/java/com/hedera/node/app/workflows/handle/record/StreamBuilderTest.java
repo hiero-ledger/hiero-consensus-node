@@ -4,6 +4,8 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static java.util.Collections.emptyList;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -26,6 +28,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -338,5 +342,47 @@ public class StreamBuilderTest {
                         false,
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, contractBytecode)));
         assertEquals(expectedTransactionSidecarRecords, singleTransactionRecord.transactionSidecarRecords());
+    }
+
+    @Test
+    void testContractResultsLogsClearedInRecord() {
+        // Create mocks for contract function results with logs and bloom
+        final var contractFunctionResult = new ContractFunctionResult(
+                ContractID.DEFAULT,
+                Bytes.EMPTY,
+                "",
+                Bytes.wrap("bloom data"), // set bloom data
+                0L,
+                List.of(ContractLoginfo.DEFAULT), // set log info
+                List.of(ContractID.DEFAULT),
+                Bytes.EMPTY,
+                0L,
+                0L,
+                Bytes.EMPTY,
+                AccountID.DEFAULT,
+                List.of(ContractNonceInfo.DEFAULT),
+                0L);
+
+        // Test contract call result clearing
+        final var callBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
+                .contractCallResult(contractFunctionResult);
+        callBuilder.nullOutSideEffectFields();
+        final var callRecord = callBuilder.build();
+        assertThat(callRecord.transactionRecord().contractCallResult().bloom()).isEqualTo(Bytes.EMPTY);
+        assertThat(callRecord.transactionRecord().contractCallResult().logInfo())
+                .isEqualTo(emptyList());
+
+        // Test contract create result clearing
+        final var createBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(NORMAL_SIGNED_TX)
+                .createdContractID(ContractID.DEFAULT)
+                .contractCallResult(contractFunctionResult);
+        createBuilder.nullOutSideEffectFields();
+        final var createRecord = createBuilder.build();
+        assertThat(createRecord.transactionRecord().contractCreateResult().bloom())
+                .isEqualTo(Bytes.EMPTY);
+        assertThat(createRecord.transactionRecord().contractCreateResult().logInfo())
+                .isEqualTo(emptyList());
     }
 }

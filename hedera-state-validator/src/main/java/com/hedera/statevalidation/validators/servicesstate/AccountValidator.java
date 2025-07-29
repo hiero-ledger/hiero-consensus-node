@@ -2,12 +2,14 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyStateId;
+import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyValueStateId;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.platform.state.VirtualMapValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -26,7 +28,6 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +48,7 @@ public class AccountValidator {
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
     @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws IOException, InterruptedException {
+    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
         final MerkleNodeState merkleNodeState =
                 deserializedState.reservedSignedState().get().getState();
 
@@ -72,10 +73,13 @@ public class AccountValidator {
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
-            final int readStateId = extractVirtualMapKeyStateId(keyBytes);
-            if (readStateId == targetStateId) {
+            final Bytes valueBytes = pair.right();
+            final int readKeyStateId = extractVirtualMapKeyValueStateId(keyBytes);
+            final int readValueStateId = extractVirtualMapKeyValueStateId(valueBytes);
+            if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
                 try {
-                    final Account account = Account.PROTOBUF.parse(pair.right());
+                    final VirtualMapValue virtualMapValue = VirtualMapValue.PROTOBUF.parse(valueBytes);
+                    final Account account = virtualMapValue.value().as();
                     final long tinybarBalance = account.tinybarBalance();
                     assertTrue(tinybarBalance >= 0);
                     totalBalance.addAndGet(tinybarBalance);
