@@ -185,11 +185,10 @@ public class DefaultIssDetector implements IssDetector {
      * force a decision on the hash, and handle any ISS events that result.
      *
      * @param roundNumber the round that was just completed
-     * @param stateJson the JSON string containing information about the current state
      * @return a list of ISS notifications, which may be empty, but will not contain null
      */
     @NonNull
-    private List<IssNotification> shiftRoundDataWindow(final long roundNumber, @NonNull final String stateJson) {
+    private List<IssNotification> shiftRoundDataWindow(final long roundNumber) {
         if (roundNumber <= previousRound) {
             throw new IllegalArgumentException(
                     "previous round was " + previousRound + ", can't decrease round to " + roundNumber);
@@ -260,10 +259,8 @@ public class DefaultIssDetector implements IssDetector {
         try (reservedSignedState) {
             final SignedState state = reservedSignedState.get();
             final long roundNumber = state.getRound();
-            final String stateJson = state.getState().getInfoJson();
 
-            final List<IssNotification> issNotifications =
-                    new ArrayList<>(shiftRoundDataWindow(roundNumber, stateJson));
+            final List<IssNotification> issNotifications = new ArrayList<>(shiftRoundDataWindow(roundNumber));
 
             // Apply any signatures we collected previously that are for this round
             issNotifications.addAll(applySignaturesAndShiftWindow(roundNumber));
@@ -441,11 +438,10 @@ public class DefaultIssDetector implements IssDetector {
     public List<IssNotification> overridingState(@NonNull final ReservedSignedState state) {
         try (state) {
             final long roundNumber = state.get().getRound();
-            final String stateJson = state.get().getState().getInfoJson();
             // this is not practically possible for an ISS to occur for hashes before the state provided
             // in this method. Even if it were to happen, on a reconnect, we are receiving a new state that is fully
             // signed, so any ISSs in the past should be ignored. so we will ignore any ISSs from removed rounds
-            shiftRoundDataWindow(roundNumber, stateJson);
+            shiftRoundDataWindow(roundNumber);
 
             // Apply any signatures we collected previously that are for this round. It is not practically
             // possible for there to be any signatures stored up for this state, but there is no harm in
