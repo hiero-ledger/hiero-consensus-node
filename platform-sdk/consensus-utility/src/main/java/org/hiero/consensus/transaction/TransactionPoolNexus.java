@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.TransactionSupplier;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be
  * created.
  */
-public class TransactionPoolNexus implements TransactionSupplier {
+public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * A list of transactions created by this node waiting to be put into a self-event.
      */
@@ -189,7 +189,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      */
     @NonNull
     @Override
-    public synchronized List<Bytes> getTransactions() {
+    public synchronized List<Bytes> getTransactionsForEvent() {
         // Early return due to no transactions waiting
         if (bufferedTransactions.isEmpty() && priorityBufferedTransactions.isEmpty()) {
             return Collections.emptyList();

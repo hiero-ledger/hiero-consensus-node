@@ -1279,7 +1279,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     }
 
     @Override
-    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
         final com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction convertedSystemTransaction =
                 com.swirlds.demo.platform.fs.stresstest.proto.StateSignatureTransaction.newBuilder()
                         .setRound(transaction.round())
@@ -1303,8 +1303,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     @NonNull
     @Override
-    public List<Bytes> getTransactions() {
-        return transactionPool.getTransactions();
+    public List<Bytes> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

@@ -148,14 +148,14 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     }
 
     @Override
-    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
         transactionPool.submitPriorityTransaction(StateSignatureTransaction.PROTOBUF.toBytes(transaction));
     }
 
     @NonNull
     @Override
-    public List<Bytes> getTransactions() {
-        return transactionPool.getTransactions();
+    public List<Bytes> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

@@ -22,7 +22,7 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.builder.ExecutionCallback;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -132,7 +132,7 @@ public class PlatformWiring {
     private final boolean publishPreconsensusEvents;
     private final boolean publishSnapshotOverrides;
     private final boolean publishStaleEvents;
-    private final ExecutionCallback executionCallback;
+    private final ExecutionLayer execution;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionResubmitter, List<TransactionWrapper>> transactionResubmitterWiring;
@@ -152,11 +152,11 @@ public class PlatformWiring {
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final ApplicationCallbacks applicationCallbacks,
-            @NonNull final ExecutionCallback executionCallback) {
+            @NonNull final ExecutionLayer execution) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.model = Objects.requireNonNull(model);
-        this.executionCallback = Objects.requireNonNull(executionCallback);
+        this.execution = Objects.requireNonNull(execution);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
@@ -525,7 +525,7 @@ public class PlatformWiring {
         stateSignerWiring
                 .getOutputWire()
                 .solderTo(
-                        "ExecutionSignatureSubmission", "state signatures", executionCallback::submitSystemTransaction);
+                        "ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -568,7 +568,7 @@ public class PlatformWiring {
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
         statusStateMachineWiring
                 .getOutputWire()
-                .solderTo("ExecutionStatusHandler", "status updates", executionCallback::updatePlatformStatus);
+                .solderTo("ExecutionStatusHandler", "status updates", execution::updatePlatformStatus);
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();

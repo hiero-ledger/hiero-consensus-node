@@ -31,7 +31,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.TransactionSupplier;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -48,7 +48,7 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
-    private final TransactionSupplier transactionSupplier;
+    private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
     /**
@@ -106,7 +106,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
@@ -400,7 +400,7 @@ public class TipsetEventCreator implements EventCreator {
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.newEventBirthRound(),
                 timeCreated,
-                transactionSupplier.getTransactions());
+                transactionSupplier.getTransactionsForEvent());
         eventHasher.hashUnsignedEvent(event);
 
         return event;

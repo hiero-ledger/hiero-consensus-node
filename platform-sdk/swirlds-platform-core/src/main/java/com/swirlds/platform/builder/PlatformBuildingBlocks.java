@@ -115,7 +115,7 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
-        @NonNull ExecutionCallback executionCallback,
+        @NonNull ExecutionLayer execution,
         @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
     public PlatformBuildingBlocks {
@@ -145,7 +145,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
-        requireNonNull(executionCallback);
+        requireNonNull(execution);
         requireNonNull(stateRootFunction);
     }
 }

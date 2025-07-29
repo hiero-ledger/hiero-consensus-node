@@ -126,7 +126,7 @@ public final class PlatformBuilder {
     private Consumer<PlatformEvent> preconsensusEventConsumer;
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
-    private ExecutionCallback executionCallback;
+    private ExecutionLayer execution;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -298,9 +298,9 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    public PlatformBuilder withExecutionCallback(@NonNull final ExecutionCallback executionCallback) {
+    public PlatformBuilder withExecutionCallback(@NonNull final ExecutionLayer execution) {
         throwIfAlreadyUsed();
-        this.executionCallback = Objects.requireNonNull(executionCallback);
+        this.execution = Objects.requireNonNull(execution);
         return this;
     }
 
@@ -469,7 +469,7 @@ public final class PlatformBuilder {
             randomBuilder = new RandomBuilder();
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, executionCallback);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
@@ -501,7 +501,7 @@ public final class PlatformBuilder {
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
-                executionCallback,
+                execution,
                 stateRootFunction);
 
         return new PlatformComponentBuilder(buildingBlocks);

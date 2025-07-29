@@ -5,10 +5,10 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFOR
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
  * Limits the creation of new events depending on the current platform status.
@@ -16,20 +16,20 @@ import org.hiero.consensus.model.status.PlatformStatus;
 public class PlatformStatusRule implements EventCreationRule {
 
     private final Supplier<PlatformStatus> platformStatusSupplier;
-    private final BooleanSupplier hasBufferedSignatureTransactions;
+    private final SignatureTransactionCheck signatureTransactionCheck;
 
     /**
      * Constructor.
      *
      * @param platformStatusSupplier provides the current platform status
-     * @param hasBufferedSignatureTransactions   TODO
+     * @param signatureTransactionCheck   TODO
      */
     public PlatformStatusRule(
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final BooleanSupplier hasBufferedSignatureTransactions) {
+            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
 
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.hasBufferedSignatureTransactions = Objects.requireNonNull(hasBufferedSignatureTransactions);
+        this.signatureTransactionCheck = Objects.requireNonNull(signatureTransactionCheck);
     }
 
     /**
@@ -40,7 +40,7 @@ public class PlatformStatusRule implements EventCreationRule {
         final PlatformStatus currentStatus = platformStatusSupplier.get();
 
         if (currentStatus == PlatformStatus.FREEZING) {
-            return hasBufferedSignatureTransactions.getAsBoolean();
+            return signatureTransactionCheck.hasBufferedSignatureTransactions();
         }
 
         if (currentStatus != PlatformStatus.ACTIVE && currentStatus != PlatformStatus.CHECKING) {

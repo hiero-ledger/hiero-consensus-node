@@ -28,6 +28,7 @@ import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -113,7 +114,7 @@ class EventCreationRulesTests {
         final Supplier<PlatformStatus> platformStatusSupplier = () -> FREEZING;
 
         final AtomicInteger numSignatureTransactions = new AtomicInteger(0);
-        final BooleanSupplier hasBufferedSignatureTransactions = () -> numSignatureTransactions.get() > 0;
+        final SignatureTransactionCheck signatureTransactionCheck = () -> numSignatureTransactions.get() > 0;
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
@@ -122,7 +123,7 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(platformStatusSupplier, hasBufferedSignatureTransactions);
+        final EventCreationRule rule = new PlatformStatusRule(platformStatusSupplier, signatureTransactionCheck);
 
         assertFalse(rule.isEventCreationPermitted());
         numSignatureTransactions.set(1);

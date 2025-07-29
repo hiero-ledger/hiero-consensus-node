@@ -179,8 +179,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        hederaOrThrow().submitSystemTransaction(transaction);
+    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
+        hederaOrThrow().submitStateSignature(transaction);
     }
 
     @Override
@@ -189,8 +189,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<Bytes> getTransactions() {
-        return hederaOrThrow().getTransactions();
+    public @NonNull List<Bytes> getTransactionsForEvent() {
+        return hederaOrThrow().getTransactionsForEvent();
     }
 
     @Override

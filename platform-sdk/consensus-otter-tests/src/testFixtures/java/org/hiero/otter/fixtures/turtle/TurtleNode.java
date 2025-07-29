@@ -54,7 +54,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
-import org.hiero.otter.fixtures.app.OtterExecutionCallback;
+import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -96,7 +96,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private Platform platform;
 
     @Nullable
-    private OtterExecutionCallback executionCallback;
+    private OtterExecutionLayer executionCallback;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -371,7 +371,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
-        this.executionCallback = new OtterExecutionCallback(
+        this.executionCallback = new OtterExecutionLayer(
                 platformContext.getConfiguration().getConfigData(TransactionConfig.class),
                 platformContext.getMetrics());
 

@@ -15,7 +15,7 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.builder.ExecutionCallback;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -106,15 +106,15 @@ public final class DiagramCommand extends AbstractCommand {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-        final ExecutionCallback executionCallback = new ExecutionCallback() {
+        final ExecutionLayer execution = new ExecutionLayer() {
             @Override
-            public void submitSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+            public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
                 // No-op for diagram generation
             }
 
             @NonNull
             @Override
-            public List<Bytes> getTransactions() {
+            public List<Bytes> getTransactionsForEvent() {
                 return List.of();
             }
 
@@ -130,7 +130,7 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, executionCallback);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
 
         final String diagramString = platformWiring
                 .getModel()

@@ -725,11 +725,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
-        if (transactionPool == null) {
-            transactionPool = new TransactionPoolNexus(
-                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                    platform.getContext().getMetrics());
-        }
+        initTransactionPool(platform);
         if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
@@ -825,11 +821,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (this.platform != platform) {
             throw new IllegalArgumentException("Platform must be the same instance");
         }
-        if (transactionPool == null) {
-            transactionPool = new TransactionPoolNexus(
-                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
-                    platform.getContext().getMetrics());
-        }
+        initTransactionPool(platform);
         assertEnvSanityChecks(nodeId);
         logger.info("Initializing Hedera app with HederaNode#{}", nodeId);
         Locale.setDefault(Locale.US);
@@ -1141,15 +1133,30 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transaction);
     }
 
+    /**
+     * Initializes the transaction pool if it has not been initialized yet.
+     *
+     * @param platform the platform instance to use for the transaction pool config
+     */
+    private void initTransactionPool(@NonNull final Platform platform) {
+        // When Hedera is started through the Browser class, init() is called before onStateInitialized()
+        // so the transaction pool needs to be instantiated only once, depending on which call happens first
+        if (transactionPool == null) {
+            transactionPool = new TransactionPoolNexus(
+                    platform.getContext().getConfiguration().getConfigData(TransactionConfig.class),
+                    platform.getContext().getMetrics());
+        }
+    }
+
     @Override
-    public void submitSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
+    public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
     @NonNull
     @Override
-    public List<Bytes> getTransactions() {
-        return transactionPool.getTransactions();
+    public List<Bytes> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

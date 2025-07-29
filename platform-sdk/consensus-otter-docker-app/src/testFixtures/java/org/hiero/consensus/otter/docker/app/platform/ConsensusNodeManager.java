@@ -46,7 +46,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
-import org.hiero.otter.fixtures.app.OtterExecutionCallback;
+import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -60,7 +60,7 @@ public class ConsensusNodeManager {
     private static final String SWIRLD_NAME = "123";
 
     private final Platform platform;
-    private final OtterExecutionCallback executionCallback;
+    private final OtterExecutionLayer executionCallback;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
@@ -119,7 +119,7 @@ public class ConsensusNodeManager {
 
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionCallback(platformConfig.getConfigData(TransactionConfig.class), metrics);
+        executionCallback = new OtterExecutionLayer(platformConfig.getConfigData(TransactionConfig.class), metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,

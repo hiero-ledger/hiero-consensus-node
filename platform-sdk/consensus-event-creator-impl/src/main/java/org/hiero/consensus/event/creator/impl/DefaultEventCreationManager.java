@@ -29,6 +29,7 @@ import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
  * Default implementation of the {@link EventCreationManager}.
@@ -75,7 +76,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final BooleanSupplier hasBufferedSignatureTransactions,
+            @NonNull final SignatureTransactionCheck hasBufferedSignatureTransactions,
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
@@ -84,7 +85,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(this::getPlatformStatus, hasBufferedSignatureTransactions));
+        rules.add(new PlatformStatusRule(this::getPlatformStatus, hasBufferedSignatureTransactions::hasBufferedSignatureTransactions));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);

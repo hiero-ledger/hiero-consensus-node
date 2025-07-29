@@ -12,7 +12,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.builder.ExecutionCallback;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -85,7 +85,7 @@ class PlatformWiringTests {
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final PlatformWiring wiring =
-                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionCallback.class));
+                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionLayer.class));
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
