@@ -188,7 +188,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         return signatureVerifier.verifySignature(
                 key,
                 com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash),
-                SignatureVerifier.MessageType.RAW,
+                SignatureVerifier.MessageType.KECCAK_256_HASH,
                 signatureMap,
                 ky -> SignatureVerifier.SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
     }

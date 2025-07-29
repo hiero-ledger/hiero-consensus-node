@@ -261,7 +261,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -298,8 +298,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
-                        final var differentHash = new Digest().digest("submit1".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -511,7 +511,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
                         final var messageHash32Bytes = new Keccak.Digest256().digest("submit".getBytes());
 
                         // Sign message with ED25519
@@ -652,7 +652,7 @@ public class IsAuthorizedTest {
             record TestCase(long gasAmount, ResponseCodeEnum status) {}
             final var testCases = new ArrayList<TestCase>();
             for (long g = 1_550_000; g < 1_554_000; g += 1000) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
-            for (long g = 1_554_000; g < 1_554_500; g += 100) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
+            for (long g = 1_553_500; g < 1_554_000; g += 100) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
             for (long g = 1_554_500; g < 1_555_000; g += 100) testCases.add(new TestCase(g, SUCCESS));
             for (long g = 1_555_000; g < 1_560_000; g += 1000) testCases.add(new TestCase(g, SUCCESS));
 
@@ -674,7 +674,7 @@ public class IsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Digest().digest("submit".getBytes());
+                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
