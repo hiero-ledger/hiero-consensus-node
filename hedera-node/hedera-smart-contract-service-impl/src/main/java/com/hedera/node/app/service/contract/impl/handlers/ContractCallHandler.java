@@ -58,7 +58,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-        outcome.addCallDetailsTo(streamBuilder);
+        outcome.addCallDetailsTo(streamBuilder, context);
 
         throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
     }
