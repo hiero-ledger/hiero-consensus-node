@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+package proto;
+
+/*-
+ * ‌
+ * Hedera Network Services Protobuf
+ * ​
+ * Copyright (C) 2018 - 2022 Hedera Hashgraph, LLC
+ * ​
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ‍
+ */
+
+import "services/basic_types.proto";
+import "google/protobuf/wrappers.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.hooks">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/***
+ * The Hiero extension points that accept a hook.
+ */
+enum HookExtensionPoint {
+  /**
+   * Used to customize an account's allowances during a CryptoTransfer transaction.
+   */
+  ACCOUNT_ALLOWANCE_HOOK = 0;
+}
+
+/**
+ * Specifies the creation of a new hook at the given id for the given entity.
+ */
+message HookCreation {
+  /**
+   * The id of the hook's entity.
+   */
+  HookEntityId entity_id = 1;
+
+  /**
+   * The creation details.
+   */
+  HookCreationDetails details = 2;
+
+  /**
+   * The id of the hook the new hook should be previous* to in the owner's
+   * doubly-linked list of hooks.
+   */
+  int64 next_hook_id = 3;
+}
+
+/***
+ * The details of a hook's creation.
+ */
+message HookCreationDetails {
+  /**
+   * The extension point for the hook.
+   */
+  HookExtensionPoint extension_point = 1;
+
+  /**
+   * The id to create the hook at.
+   */
+  int64 hook_id = 2;
+
+  /**
+   * The hook implementation.
+   */
+  oneof hook {
+    /**
+     * A hook programmed in EVM bytecode that does not require access to state
+     * or interactions with external contracts.
+     */
+    PureEvmHook pure_evm_hook = 3;
+    /**
+     * A hook programmed in EVM bytecode that may access state or interact with
+     * external contracts.
+     */
+    LambdaEvmHook lambda_evm_hook = 4;
+  }
+
+  /**
+   * If set, a key that that can be used to remove or replace the hook; or (if
+   * applicable, as with a lambda EVM hook) perform transactions that customize
+   * the hook.
+   */
+  proto.Key admin_key = 5;
+}
+
+/**
+ * Definition of a lambda EVM hook.
+ */
+message PureEvmHook {
+  /**
+   * The specification for the hook.
+   */
+  EvmHookSpec spec = 1;
+}
+
+/**
+ * Definition of a lambda EVM hook.
+ */
+message LambdaEvmHook {
+  /**
+   * The specification for the hook.
+   */
+  EvmHookSpec spec = 1;
+
+  /**
+   * Initial storage updates for the lambda, if any.
+   */
+  repeated LambdaStorageUpdate storage_updates = 2;
+}
+
+/**
+ * Shared specifications for an EVM hook. May be used for any extension point.
+ */
+message EvmHookSpec {
+  /**
+   * The source of the EVM bytecode for the hook.
+   */
+  oneof bytecode_source {
+    /**
+     * The id of a contract that implements the extension point API with EVM bytecode.
+     */
+    ContractID contract_id = 1;
+  }
+}
+
+/**
+ * Specifies a key/value pair in the storage of a lambda, either by the explicit storage
+ * slot contents; or by a combination of a Solidity mapping's slot key and the key into
+ * that mapping.
+ */
+message LambdaStorageUpdate {
+  oneof update {
+    /**
+     * An explicit storage slot update.
+     */
+    LambdaStorageSlot storage_slot = 1;
+    /**
+     * An implicit storage slot update specified as a Solidity mapping entry.
+     */
+    LambdaMappingEntry mapping_entry = 2;
+  }
+}
+
+/**
+ * Specifies a storage slot update via indirection into a Solidity mapping.
+ * <p>
+ * Concretely, if the Solidity mapping is itself at slot `mapping_slot`, then
+ * the * storage slot for key `key` in the mapping is defined by the relationship
+ * `key_storage_slot = keccak256(abi.encodePacked(mapping_slot, key))`.
+ * <p>
+ * This message lets a metaprotocol be specified in terms of changes to a
+ * Solidity mapping's entries. If only raw slots could be updated, then a block
+ * stream consumer following the metaprotocol would have to invert the Keccak256
+ * hash to determine which mapping entry was being updated, which is not possible.
+ */
+message LambdaMappingEntry {
+  /**
+   * The slot that corresponds to the Solidity mapping itself. Must use a
+   * minimal byte representation (no leading zeros).
+   */
+  bytes mapping_slot = 1;
+
+  /**
+   * The key of the mapping entry. Must use a minimal byte representation
+   * (no leading zeros).
+   */
+  bytes key = 2;
+
+  /**
+   * If the mapping entry is present and non-zero, the value in the mapping.
+   * Must use a minimal byte representation (no leading zeros). Leaving this
+   * field empty in an update clears the entry from the mapping.
+   */
+  bytes value = 3;
+}
+
+/**
+ * A slot in the storage of a lambda EVM hook.
+ */
+message LambdaStorageSlot {
+  /**
+   * The key of the slot. Must use a minimal byte representation (no
+   * leading zeros).
+   */
+  bytes key = 1;
+
+  /**
+   * If the slot is present and non-zero, its value. Must use a minimal
+   * byte representation (no leading zeros). Leaving this field empty
+   * in an update removes the slot from storage.
+   */
+  bytes value = 2;
+}
