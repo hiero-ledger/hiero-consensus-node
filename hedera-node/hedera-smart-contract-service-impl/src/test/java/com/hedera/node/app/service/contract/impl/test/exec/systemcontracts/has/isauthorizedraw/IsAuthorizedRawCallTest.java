@@ -178,7 +178,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         given(signatureVerifier.verifySignature(
                         eq(key),
                         eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                        eq(SignatureVerifier.MessageType.RAW),
+                        eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
                         any(),
                         any()))
                 .willReturn(true);
@@ -199,7 +199,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         given(signatureVerifier.verifySignature(
                         eq(key),
                         eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                        eq(SignatureVerifier.MessageType.RAW),
+                        eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
                         any(),
                         any()))
                 .willReturn(false);

@@ -300,7 +300,7 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -339,8 +339,8 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
-                        final var differentHash = new Digest().digest("submit1".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -572,7 +572,7 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
                         final var messageHash32Bytes = new Keccak.Digest256().digest("submit".getBytes());
 
                         // Sign message with ED25519
@@ -687,7 +687,7 @@ public class AtomicIsAuthorizedTest {
                             final var addressBytes = recoverAddressFromPrivateKey(privateKey);
                             final var signedBytes = Signing.signMessage(messageHash, privateKey);
 
-                            var call = atomicBatch(contractCall(
+                            final var call = atomicBatch(contractCall(
                                                     HRC632_CONTRACT,
                                                     "isAuthorizedRawCall",
                                                     asHeadlongAddress(addressBytes),
@@ -730,7 +730,7 @@ public class AtomicIsAuthorizedTest {
             for (long g = 1_550_000; g < 1_554_000; g += 1000) {
                 testCases.add(new TestCase(g, INSUFFICIENT_GAS));
             }
-            for (long g = 1_554_000; g < 1_554_500; g += 100) {
+            for (long g = 1_553_500; g < 1_554_000; g += 100) {
                 testCases.add(new TestCase(g, INSUFFICIENT_GAS));
             }
             for (long g = 1_554_500; g < 1_555_000; g += 100) {
@@ -758,7 +758,7 @@ public class AtomicIsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Digest().digest("submit".getBytes());
+                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
@@ -766,7 +766,7 @@ public class AtomicIsAuthorizedTest {
                                             CommonUtils.hex(edKey.toByteArray()).substring(4));
                             final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
-                            var call = atomicBatch(contractCall(
+                            final var call = atomicBatch(contractCall(
                                                     HRC632_CONTRACT,
                                                     "isAuthorizedRawCall",
                                                     accountNum.get(),
