@@ -10,10 +10,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.AbstractInMemoryAppender;
 
 /**
- * A structured representation of a log event captured with the {@link InMemoryAppender}
+ * A structured representation of a log event captured with the {@link AbstractInMemoryAppender}
  *
  * @param timestamp   The timestamp of the log message.
  * @param level       The severity level of the log message.
@@ -23,7 +23,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
  * @param marker      An optional marker associated with the log event.
  * @param nodeId      The {@link NodeId} of the node that generated the log event, or {@code null} if unknown.
  *
- * @see InMemoryAppender
+ * @see AbstractInMemoryAppender
  */
 public record StructuredLog(
         long timestamp,
