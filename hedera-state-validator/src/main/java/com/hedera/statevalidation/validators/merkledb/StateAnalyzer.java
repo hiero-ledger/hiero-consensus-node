@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
-import static com.hedera.statevalidation.parameterresolver.InitUtils.CONFIGURATION;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processObjects;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
+import static java.lang.Math.toIntExact;
 import static java.math.RoundingMode.HALF_UP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -18,8 +18,6 @@ import com.hedera.statevalidation.reporting.StorageReport;
 import com.hedera.statevalidation.reporting.VirtualMapReport;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -30,6 +28,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -101,7 +100,7 @@ public class StateAnalyzer {
 
     private static StorageReport createStoreReport(
             DataFileCollection dfc, long indexSize, Function<ReadableSequentialData, ?> deser) {
-        LongList itemCountByPath = new LongListHeap(indexSize, CONFIGURATION);
+        LongCountArray itemCountByPath = new LongCountArray(indexSize);
         List<DataFileReader> readers = dfc.getAllCompletedFiles();
 
         AtomicLong duplicateItemCount = new AtomicLong();
@@ -144,11 +143,7 @@ public class StateAnalyzer {
                             throw new UnsupportedOperationException("Unsupported data item type");
                         }
 
-                        // Increment the counter atomically
-                        long oldVal;
-                        do {
-                            oldVal = itemCountByPath.get(path);
-                        } while (!itemCountByPath.putIfEqual(path, oldVal, oldVal + 1));
+                        long oldVal = itemCountByPath.getAndIncrement(path);
                         if (oldVal > 0) {
                             wastedSpaceInBytes.addAndGet(itemSize);
                             if (oldVal == 1) {
@@ -182,5 +177,33 @@ public class StateAnalyzer {
         storageReport.setOnDiskSizeInMb(sizeInMb.get());
         storageReport.setItemCount(itemCount.get());
         return storageReport;
+    }
+
+    static class LongCountArray {
+
+        static final int LONGS_PER_CHUNK = 1 << 20;
+        final long size;
+        AtomicLongArray[] arrays;
+
+        LongCountArray(long size) {
+            this.size = size;
+            int maxChunkIndex = toIntExact((size - 1) / LONGS_PER_CHUNK);
+            arrays = new AtomicLongArray[maxChunkIndex + 1];
+            for (int i = 0; i < arrays.length; ++i) {
+                arrays[i] = new AtomicLongArray(LONGS_PER_CHUNK);
+            }
+        }
+
+        long size() {
+            return size;
+        }
+
+        long getAndIncrement(long idx) {
+            if (idx < 0 || idx >= size) {
+                throw new IndexOutOfBoundsException();
+            }
+            int chunkIdx = toIntExact(idx / LONGS_PER_CHUNK);
+            return arrays[chunkIdx].getAndIncrement(toIntExact(idx % LONGS_PER_CHUNK));
+        }
     }
 }
