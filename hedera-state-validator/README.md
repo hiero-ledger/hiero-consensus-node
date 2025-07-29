@@ -15,7 +15,7 @@ of a corrupted state.
 2. Run the following command to execute the validation:
 
    ```shell
-   java -jar ./validator-<version>.jar validate {state path} {tag} [{tag}...]
+   java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
    ```
 
    Here, the `state path` (required) is the location of the state files, and `tag` refers to the validation that should be run. Multiple tags can be specified, separated by spaces, but at least one tag is required.
@@ -44,10 +44,29 @@ of a corrupted state.
 2. Run the following command to execute the introspection:
 
    ```shell
-   java -jar ./validator-<version>.jar introspect {serviceName} {stateName} [{keyInfo}]
+   java -jar ./validator-<version>.jar {path-to-state-round} introspect {serviceName} {stateName} [{keyInfo}]
    ```
 
    Here, the `serviceName` is the required name of the service to introspect, and `stateName` is the required name of the state to introspect.
    Optionally, you can specify `keyInfo` to get information about the values in the virtual map of the service state in a format `keyType:keyJson`:
    `keyType` represents service key type (`TopicID`, `AccountID`, etc.) and `keyJson` represents key value as json.
    If `keyInfo` is not provided, it introspects singleton value of the service state.
+
+## Export
+
+[ExportCommand](src/main/java/com/hedera/statevalidation/ExportCommand.java) allows you to export the state of a Hedera node into a JSON file(s).
+
+### Usage 
+1. Download the state files
+2. Run the following command to execute the export:
+
+   ```shell
+   java -jar ./validator-<version>.jar {path-to-state-round} export [{serviceName}] [{stateName}]
+   ```
+ 
+Notes:
+- service name and state name should be both either omitted or specified
+- if service name / state name is specified the resulting file is `{service_name}_{state_name}.json`
+- if service name / state name is not specified the resulting file is `exportedState_X.json`, where `X` is a file number
+- the exporter limits the number of objects per file to 1 million, to customize the limit use VM parameter `-DitemPerFile`
+- order of entries is consistent across runs and ordered by path
