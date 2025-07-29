@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyValueStateId;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.VirtualMapValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -77,8 +78,10 @@ public class TokenRelationsIntegrity {
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
-            final int readStateId = readNextFieldNumber(keyBytes.toReadableSequentialData());
-            if (readStateId == targetStateId) {
+            final Bytes valueBytes = pair.right();
+            final int readKeyStateId = extractVirtualMapKeyValueStateId(keyBytes);
+            final int readValueStateId = extractVirtualMapKeyValueStateId(valueBytes);
+            if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
                 try {
                     final VirtualMapKey parse = VirtualMapKey.PROTOBUF.parse(keyBytes);
 
@@ -86,7 +89,8 @@ public class TokenRelationsIntegrity {
                     final AccountID accountId1 = entityIDPair.accountId();
                     final TokenID tokenId1 = entityIDPair.tokenId();
 
-                    final TokenRelation tokenRelation = TokenRelation.PROTOBUF.parse(pair.right());
+                    final VirtualMapValue virtualMapValue = VirtualMapValue.PROTOBUF.parse(valueBytes);
+                    final TokenRelation tokenRelation = virtualMapValue.value().as();
                     final AccountID accountId2 = tokenRelation.accountId();
                     final TokenID tokenId2 = tokenRelation.tokenId();
 

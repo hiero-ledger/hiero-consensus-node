@@ -162,7 +162,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var fruitMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
                     new TestSchema(1),
-                    StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC));
+                    StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
 
             virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(fruitMetadata2);
@@ -394,16 +394,16 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(states.isEmpty()).isFalse();
             assertThat(states.size()).isEqualTo(4); // animal and fruit and country and steam
 
-            final ReadableKVState<ProtoBytes, String> fruitState = states.get(FRUIT_STATE_KEY);
+            final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_KEY);
             assertFruitState(fruitState);
 
-            final ReadableKVState<ProtoBytes, String> animalState = states.get(ANIMAL_STATE_KEY);
+            final ReadableKVState<ProtoBytes, ProtoBytes> animalState = states.get(ANIMAL_STATE_KEY);
             assertAnimalState(animalState);
 
-            final ReadableSingletonState<String> countryState = states.getSingleton(COUNTRY_STATE_KEY);
+            final ReadableSingletonState<ProtoBytes> countryState = states.getSingleton(COUNTRY_STATE_KEY);
             assertCountryState(countryState);
 
-            final ReadableQueueState<String> steamState = states.getQueue(STEAM_STATE_KEY);
+            final ReadableQueueState<ProtoBytes> steamState = states.getQueue(STEAM_STATE_KEY);
             assertSteamState(steamState);
 
             // And the states we got back CANNOT be cast to WritableState
@@ -461,10 +461,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
                             + "{\"First-Service.STEAM\":{\"head\":1,\"path\":14,\"tail\":3}},"
                             + "\"VirtualMapMetadata\":{\"firstLeafPath\":8,\"lastLeafPath\":16},"
                             + "\"Singletons\":"
-                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"value\":\"Ghana\"}}}");
+                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"value\":\""
+                            + GHANA
+                            + "\"}}}");
         }
 
-        private static void assertFruitState(ReadableKVState<ProtoBytes, String> fruitState) {
+        private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {
             assertThat(fruitState).isNotNull();
             assertThat(fruitState.get(A_KEY)).isSameAs(APPLE);
             assertThat(fruitState.get(B_KEY)).isSameAs(BANANA);
@@ -475,7 +477,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(fruitState.get(G_KEY)).isNull();
         }
 
-        private void assertAnimalState(ReadableKVState<ProtoBytes, String> animalState) {
+        private void assertAnimalState(ReadableKVState<ProtoBytes, ProtoBytes> animalState) {
             assertThat(animalState).isNotNull();
             assertThat(animalState.get(A_KEY)).isNull();
             assertThat(animalState.get(B_KEY)).isNull();
@@ -486,12 +488,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(animalState.get(G_KEY)).isNull();
         }
 
-        private void assertCountryState(ReadableSingletonState<String> countryState) {
+        private void assertCountryState(ReadableSingletonState<ProtoBytes> countryState) {
             assertThat(countryState.getStateKey()).isEqualTo(COUNTRY_STATE_KEY);
             assertThat(countryState.get()).isEqualTo(GHANA);
         }
 
-        private void assertSteamState(ReadableQueueState<String> steamState) {
+        private void assertSteamState(ReadableQueueState<ProtoBytes> steamState) {
             assertThat(steamState.getStateKey()).isEqualTo(STEAM_STATE_KEY);
             assertThat(steamState.peek()).isEqualTo(ART);
         }
@@ -622,7 +624,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(states.isEmpty()).isFalse();
             assertThat(states.size()).isEqualTo(4);
 
-            final WritableKVState<ProtoBytes, String> fruitStates = states.get(FRUIT_STATE_KEY);
+            final WritableKVState<ProtoBytes, ProtoBytes> fruitStates = states.get(FRUIT_STATE_KEY);
             assertThat(fruitStates).isNotNull();
 
             final var animalStates = states.get(ANIMAL_STATE_KEY);
