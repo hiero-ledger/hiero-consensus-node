@@ -43,6 +43,9 @@ public class ScheduleDeleteTest {
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
 
+    @Contract(contract = "HRC755Contract", creationGas = 1_000_000L, isImmutable = true)
+    static SpecContract authorizeScheduleContract;
+
     @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
     static SpecAccount sender;
     // COUNTER is used to create scheduled with different expirySecond, to prevent identical schedule creation
@@ -51,6 +54,16 @@ public class ScheduleDeleteTest {
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
+                // TODO Glib: logging for debuf
+                contract.getInfo().andAssert(e -> e.exposingContractId(id ->
+                        System.out.println(
+                                "------------------------------------------------ContractID:" + id.getContractNum()))),
+                authorizeScheduleContract.getInfo().andAssert(e -> e.exposingContractId(id ->
+                        System.out.println(
+                                "------------------------------------------------AuthContractID:" + id.getContractNum()))),
+                sender.getInfo().andAssert(e -> e.exposingIdTo(id ->
+                        System.out.println(
+                                "------------------------------------------------Sender.AccountID:" + id.getAccountNum()))),
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
                 overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"));
     }
@@ -109,17 +122,18 @@ public class ScheduleDeleteTest {
                     contract.call(deleteFunction, scheduleAddress.get())
                             .gas(200_000L)
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
-                    // TODO Glib: test delete from EOA
-                    //    public static final String DELETE_SCHEDULE = "deleteSchedule";
-                    //    public static final String IHIP1215 = "IHIP1215ScheduleFacade";
-                    //                    contractCallWithFunctionAbi(
-                    //                            scheduleIDString,
-                    //                            getABIFor(
-                    //                                    FUNCTION,
-                    //                                    DELETE_SCHEDULE,
-                    //                                    IHIP1215))
-                    //                            .payingWith(sender.name())
-                    //                            .gas(1_000_000),
+//                    authorizeScheduleContract.call("authorizeScheduleCall", mirrorAddrWith(spec, scheduleID.getScheduleNum()))
+//                            .payingWith(sender)
+//                            .gas(1_000_000L),
+//                    // TODO Glib: test delete from EOA
+//                    TxnVerbs.contractCallWithFunctionAbi(
+//                                    scheduleIDString,
+//                                    getABIFor(
+//                                            FunctionType.FUNCTION,
+//                                            "deleteSchedule",
+//                                            "IHRC1215ScheduleFacade"))
+//                            .payingWith(sender.name())
+//                            .gas(1_000_000),
                     // check schedule deleted
                     getScheduleInfo(scheduleIDString)
                             .hasScheduleId(scheduleIDString)
