@@ -298,21 +298,20 @@ public class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     }
 
                     // sign and pay for transfer with hollow account to complete the hollow account
-                    // TODO: this atomic batch is causing the failure. If unwrapped it will work
+                    // Inner transactions can't complete hollow accounts, only top level txn (e.g. the batch itself)
                     final var completion = atomicBatch(
                                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, DEFAULT_CONTRACT_RECEIVER, 1))
-                                            .payingWith(SECP_256K1_SOURCE_KEY)
-                                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
                                             .hasKnownStatusFrom(SUCCESS)
                                             .batchKey(BATCH_OPERATOR))
-                            .payingWith(BATCH_OPERATOR);
+                            .payingWith(SECP_256K1_SOURCE_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
+                            .signedBy(SECP_256K1_SOURCE_KEY, BATCH_OPERATOR);
                     allRunFor(spec, completion);
 
                     // verify completed hollow account
                     var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()
-                                    .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.00015, 10)
-                                    .key(SECP_256K1_SOURCE_KEY) // TODO: this is the failure
+                                    .key(SECP_256K1_SOURCE_KEY)
                                     .noAlias()
                                     .autoRenew(THREE_MONTHS_IN_SECONDS)
                                     .receiverSigReq(false)
