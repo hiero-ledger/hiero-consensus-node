@@ -18,7 +18,7 @@ public class LogPayloadUtils {
     private LogPayloadUtils() {}
 
     /**
-     * Reuse this object, but do not share between threads.
+     * This object is thread safe after initialization
      */
     private static final ObjectMapper mapper;
 
