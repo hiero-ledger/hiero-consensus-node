@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 
 #
 # Copyright 2016-2022 Hedera Hashgraph, LLC
