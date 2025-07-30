@@ -70,7 +70,6 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.transaction.TransactionConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -356,7 +355,6 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platformContext.getConfiguration())
                 .thenReturn(new TestConfigBuilder()
-                        .withConfigDataType(TransactionConfig.class)
                         .getOrCreateConfig());
     }
 

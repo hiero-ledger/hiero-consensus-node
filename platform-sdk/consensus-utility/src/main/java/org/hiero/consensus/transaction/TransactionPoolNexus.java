@@ -63,22 +63,22 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param transactionConfig            the configuration to use
+     * @param transactionLimits            the configuration to use
      * @param throttleTransactionQueueSize the maximum number of transactions that can be buffered before new
      *                                     application transactions are rejected
      * @param metrics                      the metrics to use
      */
     public TransactionPoolNexus(
-            @NonNull final TransactionConfig transactionConfig,
+            @NonNull final TransactionLimits transactionLimits,
             final int throttleTransactionQueueSize,
             @NonNull final Metrics metrics) {
-        maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
+        maxTransactionBytesPerEvent = transactionLimits.maxTransactionBytesPerEvent();
         this.throttleTransactionQueueSize = throttleTransactionQueueSize;
 
         transactionPoolMetrics = new TransactionPoolMetrics(
                 metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
 
-        maximumTransactionSize = transactionConfig.transactionMaxBytes();
+        maximumTransactionSize = transactionLimits.transactionMaxBytes();
     }
 
     // FUTURE WORK: these checks should be unified with the checks performed when a system transaction is submitted.

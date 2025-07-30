@@ -8,7 +8,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
@@ -22,8 +21,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /** the transaction pool, stores transactions that should be sumbitted to the network */
     private final TransactionPoolNexus transactionPool;
 
-    public OtterExecutionLayer(@NonNull final TransactionConfig transactionConfig, @NonNull final Metrics metrics) {
-        transactionPool = new TransactionPoolNexus(transactionConfig, TX_QUEUE_SIZE, metrics);
+    public OtterExecutionLayer(@NonNull final Metrics metrics) {
+        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics);
     }
 
     @Override

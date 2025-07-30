@@ -10,7 +10,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ class TransactionPoolNexusTest {
 
     @BeforeEach
     public void beforeEach() {
-        final TransactionConfig txConfig = new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
         nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics());
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

@@ -34,7 +34,6 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.transaction.TransactionConfig;
 
 /**
  * Registers configuration types for the platform.
@@ -76,7 +75,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 TemporaryFileConfig.class,
                 FileSystemManagerConfig.class,
                 ThreadConfig.class,
-                TransactionConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

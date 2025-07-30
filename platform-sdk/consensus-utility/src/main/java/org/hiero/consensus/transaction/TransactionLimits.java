@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction;
 
-import com.swirlds.config.api.ConfigData;
-import com.swirlds.config.api.ConfigProperty;
-
 /**
  * Configuration regarding transactions
  *
@@ -12,7 +9,4 @@ import com.swirlds.config.api.ConfigProperty;
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only
  */
-@ConfigData("transaction")
-public record TransactionConfig(
-        @ConfigProperty(defaultValue = "133120") int transactionMaxBytes,
-        @ConfigProperty(defaultValue = "245760") int maxTransactionBytesPerEvent) {}
+public record TransactionLimits(int transactionMaxBytes, int maxTransactionBytesPerEvent) {}

@@ -92,6 +92,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
  * Main entry point.
@@ -196,6 +197,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         hederaOrThrow().updatePlatformStatus(platformStatus);
+    }
+
+    @Override
+    public @NonNull TransactionLimits getTransactionLimits() {
+        return hederaOrThrow().getTransactionLimits();
     }
 
     /**

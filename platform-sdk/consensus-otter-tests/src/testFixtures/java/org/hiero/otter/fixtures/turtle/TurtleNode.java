@@ -49,7 +49,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.transaction.TransactionConfig;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -394,9 +393,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
-        this.executionLayer = new OtterExecutionLayer(
-                platformContext.getConfiguration().getConfigData(TransactionConfig.class),
-                platformContext.getMetrics());
+        this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         APP_NAME,

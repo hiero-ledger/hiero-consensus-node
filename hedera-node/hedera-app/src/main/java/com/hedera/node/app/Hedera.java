@@ -172,7 +172,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.transaction.TransactionConfig;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /*
@@ -312,6 +312,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
+    /** Transaction size limits */
+    private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
 
@@ -519,10 +521,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
+        transactionLimits = new TransactionLimits(
+                Utils.maxIngestParseSize(bootstrapConfig),
+                bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent());
         transactionPool = new TransactionPoolNexus(
-                new TransactionConfig(
-                        Utils.maxIngestParseSize(bootstrapConfig),
-                        bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent()),
+                transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent(),
                 metrics);
 
@@ -1153,6 +1156,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
+    }
+
+    @Override
+    public @NonNull TransactionLimits getTransactionLimits() {
+        return transactionLimits;
     }
 
     /*==================================================================================================================

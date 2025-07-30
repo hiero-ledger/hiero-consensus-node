@@ -106,31 +106,11 @@ public final class DiagramCommand extends AbstractCommand {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-        final ExecutionLayer execution = new ExecutionLayer() {
-            @Override
-            public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-                // No-op for diagram generation
-            }
-
-            @NonNull
-            @Override
-            public List<Bytes> getTransactionsForEvent() {
-                return List.of();
-            }
-
-            @Override
-            public boolean hasBufferedSignatureTransactions() {
-                return false;
-            }
-
-            @Override
-            public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {}
-        };
 
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
 
         final String diagramString = platformWiring
                 .getModel()
