@@ -126,12 +126,14 @@ public class HapiUtils {
     public static int countOfCryptographicKeys(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case ECDSA_384, ED25519, RSA_3072, ECDSA_SECP256K1 -> 1;
-            case KEY_LIST -> key.keyListOrThrow().keys().stream()
-                    .mapToInt(HapiUtils::countOfCryptographicKeys)
-                    .sum();
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
-                    .mapToInt(HapiUtils::countOfCryptographicKeys)
-                    .sum();
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().stream()
+                        .mapToInt(HapiUtils::countOfCryptographicKeys)
+                        .sum();
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
+                        .mapToInt(HapiUtils::countOfCryptographicKeys)
+                        .sum();
             case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET -> 0;
         };
     }

@@ -152,12 +152,12 @@ message LambdaStorageUpdate {
     /**
      * An implicit storage slot update specified as a Solidity mapping entry.
      */
-    LambdaMappingEntry mapping_entry = 2;
+    LambdaMappingEntries mapping_entries = 2;
   }
 }
 
 /**
- * Specifies a storage slot update via indirection into a Solidity mapping.
+ * Specifies storage slot updates via indirection into a Solidity mapping.
  * <p>
  * Concretely, if the Solidity mapping is itself at slot `mapping_slot`, then
  * the * storage slot for key `key` in the mapping is defined by the relationship
@@ -168,7 +168,7 @@ message LambdaStorageUpdate {
  * stream consumer following the metaprotocol would have to invert the Keccak256
  * hash to determine which mapping entry was being updated, which is not possible.
  */
-message LambdaMappingEntry {
+message LambdaMappingEntries {
   /**
    * The slot that corresponds to the Solidity mapping itself. Must use a
    * minimal byte representation (no leading zeros).
@@ -176,17 +176,9 @@ message LambdaMappingEntry {
   bytes mapping_slot = 1;
 
   /**
-   * The key of the mapping entry. Must use a minimal byte representation
-   * (no leading zeros).
+   * The entries in the mapping at the given slot.
    */
-  bytes key = 2;
-
-  /**
-   * If the mapping entry is present and non-zero, the value in the mapping.
-   * Must use a minimal byte representation (no leading zeros). Leaving this
-   * field empty in an update clears the entry from the mapping.
-   */
-  bytes value = 3;
+  repeated LambdaStorageSlot entries = 2;
 }
 
 /**

@@ -43,8 +43,7 @@
             "NodeCreate",
             "NodeUpdate",
             "NodeDelete",
-            "AtomicBatch",
-            "LambdaSStore"
+            "AtomicBatch"
           ]
         },
         {

@@ -30,6 +30,20 @@ import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
+import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractDeleteHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractGetBySolidityIDHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractGetBytecodeHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractGetInfoHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractGetRecordsHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.handlers.ContractSystemDeleteHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractSystemUndeleteHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
+import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
+import com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
@@ -60,6 +74,38 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
 public interface ContractServiceModule {
+    @Provides
+    @Singleton
+    static ContractHandlers provideHandlers(
+            @NonNull final ContractCallHandler contractCallHandler,
+            @NonNull final ContractCallLocalHandler contractCallLocalHandler,
+            @NonNull final ContractCreateHandler contractCreateHandler,
+            @NonNull final ContractDeleteHandler contractDeleteHandler,
+            @NonNull final ContractGetBySolidityIDHandler contractGetBySolidityIDHandler,
+            @NonNull final ContractGetBytecodeHandler contractGetBytecodeHandler,
+            @NonNull final ContractGetInfoHandler contractGetInfoHandler,
+            @NonNull final ContractGetRecordsHandler contractGetRecordsHandler,
+            @NonNull final ContractSystemDeleteHandler contractSystemDeleteHandler,
+            @NonNull final ContractSystemUndeleteHandler contractSystemUndeleteHandler,
+            @NonNull final ContractUpdateHandler contractUpdateHandler,
+            @NonNull final EthereumTransactionHandler ethereumTransactionHandler,
+            @NonNull final LambdaSStoreHandler lambdaSStoreHandler) {
+        return new ContractHandlers(
+                contractCallHandler,
+                contractCallLocalHandler,
+                contractCreateHandler,
+                contractDeleteHandler,
+                contractGetBySolidityIDHandler,
+                contractGetBytecodeHandler,
+                contractGetInfoHandler,
+                contractGetRecordsHandler,
+                contractSystemDeleteHandler,
+                contractSystemUndeleteHandler,
+                contractUpdateHandler,
+                ethereumTransactionHandler,
+                lambdaSStoreHandler);
+    }
+
     /**
      * Binds the {@link GasCalculator} to the {@link CustomGasCalculator}.
      *

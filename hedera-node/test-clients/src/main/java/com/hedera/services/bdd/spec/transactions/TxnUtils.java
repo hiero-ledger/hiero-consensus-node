@@ -37,7 +37,6 @@ import com.google.protobuf.TextFormat;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
-import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -80,7 +79,6 @@ import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
@@ -131,29 +129,6 @@ public class TxnUtils {
 
     public static Key netOf(@NonNull final HapiSpec spec, @NonNull final Optional<String> keyName) {
         return netOf(spec, keyName, Optional.empty(), Optional.empty());
-    }
-
-    /**
-     * Dumps the given records to a file at the given path.
-     * @param path the path to the file to write to
-     * @param codec the codec to use to serialize the records
-     * @param records the records to dump
-     * @param <T> the type of the records
-     */
-    public static <T> void dumpJsonList(
-            @NonNull final Path path, @NonNull final JsonCodec<T> codec, @NonNull final List<T> records) {
-        try (final var fout = Files.newBufferedWriter(path)) {
-            fout.write("[");
-            for (int i = 0, n = records.size(); i < n; i++) {
-                fout.write(codec.toJSON(records.get(i)));
-                if (i < n - 1) {
-                    fout.write(",");
-                }
-            }
-            fout.write("]");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     public static Key netOf(
