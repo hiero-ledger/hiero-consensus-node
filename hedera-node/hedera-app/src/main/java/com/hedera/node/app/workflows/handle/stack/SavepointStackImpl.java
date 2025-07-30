@@ -13,11 +13,12 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.IRREVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -135,7 +136,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final SavepointStackImpl root,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         return new SavepointStackImpl(root, reversingBehavior, category, customizer, streamMode);
     }
@@ -164,7 +165,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         presetIdsAllowed = true;
         noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
-        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_TRANSACTION_CUSTOMIZER, streamMode, true);
+        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, true);
         this.streamMode = requireNonNull(streamMode);
     }
 
@@ -182,7 +183,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final SavepointStackImpl parent,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         requireNonNull(reversingBehavior);
         requireNonNull(customizer);
@@ -252,7 +253,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void commitTransaction(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
         if (streamMode != RECORDS && immediateStateChangeListener != null) {
-            immediateStateChangeListener.reset();
+            immediateStateChangeListener.reset(builder.logicallyIdenticalValueTest());
         }
         while (!stack.isEmpty()) {
             final var savepoint = stack.pop();
@@ -467,7 +468,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createBuilder(REMOVABLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -476,7 +477,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -485,7 +486,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -532,6 +533,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 break;
             }
         }
+        List<StateChange> batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
         int nextNonceOffset = 1;
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
@@ -584,7 +586,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
             // Add trace data for batch inner (or inner child) transaction fields, that are normally computed by state
             // changes
-            final boolean addAdditionalTraceData = baseBuilder.functionality() == ATOMIC_BATCH;
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();
@@ -595,14 +596,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 }
                 case BLOCKS ->
                     requireNonNull(outputs)
-                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, addAdditionalTraceData));
+                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, batchStateChanges));
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
                     requireNonNull(outputs)
-                            .add(pairedBuilder
-                                    .blockStreamBuilder()
-                                    .build(builder == baseBuilder, addAdditionalTraceData));
+                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, batchStateChanges));
                 }
             }
         }

@@ -16,6 +16,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -725,26 +726,30 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         @Override
         protected boolean onExecute() {
-            Bytes bytes = BlockItem.PROTOBUF.toBytes(item);
-
-            final var kind = item.item().kind();
-            ByteBuffer hash = null;
-            switch (kind) {
-                case EVENT_HEADER,
-                        EVENT_TRANSACTION,
-                        TRANSACTION_RESULT,
-                        TRANSACTION_OUTPUT,
-                        STATE_CHANGES,
-                        ROUND_HEADER,
-                        BLOCK_HEADER,
-                        TRACE_DATA -> {
-                    MessageDigest digest = sha384DigestOrThrow();
-                    bytes.writeTo(digest);
-                    hash = ByteBuffer.wrap(digest.digest());
+            try {
+                Bytes bytes = BlockItem.PROTOBUF.toBytes(item);
+                final var kind = item.item().kind();
+                ByteBuffer hash = null;
+                switch (kind) {
+                    case EVENT_HEADER,
+                            SIGNED_TRANSACTION,
+                            TRANSACTION_RESULT,
+                            TRANSACTION_OUTPUT,
+                            STATE_CHANGES,
+                            ROUND_HEADER,
+                            BLOCK_HEADER,
+                            TRACE_DATA -> {
+                        MessageDigest digest = sha384DigestOrThrow();
+                        bytes.writeTo(digest);
+                        hash = ByteBuffer.wrap(digest.digest());
+                    }
                 }
+                out.send(item, hash, bytes);
+                return true;
+            } catch (Exception e) {
+                log.error("{} - error hashing item {}", ALERT_MESSAGE, item, e);
+                return false;
             }
-            out.send(item, hash, bytes);
-            return true;
         }
     }
 
@@ -764,7 +769,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var kind = item.item().kind();
             switch (kind) {
                 case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(hash);
-                case EVENT_TRANSACTION -> inputTreeHasher.addLeaf(hash);
+                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(hash);
                 case TRANSACTION_RESULT -> {
                     runningHashManager.nextResultHash(hash);
                     hash.rewind();
