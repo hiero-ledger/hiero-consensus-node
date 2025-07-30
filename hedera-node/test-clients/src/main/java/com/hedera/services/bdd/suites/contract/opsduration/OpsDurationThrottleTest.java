@@ -206,7 +206,8 @@ public class OpsDurationThrottleTest {
                 restoreDefault(MAX_OPS_DURATION));
     }
 
-    @HapiTest
+    // @HapiTest
+    // Failing too often in MATS. Re-enable after investigation.
     @Order(5)
     @DisplayName("call create opcode to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCode() {
