@@ -13,7 +13,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.utility;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
@@ -32,6 +31,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.base.crypto;
+    requires org.hiero.consensus.utility;
     requires io.grpc.protobuf;
     requires java.net.http;
     requires org.junit.jupiter.params;
