@@ -1410,284 +1410,636 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         }
     }
 
-    // With auto-created account and edits:
-    @HapiTest
-    @DisplayName("Auto Create Account in one batch, edit account key and transfer from the edited account in second "
-            + "batch success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateAccountEditAccountKeyAndTransferFromEditedAccountSuccessInBatch() {
+    @Nested
+    @DisplayName("Atomic Batch Auto Account Creation End-to-End Tests - Test Cases with Account Edits and Transfers")
+    class AtomicBatchAutoAccountCreationEditsAndTransfersTests {
+        @HapiTest
+        @DisplayName(
+                "Auto Create Account in one batch, edit Account Key and transfer from the edited account in second "
+                        + "batch success in Atomic Batch")
+        public Stream<DynamicTest> autoCreateAccountEditAccountKeyAndTransferFromEditedAccountSuccessInBatch() {
 
-        // create FT transfer to ED25519 alias in a batch
-        final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
-                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
-                .payingWith(OWNER)
-                .via("cryptoTransferNFT_To_ED25519")
-                .batchKey(BATCH_OPERATOR);
+            // create FT transfer to ED25519 alias in a batch
+            final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
+                            movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                    .payingWith(OWNER)
+                    .via("cryptoTransferNFT_To_ED25519")
+                    .batchKey(BATCH_OPERATOR);
 
-        return hapiTest(flattened(
-                // create keys and accounts, register alias
-                createAccountsAndKeys(),
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
 
-                // create and mint tokens
-                createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
-                mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
-                withOpContext((spec, opLog) -> {
+                    // create and mint tokens
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
+                    withOpContext((spec, opLog) -> {
 
-                    // Auto-create account with public key with token transfer in an atomic batch
-                    final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(SUCCESS);
+                        // Auto-create account with public key with token transfer in an atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
 
-                    // validate the public key account creation
-                    final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519)
-                                    .alias(VALID_ALIAS_ED25519)
-                                    .balance(0L)
-                                    .maxAutoAssociations(-1)
-                                    .memo(AUTO_MEMO))
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(1L);
+                        // validate the public key account creation
+                        final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .alias(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
 
-                    allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
+                        allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
 
-                    // add the auto-created account to the registry
-                    final var accountInfo =
-                            getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
-                    allRunFor(spec, accountInfo);
+                        // add the auto-created account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfo);
 
-                    final var newAccountId = accountInfo
-                            .getResponse()
-                            .getCryptoGetInfo()
-                            .getAccountInfo()
-                            .getAccountID();
-                    spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
 
-                    // update account inner transaction
-                    final var accountEditTxn = cryptoUpdateAliased(VALID_ALIAS_ED25519)
-                            .key(VALID_ALIAS_ED25519_SECOND)
+                        // update account inner transaction
+                        final var accountEditTxn = cryptoUpdateAliased(VALID_ALIAS_ED25519)
+                                .key(VALID_ALIAS_ED25519_SECOND)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_ED25519, VALID_ALIAS_ED25519_SECOND)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR);
+
+                        // transfer from the edited auto-created account inner transaction
+                        final var transferFromAutoCreatedAccount = cryptoTransfer(
+                                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(VALID_ALIAS_ED25519, CIVILIAN))
+                                .payingWith(OWNER)
+                                .via("transferFromAutoCreatedAccount")
+                                .signedBy(OWNER, VALID_ALIAS_ED25519_SECOND)
+                                .batchKey(BATCH_OPERATOR);
+
+                        // Edit the auto-create account and token transfer from it in an atomic batch
+                        final var atomicBatchTransactionSecond = atomicBatch(
+                                        accountEditTxn, transferFromAutoCreatedAccount)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account after the transfer
+                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519_SECOND)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(0L);
+
+                        // validate receiver account balance after transfers
+                        final var receiverBalanceCheck =
+                                getAccountBalance(CIVILIAN).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
+
+                        // validate owner account balance after transfers
+                        final var ownerBalanceCheck =
+                                getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        // validate finalized account token balance
+                        final var getFinalizedAccountBalance =
+                                getAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        allRunFor(
+                                spec,
+                                atomicBatchTransactionSecond,
+                                secondInfoCheckED2559,
+                                receiverBalanceCheck,
+                                ownerBalanceCheck,
+                                getFinalizedAccountBalance);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "Auto Create Account in one batch, edit Account Key with the same key and transfer in second batch "
+                        + "success in Atomic Batch")
+        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithSameKeyAndTransferSuccessInBatch() {
+
+            // create FT transfer to ED25519 alias in a batch
+            final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
+                            movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                    .payingWith(OWNER)
+                    .via("cryptoTransferNFT_To_ED25519")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
+
+                    // create and mint tokens
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
+                    withOpContext((spec, opLog) -> {
+
+                        // Auto-create account with public key with token transfer in an atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account creation
+                        final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .alias(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
+
+                        allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
+
+                        // add the auto-created account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfo);
+
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+
+                        // update account inner transaction
+                        final var accountEditTxn = cryptoUpdateAliased(VALID_ALIAS_ED25519)
+                                .key(VALID_ALIAS_ED25519)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_ED25519)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR);
+
+                        // transfer from the edited auto-created account inner transaction
+                        final var transferFromAutoCreatedAccount = cryptoTransfer(
+                                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(VALID_ALIAS_ED25519, CIVILIAN))
+                                .payingWith(OWNER)
+                                .via("transferFromAutoCreatedAccount")
+                                .signedBy(OWNER, VALID_ALIAS_ED25519)
+                                .batchKey(BATCH_OPERATOR);
+
+                        // Edit the auto-create account and token transfer from it in an atomic batch
+                        final var atomicBatchTransactionSecond = atomicBatch(
+                                        accountEditTxn, transferFromAutoCreatedAccount)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account after the transfer
+                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(0L);
+
+                        // validate receiver account balance after transfers
+                        final var receiverBalanceCheck =
+                                getAccountBalance(CIVILIAN).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
+
+                        // validate owner account balance after transfers
+                        final var ownerBalanceCheck =
+                                getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        // validate finalized account token balance
+                        final var getFinalizedAccountBalance =
+                                getAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        allRunFor(
+                                spec,
+                                atomicBatchTransactionSecond,
+                                secondInfoCheckED2559,
+                                receiverBalanceCheck,
+                                ownerBalanceCheck,
+                                getFinalizedAccountBalance);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "Auto Create Account in one batch, edit Auto-Association limit to 1 and Associate the edited account in second "
+                        + "batch success in Atomic Batch")
+        public Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndAssociateEditedAccountSuccessInBatch() {
+
+            // create FT transfer to ED25519 alias in a batch
+            final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
+                            movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                    .payingWith(OWNER)
+                    .via("cryptoTransferNFT_To_ED25519")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
+
+                    // create and mint tokens
+                    createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
+                    withOpContext((spec, opLog) -> {
+
+                        // Auto-create account with public key with token transfer in an atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account creation
+                        final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .alias(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
+
+                        allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
+
+                        // add the auto-created account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfo);
+
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+
+                        // update account inner transaction
+                        final var accountEditTxn = cryptoUpdate(VALID_ALIAS_ED25519)
+                                .maxAutomaticAssociations(1)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_ED25519)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR);
+
+                        // associate the edited auto-created account inner transaction
+                        final var associateAutoCreatedAccount = tokenAssociate(VALID_ALIAS_ED25519, FT_FOR_AUTO_ACCOUNT)
+                                .payingWith(OWNER)
+                                .via("transferFromAutoCreatedAccount")
+                                .signedBy(OWNER, VALID_ALIAS_ED25519)
+                                .batchKey(BATCH_OPERATOR);
+
+                        // Edit the auto-create account and token transfer from it in an atomic batch
+                        final var atomicBatchTransactionSecond = atomicBatch(
+                                        accountEditTxn, associateAutoCreatedAccount)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account after the transfer
+                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .maxAutoAssociations(1)
+                                        .balance(0L))
+                                .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
+
+                        // validate owner account balance after transfers
+                        final var ownerBalanceCheck =
+                                getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        allRunFor(spec, atomicBatchTransactionSecond, secondInfoCheckED2559, ownerBalanceCheck);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "Auto Create Account in one batch, edit both Account Key and Auto-Association limit in second batch "
+                        + "success in Atomic Batch")
+        public Stream<DynamicTest> autoCreateAccountEditBothAccountKeyAndAutoAssociationLimitSuccessInBatch() {
+
+            // create FT transfer to ED25519 alias in a batch
+            final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
+                            movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                    .payingWith(OWNER)
+                    .via("cryptoTransferNFT_To_ED25519")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
+
+                    // create and mint tokens
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
+                    withOpContext((spec, opLog) -> {
+
+                        // Auto-create account with public key with token transfer in an atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account creation
+                        final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .alias(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
+
+                        allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
+
+                        // add the auto-created account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfo);
+
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+
+                        // update account inner transaction
+                        final var accountEditTxn = cryptoUpdateAliased(VALID_ALIAS_ED25519)
+                                .key(VALID_ALIAS_ED25519_SECOND)
+                                .maxAutomaticAssociations(1)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_ED25519, VALID_ALIAS_ED25519_SECOND)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR);
+
+                        // transfer from the edited auto-created account inner transaction
+                        final var transferFromAutoCreatedAccount = cryptoTransfer(
+                                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(VALID_ALIAS_ED25519, CIVILIAN))
+                                .payingWith(OWNER)
+                                .via("transferFromAutoCreatedAccount")
+                                .signedBy(OWNER, VALID_ALIAS_ED25519_SECOND)
+                                .batchKey(BATCH_OPERATOR);
+
+                        // Edit the auto-create account and token transfer from it in an atomic batch
+                        final var atomicBatchTransactionSecond = atomicBatch(
+                                        accountEditTxn, transferFromAutoCreatedAccount)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
+
+                        // validate the public key account after the transfer
+                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519_SECOND)
+                                        .balance(0L)
+                                        .maxAutoAssociations(1))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(0L);
+
+                        // validate receiver account balance after transfers
+                        final var receiverBalanceCheck =
+                                getAccountBalance(CIVILIAN).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
+
+                        // validate owner account balance after transfers
+                        final var ownerBalanceCheck =
+                                getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        // validate finalized account token balance
+                        final var getFinalizedAccountBalance =
+                                getAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+
+                        allRunFor(
+                                spec,
+                                atomicBatchTransactionSecond,
+                                secondInfoCheckED2559,
+                                receiverBalanceCheck,
+                                ownerBalanceCheck,
+                                getFinalizedAccountBalance);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName("Auto Create Hollow Account in one batch and edit its key in second batch success in Atomic Batch")
+        public Stream<DynamicTest> autoCreateHollowAccountEditKeySuccessInBatch() {
+
+            final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
+                    registerEvmAddressAliasFrom(VALID_ALIAS_HOLLOW, evmAlias),
+
+                    // create and mint tokens
+                    createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 5),
+
+                    // Associate and supply tokens to accounts
+                    tokenAssociate(CIVILIAN, FT_FOR_AUTO_ACCOUNT, NFT_FOR_AUTO_ACCOUNT),
+                    cryptoTransfer(
+                                    moving(10L, FT_FOR_AUTO_ACCOUNT).between(OWNER, CIVILIAN),
+                                    movingUnique(NFT_FOR_AUTO_ACCOUNT, 3L, 4L).between(OWNER, CIVILIAN))
                             .payingWith(OWNER)
-                            .signedBy(OWNER, VALID_ALIAS_ED25519, VALID_ALIAS_ED25519_SECOND)
-                            .via("accountEditTxn")
-                            .batchKey(BATCH_OPERATOR);
+                            .via("associateAndSupplyTokens"),
+                    withOpContext((spec, opLog) -> {
 
-                    // transfer from the edited auto-created account inner transaction
-                    final var transferFromAutoCreatedAccount = cryptoTransfer(
-                                    movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(VALID_ALIAS_ED25519, CIVILIAN))
-                            .payingWith(OWNER)
-                            .via("transferFromAutoCreatedAccount")
-                            .signedBy(OWNER, VALID_ALIAS_ED25519_SECOND)
-                            .batchKey(BATCH_OPERATOR);
+                        // Create hollow account with token transfer in one atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(
+                                        createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
+                                                        CIVILIAN,
+                                                        evmAlias.get(),
+                                                        ONE_HBAR,
+                                                        1L,
+                                                        FT_FOR_AUTO_ACCOUNT,
+                                                        List.of(3L), // NFT serials
+                                                        NFT_FOR_AUTO_ACCOUNT,
+                                                        "createHollowAccountWithCryptoTransferToAlias"
+                                                                + VALID_ALIAS_HOLLOW,
+                                                        SUCCESS)
+                                                .getFirst())
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
 
-                    // Edit the auto-create account and token transfer from it in an atomic batch
-                    final var atomicBatchTransactionSecond = atomicBatch(accountEditTxn, transferFromAutoCreatedAccount)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(SUCCESS);
+                        // validate the hollow account creation and transfers
+                        final var infoCheckEVMAlias = getAliasedAccountInfo(evmAlias.get())
+                                .isHollow()
+                                .has(accountWith()
+                                        .hasEmptyKey()
+                                        .noAlias()
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
 
-                    // validate the public key account after the transfer
-                    final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519_SECOND)
-                                    .balance(0L)
-                                    .maxAutoAssociations(-1))
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(0L);
+                        allRunFor(spec, atomicBatchTransactionFirst, infoCheckEVMAlias);
 
-                    // validate receiver account balance after transfers
-                    final var receiverBalanceCheck =
-                            getAccountBalance(CIVILIAN).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
+                        // Add the hollow account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(evmAlias.get()).logged();
+                        allRunFor(spec, accountInfo);
 
-                    // validate owner account balance after transfers
-                    final var ownerBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_HOLLOW, newAccountId);
 
-                    // validate finalized account token balance
-                    final var getFinalizedAccountBalance =
-                            getAccountBalance(VALID_ALIAS_ED25519).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+                        // Finalize the hollow account inner transaction
+                        final var finalizeHollowAccount = cryptoCreate("foo")
+                                .balance(10L)
+                                .payingWith(VALID_ALIAS_HOLLOW)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(VALID_ALIAS_HOLLOW))
+                                .via("finalizingTxn")
+                                .batchKey(BATCH_OPERATOR);
 
-                    allRunFor(
-                            spec,
-                            atomicBatchTransactionSecond,
-                            secondInfoCheckED2559,
-                            receiverBalanceCheck,
-                            ownerBalanceCheck,
-                            getFinalizedAccountBalance);
-                })));
-    }
+                        // update the hollow account key inner transaction
+                        final var accountEditTxn = cryptoUpdate(VALID_ALIAS_HOLLOW)
+                                .key(VALID_ALIAS_HOLLOW_SECOND)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_HOLLOW, VALID_ALIAS_HOLLOW_SECOND)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR);
 
-    @HapiTest
-    @DisplayName(
-            "Auto Create Account in one batch, edit Auto-Association limit to 1 and Associate the edited account in second "
-                    + "batch success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndAssociateEditedAccountSuccessInBatch() {
+                        // Finalize the hollow account and update its key in an atomic batch
+                        final var atomicBatchTransactionSecond = atomicBatch(finalizeHollowAccount, accountEditTxn)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnSecond")
+                                .hasKnownStatus(SUCCESS);
 
-        // create FT transfer to ED25519 alias in a batch
-        final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
-                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
-                .payingWith(OWNER)
-                .via("cryptoTransferNFT_To_ED25519")
-                .batchKey(BATCH_OPERATOR);
+                        // validate finalized and updated account info
+                        final var finalizedAccountInfoCheck = getAccountInfo(VALID_ALIAS_HOLLOW)
+                                .isNotHollow()
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_HOLLOW_SECOND)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
 
-        return hapiTest(flattened(
-                // create keys and accounts, register alias
-                createAccountsAndKeys(),
+                        // validate sender account balance after transfers
+                        final var senderBalanceCheck = getAccountBalance(CIVILIAN)
+                                .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 9L)
+                                .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
 
-                // create and mint tokens
-                createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
-                createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
-                mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
-                withOpContext((spec, opLog) -> {
+                        // validate owner account balance after transfers
+                        final var ownerBalanceCheck = getAccountBalance(OWNER)
+                                .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 3L)
+                                .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 90L);
 
-                    // Auto-create account with public key with token transfer in an atomic batch
-                    final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(SUCCESS);
+                        // validate finalized account token balance
+                        final var getFinalizedAccountBalance = getAccountBalance(VALID_ALIAS_HOLLOW)
+                                .hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 1L)
+                                .hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
 
-                    // validate the public key account creation
-                    final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519)
-                                    .alias(VALID_ALIAS_ED25519)
-                                    .balance(0L)
-                                    .maxAutoAssociations(-1)
-                                    .memo(AUTO_MEMO))
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(1L);
+                        allRunFor(
+                                spec,
+                                atomicBatchTransactionSecond,
+                                finalizedAccountInfoCheck,
+                                senderBalanceCheck,
+                                ownerBalanceCheck,
+                                getFinalizedAccountBalance);
+                    })));
+        }
 
-                    allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
+        @HapiTest
+        @DisplayName(
+                "Auto Create Account in one batch and edit Auto-Association limit to 0 in second batch fails in Atomic Batch")
+        public Stream<DynamicTest>
+                autoCreateAccountEditAutoAssociationLimitToZeroAndAssociateEditedAccountFailsInBatch() {
 
-                    // add the auto-created account to the registry
-                    final var accountInfo =
-                            getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
-                    allRunFor(spec, accountInfo);
+            // create FT transfer to ED25519 alias in a batch
+            final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
+                            movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                    .payingWith(OWNER)
+                    .via("cryptoTransferNFT_To_ED25519")
+                    .batchKey(BATCH_OPERATOR);
 
-                    final var newAccountId = accountInfo
-                            .getResponse()
-                            .getCryptoGetInfo()
-                            .getAccountInfo()
-                            .getAccountID();
-                    spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
+            return hapiTest(flattened(
+                    // create keys and accounts, register alias
+                    createAccountsAndKeys(),
 
-                    // update account inner transaction
-                    final var accountEditTxn = cryptoUpdate(VALID_ALIAS_ED25519)
-                            .maxAutomaticAssociations(1)
-                            .payingWith(OWNER)
-                            .signedBy(OWNER, VALID_ALIAS_ED25519)
-                            .via("accountEditTxn")
-                            .batchKey(BATCH_OPERATOR);
+                    // create and mint tokens
+                    createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
+                    createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
+                    withOpContext((spec, opLog) -> {
 
-                    // associate the edited auto-created account inner transaction
-                    final var associateAutoCreatedAccount = tokenAssociate(VALID_ALIAS_ED25519, FT_FOR_AUTO_ACCOUNT)
-                            .payingWith(OWNER)
-                            .via("transferFromAutoCreatedAccount")
-                            .signedBy(OWNER, VALID_ALIAS_ED25519)
-                            .batchKey(BATCH_OPERATOR);
+                        // Auto-create account with public key with token transfer in an atomic batch
+                        final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(SUCCESS);
 
-                    // Edit the auto-create account and token transfer from it in an atomic batch
-                    final var atomicBatchTransactionSecond = atomicBatch(accountEditTxn, associateAutoCreatedAccount)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(SUCCESS);
+                        // validate the public key account creation
+                        final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .alias(VALID_ALIAS_ED25519)
+                                        .balance(0L)
+                                        .maxAutoAssociations(-1)
+                                        .memo(AUTO_MEMO))
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
 
-                    // validate the public key account after the transfer
-                    final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519)
-                                    .maxAutoAssociations(1)
-                                    .balance(0L))
-                            .hasToken(relationshipWith(FT_FOR_AUTO_ACCOUNT))
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(1L);
+                        allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
 
-                    // validate owner account balance after transfers
-                    final var ownerBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 0L);
+                        // add the auto-created account to the registry
+                        final var accountInfo =
+                                getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfo);
 
-                    allRunFor(spec, atomicBatchTransactionSecond, secondInfoCheckED2559, ownerBalanceCheck);
-                })));
-    }
+                        final var newAccountId = accountInfo
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getAccountID();
+                        spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
 
-    @HapiTest
-    @DisplayName(
-            "Auto Create Account in one batch and edit Auto-Association limit to 0 in second batch fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitToZeroAndAssociateEditedAccountFailsInBatch() {
+                        // update account inner transaction
+                        final var accountEditTxn = cryptoUpdate(VALID_ALIAS_ED25519)
+                                .maxAutomaticAssociations(0)
+                                .payingWith(OWNER)
+                                .signedBy(OWNER, VALID_ALIAS_ED25519)
+                                .via("accountEditTxn")
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT);
 
-        // create FT transfer to ED25519 alias in a batch
-        final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
-                        movingUnique(NFT_FOR_AUTO_ACCOUNT, 1L).between(OWNER, VALID_ALIAS_ED25519))
-                .payingWith(OWNER)
-                .via("cryptoTransferNFT_To_ED25519")
-                .batchKey(BATCH_OPERATOR);
+                        // can't update auto-association limit to 0 in batch when account already has automatic
+                        // associations
+                        // in use
+                        final var atomicBatchTransactionSecond = atomicBatch(accountEditTxn)
+                                .payingWith(BATCH_OPERATOR)
+                                .via("batchTxnFirst")
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED);
 
-        return hapiTest(flattened(
-                // create keys and accounts, register alias
-                createAccountsAndKeys(),
+                        // validate the public key account after the transfer
+                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
+                                .has(accountWith()
+                                        .key(VALID_ALIAS_ED25519)
+                                        .maxAutoAssociations(-1)
+                                        .balance(0L))
+                                .hasNoTokenRelationship(FT_FOR_AUTO_ACCOUNT)
+                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
+                                .hasOwnedNfts(1L);
 
-                // create and mint tokens
-                createMutableFT(FT_FOR_AUTO_ACCOUNT, OWNER, adminKey),
-                createImmutableNFT(NFT_FOR_AUTO_ACCOUNT, OWNER, nftSupplyKey),
-                mintNFT(NFT_FOR_AUTO_ACCOUNT, 0, 1),
-                withOpContext((spec, opLog) -> {
-
-                    // Auto-create account with public key with token transfer in an atomic batch
-                    final var atomicBatchTransactionFirst = atomicBatch(tokenTransferNFT_To_ED25519)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(SUCCESS);
-
-                    // validate the public key account creation
-                    final var firstInfoCheckED2559 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519)
-                                    .alias(VALID_ALIAS_ED25519)
-                                    .balance(0L)
-                                    .maxAutoAssociations(-1)
-                                    .memo(AUTO_MEMO))
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(1L);
-
-                    allRunFor(spec, atomicBatchTransactionFirst, firstInfoCheckED2559);
-
-                    // add the auto-created account to the registry
-                    final var accountInfo =
-                            getAliasedAccountInfo(VALID_ALIAS_ED25519).logged();
-                    allRunFor(spec, accountInfo);
-
-                    final var newAccountId = accountInfo
-                            .getResponse()
-                            .getCryptoGetInfo()
-                            .getAccountInfo()
-                            .getAccountID();
-                    spec.registry().saveAccountId(VALID_ALIAS_ED25519, newAccountId);
-
-                    // update account inner transaction
-                    final var accountEditTxn = cryptoUpdate(VALID_ALIAS_ED25519)
-                            .maxAutomaticAssociations(0)
-                            .payingWith(OWNER)
-                            .signedBy(OWNER, VALID_ALIAS_ED25519)
-                            .via("accountEditTxn")
-                            .batchKey(BATCH_OPERATOR)
-                            .hasKnownStatus(EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT);
-
-                    // can't update auto-association limit to 0 in batch when account already has automatic associations
-                    // in use
-                    final var atomicBatchTransactionSecond = atomicBatch(accountEditTxn)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxnFirst")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
-
-                    // validate the public key account after the transfer
-                    final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
-                            .has(accountWith()
-                                    .key(VALID_ALIAS_ED25519)
-                                    .maxAutoAssociations(-1)
-                                    .balance(0L))
-                            .hasNoTokenRelationship(FT_FOR_AUTO_ACCOUNT)
-                            .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                            .hasOwnedNfts(1L);
-
-                    allRunFor(spec, atomicBatchTransactionSecond, secondInfoCheckED2559);
-                })));
+                        allRunFor(spec, atomicBatchTransactionSecond, secondInfoCheckED2559);
+                    })));
+        }
     }
 
     private SpecOperation registerEvmAddressAliasFrom(String secp256k1KeyName, AtomicReference<ByteString> evmAlias) {
