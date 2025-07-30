@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALRE
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
@@ -339,6 +340,17 @@ public class RecordStreamBuilder
 
         newTotalSupply = 0L;
         transactionFee = 0L;
+
+        if (contractFunctionResult != null) {
+            final var clearLogs =
+                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            if (isContractCreate) {
+                transactionRecordBuilder.contractCreateResult(clearLogs);
+            } else {
+                transactionRecordBuilder.contractCallResult(clearLogs);
+            }
+        }
+
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
@@ -842,11 +854,6 @@ public class RecordStreamBuilder
 
     public long getGasUsedForContractTxn() {
         return this.contractFunctionResult.gasUsed();
-    }
-
-    @Override
-    public long getOpsDurationForContractTxn() {
-        return opsDuration;
     }
 
     /**
