@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
@@ -15,7 +13,6 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -26,7 +23,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.model.status.PlatformStatus;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -110,7 +106,8 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
+        final PlatformWiring platformWiring =
+                new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
 
         final String diagramString = platformWiring
                 .getModel()

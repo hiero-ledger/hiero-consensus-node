@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -9,14 +10,10 @@ import org.hiero.consensus.model.status.PlatformStatus;
 
 public class NoOpExecutionLayer implements ExecutionLayer {
     @Override
-    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-
-    }
+    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {}
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-
-    }
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {}
 
     @NonNull
     @Override

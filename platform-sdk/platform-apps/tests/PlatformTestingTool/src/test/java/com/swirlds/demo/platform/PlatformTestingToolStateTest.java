@@ -353,9 +353,7 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
-        when(platformContext.getConfiguration())
-                .thenReturn(new TestConfigBuilder()
-                        .getOrCreateConfig());
+        when(platformContext.getConfiguration()).thenReturn(new TestConfigBuilder().getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {
