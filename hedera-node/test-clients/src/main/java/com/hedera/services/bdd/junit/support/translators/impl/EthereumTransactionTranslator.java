@@ -95,10 +95,10 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             derivedBuilder, remainingStateChanges);
                                                 }
                                                 if (!PRE_NONCE_ERROR_MESSAGE.equals(txCallResult.errorMessage())) {
-                                                    if (parts.isBatchScoped() && ethTxData != null) {
+                                                    if (parts.isBatchScoped() && finalEthTxData != null) {
                                                         handleBatchScopedNonce(
                                                                 txCallResult.senderId(),
-                                                                ethTxData.nonce(),
+                                                                finalEthTxData.nonce(),
                                                                 derivedBuilder,
                                                                 baseTranslator,
                                                                 remainingStateChanges);
