@@ -200,7 +200,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (originalContract != null && originalContract.smartContract()) {
             builder.alias(Bytes.EMPTY);
         }
-        System.out.println("Putting " + builder.build());
         accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the

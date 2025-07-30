@@ -27,10 +27,9 @@ import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -173,7 +172,6 @@ public class HandleWorkflow {
             @NonNull final CacheWarmer cacheWarmer,
             @NonNull final OpWorkflowMetrics opWorkflowMetrics,
             @NonNull final ThrottleServiceManager throttleServiceManager,
-            @NonNull final SemanticVersion version,
             @NonNull final InitTrigger initTrigger,
             @NonNull final HollowAccountCompletions hollowAccountCompletions,
             @NonNull final SystemTransactions systemTransactions,
@@ -438,7 +436,7 @@ public class HandleWorkflow {
                         .build());
             }
         }
-        final BlockItem headerItem = BlockItem.newBuilder()
+        final var headerItem = BlockItem.newBuilder()
                 .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
                 .build();
         blockStreamManager.writeItem(headerItem);
@@ -791,7 +789,7 @@ public class HandleWorkflow {
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.resetKvStateChanges();
+            immediateStateChangeListener.resetKvStateChanges(null);
         }
         action.run();
         ((CommittableWritableStates) writableStates).commit();
@@ -819,9 +817,9 @@ public class HandleWorkflow {
     }
 
     /**
-     * Initializes the base builder of the given user transaction initialized with its transaction
-     * information. The record builder is initialized with the transaction, transaction bytes, transaction ID,
-     * exchange rate, and memo.
+     * Initializes the base builder of the given user transaction initialized with its transaction information. The
+     * record builder is initialized with the {@link SignedTransaction}, its original serialization, its transaction
+     * id, and memo; as well as the exchange rate.
      *
      * @param builder the base builder
      * @param txnInfo the transaction information
@@ -832,20 +830,9 @@ public class HandleWorkflow {
             @NonNull final StreamBuilder builder,
             @NonNull final TransactionInfo txnInfo,
             @NonNull final ExchangeRateSet exchangeRateSet) {
-        final var transaction = txnInfo.transaction();
-        // If the transaction uses the legacy body bytes field instead of explicitly
-        // setting its signed bytes, the record will have the hash of its bytes as
-        // serialized by PBJ
-        final Bytes transactionBytes;
-        if (transaction.signedTransactionBytes().length() > 0) {
-            transactionBytes = transaction.signedTransactionBytes();
-        } else {
-            transactionBytes = Transaction.PROTOBUF.toBytes(transaction);
-        }
-        return builder.transaction(txnInfo.transaction())
+        return builder.signedTx(txnInfo.signedTx())
                 .functionality(txnInfo.functionality())
-                .serializedTransaction(txnInfo.serializedTransaction())
-                .transactionBytes(transactionBytes)
+                .serializedSignedTx(txnInfo.serializedSignedTx())
                 .transactionID(txnInfo.txBody().transactionIDOrThrow())
                 .exchangeRate(exchangeRateSet)
                 .memo(txnInfo.txBody().memo());

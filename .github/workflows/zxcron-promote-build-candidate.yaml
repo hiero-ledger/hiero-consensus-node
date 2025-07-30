@@ -166,15 +166,14 @@ jobs:
             "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 
-      - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
+      - name: "Trigger ZXF: [CITR] Single Day Canonical Test (SDCT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/zxf-single-day-longevity-test.yaml
+          workflow: .github/workflows/zxf-single-day-canonical-test.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
             "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 

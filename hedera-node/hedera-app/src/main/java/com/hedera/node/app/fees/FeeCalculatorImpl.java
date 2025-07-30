@@ -14,11 +14,11 @@ import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
@@ -126,7 +126,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
         this.storeFactory = storeFactory;
         try {
             this.txInfo = new TransactionInfo(
-                    Transaction.DEFAULT, txBody, SignatureMap.DEFAULT, Bytes.EMPTY, functionOf(txBody), null);
+                    SignedTransaction.DEFAULT, txBody, SignatureMap.DEFAULT, Bytes.EMPTY, functionOf(txBody), null);
         } catch (UnknownHederaFunctionality e) {
             throw new IllegalStateException("Invalid transaction body " + txBody, e);
         }
@@ -156,7 +156,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
         // used only for access query functionality (in congestionMultipliers)
         this.txInfo = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.newBuilder()
                         .transactionID(TransactionID.newBuilder()
                                 .accountID(AccountID.DEFAULT)

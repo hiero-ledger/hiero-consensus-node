@@ -40,11 +40,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
     private static final String NUM_ITERATIONS_ARG = "WritableKVStateBaseTest.DeterministicUpdates.numIterations";
-    private WritableKVStateBase<ProtoBytes, String> state;
+    private WritableKVStateBase<ProtoBytes, ProtoBytes> state;
 
     @Override
-    protected Map<ProtoBytes, String> createBackingMap() {
-        final var map = new HashMap<ProtoBytes, String>();
+    protected Map<ProtoBytes, ProtoBytes> createBackingMap() {
+        final var map = new HashMap<ProtoBytes, ProtoBytes>();
         this.backingMap = Mockito.spy(map);
         backingMap.put(A_KEY, APPLE);
         backingMap.put(B_KEY, BANANA);
@@ -60,7 +60,8 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
         return backingMap;
     }
 
-    protected WritableKVStateBase<ProtoBytes, String> createFruitState(@NonNull final Map<ProtoBytes, String> map) {
+    protected WritableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(
+            @NonNull final Map<ProtoBytes, ProtoBytes> map) {
         this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, map));
         return state;
     }
@@ -70,10 +71,10 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
     @ExtendWith(MockitoExtension.class)
     final class WithRegisteredListeners {
         @Mock
-        private KVChangeListener<ProtoBytes, String> firstListener;
+        private KVChangeListener<ProtoBytes, ProtoBytes> firstListener;
 
         @Mock
-        private KVChangeListener<ProtoBytes, String> secondListener;
+        private KVChangeListener<ProtoBytes, ProtoBytes> secondListener;
 
         @BeforeEach
         void setUp() {
@@ -87,28 +88,33 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             final var inOrder = inOrder(firstListener, secondListener);
             ProtoBytes hKey = toProtoBytes("H");
             ProtoBytes iKey = toProtoBytes("I");
-            state.put(hKey, "Honeydew");
-            state.put(iKey, "Indian Fig");
+            ProtoBytes hValue = toProtoBytes("Honeydew");
+            ProtoBytes iValue = toProtoBytes("Indian Fig");
+            state.put(hKey, hValue);
+            state.put(iKey, iValue);
             state.commit();
 
-            inOrder.verify(firstListener).mapUpdateChange(hKey, "Honeydew");
-            inOrder.verify(secondListener).mapUpdateChange(hKey, "Honeydew");
-            inOrder.verify(firstListener).mapUpdateChange(iKey, "Indian Fig");
-            inOrder.verify(secondListener).mapUpdateChange(iKey, "Indian Fig");
+            inOrder.verify(firstListener).mapUpdateChange(hKey, hValue);
+            inOrder.verify(secondListener).mapUpdateChange(hKey, hValue);
+            inOrder.verify(firstListener).mapUpdateChange(iKey, iValue);
+            inOrder.verify(secondListener).mapUpdateChange(iKey, iValue);
         }
 
         @Test
         @DisplayName("all listeners are notified of updates in order")
         void allAreNotifiedOfUpdates() {
             final var inOrder = inOrder(firstListener, secondListener);
-            state.put(B_KEY, "Blackberry");
-            state.put(C_KEY, "Cantaloupe");
+            ProtoBytes bValue = toProtoBytes("Blackberry");
+            ProtoBytes cValue = toProtoBytes("Cantaloupe");
+
+            state.put(B_KEY, bValue);
+            state.put(C_KEY, cValue);
             state.commit();
 
-            inOrder.verify(firstListener).mapUpdateChange(B_KEY, "Blackberry");
-            inOrder.verify(secondListener).mapUpdateChange(B_KEY, "Blackberry");
-            inOrder.verify(firstListener).mapUpdateChange(C_KEY, "Cantaloupe");
-            inOrder.verify(secondListener).mapUpdateChange(C_KEY, "Cantaloupe");
+            inOrder.verify(firstListener).mapUpdateChange(B_KEY, bValue);
+            inOrder.verify(secondListener).mapUpdateChange(B_KEY, bValue);
+            inOrder.verify(firstListener).mapUpdateChange(C_KEY, cValue);
+            inOrder.verify(secondListener).mapUpdateChange(C_KEY, cValue);
         }
 
         @Test
@@ -154,7 +160,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be added
             state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), Mockito.anyString());
+            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).putIntoDataSource(C_KEY, CHERRY);
             verify(state, Mockito.never()).removeFromDataSource(anyProtoBytes());
 
@@ -183,7 +189,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be updated
             state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), Mockito.anyString());
+            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).putIntoDataSource(A_KEY, ACAI);
             verify(state, Mockito.never()).removeFromDataSource(anyProtoBytes());
 
@@ -209,7 +215,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be updated
             state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).putIntoDataSource(B_KEY, BLACKBERRY);
             verify(state, Mockito.never()).removeFromDataSource(anyProtoBytes());
         }
@@ -232,7 +238,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be updated to the latest value
             state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).putIntoDataSource(B_KEY, BLUEBERRY);
             verify(state, Mockito.never()).removeFromDataSource(anyProtoBytes());
 
@@ -261,17 +267,13 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be updated to the latest value
             state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.times(1)).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).putIntoDataSource(B_KEY, BLACKBERRY);
             verify(state, Mockito.never()).removeFromDataSource(anyProtoBytes());
 
             // After a commit, the original value should have changed
             assertThat(state.getOriginalValue(B_KEY)).isEqualTo(BLACKBERRY);
         }
-    }
-
-    private static ProtoBytes anyProtoBytes() {
-        return any(ProtoBytes.class);
     }
 
     @Nested
@@ -308,7 +310,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             // Commit should cause the value to be removed (even though it doesn't actually exist in
             // the backend)
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(C_KEY);
 
@@ -343,7 +345,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be removed
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
 
@@ -379,7 +381,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be removed
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(B_KEY);
 
@@ -412,7 +414,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be removed but not "put"
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
         }
@@ -442,7 +444,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be removed but not "put"
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(C_KEY);
         }
@@ -475,7 +477,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Commit should cause the value to be removed but not "put"
             state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyString());
+            verify(state, Mockito.never()).putIntoDataSource(anyProtoBytes(), anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(anyProtoBytes());
             verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
 
