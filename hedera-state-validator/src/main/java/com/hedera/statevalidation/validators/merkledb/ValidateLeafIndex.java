@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.validators.Utils.printFileDataLocationE
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
@@ -13,14 +14,8 @@ import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecor
 import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskValue;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,16 +37,14 @@ public class ValidateLeafIndex {
     @SuppressWarnings("unchecked")
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord<?, ?> dsRecord, Report report) {
+    public void validateIndex(VirtualMapAndDataSourceRecord dsRecord, Report report) {
         if (dsRecord.dataSource().getFirstLeafPath() == -1) {
             log.info("Skipping the validation for {} as the map is empty", dsRecord.name());
             return;
         }
         final MerkleDbDataSource vds = dsRecord.dataSource();
         final MerkleDbDataSource merkleDb = dsRecord.dataSource();
-        final VirtualMap<VirtualKey, VirtualValue> map = (VirtualMap<VirtualKey, VirtualValue>) dsRecord.map();
-        final KeySerializer keySerializer = dsRecord.keySerializer();
-        final ValueSerializer valueSerializer = dsRecord.valueSerializer();
+        final VirtualMap map = dsRecord.map();
 
         log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
 
@@ -82,14 +75,11 @@ public class ValidateLeafIndex {
                 if (data != null) {
                     final VirtualLeafBytes leafRecord = VirtualLeafBytes.parseFrom(data);
                     assertEquals(leafRecord.path(), path);
-                    OnDiskKey key = (OnDiskKey)
-                            keySerializer.deserialize(leafRecord.keyBytes().toReadableSequentialData());
-                    long actual = objectKeyToPath.get(leafRecord.keyBytes(), key.hashCode(), -1);
+                    Bytes keyBytes = leafRecord.keyBytes();
+                    long actual = objectKeyToPath.get(leafRecord.keyBytes(), -1);
                     assertEquals(path, actual);
 
-                    OnDiskValue value = (OnDiskValue)
-                            valueSerializer.deserialize(leafRecord.valueBytes().toReadableSequentialData());
-                    assertEquals(value.getValue(), ((OnDiskValue) map.get(key)).getValue());
+                    assertEquals(leafRecord.valueBytes(), map.getBytes(keyBytes));
                     successCount.incrementAndGet();
                 } else {
                     nullErrorCount.incrementAndGet();

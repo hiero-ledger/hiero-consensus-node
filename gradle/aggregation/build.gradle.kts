@@ -17,8 +17,6 @@ dependencies {
     implementation(project(":ISSTestingTool"))
     implementation(project(":MigrationTestingTool"))
     implementation(project(":PlatformTestingTool"))
-    implementation(project(":StatsSigningTestingTool"))
-    implementation(project(":StressTestingTool"))
     // projects that only contains tests (and no production code)
     implementation(project(":test-clients"))
     implementation(project(":consensus-otter-docker-app"))

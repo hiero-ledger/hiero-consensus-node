@@ -4,12 +4,14 @@ package com.swirlds.state.merkle.memory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class InMemoryWritableStateTest extends MerkleTestBase {
 
     @Nested
@@ -22,11 +24,30 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("You must specify the metadata")
-        void nullMetadataThrows() {
+        @DisplayName("You must specify the serviceName")
+        void nullServiceNameThrows() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new InMemoryWritableKVState<>(
-                            null, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, fruitMerkleMap))
+                            null,
+                            FRUIT_STATE_KEY,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            ProtoBytes.PROTOBUF,
+                            ProtoBytes.PROTOBUF,
+                            fruitMerkleMap))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("You must specify the stateKey")
+        void nullStateKeyThrows() {
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> new InMemoryWritableKVState<>(
+                            FRUIT_SERVICE_NAME,
+                            null,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            ProtoBytes.PROTOBUF,
+                            ProtoBytes.PROTOBUF,
+                            fruitMerkleMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -35,7 +56,12 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         void nullMerkleMapThrows() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new InMemoryWritableKVState<>(
-                            FRUIT_STATE_KEY, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, null))
+                            FRUIT_SERVICE_NAME,
+                            FRUIT_STATE_KEY,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            ProtoBytes.PROTOBUF,
+                            ProtoBytes.PROTOBUF,
+                            null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -47,19 +73,30 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         }
     }
 
-    private InMemoryWritableKVState<String, String> createState() {
+    private InMemoryWritableKVState<ProtoBytes, ProtoBytes> createState() {
         return new InMemoryWritableKVState<>(
-                FRUIT_STATE_KEY, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, fruitMerkleMap);
+                FRUIT_SERVICE_NAME,
+                FRUIT_STATE_KEY,
+                inMemoryValueClassId(FRUIT_STATE_KEY),
+                ProtoBytes.PROTOBUF,
+                ProtoBytes.PROTOBUF,
+                fruitMerkleMap);
     }
 
-    private void add(String key, String value) {
-        add(fruitMerkleMap, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, key, value);
+    private void add(ProtoBytes key, ProtoBytes value) {
+        addKvState(
+                fruitMerkleMap,
+                inMemoryValueClassId(FRUIT_STATE_KEY),
+                ProtoBytes.PROTOBUF,
+                ProtoBytes.PROTOBUF,
+                key,
+                value);
     }
 
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private InMemoryWritableKVState<String, String> state;
+        private InMemoryWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
@@ -92,7 +129,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
     @Nested
     @DisplayName("Mutation Tests")
     final class MutationTest {
-        private InMemoryWritableKVState<String, String> state;
+        private InMemoryWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
@@ -102,11 +139,11 @@ class InMemoryWritableStateTest extends MerkleTestBase {
             add(B_KEY, BANANA);
         }
 
-        boolean merkleMapContainsKey(String key) {
+        boolean merkleMapContainsKey(ProtoBytes key) {
             return fruitMerkleMap.containsKey(new InMemoryKey<>(key));
         }
 
-        String readValueFromMerkleMap(String key) {
+        ProtoBytes readValueFromMerkleMap(ProtoBytes key) {
             final var val = fruitMerkleMap.get(new InMemoryKey<>(key));
             return val == null ? null : val.getValue();
         }

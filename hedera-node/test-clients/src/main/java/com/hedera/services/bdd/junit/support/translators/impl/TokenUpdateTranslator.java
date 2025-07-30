@@ -32,14 +32,17 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenUpdateOrThrow();
                         final var targetId = op.tokenOrThrow();
+
                         // Within batch transactions (inner or their children), state changes from earlier transactions
                         // can be overwritten by subsequent transactions in the same batch
                         // (e.g., multiple token updates).
                         // Therefore, construct the record from trace data when available.
-                        final var maybeTraceData = maybeAutoAssociateTraceData(tracesSoFar);
-                        if (maybeTraceData != null) {
-                            recordBuilder.automaticTokenAssociations(
-                                    new TokenAssociation(targetId, maybeTraceData.automaticTokenAssociations()));
+                        if (parts.isInnerBatchTxn()) {
+                            final var maybeTraceData = maybeAutoAssociateTraceData(tracesSoFar);
+                            if (maybeTraceData != null) {
+                                recordBuilder.automaticTokenAssociations(
+                                        new TokenAssociation(targetId, maybeTraceData.automaticTokenAssociations()));
+                            }
                             return;
                         }
 
@@ -84,6 +87,7 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                 final var trace = tracesSoFar.get(i);
                 if (trace.hasAutoAssociateTraceData()) {
                     result = trace.autoAssociateTraceData();
+                    tracesSoFar.remove(i);
                     break;
                 }
             }

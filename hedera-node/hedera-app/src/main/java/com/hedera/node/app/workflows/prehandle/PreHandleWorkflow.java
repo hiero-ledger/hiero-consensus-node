@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.prehandle;
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflowImpl.isAtomicBatch;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -49,7 +50,7 @@ public interface PreHandleWorkflow {
      * @param creatorInfo The {@link AccountID} of the node that created these transactions
      * @param storeFactory The {@link ReadableStoreFactory} based on the current state
      * @param accountStore The {@link ReadableAccountStore} based on the current state
-     * @param applicationTxBytes The {@link Transaction} to pre-handle
+     * @param serializedSignedTx The {@link Transaction} to pre-handle
      * @param maybeReusableResult The result of a previous call to the same method that may,
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      * depending on changes in state, be reusable for this call
@@ -61,7 +62,7 @@ public interface PreHandleWorkflow {
             @NonNull NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
-            @NonNull Bytes applicationTxBytes,
+            @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
             @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback,
             @NonNull InnerTransaction innerTransaction);
@@ -72,7 +73,7 @@ public interface PreHandleWorkflow {
      * @param creatorInfo the node that created the transaction
      * @param storeFactory the store factory
      * @param accountStore the account store
-     * @param applicationTxBytes the transaction to be verified
+     * @param serializedSignedTx the serialized {@link SignedTransaction} to be verified
      * @param maybeReusableResult the previous result of pre-handle
      * @param stateSignatureTxnCallback the callback to be called when encountering a {@link StateSignatureTransaction}
      * @return the verification data for the transaction
@@ -81,14 +82,14 @@ public interface PreHandleWorkflow {
             @NonNull NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
-            @NonNull Bytes applicationTxBytes,
+            @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
             @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         final var result = preHandleTransaction(
                 creatorInfo,
                 storeFactory,
                 accountStore,
-                applicationTxBytes,
+                serializedSignedTx,
                 maybeReusableResult,
                 stateSignatureTxnCallback,
                 InnerTransaction.NO);

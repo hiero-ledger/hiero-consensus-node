@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,15 +19,15 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
@@ -94,7 +93,7 @@ class ParentTxnTest {
     private TransactionInfo txnInfo;
 
     @Mock
-    private KVStateChangeListener kvStateChangeListener;
+    private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -160,10 +159,9 @@ class ParentTxnTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
-        assertSame(ORDINARY_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
         assertSame(state, subject.state());
@@ -184,8 +182,7 @@ class ParentTxnTest {
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNull(factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback));
+        assertNull(factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
     }
 
     @Test
@@ -196,7 +193,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
@@ -207,14 +204,14 @@ class ParentTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
-                .build(false, false).blockItems().stream()
+                .build(false, null).blockItems().stream()
                         .filter(BlockItem::hasTransactionResult)
                         .findFirst()
                         .map(BlockItem::transactionResultOrThrow)
@@ -230,7 +227,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
@@ -240,14 +237,14 @@ class ParentTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
-                .build(false, false).blockItems().stream()
+                .build(false, null).blockItems().stream()
                         .filter(BlockItem::hasTransactionResult)
                         .findFirst()
                         .map(BlockItem::transactionResultOrThrow)
@@ -258,7 +255,7 @@ class ParentTxnTest {
     private ParentTxnFactory createUserTxnFactory() {
         return new ParentTxnFactory(
                 configProvider,
-                kvStateChangeListener,
+                immediateStateChangeListener,
                 boundaryStateChangeListener,
                 preHandleWorkflow,
                 authorizer,

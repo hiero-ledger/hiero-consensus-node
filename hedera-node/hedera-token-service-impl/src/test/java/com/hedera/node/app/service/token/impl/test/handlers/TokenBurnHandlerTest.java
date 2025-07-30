@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithAccounts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithNfts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithTokenRels;
@@ -24,7 +25,7 @@ import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +48,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.token.TokenBurnTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -379,7 +381,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .build());
             final var txn = newBurnTxn(TOKEN_123, 8);
             final var context = mockContext(txn);
-            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             given(context.savepointStack().getBaseBuilder(TokenBurnStreamBuilder.class))
                     .willReturn(recordBuilder);
 
@@ -419,7 +421,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .build());
             final var txn = newBurnTxn(TOKEN_123, 8);
             final var context = mockContext(txn);
-            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             given(context.savepointStack().getBaseBuilder(TokenBurnStreamBuilder.class))
                     .willReturn(recordBuilder);
 
@@ -494,8 +496,10 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .balance(10)
                     .build());
             writableNftStore = new WritableNftStore(
-                    new MapWritableStates(
-                            Map.of("NFTS", MapWritableKVState.builder("NFTS").build())),
+                    new MapWritableStates(Map.of(
+                            NFTS_KEY,
+                            MapWritableKVState.builder(TokenService.NAME, NFTS_KEY)
+                                    .build())),
                     mock(WritableEntityCounters.class));
 
             final var txn = newBurnTxn(TOKEN_123, 0, 1L);
@@ -682,7 +686,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                             .build());
             final var txn = newBurnTxn(TOKEN_123, 0, 1L, 2L);
             final var context = mockContext(txn);
-            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             given(context.savepointStack().getBaseBuilder(TokenBurnStreamBuilder.class))
                     .willReturn(recordBuilder);
 
@@ -745,7 +749,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                             .build());
             final var txn = newBurnTxn(TOKEN_123, 0, 1L, 2L, 3L);
             final var context = mockContext(txn);
-            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             given(context.savepointStack().getBaseBuilder(TokenBurnStreamBuilder.class))
                     .willReturn(recordBuilder);
 
@@ -809,7 +813,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                             .build());
             final var txn = newBurnTxn(TOKEN_123, 0, 1L, 2L, 3L, 1L, 2L, 3L, 3L, 1L, 1L, 2L);
             final var context = mockContext(txn);
-            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             given(context.savepointStack().getBaseBuilder(TokenBurnStreamBuilder.class))
                     .willReturn(recordBuilder);
 

@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
@@ -10,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -133,6 +135,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     Instant lastHandleTime();
 
     /**
+     * Returns the timestamp of the last execution processed by the block stream.
+     */
+    @NonNull
+    Instant lastExecutionTime();
+
+    /**
      * Updates both the internal state of the block stream manager and the durable state of the network
      * to reflect the end of the last-started round.
      *
@@ -149,6 +157,14 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull BlockItem item);
+
+    /**
+     * Writes a block item to the stream.
+     *
+     * @param itemSpec a function that takes a Timestamp and returns a BlockItem to be written
+     * @throws IllegalStateException if the stream is closed
+     */
+    void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
 
     /**
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should

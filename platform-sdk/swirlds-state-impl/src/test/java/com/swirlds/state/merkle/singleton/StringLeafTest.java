@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class StringLeafTest extends MerkleTestBase {
     @Test
     void setValue() {
