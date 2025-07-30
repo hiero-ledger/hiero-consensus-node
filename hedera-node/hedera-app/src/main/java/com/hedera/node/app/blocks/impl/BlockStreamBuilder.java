@@ -1057,11 +1057,6 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public long getOpsDurationForContractTxn() {
-        return opsDuration;
-    }
-
-    @Override
     @NonNull
     public BlockStreamBuilder accountID(@Nullable final AccountID accountID) {
         this.accountId = accountID;

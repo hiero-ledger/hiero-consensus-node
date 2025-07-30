@@ -39,10 +39,11 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
+import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
@@ -138,6 +139,9 @@ class EthereumTransactionHandlerTest {
     @Mock
     private HederaOperations hederaOperations;
 
+    @Mock
+    private HederaWorldUpdater.Enhancement enhancement;
+
     private EthereumTransactionHandler subject;
 
     @Mock
@@ -155,14 +159,13 @@ class EthereumTransactionHandlerTest {
     @Mock
     private ContractsConfig contractsConfig;
 
-    @Mock
-    private HederaOpsDuration hederaOpsDuration;
-
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
     private final ContractMetrics contractMetrics =
             new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
+
+    private OpsDurationCounter opsDurationCounter;
 
     @BeforeEach
     void setUp() {
@@ -170,6 +173,7 @@ class EthereumTransactionHandlerTest {
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
         subject = new EthereumTransactionHandler(
                 ethereumSignatures, callDataHydration, () -> factory, gasCalculator, contractServiceComponent);
+        opsDurationCounter = OpsDurationCounter.disabled();
     }
 
     void setUpTransactionProcessing() {
@@ -187,7 +191,7 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                hederaOpsDuration);
+                contractMetrics);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()
@@ -200,7 +204,12 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                        HEVM_CREATION, baseProxyWorldUpdater, hederaEvmContext, tracer, DEFAULT_CONFIG))
+                        HEVM_CREATION,
+                        baseProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        DEFAULT_CONFIG,
+                        opsDurationCounter))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 
@@ -215,6 +224,8 @@ class EthereumTransactionHandlerTest {
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
 
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
                 ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
@@ -265,6 +276,9 @@ class EthereumTransactionHandlerTest {
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
+
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
                 ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
         final var expectedOutcome = new CallOutcome(
@@ -418,6 +432,8 @@ class EthereumTransactionHandlerTest {
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        given(enhancement.operations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
                 ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
         final var expectedOutcome = new CallOutcome(
