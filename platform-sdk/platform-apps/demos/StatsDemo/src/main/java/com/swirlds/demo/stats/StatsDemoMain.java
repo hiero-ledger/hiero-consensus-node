@@ -16,7 +16,6 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
@@ -25,20 +24,15 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -57,6 +51,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     private Platform platform;
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
     private Random random = new java.util.Random();
+
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 

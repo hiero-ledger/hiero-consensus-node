@@ -70,7 +70,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
@@ -110,8 +109,6 @@ import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
@@ -368,7 +365,9 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
                 return false;
             }
             final boolean success = submitter.trySubmit(
-                    platform, getTransactionPool(), Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
+                    platform,
+                    getTransactionPool(),
+                    Pair.of(submittedPayloadTriple.left(), submittedPayloadTriple.middle()));
             if (!success) { // if failed keep bytes payload try next time
                 try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                         UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
@@ -747,7 +746,12 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
             appClient[k] = new AppClient(
-                    this.platform, getTransactionPool(), this.selfId, clientConfig, selfName, consensusStateEventHandler);
+                    this.platform,
+                    getTransactionPool(),
+                    this.selfId,
+                    clientConfig,
+                    selfName,
+                    consensusStateEventHandler);
             appClient[k].start();
         }
     }
@@ -1180,7 +1184,8 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
         logger.info(
                 LOGM_DEMO_QUORUM, "Achieved Quorum on ENTER_SYNC transaction [ consensusTime = {} ]", consensusTime);
 
-        submitter.sendTransaction(getTransactionPool(), pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
+        submitter.sendTransaction(
+                getTransactionPool(), pttTransactionPool.createControlTranBytes(ControlType.EXIT_SYNC));
 
         logger.info(LOGM_DEMO_QUORUM, "Sent EXIT_SYNC transaction  [ consensusTime = {} ]", consensusTime);
     }

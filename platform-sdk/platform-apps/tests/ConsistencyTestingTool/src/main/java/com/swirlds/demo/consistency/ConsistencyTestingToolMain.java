@@ -23,7 +23,6 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * A testing app for guaranteeing proper handling of transactions after a restart

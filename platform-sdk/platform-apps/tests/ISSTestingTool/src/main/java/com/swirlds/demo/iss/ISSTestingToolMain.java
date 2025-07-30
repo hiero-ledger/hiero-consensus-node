@@ -5,12 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
@@ -26,9 +23,6 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
-import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.transaction.TransactionConfig;
-import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * An application that can be made to ISS in controllable ways.
@@ -94,7 +88,8 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, getTransactionPool(), testingToolConfig.transactionsPerSecond())
+        new TransactionGenerator(
+                        new Random(), platform, getTransactionPool(), testingToolConfig.transactionsPerSecond())
                 .start();
     }
 
