@@ -20,7 +20,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -387,16 +386,10 @@ class PlatformTestingToolStateTest {
         final Metric metric = mock(SpeedometerMetric.class);
         final Counter counter = mock(Counter.class);
         final RunningAverageMetric runningAverageMetric = mock(RunningAverageMetric.class);
-        final FunctionGauge functionGauge = mock(FunctionGauge.class);
 
         final DefaultPlatformMetrics metrics = mock(DefaultPlatformMetrics.class);
         when(metrics.getOrCreate(any()))
                 .thenReturn(
-                        metric,
-                        metric,
-                        metric,
-                        functionGauge,
-                        functionGauge,
                         metric,
                         metric,
                         metric,
