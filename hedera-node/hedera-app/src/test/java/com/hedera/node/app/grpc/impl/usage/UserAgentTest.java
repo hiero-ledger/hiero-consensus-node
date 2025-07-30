@@ -3,6 +3,10 @@ package com.hedera.node.app.grpc.impl.usage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -58,5 +62,53 @@ class UserAgentTest {
                 Arguments.of(" hiero-sdk-java   ", UserAgentType.HIERO_SDK_JAVA),
                 Arguments.of("Hiero-Sdk-Java", UserAgentType.HIERO_SDK_JAVA),
                 Arguments.of("grpc-sdk-java", UserAgentType.UNKNOWN));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testVersionParsingArgs")
+    void testVersionParsing(final String userAgent, final String expectedVersion) {
+        final UserAgent ua = UserAgent.from(userAgent);
+        assertThat(ua.version()).isEqualTo(expectedVersion);
+    }
+
+    static List<Arguments> testVersionParsingArgs() {
+        return List.of(
+                Arguments.of("hiero-sdk-java/dev", "dev"),
+                Arguments.of("hiero-sdk-java/DEV", "dev"),
+                Arguments.of("hiero-sdk-java/Dev", "dev"),
+                Arguments.of("hiero-sdk-java/0.0.1", "0.0.1"),
+                Arguments.of("hiero-sdk-java/1.2.3-beta", "1.2.3-beta"),
+                Arguments.of("hiero-sdk-java/1.2.3-beta.1", "1.2.3-beta.1"),
+                Arguments.of("hiero-sdk-java/1.2.3-ALPHA.0", "1.2.3-alpha.0"),
+                Arguments.of("hiero-sdk-java/2.60.2-alpha.'';!--\"<KCF>=&{()}", "Unknown"),
+                Arguments.of("hiero-sdk-java/2.60.'';!--\"<KCF>=&{()}", "Unknown"),
+                Arguments.of("hiero-sdk-java/5.a.a", "Unknown"),
+                Arguments.of("hiero-sdk-java/5.'';!--\"<KCF>=&{()}.'';!--\"<KCF>=&{()}", "Unknown"),
+                Arguments.of("hiero-sdk-java/1.2.3.DEV", "Unknown"),
+                Arguments.of("hiero-sdk-java/1.2.3-0123", "Unknown"),
+                Arguments.of("hiero-sdk-java/10.2.3-DEV-SNAPSHOT", "10.2.3-dev-snapshot"),
+                Arguments.of("hiero-sdk-java/1.0.0-alpha..1", "Unknown"),
+                Arguments.of("hiero-sdk-java/9.8.7+meta+meta", "Unknown"),
+                Arguments.of("hiero-sdk-java/9.8.7-whatever+meta+meta", "Unknown"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testBadUserAgentsArgs")
+    void testBadUserAgents(final String userAgent) {
+        final UserAgent ua = UserAgent.from(userAgent);
+        assertThat(ua)
+                .satisfiesAnyOf(
+                        // Depending on the exact scenario, the result will either be UNKNOWN or UNSPECIFIED. Given the
+                        // volume of scenarios, it is difficult to resolve each one exactly to one outcome so we just
+                        // check that its one of the failure outcomes
+                        result -> assertThat(result).isEqualTo(UserAgent.UNKNOWN),
+                        result -> assertThat(result).isEqualTo(UserAgent.UNSPECIFIED));
+    }
+
+    static List<Arguments> testBadUserAgentsArgs() throws IOException {
+        // read the test cases from disk
+        // we can't use JUnit's CSV file source because the test data contains commas
+        final Path filePath = Paths.get("src", "test", "resources", "bad-user-agents.dat");
+        return Files.readAllLines(filePath).stream().map(Arguments::of).toList();
     }
 }

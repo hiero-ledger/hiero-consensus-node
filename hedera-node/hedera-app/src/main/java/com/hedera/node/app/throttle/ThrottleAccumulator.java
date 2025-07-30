@@ -194,25 +194,34 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Checks if capacity has been breached in the ops duration throttle.
-     *
-     * @param now the instant of consensus time the transaction throttling should be checked for
-     * @return whether the transaction should be throttled
+     * Returns the available ops duration capacity for the execution at a given time.
+     * Takes into account the amount leaked from the bucket up to the provided time.
+     * Returns Long.MAX_VALUE is the configured throttle type is NOOP_THROTTLE.
      */
-    public boolean checkAndEnforceOpsDurationThrottle(final long currentOpsDuration, @NonNull final Instant now) {
+    public long availableOpsDurationCapacity(@NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
-            return false;
+            // Effectively unlimited in case of a no-op throttle
+            return Long.MAX_VALUE;
         }
-        contractOpsDurationThrottle.resetLastAllowedUse();
+        return contractOpsDurationThrottle.capacityFree(now);
+    }
 
-        final boolean shouldThrottleByOpsDuration =
-                configSupplier.get().getConfigData(ContractsConfig.class).throttleThrottleByOpsDuration();
-        if (shouldThrottleByOpsDuration && !contractOpsDurationThrottle.allow(now, currentOpsDuration)) {
-            contractOpsDurationThrottle.reclaimLastAllowedUse();
-            return true;
+    /**
+     * Consumes a given amount of ops duration units from the throttle's capacity.
+     * Takes into account the amount leaked from the bucket up to the provided time.
+     * If the amount to consume is greater than the available amount then consumes
+     * the available amount and returns (does not fail).
+     */
+    public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
+        if (throttleType == NOOP_THROTTLE) {
+            return;
         }
-
-        return false;
+        if (!contractOpsDurationThrottle.allow(now, opsDurationUnitsToConsume)) {
+            // This indicates a bug - the execution somehow consumed more ops duration than was really available.
+            // Consume the available amount as a fallback and log a warning.
+            log.warn("More ops duration capacity consumed than available, which should be impossible");
+            contractOpsDurationThrottle.allow(now, contractOpsDurationThrottle.capacityFree(now));
+        }
     }
 
     /**
@@ -435,7 +444,7 @@ public class ThrottleAccumulator {
             final var allowedHederaFunctionalities =
                     configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
             if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-                final var bytesUsage = txnInfo.transaction().protobufSize();
+                final var bytesUsage = txnInfo.signedTx().protobufSize();
                 final var maxRegularTxnSize =
                         configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 
@@ -919,8 +928,7 @@ public class ThrottleAccumulator {
             log.warn("{} gas throttling enabled, but limited to 0 gas/sec", throttleType.name());
         }
 
-        gasThrottle =
-                new LeakyBucketDeterministicThrottle(maxGasPerSec, "Gas", gasThrottleBurstSecondsOf(contractsConfig));
+        gasThrottle = new LeakyBucketDeterministicThrottle(maxGasPerSec, "Gas", DEFAULT_BURST_SECONDS);
         if (throttleMetrics != null) {
             throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
         }
@@ -939,9 +947,9 @@ public class ThrottleAccumulator {
                 : contractsConfig.maxGasPerSec();
     }
 
-    private int gasThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
+    private int opsDurationThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
         return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
-                ? contractsConfig.gasThrottleBurstSeconds()
+                ? contractsConfig.opsDurationThrottleBurstSeconds()
                 : DEFAULT_BURST_SECONDS;
     }
 
@@ -972,8 +980,8 @@ public class ThrottleAccumulator {
         if (contractConfig.throttleThrottleByOpsDuration() && maxOpsDuration == 0) {
             log.warn("{} ops duration throttles are enabled, but limited to 0 ops/sec", throttleType.name());
         }
-        contractOpsDurationThrottle =
-                new LeakyBucketDeterministicThrottle(maxOpsDuration, "OpsDuration", DEFAULT_BURST_SECONDS);
+        contractOpsDurationThrottle = new LeakyBucketDeterministicThrottle(
+                maxOpsDuration, "OpsDuration", opsDurationThrottleBurstSecondsOf(contractConfig));
         if (throttleMetrics != null) {
             throttleMetrics.setupOpsDurationMetric(contractOpsDurationThrottle, configuration);
         }

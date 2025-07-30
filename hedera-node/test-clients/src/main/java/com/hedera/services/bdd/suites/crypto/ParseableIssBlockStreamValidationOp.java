@@ -82,9 +82,9 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
     private boolean hasFreeze(@NonNull final List<Block> blocks) {
         for (final var block : blocks) {
             for (final var item : block.items()) {
-                if (item.hasEventTransaction()) {
-                    final var appTxn = item.eventTransactionOrThrow().applicationTransactionOrThrow();
-                    final var txnBody = TransactionParts.from(appTxn).body();
+                if (item.hasSignedTransaction()) {
+                    final var txnBody = TransactionParts.from(item.signedTransactionOrThrow())
+                            .body();
                     if (txnBody.hasFreeze()) {
                         return true;
                     }
