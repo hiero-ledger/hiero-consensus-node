@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -41,6 +40,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
@@ -120,6 +120,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator, recordBuilder),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -148,7 +149,7 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
-        assertEquals(0L, getHederaOpsDuration(frame));
+        assertEquals(0L, FrameUtils.opsDurationCounter(frame).opsDurationUnitsConsumed());
     }
 
     @Test
@@ -170,6 +171,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -217,6 +219,7 @@ class FrameBuilderTest {
                         worldUpdater,
                         wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                         config,
+                        OpsDurationCounter.disabled(),
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -238,6 +241,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -278,6 +282,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -321,6 +326,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -366,6 +372,7 @@ class FrameBuilderTest {
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 config,
+                OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,

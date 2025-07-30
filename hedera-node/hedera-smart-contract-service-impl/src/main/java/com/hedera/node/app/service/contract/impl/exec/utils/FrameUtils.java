@@ -36,7 +36,7 @@ public class FrameUtils {
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
-    public static final String HEDERA_OPS_DURATION = "hederaOpsDuration";
+    public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
 
     public enum EntityType {
         TOKEN,
@@ -343,7 +343,7 @@ public class FrameUtils {
         return false;
     }
 
-    private static @NonNull MessageFrame initialFrameOf(@NonNull final MessageFrame frame) {
+    public static @NonNull MessageFrame initialFrameOf(@NonNull final MessageFrame frame) {
         final var stack = frame.getMessageFrameStack();
         return stack.isEmpty() ? frame : stack.getLast();
     }
@@ -381,33 +381,12 @@ public class FrameUtils {
     }
 
     /**
-     * Increments the Hedera ops duration in the top level frame by the given amount.
+     * Returns the Hedera ops duration throttle from the top level frame.
      *
      * @param frame the current frame
-     * @param opsDuration the amount ops duration to increment by
+     * @return the total Hedera ops throttle
      */
-    public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        final HederaOpsDurationCounter opsDurationCounter =
-                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        if (opsDurationCounter != null) {
-            opsDurationCounter.incrementOpsDuration(opsDuration);
-            checkHederaOpsDuration(frame, opsDuration);
-        }
-    }
-
-    /**
-     * Returns the Hedera ops duration usage in the top level frame.
-     *
-     * @param frame the current frame
-     * @return the total Hedera ops duration
-     */
-    public static long getHederaOpsDuration(@NonNull final MessageFrame frame) {
-        final HederaOpsDurationCounter opsDurationCounter =
-                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        return opsDurationCounter == null ? 0L : opsDurationCounter.getOpsDurationCounter();
-    }
-
-    public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
+    public static OpsDurationCounter opsDurationCounter(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(OPS_DURATION_COUNTER);
     }
 }
