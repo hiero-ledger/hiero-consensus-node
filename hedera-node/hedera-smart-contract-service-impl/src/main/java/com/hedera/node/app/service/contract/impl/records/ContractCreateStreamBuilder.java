@@ -4,9 +4,9 @@ package com.hedera.node.app.service.contract.impl.records;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -70,5 +70,5 @@ public interface ContractCreateStreamBuilder extends StreamBuilder, ContractOper
     ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result);
 
     @NonNull
-    ContractCreateStreamBuilder transaction(@NonNull Transaction transaction);
+    ContractCreateStreamBuilder signedTx(@NonNull SignedTransaction signedTx);
 }

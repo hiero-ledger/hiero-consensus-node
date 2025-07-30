@@ -780,8 +780,7 @@ public class PlatformComponentBuilder {
                     blocks.rosterHistory().getCurrentRoster(),
                     ignorePreconsensusSignatures,
                     roundToIgnore,
-                    latestFreezeRound,
-                    blocks.swirldStateManager());
+                    latestFreezeRound);
         }
         return issDetector;
     }

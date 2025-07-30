@@ -264,10 +264,9 @@ class ContractCallLocalHandlerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmQueryResult(),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 

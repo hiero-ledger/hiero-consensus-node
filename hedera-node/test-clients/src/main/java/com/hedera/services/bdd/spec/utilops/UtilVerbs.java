@@ -81,6 +81,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -151,7 +152,6 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
-import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
@@ -392,15 +392,6 @@ public class UtilVerbs {
                 .map(Integer::parseInt)
                 .orElse(0);
         return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
-    }
-
-    /**
-     * Returns an operation that validates the streams of the target network with dynamic validators
-     *
-     * @return the operation that validates the streams
-     */
-    public static BlockStreamValidationOp validateBlockStream() {
-        return new BlockStreamValidationOp();
     }
 
     /**
@@ -2432,9 +2423,8 @@ public class UtilVerbs {
             final var items = block.items();
             for (int i = 0, n = items.size(); i < n; i++) {
                 final var item = items.get(i);
-                if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.transactionIdOrThrow().equals(executionTxnId)) {
                         for (int j = i + 1; j < n; j++) {
                             final var followingItem = items.get(j);
@@ -2762,7 +2752,103 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
-    private static final class DurationConverter implements ConfigConverter<Duration> {
+    public static void getTransactionDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("transaction"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getPrecompileDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("precompile"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getSystemContractDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("system_contract"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getEvmOpsDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("ops"))
+                .forEach(opLog::info))));
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageWithin(final double expectedPercentage) {
+        return throttleUsagePercentageWithin(expectedPercentage, 0.1);
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageWithin(
+            final double expectedPercentage, final double allowedPercentDiff) {
+        return assertionsHold((spec, opLog) -> {
+            final var actualPercentage = getOpsDurationValue(spec);
+            assertEquals(
+                    expectedPercentage,
+                    actualPercentage,
+                    (allowedPercentDiff / 100.0) * expectedPercentage,
+                    String.format(
+                            "%s Throttle bucket filled more than %.2f percent different than expected!",
+                            sdec(actualPercentage, 4), allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
+            final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount > threshold,
+                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount < threshold,
+                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    (pre + delta) < post,
+                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
+        });
+    }
+
+    public static Double getOpsDurationValue(HapiSpec spec) {
+        final var metrics = getDurationThrottleMetrics(spec);
+        assertFalse(metrics.isEmpty(), "No throttle metrics found!");
+        final var latestThrottleMetric = metrics.getLast();
+        return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
+    }
+
+    private static List<String> getTransactionMetrics() {
+        final var list = new ArrayList<String>();
+        withOpContext((spec, opLog) -> allRunFor(
+                spec,
+                doAdhoc(() -> list.addAll(spec.prometheusClient()
+                        .getTransactionMetrics(spec.targetNetworkOrThrow()
+                                .nodes()
+                                .getFirst()
+                                .metadata()
+                                .prometheusPort())))));
+        return list;
+    }
+
+    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+        return spec.prometheusClient()
+                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                        .nodes()
+                        .getFirst()
+                        .metadata()
+                        .prometheusPort());
+    }
+
+    public static final class DurationConverter implements ConfigConverter<Duration> {
 
         /**
          * Regular expression for parsing durations. Looks for a number (with our without a decimal) followed by a unit.
@@ -2798,7 +2884,7 @@ public class UtilVerbs {
          * @return a Duration
          * @throws IllegalArgumentException if there is a problem parsing the string
          */
-        private static Duration parseDuration(final String str) {
+        public static Duration parseDuration(final String str) {
 
             final Matcher matcher = DURATION_REGEX.matcher(str);
 

@@ -103,7 +103,7 @@ public class CacheWarmer {
             // There is no cache warming to do for oversize TSS transactions, so it's fine
             // to fail with TRANSACTION_OVERSIZE here in any case
             final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
-            return checker.parseAndCheck(buffer, transactionMaxBytes).txBody();
+            return checker.parseSignedAndCheck(buffer, transactionMaxBytes).txBody();
         } catch (PreCheckException ex) {
             return null;
         }

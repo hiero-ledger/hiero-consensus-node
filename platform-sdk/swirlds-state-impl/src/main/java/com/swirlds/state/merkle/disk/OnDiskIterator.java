@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyStateId;
+import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyValueStateId;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.VirtualMapKey;
@@ -36,7 +36,7 @@ public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
             final MerkleNode merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final Bytes k = leaf.getKey();
-                final int nextNextStateId = extractVirtualMapKeyStateId(k);
+                final int nextNextStateId = extractVirtualMapKeyValueStateId(k);
                 if (stateId == nextNextStateId) {
                     try {
                         final VirtualMapKey parse = VirtualMapKey.PROTOBUF.parse(k);

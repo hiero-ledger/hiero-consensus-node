@@ -1,6 +1,6 @@
 /**
- * # VirtualMapKey
- * Messages that define the type of keys used in the Virtual Map State.
+ * # Virtual Map State
+ * Messages that define the type of keys and values used in the Virtual Map State.
  *
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
  * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
@@ -55,9 +55,49 @@ import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
 
 /**
+ * This message defines the Virtual Leaf.
+ */
+message VirtualLeaf {
+  /**
+   * Virtual Key.<br/>
+   * The key used to identify and locate this virtual map entry.
+   */
+  VirtualMapKey key = 2;
+
+  /**
+   * Virtual Value.<br/>
+   * The actual data content stored for this virtual map entry.
+   */
+  VirtualMapValue value = 3;
+
+}
+
+/**
+ * This message defines the internal state of a queue state.
+ * Note that queue state is not a state of type Queue (versus Singleton or KV).
+ * This state contains two pointers (longs), which indicate at what position a new element is put to the queue (tail)
+ * or removed from the queue (head). These aren't indices in any array or whatsoever, they are just numbers,
+ * which are increased on every operation, used to maintain elements order in the queue.
+ */
+message QueueState {
+  /**
+   * A head of a queue.<br/>
+   * Indicate at what position a new element is removed from the queue.
+   */
+  uint64 head = 1;
+
+  /**
+   * A tail of a queue.<br/>
+   * Indicate at what position a new element is put to the queue.
+   */
+  uint64 tail = 2;
+
+}
+
+/**
  * This message defines the type of keys used in the Virtual Map State.
  * Note that `_I_` plays a role of a reliable separator between the service name
- * and the state name, which is will be present in all types of code generation results as just underscores
+ * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.
  */
 message VirtualMapKey {
@@ -266,6 +306,338 @@ message VirtualMapKey {
      * Queue index for the `159` upgrade file data.
      */
     uint64 FileService_I_UPGRADE_DATA_159 = 10010;
+
+  }
+}
+
+/**
+ * This message defines the type of values used in the Virtual Map State.
+ * Note that `_I_` plays a role of a reliable separator between the service name
+ * and the state name, which will be present in all types of code generation results as just underscores
+ * may be deleted and create unexpected collisions.<br/>
+ * ID ranges for VirtualMapValue types:
+ * <ol>
+ *   <li>0–7999: Core state entries. Reserved for all platform states
+ *       (accounts, tokens, schedules, consensus topics, etc.).</li>
+ *   <li>8000–9999: Auxiliary/helper entries. Reserved for internal or support
+ *       messages that are not themselves states (e.g. `QueueState`).</li>
+ *   <li>10000 and above: File/blob entries. Reserved for file service or any
+ *       large-blob content stored via the virtual map (for example, file
+ *       contents, etc.).</li>
+ * </ol>
+ */
+message VirtualMapValue {
+  oneof value{
+    /**
+     * A state identifier for the next entity Identifier.
+     */
+    proto.EntityNumber EntityIdService_I_ENTITY_ID = 1;
+
+    /**
+     * A state identifier for the Accounts state.
+     */
+    proto.Account TokenService_I_ACCOUNTS = 2;
+
+    /**
+     * A state identifier for account aliases.
+     */
+    proto.AccountID TokenService_I_ALIASES = 3;
+
+    /**
+     * A state identifier for contract storage slots.
+     */
+    proto.SlotValue ContractService_I_STORAGE = 4;
+
+    /**
+     * A state identifier for contract bytecode.
+     */
+    proto.Bytecode ContractService_I_BYTECODE = 5;
+
+    /**
+     * A state identifier for Hedera File Service (HFS).
+     */
+    proto.File FileService_I_FILES = 6;
+
+    /**
+     * A state identifier for Hedera Token Service (HTS).
+     */
+    proto.Token TokenService_I_TOKENS = 7;
+
+    /**
+     * A state identifier for non-fungible/unique tokens.
+     */
+    proto.Nft TokenService_I_NFTS = 8;
+
+    /**
+     * A state identifier for token relationships.
+     */
+    proto.TokenRelation TokenService_I_TOKEN_RELS = 9;
+
+    /**
+     * A state identifier for network staking information.
+     */
+    proto.StakingNodeInfo TokenService_I_STAKING_INFOS = 10;
+
+    /**
+    * A state identifier for network staking rewards.
+    */
+    proto.NetworkStakingRewards TokenService_I_STAKING_NETWORK_REWARDS = 11;
+
+    /**
+     * A state identifier for throttle usage.
+     */
+    proto.ThrottleUsageSnapshots CongestionThrottleService_I_THROTTLE_USAGE_SNAPSHOTS = 12;
+
+    /**
+     * A state identifier for network congestion start times.
+     */
+    proto.CongestionLevelStarts CongestionThrottleService_I_CONGESTION_LEVEL_STARTS = 13;
+
+    /**
+     * A state identifier for scheduled transactions.
+     */
+    proto.Schedule ScheduleService_I_SCHEDULES_BY_ID = 14;
+
+    /**
+     * A state identifier for scheduled transaction expiration.
+     */
+    proto.ScheduleList ScheduleService_I_SCHEDULES_BY_EXPIRY_SEC = 15;
+
+    /**
+     * A state identifier for scheduled transaction deduplication.
+     */
+    proto.ScheduleList ScheduleService_I_SCHEDULES_BY_EQUALITY = 16;
+
+    /**
+     * A state identifier for conversion rate updates.
+     */
+    proto.ExchangeRateSet FeeService_I_MIDNIGHT_RATES = 17;
+
+    /**
+     * A state identifier for the network running hash(es).
+     */
+    proto.RunningHashes BlockRecordService_I_RUNNING_HASHES = 18;
+
+    /**
+     * A state identifier for network block information.
+     */
+    proto.BlockInfo BlockRecordService_I_BLOCKS = 19;
+
+    /**
+     * A state identifier for address book nodes.
+     */
+    com.hedera.hapi.node.state.addressbook.Node AddressBookService_I_NODES = 20;
+
+    /**
+     * A state identifier for the Topics state.
+     */
+    proto.Topic ConsensusService_I_TOPICS = 21;
+
+    /**
+     * A state identifier for the hash of the next "upgrade" file.
+     */
+    proto.ProtoBytes FreezeService_I_UPGRADE_FILE_HASH = 22;
+
+    /**
+     * A state identifier for the next network freeze time. Singleton state.
+     */
+    proto.Timestamp FreezeService_I_FREEZE_TIME = 23;
+
+    /**
+     * A state identifier for the block stream status. Singleton state.
+     */
+    com.hedera.hapi.node.state.blockstream.BlockStreamInfo BlockStreamService_I_BLOCK_STREAM_INFO = 24;
+
+    /**
+     * A state identifier for pending airdrops.
+     */
+    proto.AccountPendingAirdrop TokenService_I_PENDING_AIRDROPS = 25;
+
+    /**
+     * A state identifier for the platform state. Singleton state.
+     */
+    PlatformState PlatformStateService_I_PLATFORM_STATE = 26;
+
+    /**
+     * A state identifier for the roster state. Singleton state.
+     */
+    com.hedera.hapi.node.state.roster.RosterState RosterService_I_ROSTER_STATE = 27;
+
+    /**
+     * A state identifier for the rosters.
+     */
+    com.hedera.hapi.node.state.roster.Roster RosterService_I_ROSTERS = 28;
+
+    /**
+     * A state identifier for counts of transactions scheduled and
+     * processed in a second.
+     */
+    proto.ScheduledCounts ScheduleService_I_SCHEDULED_COUNTS = 29;
+
+    /**
+     * A state identifier for scheduled transaction deduplication.
+     */
+    proto.ScheduleID ScheduleService_I_SCHEDULE_ID_BY_EQUALITY = 30;
+
+    /**
+     * A state identifier for TSS messages.
+     */
+    com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody TssBaseService_I_TSS_MESSAGES = 31;
+
+    /**
+     * A state identifier for TSS votes.
+     */
+    com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody TssBaseService_I_TSS_VOTES = 32;
+
+    /**
+     * A state identifier for the ordering of scheduled transactions.
+     */
+    proto.ScheduleID ScheduleService_I_SCHEDULED_ORDERS = 33;
+
+    /**
+     * A state identifier for scheduled throttle usage snapshots.
+     */
+    proto.ThrottleUsageSnapshots ScheduleService_I_SCHEDULED_USAGES = 34;
+
+    /**
+     * A state identifier for the TSS encryption keys.
+     */
+    com.hedera.hapi.node.state.tss.TssEncryptionKeys TssBaseService_I_TSS_ENCRYPTION_KEY = 35;
+
+    /**
+     * A state identifier for hinTS key sets.
+     */
+    com.hedera.hapi.node.state.hints.HintsKeySet HintsService_I_HINTS_KEY_SETS = 37;
+
+    /**
+     * A state identifier for the active hinTS construction. Singleton state.
+     */
+    com.hedera.hapi.node.state.hints.HintsConstruction HintsService_I_ACTIVE_HINTS_CONSTRUCTION = 38;
+
+    /**
+     * A state identifier for the next hinTS construction. Singleton state.
+     */
+    com.hedera.hapi.node.state.hints.HintsConstruction HintsService_I_NEXT_HINTS_CONSTRUCTION = 39;
+
+    /**
+     * A state identifier for hinTS preprocessing output votes.
+     */
+    com.hedera.hapi.node.state.hints.PreprocessingVote HintsService_I_PREPROCESSING_VOTES = 40;
+
+    /**
+     * A state identifier for the entity counts. Singleton state.
+     */
+    com.hedera.hapi.node.state.entity.EntityCounts EntityIdService_I_ENTITY_COUNTS = 41;
+
+    /**
+     * A state identifier for the ledger id. Singleton state.
+     */
+    proto.ProtoBytes HistoryService_I_LEDGER_ID = 42;
+
+    /**
+     * A state identifier for history proof key sets.
+     */
+    com.hedera.hapi.node.state.history.ProofKeySet HistoryService_I_PROOF_KEY_SETS = 43;
+
+    /**
+     * A state identifier for the active proof construction. Singleton state.
+     */
+    com.hedera.hapi.node.state.history.HistoryProofConstruction HistoryService_I_ACTIVE_PROOF_CONSTRUCTION = 44;
+
+    /**
+     * A state identifier for the next proof construction. Singleton state.
+     */
+    com.hedera.hapi.node.state.history.HistoryProofConstruction HistoryService_I_NEXT_PROOF_CONSTRUCTION = 45;
+
+    /**
+     * A state identifier for signatures on roster transition histories.
+     */
+    com.hedera.hapi.node.state.history.RecordedHistorySignature HistoryService_I_HISTORY_SIGNATURES = 46;
+
+    /**
+     * A state identifier for votes on history proofs.
+     */
+    com.hedera.hapi.node.state.history.HistoryProofVote HistoryService_I_PROOF_VOTES = 47;
+
+    /**
+      * A state identifier for the CRS state. Singleton state.
+      */
+    com.hedera.hapi.node.state.hints.CRSState HintsService_I_CRS_STATE = 48;
+
+    /**
+     * A state identifier for the CRS publications.
+     */
+    com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody HintsService_I_CRS_PUBLICATIONS = 49;
+
+    /**
+     * A state identifier for the node rewards. Singleton state.
+     */
+    proto.NodeRewards TokenService_I_NODE_REWARDS = 50;
+
+    /**
+     * Metadata of the round receipts queue.
+     */
+    proto.TransactionReceiptEntries RecordCacheTransactionReceiptQueue = 126;
+
+    /**
+     * Metadata of the queue state.<br/>
+     * Reasons for the field number:
+     * <ul>
+     *   <li>Intermediate state types are expected to be rare (field numbers 8000-9999 are allocated for that purpose).</li>
+     *   <li>QueueState represents internal head/tail pointers of a queue, not a standalone Queue type (as with Singleton or KV).</li>
+     * </ul>
+     */
+    QueueState queue_state = 8001;
+
+    /**
+     * Metadata of the `150` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_150 = 10001;
+
+    /**
+     * Metadata of the`151` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_151 = 10002;
+
+    /**
+     * Metadata of the `152` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_152 = 10003;
+
+    /**
+     * Metadata of the `153` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_153 = 10004;
+
+    /**
+     * Metadata of the`154` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_154 = 10005;
+
+    /**
+     * Metadata of the `155` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_155 = 10006;
+
+    /**
+     * Metadata of the `156` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_156 = 10007;
+
+    /**
+     * Metadata of the `157` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_157 = 10008;
+
+    /**
+     * Metadata of the `158` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_158 = 10009;
+
+    /**
+     * Metadata of the `159` upgrade file data queue.
+     */
+    proto.ProtoBytes FileService_I_UPGRADE_DATA_159 = 10010;
 
   }
 }
