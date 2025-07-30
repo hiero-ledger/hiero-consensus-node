@@ -597,4 +597,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public long realm() {
         return realm;
     }
+
+    @Override
+    public PrometheusClient prometheusClient() {
+        return PROMETHEUS_CLIENT;
+    }
 }

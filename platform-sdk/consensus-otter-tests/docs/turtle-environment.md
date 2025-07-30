@@ -303,30 +303,31 @@ The Turtle environment's time management is central to its deterministic behavio
 
 ```mermaid
 sequenceDiagram
-    participant Test as Test Method
-    participant TTM as TurtleTimeManager
-    participant FT as FakeTime
-    participant TN as TurtleNetwork
-    participant SN as SimulatedNetwork
-    participant TG as TransactionGenerator
-    participant Nodes as TurtleNodes
+    participant Test Method
+    participant TurtleTimeManager
+    participant FakeTime
+    participant TurtleNetwork
+    participant SimulatedNetwork
+    participant TransactionGenerator
+    participant TurtleNodes
 
-    Test->>TTM: waitFor(Duration.ofSeconds(30))
+    Test Method->>TurtleTimeManager: waitFor(Duration.ofSeconds(30))
 
     loop Every Granularity Period (10ms)
-        TTM->>FT: tick(granularity)
-        FT->>FT: Advance time by 10ms
-        TTM->>TN: tick(now)
-        TN->>SN: tick(now)
-        SN->>SN: Process events in transit
-        SN->>Nodes: Deliver events due now
-        TN->>TG: tick(now, nodes)
-        TG->>Nodes: Generate transactions for active nodes
-        TN->>Nodes: tick(now)
-        Nodes->>Nodes: Process consensus rounds
+        TurtleTimeManager->>TurtleTimeManager: advanceTime(granularity)
+        TurtleTimeManager->>FakeTime: tick(granularity)
+        FakeTime->>FakeTime: Advance time by 10ms (configurable)
+        TurtleTimeManager->>TurtleNetwork: tick(now)
+        TurtleNetwork->>SimulatedNetwork: tick(now)
+        SimulatedNetwork->>SimulatedNetwork: Process events in transit
+        SimulatedNetwork->>TurtleNodes: Deliver events due now
+        TurtleNetwork->>TransactionGenerator: tick(now, nodes)
+        TransactionGenerator->>TurtleNodes: Generate transactions for active nodes
+        TurtleNetwork->>TurtleNodes: tick(now)
+        TurtleNodes->>TurtleNodes: Process consensus logic
     end
 
-    TTM-->>Test: Time advancement complete
+    TurtleTimeManager-->>Test Method: Time advancement complete
 ```
 
 This sequence shows how time advancement drives the entire simulation, ensuring deterministic execution. While code is running, time does not advance. When the test calls `waitFor()` or a related method on the `TurtleTimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified duration is reached. During each tick, the `SimulatedNetwork` processes events, the `TransactionGenerator` creates transactions submitting them to active nodes, and the nodes execute their consensus logic.
