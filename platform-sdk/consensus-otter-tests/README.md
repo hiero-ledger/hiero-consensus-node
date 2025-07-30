@@ -65,10 +65,10 @@ platform-sdk/consensus-otter-tests/
 
 ## 📚 Documentation
 
-|                           Guide                           |          Description          |
-|-----------------------------------------------------------|-------------------------------|
-| [🏁 Getting Started](docs/getting-started.md)             | Setup and your first test     |
-| [🏛️ Architecture](docs/architecture.md)                  | Framework design overview     |
-| [✍️ Writing Tests](docs/writing-tests.md)                 | Test development guide        |
-| [🐢 Turtle Environment](docs/turtle-environment.md)       | Simulated testing guide       |
-| [🐳 Container Environment](docs/container-environment.md) | Docker-based testing          |
+|                           Guide                           |        Description        |
+|-----------------------------------------------------------|---------------------------|
+| [🏁 Getting Started](docs/getting-started.md)             | Setup and your first test |
+| [🏛️ Architecture](docs/architecture.md)                  | Framework design overview |
+| [✍️ Writing Tests](docs/writing-tests.md)                 | Test development guide    |
+| [🐢 Turtle Environment](docs/turtle-environment.md)       | Simulated testing guide   |
+| [🐳 Container Environment](docs/container-environment.md) | Docker-based testing      |

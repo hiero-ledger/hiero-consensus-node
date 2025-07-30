@@ -51,8 +51,8 @@ annotation and tells the framework to:
 #### Getting the Network
 
 ```java
-    final Network network = env.network();
-    final TimeManager timeManager = env.timeManager();
+final Network network = env.network();
+final TimeManager timeManager = env.timeManager();
 ```
 
 The `TestEnvironment` provides access to the core framework components. The `network()` method returns a `Network`
@@ -71,7 +71,7 @@ to:
 #### Creating Nodes
 
 ```java
-    network.addNodes(4);
+network.addNodes(4);
 ```
 
 This creates 4 consensus nodes that will participate in the network. The nodes are not started yet - they're just
@@ -83,7 +83,7 @@ created and configured. The number 4 provides a good balance for basic testing:
 #### Starting the Network
 
 ```java
-    network.start();
+network.start();
 ```
 
 This starts all nodes in the network and begins the consensus process. The nodes will:
@@ -96,7 +96,7 @@ This starts all nodes in the network and begins the consensus process. The nodes
 #### Waiting for Execution
 
 ```java
-    timeManager.waitFor(Duration.ofSeconds(30));
+timeManager.waitFor(Duration.ofSeconds(30));
 ```
 
 The `TimeManager` controls time in the test. This call advances time by 30 seconds, allowing the network to:
@@ -112,7 +112,7 @@ The behavior depends on the environment:
 #### Validating Results
 
 ```java
-    assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 ```
 
 This assertion checks that no ERROR-level log messages were produced during the test execution. It's a good basic health
@@ -199,9 +199,9 @@ void testNodeConfiguration(@NonNull final TestEnvironment env) throws Interrupte
 #### Node Configuration API
 
 ```java
-        node.configuration()
-                .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
-                .set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+node.configuration()
+        .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
+        .set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
 ```
 
 The `configuration()` method returns a `NodeConfiguration` interface that allows you to override platform properties.
@@ -225,12 +225,12 @@ offering fluent and readable test validations.
 
 The framework collects various types of results during test execution:
 
-| Result Type             | Description | Single Node | Network |
-|-------------------------|-------------|-------------|---------|
-| **Consensus Results**   | Consensus rounds and validation | `node.newConsensusResult()` | `network.newConsensusResults()` |
-| **Log Results**         | Log messages and analysis | `node.newLogResult()` | `network.newLogResults()` |
-| **Platform Status**     | Status progression tracking | `node.newPlatformStatusResult()` | `network.newPlatformStatusResults()` |
-| **PCES Results**        | Pre-consensus event storage | `node.newPcesResult()` | `network.newPcesResults()` |
+|      Result Type      |           Description           |           Single Node            |               Network                |
+|-----------------------|---------------------------------|----------------------------------|--------------------------------------|
+| **Consensus Results** | Consensus rounds and validation | `node.newConsensusResult()`      | `network.newConsensusResults()`      |
+| **Log Results**       | Log messages and analysis       | `node.newLogResult()`            | `network.newLogResults()`            |
+| **Platform Status**   | Status progression tracking     | `node.newPlatformStatusResult()` | `network.newPlatformStatusResults()` |
+| **PCES Results**      | Pre-consensus event storage     | `node.newPcesResult()`           | `network.newPcesResults()`           |
 
 Each result type is available for individual nodes or the entire network, allowing targeted validation at different scopes.
 
@@ -242,7 +242,7 @@ Results can be filtered to focus on specific aspects:
     // Ignore specific nodes
     network.newLogResults().suppressingNode(problematicNode);
 
-    // Filter out expected log markers  
+    // Filter out expected log markers
     network.newLogResults().suppressingLogMarker(STARTUP);
 
     // Clear accumulated data
@@ -280,19 +280,19 @@ void testWithRegularAssertion(@NonNull final TestEnvironment env) throws Interru
 Continuous assertions monitor conditions throughout test execution, failing fast when violations occur:
 
 ```java
-@OtterTest  
+@OtterTest
 void testWithContinuousAssertion(@NonNull final TestEnvironment env) throws InterruptedException {
     final Network network = env.network();
     network.addNodes(4);
-    
+
     // Set up monitoring before starting the network
     assertContinuouslyThat(network.getConsensusResults())
         .haveEqualRounds();
-        
+
     assertContinuouslyThat(network.getLogResults())
         .suppressingLogMarker(STARTUP)
         .haveNoErrorLevelMessages();
-    
+
     network.start();
     timeManager.waitFor(Duration.ofMinutes(5));
 }
@@ -305,15 +305,14 @@ Another benefit of continuous assertions is that they can suppress assertions ov
 
 ```java
     // Continuous assertion with that checks no errors are written to the log
-    final MultipleNodeLogResultsContinuousAssert assertion = assertContinuouslyThat(
-            network.newLogResults())
-            .haveNoErrorLevelMessages();
+    final MultipleNodeLogResultsContinuousAssert assertion = 
+            assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
 
     // Suppress RECONNECT log marker during the test
     assertion.startSuppressingLogMarker(RECONNECT);
-    
+
     // ... test logic that is expected to generate RECONNECT error messages
-    
+
     // Stop suppressing the RECONNECT log marker
     assertion.stopSuppressingLogMarker(RECONNECT);
 ```
@@ -366,10 +365,10 @@ build/container/
 
 ## 🔗 Related Documentation
 
-| Guide                                                |          Description          |
-|------------------------------------------------------|-------------------------------|
-| [🏁 Getting Started](getting-started.md)             | Setup and your first test     |
-| [🏛️ Architecture](architecture.md)                  | Framework design overview     |
-| [✍️ Writing Tests](writing-tests.md)                 | Test development guide        |
-| [🐢 Turtle Environment](turtle-environment.md)       | Simulated testing guide       |
-| [🐳 Container Environment](container-environment.md) | Docker-based testing          |
+|                        Guide                         |        Description        |
+|------------------------------------------------------|---------------------------|
+| [🏁 Getting Started](getting-started.md)             | Setup and your first test |
+| [🏛️ Architecture](architecture.md)                  | Framework design overview |
+| [✍️ Writing Tests](writing-tests.md)                 | Test development guide    |
+| [🐢 Turtle Environment](turtle-environment.md)       | Simulated testing guide   |
+| [🐳 Container Environment](container-environment.md) | Docker-based testing      |

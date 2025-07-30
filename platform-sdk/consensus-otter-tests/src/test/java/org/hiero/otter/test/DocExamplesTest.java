@@ -78,9 +78,7 @@ class DocExamplesTest {
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         for (final Node node : nodes) {
-            node.configuration()
-                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
-                    .set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+            node.configuration().set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L).set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
         }
 
         network.start();
@@ -115,12 +113,9 @@ class DocExamplesTest {
         timeManager.waitFor(Duration.ofMinutes(2));
 
         // Fluent assertion with method chaining
-        assertThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveAdvancedSinceRound(2);
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
 
-        assertThat(network.newLogResults().suppressingLogMarker(STARTUP))
-                .haveNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingLogMarker(STARTUP)).haveNoErrorLevelMessages();
     }
 
     // This test is used in the writing-tests.md file.
@@ -130,8 +125,7 @@ class DocExamplesTest {
         network.addNodes(4);
 
         // Set up monitoring before starting the network
-        assertContinuouslyThat(network.newConsensusResults())
-                .haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
 
         assertContinuouslyThat(network.newLogResults().suppressingLogMarker(STARTUP))
                 .haveNoErrorLevelMessages();
@@ -144,13 +138,12 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     @OtterTest
-    void testWithCustomAssertions(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testWithContinuousSuppression(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
 
         // Continuous assertion with that checks no errors are written to the log
-        final MultipleNodeLogResultsContinuousAssert assertion = assertContinuouslyThat(
-                network.newLogResults())
-                .haveNoErrorLevelMessages();
+        final MultipleNodeLogResultsContinuousAssert assertion =
+                assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
 
         // Suppress RECONNECT log marker during the test
         assertion.startSuppressingLogMarker(RECONNECT);
@@ -160,5 +153,4 @@ class DocExamplesTest {
         // Stop suppressing the RECONNECT log marker
         assertion.stopSuppressingLogMarker(RECONNECT);
     }
-
 }
