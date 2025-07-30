@@ -65,8 +65,10 @@ class InternalEventValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().withTime(time).build();
 
-        multinodeValidator = new DefaultInternalEventValidator(platformContext, false, intakeEventCounter, TRANSACTION_LIMITS);
-        singleNodeValidator = new DefaultInternalEventValidator(platformContext, true, intakeEventCounter, TRANSACTION_LIMITS);
+        multinodeValidator =
+                new DefaultInternalEventValidator(platformContext, false, intakeEventCounter, TRANSACTION_LIMITS);
+        singleNodeValidator =
+                new DefaultInternalEventValidator(platformContext, true, intakeEventCounter, TRANSACTION_LIMITS);
     }
 
     @Test
