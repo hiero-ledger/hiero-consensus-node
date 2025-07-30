@@ -57,7 +57,7 @@ public class MigrationStateChanges {
         final var maybeKvChanges = immediateStateChangeListener.getKvStateChanges();
         if (!maybeKvChanges.isEmpty()) {
             stateChanges.add(new ArrayList<>(maybeKvChanges));
-            immediateStateChangeListener.resetKvStateChanges();
+            immediateStateChangeListener.resetKvStateChanges(null);
         }
     }
 

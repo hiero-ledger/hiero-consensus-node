@@ -65,12 +65,14 @@ import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A state change listener that tracks an entire sequence of changes, even if this sequence
@@ -83,10 +85,14 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     private final List<StateChange> queueStateChanges = new ArrayList<>();
 
+    @Nullable
+    private Predicate<Object> logicallyIdenticalMapping;
+
     /**
      * Resets kv state changes.
      */
-    public void resetKvStateChanges() {
+    public void resetKvStateChanges(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
+        this.logicallyIdenticalMapping = logicallyIdenticalMapping;
         kvStateChanges.clear();
     }
 
@@ -100,7 +106,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     /**
      * Resets all state changes.
      */
-    public void reset() {
+    public void reset(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
+        this.logicallyIdenticalMapping = logicallyIdenticalMapping;
         kvStateChanges.clear();
         queueStateChanges.clear();
     }
@@ -122,10 +129,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-        final var change = MapUpdateChange.newBuilder()
-                .key(mapChangeKeyFor(key))
-                .value(mapChangeValueFor(value))
-                .build();
+        final boolean identical = logicallyIdenticalMapping != null && logicallyIdenticalMapping.test(key);
+
+        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
         kvStateChanges.add(stateChange);

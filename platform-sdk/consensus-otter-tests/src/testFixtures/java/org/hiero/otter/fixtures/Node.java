@@ -9,6 +9,7 @@ import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -160,6 +161,7 @@ public interface Node {
     /**
      * Checks if the node's {@link PlatformStatus} is {@code status}.
      *
+     * @param status the status to check against
      * @return {@code true} if the node is in the supplied status, {@code false} otherwise
      */
     default boolean isInStatus(@NonNull final PlatformStatus status) {
@@ -229,4 +231,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeReconnectResult newReconnectResult();
+
+    /**
+     * Creates a new result with all marker file result of the node.
+     *
+     * @return the marker file result of the node
+     */
+    @NonNull
+    SingleNodeMarkerFileResult newMarkerFileResult();
 }

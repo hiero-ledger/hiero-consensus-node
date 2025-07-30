@@ -5,7 +5,7 @@ import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_OPS_DURATION;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
@@ -15,20 +15,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -93,9 +91,6 @@ class CustomMessageCallProcessorTest {
     private PrecompileContractRegistry registry;
 
     @Mock
-    private Configuration config;
-
-    @Mock
     private ProxyWorldUpdater proxyWorldUpdater;
 
     @Mock
@@ -105,10 +100,7 @@ class CustomMessageCallProcessorTest {
     private Deque<MessageFrame> stack;
 
     @Mock
-    private HederaOpsDurationCounter gasCounter;
-
-    @Mock
-    private HederaOpsDuration hederaOpsDuration;
+    private ContractMetrics contractMetrics;
 
     private CustomMessageCallProcessor subject;
 
@@ -120,7 +112,7 @@ class CustomMessageCallProcessorTest {
                 registry,
                 addressChecks,
                 Map.of(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, prngPrecompile),
-                hederaOpsDuration);
+                contractMetrics);
     }
 
     @Test
@@ -134,11 +126,11 @@ class CustomMessageCallProcessorTest {
         givenPrngCall(ZERO_GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
@@ -223,14 +215,14 @@ class CustomMessageCallProcessorTest {
     @Test
     void updatesFrameBySuccessfulPrecompileResultWithGasRefund() {
         givenEvmPrecompileCall();
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
                 OUTPUT_DATA, true, MessageFrame.State.CODE_SUCCESS, Optional.empty());
         given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(result);
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
 
         subject.start(frame, operationTracer);
@@ -245,14 +237,14 @@ class CustomMessageCallProcessorTest {
     @Test
     void revertsFrameFromPrecompileResult() {
         givenEvmPrecompileCall();
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
                 OUTPUT_DATA, false, MessageFrame.State.REVERT, Optional.empty());
         given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(result);
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
         given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
 

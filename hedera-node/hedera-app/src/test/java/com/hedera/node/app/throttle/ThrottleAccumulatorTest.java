@@ -34,7 +34,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -43,7 +42,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -60,6 +58,7 @@ import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
@@ -1504,7 +1503,6 @@ class ThrottleAccumulatorTest {
             given(contractsConfig.maxGasPerSec()).willReturn(t);
         } else {
             given(contractsConfig.maxGasPerSecBackend()).willReturn(t);
-            given(contractsConfig.gasThrottleBurstSeconds()).willReturn(1);
         }
     }
 
@@ -1822,9 +1820,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleCreate(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1840,9 +1840,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleSign(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1863,42 +1865,7 @@ class ThrottleAccumulatorTest {
         }
     }
 
-    private CryptoTransferTransactionBody cryptoTransferWithImplicitCreations(int numImplicitCreations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numImplicitCreations; i++) {
-            accountAmounts.add(AccountAmount.newBuilder()
-                    .accountID(AccountID.newBuilder()
-                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
-                            .build())
-                    .amount(i)
-                    .build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .transfers(
-                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
-                .build();
-    }
-
-    private CryptoTransferTransactionBody cryptoTransferFungibleWithAutoAssociations(int numAutoAssociations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numAutoAssociations; i++) {
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(PAYER_ID).amount(-i).build());
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(RECEIVER_ID).amount(i).build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .tokenTransfers(TokenTransferList.newBuilder()
-                        .token(TOKEN_ID)
-                        .transfers(accountAmounts)
-                        .build())
-                .build();
-    }
-
     private void givenMintWith(int numNfts) {
-        final List<ByteString> meta = new ArrayList<>();
         final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);

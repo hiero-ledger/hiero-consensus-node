@@ -7,7 +7,6 @@ import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOpera
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -352,12 +351,12 @@ public interface EvmFrameState {
     long getIdNumber(@NonNull Address address);
 
     /**
-     * Returns the full list of account-scoped storage changes in the current scope.
+     * Returns a {@link TxStorageUsage} summarizing the storage changes made by the transaction.
      *
      * @return the full list of account-scoped storage changes
      */
     @NonNull
-    List<StorageAccesses> getStorageChanges();
+    TxStorageUsage getTxStorageUsage(boolean includeChangedSlotKeys);
 
     /**
      * Returns the size of the underlying K/V state for contract storage.
