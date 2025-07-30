@@ -68,16 +68,18 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @param platformContext    the platform context
      * @param singleNodeNetwork  true if this node is in a single-node network, otherwise false
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
+     * @param transactionLimits  transaction size limits for validation
      */
     public DefaultInternalEventValidator(
             @NonNull final PlatformContext platformContext,
             final boolean singleNodeNetwork,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final TransactionLimits transactionLimits) {
 
         this.singleNodeNetwork = singleNodeNetwork;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
-        this.transactionLimits = platformContext.getConfiguration().getConfigData(TransactionLimits.class);
+        this.transactionLimits = Objects.requireNonNull(transactionLimits);
 
         this.nullFieldLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);

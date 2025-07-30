@@ -276,7 +276,8 @@ public class PlatformComponentBuilder {
             final boolean singleNodeNetwork =
                     blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
-                    blocks.platformContext(), singleNodeNetwork, blocks.intakeEventCounter());
+                    blocks.platformContext(), singleNodeNetwork, blocks.intakeEventCounter(), blocks.execution()
+                    .getTransactionLimits());
         }
         return internalEventValidator;
     }

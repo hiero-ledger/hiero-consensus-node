@@ -31,6 +31,7 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ import org.mockito.Mockito;
  * Tests for {@link DefaultInternalEventValidator}
  */
 class InternalEventValidatorTests {
+    private static final TransactionLimits TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
     private AtomicLong exitedIntakePipelineCount;
     private Random random;
     private InternalEventValidator multinodeValidator;
@@ -63,8 +65,8 @@ class InternalEventValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().withTime(time).build();
 
-        multinodeValidator = new DefaultInternalEventValidator(platformContext, false, intakeEventCounter);
-        singleNodeValidator = new DefaultInternalEventValidator(platformContext, true, intakeEventCounter);
+        multinodeValidator = new DefaultInternalEventValidator(platformContext, false, intakeEventCounter, TRANSACTION_LIMITS);
+        singleNodeValidator = new DefaultInternalEventValidator(platformContext, true, intakeEventCounter, TRANSACTION_LIMITS);
     }
 
     @Test
