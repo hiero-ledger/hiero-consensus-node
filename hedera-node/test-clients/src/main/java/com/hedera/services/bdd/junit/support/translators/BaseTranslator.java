@@ -982,8 +982,19 @@ public class BaseTranslator {
         return true;
     }
 
+    /**
+     * Compares the Ethereum transaction body nonce with the most recent nonce value in the state changes.
+     * In normal scenarios, these values should be equal. However, when multiple Ethereum calls exist
+     * within a single batch transaction (all modifying the same account), the final state change might
+     * contain a greater nonce value than what appears in any individual transaction body.
+     *
+     * @param accountID The Ethereum transaction sender account
+     * @param nonce The nonce value from the Ethereum transaction body
+     * @param remainingStateChanges The current state changes to examine
+     * @return true if the signer nonce from state changes is greater than the one in the transaction body
+     */
     public boolean isNonceIncremented(
-            final AccountID accountID, final Long nonce, List<StateChange> remainingStateChanges) {
+            @NonNull final AccountID accountID, long nonce, @NonNull List<StateChange> remainingStateChanges) {
         final var currentNonce = getSignerNonce(accountID, remainingStateChanges);
         return currentNonce != null && currentNonce > nonce;
     }
