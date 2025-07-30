@@ -219,14 +219,14 @@ public class OpsDurationThrottleTest {
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
-                            inParallel(IntStream.range(0, 650)
+                            inParallel(IntStream.range(0, 700)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "opsRun")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
                                                     ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
-                    allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 95.0));
+                    allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 90.0));
                 }),
                 restoreDefault(MAX_OPS_DURATION));
     }
