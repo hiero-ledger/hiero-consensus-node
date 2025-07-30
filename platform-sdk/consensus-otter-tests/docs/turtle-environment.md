@@ -1,7 +1,5 @@
 # 🐢 Turtle Environment Guide
 
-[Home](../README.md) > Turtle Environment
-
 Deep dive into the Turtle simulated testing environment for fast, deterministic consensus testing.
 
 ## Table of Contents
@@ -375,9 +373,10 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
 
 ## 🔗 Related Documentation
 
-|          Topic          |                                   Link                                   |
-|-------------------------|--------------------------------------------------------------------------|
-| **Environment Details** | [Turtle](turtle-environment.md) \| [Container](container-environment.md) |
-| **Test Development**    | [Writing Tests Guide](writing-tests.md)                                  |
-| **API Reference**       | [Assertions API](assertions-api.md)                                      |
-| **Configuration**       | [Configuration Guide](configuration.md)                                  |
+| Guide                                                |          Description          |
+|------------------------------------------------------|-------------------------------|
+| [🏁 Getting Started](getting-started.md)             | Setup and your first test     |
+| [🏛️ Architecture](architecture.md)                  | Framework design overview     |
+| [✍️ Writing Tests](writing-tests.md)                 | Test development guide        |
+| [🐢 Turtle Environment](turtle-environment.md)       | Simulated testing guide       |
+| [🐳 Container Environment](container-environment.md) | Docker-based testing          |
