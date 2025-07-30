@@ -10,25 +10,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
-import org.hiero.otter.fixtures.result.ReconnectFailurePayloadSubscriber;
-import org.hiero.otter.fixtures.result.ReconnectStartPayloadSubscriber;
+import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.hiero.otter.fixtures.result.SynchronizationCompletePayloadSubscriber;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeReconnectResults}
- *
- * @param reconnectResults the list of {@link SingleNodeReconnectResult}
  */
 public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectResults {
 
     private final List<SingleNodeReconnectResult> results;
-    private final List<ReconnectFailurePayloadSubscriber> reconnectFailureSubscribers = new CopyOnWriteArrayList<>();
-    private final List<ReconnectStartPayloadSubscriber> reconnectStartSubscribers = new CopyOnWriteArrayList<>();
-    private final List<SynchronizationCompletePayloadSubscriber> synchronizationCompleteSubscribers =
-            new CopyOnWriteArrayList<>();
+    private final List<ReconnectNotificationSubscriber> reconnectSubscribers = new CopyOnWriteArrayList<>();
 
     public MultipleNodeReconnectResultsImpl(@NonNull final List<SingleNodeReconnectResult> results) {
         this.results = unmodifiableList(requireNonNull(results));
@@ -38,10 +31,10 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
         // To implement this, we define a meta-subscriber that will be subscribed to the results of all nodes.
         // This meta-subscriber will notify all child-subscribers to this class (among them A).
         // If a child-subscriber wants to be unsubscribed, it will return SubscriberAction.UNSUBSCRIBE.
-        final ReconnectFailurePayloadSubscriber metaSubscriber = (payload, nodeId) -> {
+        final ReconnectNotificationSubscriber metaSubscriber = (notification) -> {
             // iterate over all child-subscribers and eventually remove the ones that wish to be unsubscribed
-            reconnectFailureSubscribers.removeIf(
-                    current -> current.onPayload(payload, nodeId) == SubscriberAction.UNSUBSCRIBE);
+            reconnectSubscribers.removeIf(
+                    current -> current.onNotification(notification) == SubscriberAction.UNSUBSCRIBE);
 
             // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
@@ -67,19 +60,9 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final ReconnectStartPayloadSubscriber subscriber) {}
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void subscribe(@NotNull final ReconnectFailurePayloadSubscriber subscriber) {}
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void subscribe(@NotNull final SynchronizationCompletePayloadSubscriber subscriber) {}
+    public void subscribe(@NotNull final ReconnectNotificationSubscriber subscriber) {
+        reconnectSubscribers.add(subscriber);
+    }
 
     /**
      * {@inheritDoc}

@@ -4,19 +4,17 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
-import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.function.BiConsumer;
-import org.hiero.otter.fixtures.result.ReconnectFailurePayloadSubscriber;
-import org.hiero.otter.fixtures.result.ReconnectStartPayloadSubscriber;
+import java.util.function.Consumer;
+import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
+import org.hiero.otter.fixtures.result.ReconnectStartNotification;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.hiero.otter.fixtures.result.SynchronizationCompletePayloadSubscriber;
+import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 
 /**
  * Continuous assertions for {@link SingleNodeReconnectResult}.
@@ -53,10 +51,15 @@ public class SingleNodeReconnectResultContinuousAssert
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
-        return continuouslyCheckReconnectFailures((failurePayload, nodeId) -> {
-            failWithMessage(
-                    "Expected no failed reconnects, but node %s had %n%s",
-                    nodeId == null ? "unknown" : nodeId.id(), failurePayload);
+        isNotNull();
+        return checkContinuously((notification) -> {
+            switch (notification) {
+                case final ReconnectFailureNotification f ->
+                    failWithMessage("Expected no failed reconnects, but found %n%s", f.payload());
+                default -> {
+                    // Ignore other notifications
+                }
+            }
         });
     }
 
@@ -67,10 +70,15 @@ public class SingleNodeReconnectResultContinuousAssert
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert doesNotAttemptToReconnect() {
-        return continuouslyCheckReconnectStart((startPayload, nodeId) -> {
-            failWithMessage(
-                    "Expected no attempted reconnects, but node %s had %n%s",
-                    nodeId == null ? "unknown" : nodeId.id(), startPayload);
+        isNotNull();
+        return checkContinuously((notification) -> {
+            switch (notification) {
+                case final ReconnectStartNotification s ->
+                    failWithMessage("Expected no attempted reconnects, found %n%s", s.payload());
+                default -> {
+                    // Ignore other notifications
+                }
+            }
         });
     }
 
@@ -83,14 +91,18 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumReconnectTime(
             @NonNull final Duration maximumReconnectTime) {
-        return continuouslyCheckSynchronizationComplete((syncCompletePayload, nodeId) -> {
-            if (syncCompletePayload.getTimeInSeconds() > (double) maximumReconnectTime.getSeconds()) {
-                failWithMessage(
-                        "Expected maximum reconnect time to be <%s> but node %s took <%s>%n%s",
-                        maximumReconnectTime,
-                        nodeId == null ? "unknown" : nodeId.id(),
-                        Duration.ofSeconds((long) syncCompletePayload.getTimeInSeconds()),
-                        syncCompletePayload);
+        isNotNull();
+        return checkContinuously((notification) -> {
+            switch (notification) {
+                case final SynchronizationCompleteNotification s ->
+                    failWithMessage(
+                            "Expected maximum reconnect time to be <%s> was <%s>%n%s",
+                            maximumReconnectTime,
+                            Duration.ofSeconds((long) s.payload().getTimeInSeconds()),
+                            s.payload());
+                default -> {
+                    // Ignore other notifications
+                }
             }
         });
     }
@@ -104,65 +116,30 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumTreeInitializationTime(
             final Duration maximumTreeInitializationTime) {
-        return continuouslyCheckSynchronizationComplete((syncCompletePayload, nodeId) -> {
-            if (syncCompletePayload.getInitializationTimeInSeconds()
-                    > (double) maximumTreeInitializationTime.getSeconds()) {
-                failWithMessage(
-                        "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
-                        maximumTreeInitializationTime,
-                        nodeId == null ? "unknown" : nodeId.id(),
-                        Duration.ofSeconds((long) syncCompletePayload.getInitializationTimeInSeconds()),
-                        syncCompletePayload);
+        isNotNull();
+        return checkContinuously((notification) -> {
+            switch (notification) {
+                case final SynchronizationCompleteNotification s ->
+                    failWithMessage(
+                            "Expected maximum tree initialization time to be <%s> but it took <%s> to initialize the tree%n%s",
+                            maximumTreeInitializationTime,
+                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds()),
+                            s.payload());
+                default -> {
+                    // Ignore other notifications
+                }
             }
         });
     }
 
     @NonNull
-    private SingleNodeReconnectResultContinuousAssert continuouslyCheckReconnectFailures(
-            @NonNull final BiConsumer<ReconnectFailurePayload, NodeId> check) {
+    private SingleNodeReconnectResultContinuousAssert checkContinuously(
+            @NonNull final Consumer<ReconnectNotification<?>> check) {
         isNotNull();
 
-        final ReconnectFailurePayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
+        final ReconnectNotificationSubscriber subscriber = (notification) -> switch (state) {
             case ACTIVE -> {
-                check.accept(payload, nodeId);
-                yield CONTINUE;
-            }
-            case PAUSED -> CONTINUE;
-            case DESTROYED -> UNSUBSCRIBE;
-        };
-
-        actual.subscribe(subscriber);
-
-        return this;
-    }
-
-    @NonNull
-    private SingleNodeReconnectResultContinuousAssert continuouslyCheckReconnectStart(
-            @NonNull final BiConsumer<ReconnectStartPayload, NodeId> check) {
-        isNotNull();
-
-        final ReconnectStartPayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
-            case ACTIVE -> {
-                check.accept(payload, nodeId);
-                yield CONTINUE;
-            }
-            case PAUSED -> CONTINUE;
-            case DESTROYED -> UNSUBSCRIBE;
-        };
-
-        actual.subscribe(subscriber);
-
-        return this;
-    }
-
-    @NonNull
-    private SingleNodeReconnectResultContinuousAssert continuouslyCheckSynchronizationComplete(
-            @NonNull final BiConsumer<SynchronizationCompletePayload, NodeId> check) {
-        isNotNull();
-
-        final SynchronizationCompletePayloadSubscriber subscriber = (payload, nodeId) -> switch (state) {
-            case ACTIVE -> {
-                check.accept(payload, nodeId);
+                check.accept(notification);
                 yield CONTINUE;
             }
             case PAUSED -> CONTINUE;

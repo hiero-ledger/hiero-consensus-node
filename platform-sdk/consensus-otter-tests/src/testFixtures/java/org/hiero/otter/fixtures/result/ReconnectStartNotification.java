@@ -6,8 +6,5 @@ import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-@FunctionalInterface
-public interface ReconnectStartPayloadSubscriber {
-
-    SubscriberAction onPayload(@NonNull ReconnectStartPayload payload, @Nullable NodeId nodeId);
-}
+public record ReconnectStartNotification(@NonNull ReconnectStartPayload payload, @Nullable NodeId nodeId)
+        implements ReconnectNotification<ReconnectStartPayload> {}

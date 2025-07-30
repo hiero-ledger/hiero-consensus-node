@@ -6,8 +6,6 @@ import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-@FunctionalInterface
-public interface SynchronizationCompletePayloadSubscriber {
-
-    SubscriberAction onPayload(@NonNull SynchronizationCompletePayload payload, @Nullable NodeId nodeId);
-}
+public record SynchronizationCompleteNotification(
+        @NonNull SynchronizationCompletePayload payload, @Nullable NodeId nodeId)
+        implements ReconnectNotification<SynchronizationCompletePayload> {}

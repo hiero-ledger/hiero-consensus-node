@@ -10,15 +10,18 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import org.hiero.otter.fixtures.result.ReconnectFailurePayloadSubscriber;
-import org.hiero.otter.fixtures.result.ReconnectStartPayloadSubscriber;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
+import org.hiero.otter.fixtures.result.ReconnectStartNotification;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.hiero.otter.fixtures.result.SynchronizationCompletePayloadSubscriber;
-import org.jetbrains.annotations.NotNull;
+import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 
 /**
  * Implementation of the {@link SingleNodeReconnectResult} interface.
@@ -48,7 +51,8 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      * {@inheritDoc}
      */
     @Override
-    public @NotNull com.hedera.hapi.platform.state.NodeId nodeId() {
+    @NonNull
+    public com.hedera.hapi.platform.state.NodeId nodeId() {
         return nodeId;
     }
 
@@ -88,43 +92,30 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final ReconnectFailurePayloadSubscriber subscriber) {
+    public void subscribe(@NonNull final ReconnectNotificationSubscriber subscriber) {
         logResults.subscribe(logEntry -> {
-            if (logEntry.message().contains(ReconnectFailurePayload.class.toString())) {
-                final ReconnectFailurePayload payload = parsePayload(ReconnectFailurePayload.class, logEntry.message());
-                return subscriber.onPayload(payload, logEntry.nodeId());
+            final ReconnectNotification<?> notification = toReconnectNotification(logEntry);
+            if (notification != null) {
+                return subscriber.onNotification(notification);
             }
             return SubscriberAction.CONTINUE;
         });
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void subscribe(@NotNull final SynchronizationCompletePayloadSubscriber subscriber) {
-        logResults.subscribe(logEntry -> {
-            if (logEntry.message().contains(SynchronizationCompletePayload.class.toString())) {
-                final SynchronizationCompletePayload payload =
-                        parsePayload(SynchronizationCompletePayload.class, logEntry.message());
-                return subscriber.onPayload(payload, logEntry.nodeId());
-            }
-            return SubscriberAction.CONTINUE;
-        });
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void subscribe(@NotNull final ReconnectStartPayloadSubscriber subscriber) {
-        logResults.subscribe(logEntry -> {
-            if (logEntry.message().contains(ReconnectStartPayload.class.toString())) {
-                final ReconnectStartPayload payload = parsePayload(ReconnectStartPayload.class, logEntry.message());
-                return subscriber.onPayload(payload, logEntry.nodeId());
-            }
-            return SubscriberAction.CONTINUE;
-        });
+    @Nullable
+    private ReconnectNotification<?> toReconnectNotification(final StructuredLog logEntry) {
+        final String message = logEntry.message();
+        if (message.contains(ReconnectFailurePayload.class.toString())) {
+            return new ReconnectFailureNotification(
+                    parsePayload(ReconnectFailurePayload.class, message), logEntry.nodeId());
+        } else if (message.contains(ReconnectStartPayload.class.toString())) {
+            return new ReconnectStartNotification(
+                    parsePayload(ReconnectStartPayload.class, message), logEntry.nodeId());
+        } else if (message.contains(SynchronizationCompletePayload.class.toString())) {
+            return new SynchronizationCompleteNotification(
+                    parsePayload(SynchronizationCompletePayload.class, message), logEntry.nodeId());
+        }
+        return null;
     }
 
     /**
