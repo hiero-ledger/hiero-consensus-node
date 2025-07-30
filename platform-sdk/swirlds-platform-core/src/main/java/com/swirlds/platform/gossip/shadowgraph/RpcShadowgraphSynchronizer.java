@@ -3,6 +3,8 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.gossip.permits.SyncGuard;
+import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -37,6 +39,12 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
     private final Duration sleepAfterSync;
 
     /**
+     * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
+     * peers over and over.
+     */
+    private final SyncGuard syncGuard;
+
+    /**
      * Constructs a new ShadowgraphSynchronizer.
      *
      * @param platformContext      the platform context
@@ -68,6 +76,9 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
+
+        this.syncGuard = SyncGuardFactory.create(
+                syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), numberOfNodes);
     }
 
     /**
@@ -79,7 +90,16 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     public RpcPeerHandler createPeerHandler(@NonNull final GossipRpcSender sender, @NonNull final NodeId otherNodeId) {
         final RpcPeerHandler rpcPeerHandler = new RpcPeerHandler(
-                this, sender, selfId, otherNodeId, sleepAfterSync, syncMetrics, time, intakeEventCounter, eventHandler);
+                this,
+                sender,
+                selfId,
+                otherNodeId,
+                sleepAfterSync,
+                syncMetrics,
+                time,
+                intakeEventCounter,
+                eventHandler,
+                syncGuard);
         return rpcPeerHandler;
     }
 

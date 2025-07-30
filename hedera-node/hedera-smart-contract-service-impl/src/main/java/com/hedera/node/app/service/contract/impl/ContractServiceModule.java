@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_046;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_062;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_065;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
@@ -16,7 +16,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
-import com.hedera.node.app.service.contract.impl.annotations.ServicesV062;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV065;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -29,8 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.v038.V038Module;
 import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
-import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
+import com.hedera.node.app.service.contract.impl.exec.v065.V065Module;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -55,7 +54,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V046Module.class,
             V050Module.class,
             V051Module.class,
-            V062Module.class,
+            V065Module.class,
             ProcessorModule.class
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
@@ -77,12 +76,6 @@ public interface ContractServiceModule {
     @Singleton
     static EvmConfiguration provideEvmConfiguration() {
         return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED);
-    }
-
-    @Provides
-    @Singleton
-    static HederaOpsDuration provideHederaOpsDuration() {
-        return new HederaOpsDuration();
     }
 
     /**
@@ -147,11 +140,11 @@ public interface ContractServiceModule {
 
     /**
      * @param processor the transaction processor
-     * @return the bound transaction processor for version 0.62
+     * @return the bound transaction processor for version 0.65
      */
     @Binds
     @IntoMap
     @Singleton
-    @ServicesVersionKey(VERSION_062)
-    TransactionProcessor bindV062Processor(@ServicesV062 @NonNull final TransactionProcessor processor);
+    @ServicesVersionKey(VERSION_065)
+    TransactionProcessor bindV065Processor(@ServicesV065 @NonNull final TransactionProcessor processor);
 }

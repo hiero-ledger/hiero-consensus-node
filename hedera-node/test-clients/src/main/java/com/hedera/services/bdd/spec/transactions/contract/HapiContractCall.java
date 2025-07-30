@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getOpsDurationValue;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static java.util.Objects.requireNonNull;
 
@@ -26,6 +27,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.swirlds.metrics.impl.AtomicDouble;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -60,6 +63,8 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     private Optional<ObjLongConsumer<ResponseCodeEnum>> gasObserver = Optional.empty();
     private Optional<Long> valueSent = Optional.of(0L);
+    private Optional<AtomicDouble> maxOpsDuration = Optional.empty();
+    private Optional<AtomicLong> successObserver = Optional.empty();
     private boolean convertableToEthCall = true;
     private Consumer<Object[]> resultObserver = null;
 
@@ -150,6 +155,16 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     public HapiContractCall sending(long amount) {
         valueSent = Optional.of(amount);
+        return this;
+    }
+
+    public HapiContractCall collectMaxOpsDuration(AtomicDouble duration) {
+        maxOpsDuration = Optional.of(duration);
+        return this;
+    }
+
+    public HapiContractCall countingSuccessfulTransactionTo(AtomicLong successCounter) {
+        successObserver = Optional.of(successCounter);
         return this;
     }
 
@@ -327,6 +342,16 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
                         .toByteArray());
                 resultObserver.accept(result.toArray());
             });
+        }
+        // Collect the maximum observed ops duration
+        if (maxOpsDuration.isPresent()) {
+            final double duration = getOpsDurationValue(spec);
+            if (duration > maxOpsDuration.get().get()) {
+                maxOpsDuration.get().getAndSet(duration);
+            }
+        }
+        if (successObserver.isPresent() && actualStatus == ResponseCodeEnum.SUCCESS) {
+            successObserver.get().incrementAndGet();
         }
     }
 

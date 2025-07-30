@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
-import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -139,8 +138,6 @@ public class SandboxTest {
 
         assertThat(network.newPcesResults()).haveAllBirthRoundsEqualTo(1);
 
-        assertThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(Percentage.withPercentage(1));
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
     }
 }

@@ -7,8 +7,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
@@ -49,7 +49,7 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     public void trackFeePayments(@NonNull final Instant consensusNow, @NonNull final State state) {
         // Used to update network utilization after charging fees for an invalid transaction
         final var chargingFeesCryptoTransfer = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.DEFAULT,
                 TransactionID.DEFAULT,
                 AccountID.DEFAULT,
@@ -71,8 +71,14 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     }
 
     @Override
-    public boolean shouldThrottleByOpsDuration(final long currentOpsDuration, @NonNull final Instant consensusTime) {
-        return backendThrottle.checkAndEnforceOpsDurationThrottle(currentOpsDuration, consensusTime);
+    public long availableOpsDurationCapacity(@NonNull final Instant consensusTime) {
+        return backendThrottle.availableOpsDurationCapacity(consensusTime);
+    }
+
+    @Override
+    public void consumeOpsDurationThrottleCapacity(
+            final long opsDurationUnitsToConsume, @NonNull final Instant consensusTime) {
+        backendThrottle.consumeOpsDurationThrottleCapacity(opsDurationUnitsToConsume, consensusTime);
     }
 
     @Override

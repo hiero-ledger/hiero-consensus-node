@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
-import static com.hedera.statevalidation.parameterresolver.InitUtils.CONFIGURATION;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processObjects;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
+import static java.lang.Math.toIntExact;
 import static java.math.RoundingMode.HALF_UP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -18,8 +18,6 @@ import com.hedera.statevalidation.reporting.StorageReport;
 import com.hedera.statevalidation.reporting.VirtualMapReport;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -29,8 +27,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,8 +54,10 @@ public class StateAnalyzer {
                 labelAndDs,
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
+                vds.getPathToDiskLocationLeafNodes().size(),
                 VirtualMapReport::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
+        System.out.println("[Report] Duplicates for path to key value storage:\n" + report);
     }
 
     @ParameterizedTest
@@ -68,8 +68,10 @@ public class StateAnalyzer {
                 labelAndDs,
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
+                vds.getPathToDiskLocationInternalNodes().size(),
                 VirtualMapReport::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
+        System.out.println("[Report] Duplicates for path to hash storage:\n" + report);
     }
 
     @ParameterizedTest
@@ -84,26 +86,28 @@ public class StateAnalyzer {
             VirtualMapAndDataSourceRecord labelAndDs,
             Report report,
             DataFileCollection dataFileCollection,
+            long indexSize,
             BiConsumer<VirtualMapReport, StorageReport> vmReportUpdater,
             Function<ReadableSequentialData, ?> deser) {
         VirtualMapReport vmReport =
                 report.getVmapReportByName().computeIfAbsent(labelAndDs.name(), k -> new VirtualMapReport());
-        StorageReport storageReport = createStoreReport(dataFileCollection, deser);
+        StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deser);
         KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
         storageReport.setMinPath(validKeyRange.getMinValidKey());
         storageReport.setMaxPath(validKeyRange.getMaxValidKey());
         vmReportUpdater.accept(vmReport, storageReport);
     }
 
-    private static StorageReport createStoreReport(DataFileCollection dfc, Function<ReadableSequentialData, ?> deser) {
-        LongList itemCountByPath = new LongListHeap(50_000_000, CONFIGURATION);
+    private static StorageReport createStoreReport(
+            DataFileCollection dfc, long indexSize, Function<ReadableSequentialData, ?> deser) {
+        LongCountArray itemCountByPath = new LongCountArray(indexSize);
         List<DataFileReader> readers = dfc.getAllCompletedFiles();
 
-        AtomicInteger duplicateItemCount = new AtomicInteger();
-        AtomicInteger failure = new AtomicInteger();
-        AtomicInteger itemCount = new AtomicInteger();
-        AtomicInteger fileCount = new AtomicInteger();
-        AtomicInteger sizeInMb = new AtomicInteger();
+        AtomicLong duplicateItemCount = new AtomicLong();
+        AtomicLong failure = new AtomicLong();
+        AtomicLong itemCount = new AtomicLong();
+        AtomicLong fileCount = new AtomicLong();
+        AtomicLong sizeInMb = new AtomicLong();
         AtomicLong wastedSpaceInBytes = new AtomicLong();
 
         Consumer<DataFileReader> dataFileProcessor = d -> {
@@ -138,15 +142,13 @@ public class StateAnalyzer {
                         } else {
                             throw new UnsupportedOperationException("Unsupported data item type");
                         }
-                        long oldVal = itemCountByPath.get(path);
+
+                        long oldVal = itemCountByPath.getAndIncrement(path);
                         if (oldVal > 0) {
-                            itemCountByPath.put(path, oldVal + 1);
                             wastedSpaceInBytes.addAndGet(itemSize);
                             if (oldVal == 1) {
                                 duplicateItemCount.incrementAndGet();
                             }
-                        } else {
-                            itemCountByPath.put(path, 1);
                         }
                     } catch (Exception e) {
                         failure.incrementAndGet();
@@ -175,5 +177,33 @@ public class StateAnalyzer {
         storageReport.setOnDiskSizeInMb(sizeInMb.get());
         storageReport.setItemCount(itemCount.get());
         return storageReport;
+    }
+
+    static class LongCountArray {
+
+        static final int LONGS_PER_CHUNK = 1 << 20;
+        final long size;
+        AtomicLongArray[] arrays;
+
+        LongCountArray(long size) {
+            this.size = size;
+            int maxChunkIndex = toIntExact((size - 1) / LONGS_PER_CHUNK);
+            arrays = new AtomicLongArray[maxChunkIndex + 1];
+            for (int i = 0; i < arrays.length; ++i) {
+                arrays[i] = new AtomicLongArray(LONGS_PER_CHUNK);
+            }
+        }
+
+        long size() {
+            return size;
+        }
+
+        long getAndIncrement(long idx) {
+            if (idx < 0 || idx >= size) {
+                throw new IndexOutOfBoundsException();
+            }
+            int chunkIdx = toIntExact(idx / LONGS_PER_CHUNK);
+            return arrays[chunkIdx].getAndIncrement(toIntExact(idx % LONGS_PER_CHUNK));
+        }
     }
 }

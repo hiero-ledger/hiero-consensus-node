@@ -12,8 +12,10 @@ public interface AsyncNetworkActions {
      * Start the network with the currently configured setup and timeout
      *
      * @see Network#start()
+     *
+     * @throws InterruptedException if the thread is interrupted while the network is started
      */
-    void start();
+    void start() throws InterruptedException;
 
     /**
      * Freezes the network with the configured timeout.

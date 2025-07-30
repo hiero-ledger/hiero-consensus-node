@@ -146,6 +146,12 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because the intake counter is too high");
     private final CountPerSecond doNotSyncIntakeCounter;
 
+    private static final CountPerSecond.Config DO_NOT_SYNC_FAIR_SELECTOR_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncFairSelector")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because of the fair selector");
+    private final CountPerSecond doNotSyncFairSelector;
+
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
             .withDescription("number of rpc thread running in read mode");
@@ -157,6 +163,10 @@ public class SyncMetrics {
     private final IntegerGauge.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcDispatchThreadRunning")
             .withDescription("number of rpc thread running in dispatch mode");
+
+    private final IntegerGauge.Config SYNCS_IN_PROGRESS_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "syncs_in_progress")
+            .withDescription("number of syncs running concurrently");
 
     private final RunningAverageMetric tipsPerSync;
 
@@ -182,6 +192,7 @@ public class SyncMetrics {
     private final IntegerGauge rpcReadThreadRunning;
     private final IntegerGauge rpcWriteThreadRunning;
     private final IntegerGauge rpcDispatchThreadRunning;
+    private final IntegerGauge syncsInProgress;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -214,10 +225,12 @@ public class SyncMetrics {
         doNotSyncAlreadyStarted = new CountPerSecond(metrics, DO_NOT_SYNC_ALREADY_STARTED_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
+        doNotSyncFairSelector = new CountPerSecond(metrics, DO_NOT_SYNC_FAIR_SELECTOR_CONFIG);
 
         rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
+        syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -506,6 +519,13 @@ public class SyncMetrics {
     }
 
     /**
+     * Signal that we chose not to sync because the intake counter is too high.
+     */
+    public void doNotSyncFairSelector() {
+        doNotSyncFairSelector.count();
+    }
+
+    /**
      * Report size of the outgoing queue
      *
      * @param size size of the queue
@@ -605,5 +625,19 @@ public class SyncMetrics {
      */
     public void rpcDispatchThreadRunning(final int change) {
         rpcDispatchThreadRunning.add(change);
+    }
+
+    /**
+     * Report that synchronization has started
+     */
+    public void syncStarted() {
+        syncsInProgress.add(+1);
+    }
+
+    /**
+     * Report that synchronization has finished
+     */
+    public void syncFinished() {
+        syncsInProgress.add(-1);
     }
 }

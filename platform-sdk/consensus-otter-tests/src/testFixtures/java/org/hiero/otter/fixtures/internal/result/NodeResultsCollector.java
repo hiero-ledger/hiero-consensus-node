@@ -13,6 +13,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
+import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
+import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
@@ -28,9 +30,11 @@ public class NodeResultsCollector {
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
+    private final List<MarkerFileSubscriber> markerFileSubscribers = new CopyOnWriteArrayList<>();
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
+    private volatile MarkerFilesStatus markerFilesStatus = MarkerFilesStatus.INITIAL_STATUS;
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -107,6 +111,7 @@ public class NodeResultsCollector {
      * @param subscriber the subscriber that will receive the rounds
      */
     public void subscribeConsensusRoundSubscriber(@NonNull final ConsensusRoundSubscriber subscriber) {
+        requireNonNull(subscriber);
         consensusRoundSubscribers.add(subscriber);
     }
 
@@ -137,7 +142,41 @@ public class NodeResultsCollector {
      * @param subscriber the subscriber that will receive the platform statuses
      */
     public void subscribePlatformStatusSubscriber(@NonNull final PlatformStatusSubscriber subscriber) {
+        requireNonNull(subscriber);
         platformStatusSubscribers.add(subscriber);
+    }
+
+    /**
+     * Add new marker files to the collector.
+     *
+     * @param markerFileNames the names of the new marker files
+     */
+    public void addMarkerFiles(@NonNull final List<String> markerFileNames) {
+        requireNonNull(markerFilesStatus);
+        if (!destroyed && !markerFileNames.isEmpty()) {
+            this.markerFilesStatus = markerFilesStatus.withMarkerFiles(markerFileNames);
+            markerFileSubscribers.removeIf(subscriber ->
+                    subscriber.onNewMarkerFile(nodeId, markerFilesStatus) == SubscriberAction.UNSUBSCRIBE);
+        }
+    }
+
+    /**
+     * Returns the current status of marker files for the node.
+     *
+     * @return the current status of marker files
+     */
+    public MarkerFilesStatus markerFilesStatus() {
+        return markerFilesStatus;
+    }
+
+    /**
+     * Subscribes to marker file updates for the node.
+     *
+     * @param subscriber the subscriber that will receive updates about marker files
+     */
+    public void subscribeMarkerFileSubscriber(@NonNull final MarkerFileSubscriber subscriber) {
+        requireNonNull(subscriber);
+        markerFileSubscribers.add(subscriber);
     }
 
     /**

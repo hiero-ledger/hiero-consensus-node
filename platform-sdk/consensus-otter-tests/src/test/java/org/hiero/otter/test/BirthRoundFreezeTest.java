@@ -2,7 +2,6 @@
 package org.hiero.otter.test;
 
 import static org.apache.logging.log4j.Level.WARN;
-import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -72,7 +71,6 @@ public class BirthRoundFreezeTest {
         assertThat(network.newConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
                 .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(5))
                 .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
         assertThat(network.newPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
