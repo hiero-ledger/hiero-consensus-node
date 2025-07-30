@@ -202,11 +202,6 @@ public class PairedStreamBuilder
         return recordStreamBuilder.getGasUsedForContractTxn();
     }
 
-    @Override
-    public long getOpsDurationForContractTxn() {
-        return recordStreamBuilder.getOpsDurationForContractTxn();
-    }
-
     @NonNull
     @Override
     public ResponseCodeEnum status() {
