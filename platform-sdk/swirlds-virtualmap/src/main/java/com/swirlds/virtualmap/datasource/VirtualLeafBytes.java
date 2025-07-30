@@ -244,9 +244,11 @@ public class VirtualLeafBytes<V> {
         int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
 
         final Bytes vb = valueBytes();
-        final int valueLen = (vb != null) ? Math.toIntExact(vb.length()) : -1;
-        if (valueLen >= 0) {
-            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+        if (vb != null) {
+            final int valueLen = Math.toIntExact(vb.length());
+            if (valueLen > 0) {
+                innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+            }
         }
 
         // `1 +` for 0x00 prefix
@@ -258,23 +260,29 @@ public class VirtualLeafBytes<V> {
         out.reset();
         assert out.remaining() >= getSizeInBytesForHashing();
 
+        // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
+        // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
         out.writeByte((byte) 0x00);
 
         final Bytes kb = keyBytes();
         final int keyLen = Math.toIntExact(kb.length());
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
 
         final Bytes vb = valueBytes();
-        final int valueLen = (vb != null) ? Math.toIntExact(vb.length()) : -1;
-
-        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
-        if (valueLen >= 0) {
-            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+        if (vb != null) {
+            final int valueLen = Math.toIntExact(vb.length());
+            if (valueLen > 0) {
+                innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+            }
         }
 
         ProtoWriterTools.writeDelimited(out, FIELD_MERKLELEAF_STATEITEM, innerLen, innerOut -> {
             ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_KEY, keyLen, kb::writeTo);
             if (vb != null) {
-                ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
+                final int valueLen = Math.toIntExact(vb.length());
+                if (valueLen > 0) {
+                    ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
+                }
             }
         });
 
