@@ -45,6 +45,7 @@ module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.state to
             com.hedera.node.services.cli,
             com.hedera.node.app.service.contract.impl.test,
+            com.hedera.node.test.clients,
             com.hedera.node.app;
 
     opens com.hedera.node.app.service.contract.impl.utils to

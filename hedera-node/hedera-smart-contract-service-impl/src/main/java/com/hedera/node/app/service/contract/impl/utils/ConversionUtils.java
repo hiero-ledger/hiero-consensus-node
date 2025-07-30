@@ -1139,4 +1139,27 @@ public class ConversionUtils {
             }
         }
     }
+
+    /**
+     * Returns a minimal representation of the given bytes, stripping leading zeros.
+     * @param bytes the bytes to strip leading zeros from
+     * @return the minimal representation of the bytes, or an empty bytes if all bytes were stripped
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes minimalRepresentationOf(
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        int i = 0;
+        int n = (int) bytes.length();
+        while (i < n && bytes.getByte(i) == 0) {
+            i++;
+        }
+        if (i == n) {
+            return com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY;
+        } else if (i == 0) {
+            return bytes;
+        } else {
+            final var stripped = new byte[n - i];
+            bytes.getBytes(i, stripped, 0, n - i);
+            return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(stripped);
+        }
+    }
 }

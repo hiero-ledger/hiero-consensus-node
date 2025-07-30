@@ -244,6 +244,11 @@ public class CommonPbjConverters {
         return builder.build();
     }
 
+    public static @NonNull ContractID toPbj(@NonNull com.hederahashgraph.api.proto.java.ContractID contractID) {
+        requireNonNull(contractID);
+        return protoToPbj(contractID, ContractID.class);
+    }
+
     public static @NonNull EntityNumber toPbj(@NonNull com.hederahashgraph.api.proto.java.EntityNumber entityNumber) {
         requireNonNull(entityNumber);
         final var builder = EntityNumber.newBuilder().number(entityNumber.getNumber());

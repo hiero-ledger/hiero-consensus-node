@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.LambdaSStore;
 import static java.util.Objects.requireNonNull;
 
@@ -9,6 +10,7 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hederahashgraph.api.proto.java.CreatedHookId;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.LambdaMappingEntries;
 import com.hederahashgraph.api.proto.java.LambdaSStoreTransactionBody;
@@ -31,7 +33,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
     @NonNull
     private final String ownerName;
 
-    private final long index;
+    private final long hookId;
 
     public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long index) {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, index);
@@ -56,10 +58,10 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
     private HapiLambdaSStore(
             @NonNull final HookEntityId.EntityIdOneOfType entityType,
             @NonNull final String ownerName,
-            final long index) {
+            final long hookId) {
         this.ownerType = requireNonNull(entityType);
         this.ownerName = requireNonNull(ownerName);
-        this.index = index;
+        this.hookId = hookId;
     }
 
     @Override
@@ -83,6 +85,14 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         final var op = spec.txns()
                 .<LambdaSStoreTransactionBody, LambdaSStoreTransactionBody.Builder>body(
                         LambdaSStoreTransactionBody.class, b -> {
+                            final var idBuilder = CreatedHookId.newBuilder().setHookId(hookId);
+                            switch (ownerType) {
+                                case ACCOUNT_ID ->
+                                    idBuilder.setEntityId(com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
+                                            .setAccountId(asId(ownerName, spec)));
+                                default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+                            }
+                            b.setHookId(idBuilder);
                             slots.forEach(slot -> b.addStorageUpdates(
                                     LambdaStorageUpdate.newBuilder().setStorageSlot(slot)));
                             entries.forEach(entries -> b.addStorageUpdates(

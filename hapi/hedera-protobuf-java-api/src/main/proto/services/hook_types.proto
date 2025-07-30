@@ -54,10 +54,10 @@ message HookCreation {
   HookCreationDetails details = 2;
 
   /**
-   * The id of the hook the new hook should be previous* to in the owner's
+   * If set, the id of the hook following this one in the owner's
    * doubly-linked list of hooks.
    */
-  int64 next_hook_id = 3;
+  google.protobuf.Int64Value next_hook_id = 9;
 }
 
 /***

@@ -3,7 +3,10 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
+import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
+import static com.hedera.hapi.node.state.hooks.EvmHookType.PURE;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
+import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_KEY;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_KEY;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.INSERTION;
@@ -14,12 +17,10 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.CreatedHookId;
-import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
-import com.hedera.hapi.node.state.hooks.EvmHookType;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
@@ -35,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Read/write access to lambda states.
+ * Read/write access to the EVM hook states.
  */
 public class WritableEvmHookStore extends ReadableEvmHookStore {
     private static final Logger log = LogManager.getLogger(WritableEvmHookStore.class);
@@ -67,7 +68,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      * @param updates the slot updates
      * @throws HandleException if the lambda ID is not found
      */
-    public void updateSlots(@NonNull final CreatedHookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
+    public int updateSlots(@NonNull final CreatedHookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
             throws HandleException {
         final List<Bytes> keys = new ArrayList<>(updates.size());
         for (final var update : updates) {
@@ -87,11 +88,11 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
             firstKey = switch (update.asAccessType()) {
                 case REMOVAL -> {
                     removals++;
-                    yield removeSlot(firstKey, hookId, update.key());
+                    yield removeSlot(hookId, firstKey, update.key());
                 }
                 case INSERTION -> {
                     insertions++;
-                    yield insertSlot(firstKey, hookId, update.key(), update.newValueOrThrow());
+                    yield insertSlot(hookId, firstKey, update.key(), update.newValueOrThrow());
                 }
                 case UPDATE -> {
                     final var slotValue =
@@ -103,6 +104,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
             };
         }
         if (insertions != 0 || removals != 0) {
+            final int delta = insertions - removals;
+            entityCounters.adjustEntityCount(LAMBDA_STORAGE, delta);
             final var hookState = view.state();
             hookStates.put(
                     hookId,
@@ -111,12 +114,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
                             .firstContractStorageKey(firstKey)
                             .numStorageSlots(hookState.numStorageSlots() + insertions - removals)
                             .build());
+            return delta;
         }
+        return 0;
     }
 
     /**
-     * Marks the lambda as deleted.
-     *
+     * Marks the given hook as deleted.
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
@@ -128,23 +132,20 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
 
     /**
      * Tries to create a new EVM hook for the given entity.
-     * @param entityId the entity ID
      * @param creation the hook creation spec
      * @throws HandleException if the creation fails
      */
-    public void createEvmHook(
-            @NonNull final HookEntityId entityId, @NonNull final HookCreation creation, final long nextHookId)
-            throws HandleException {
+    public void createEvmHook(@NonNull final HookCreation creation) throws HandleException {
         final var details = creation.detailsOrThrow();
-        final var hookId = new CreatedHookId(entityId, details.hookId());
+        final var hookId = new CreatedHookId(creation.entityIdOrThrow(), details.hookId());
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
         final var type =
                 switch (details.hook().kind()) {
-                    case PURE_EVM_HOOK -> EvmHookType.PURE;
-                    case LAMBDA_EVM_HOOK -> EvmHookType.LAMBDA;
+                    case PURE_EVM_HOOK -> PURE;
+                    case LAMBDA_EVM_HOOK -> LAMBDA;
                     default -> throw new IllegalStateException("Not an EVM hook - " + creation);
                 };
-        final var evmHookSpec = type == EvmHookType.PURE
+        final var evmHookSpec = type == PURE
                 ? details.pureEvmHookOrThrow().specOrThrow()
                 : details.lambdaEvmHookOrThrow().specOrThrow();
         final var state = EvmHookState.newBuilder()
@@ -155,14 +156,17 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
                 .deleted(false)
                 .firstContractStorageKey(Bytes.EMPTY)
                 .previousHookId(null)
-                .nextHookId(nextHookId)
+                .nextHookId(creation.nextHookId())
                 .numStorageSlots(0)
                 .build();
         hookStates.put(hookId, state);
-        if (type == EvmHookType.LAMBDA) {
+        if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {
-                updateSlots(hookId, initialUpdates);
+                final int delta = updateSlots(hookId, initialUpdates);
+                if (delta != 0) {
+                    entityCounters.adjustEntityCount(LAMBDA_STORAGE, delta);
+                }
             }
         }
         entityCounters.incrementEntityTypeCount(HOOK);
@@ -180,7 +184,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         }
 
         public @NonNull Bytes newValueOrThrow() {
-            return zeroPaddedTo32(requireNonNull(newValue));
+            return requireNonNull(newValue);
         }
 
         public StorageAccessType asAccessType() {
@@ -194,15 +198,15 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
 
     /**
      * Removes the given key from the slot storage and from the linked list of storage for the given contract.
-     * @param firstStorageKey The first key in the linked list of storage for the given contract
+     *
      * @param hookId The id of the lambda whose storage is being updated
+     * @param firstKey The first key in the linked list of storage for the given contract
      * @param key The slot key to remove
      * @return the new first key in the linked list of storage for the given contract
      */
     @NonNull
-    private Bytes removeSlot(
-            @NonNull Bytes firstStorageKey, @NonNull final CreatedHookId hookId, @NonNull final Bytes key) {
-        requireNonNull(firstStorageKey);
+    private Bytes removeSlot(@NonNull final CreatedHookId hookId, @NonNull Bytes firstKey, @NonNull final Bytes key) {
+        requireNonNull(firstKey);
         requireNonNull(hookId);
         requireNonNull(key);
         final var slotKey = new LambdaSlotKey(hookId, key);
@@ -216,7 +220,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
             if (!Bytes.EMPTY.equals(prevKey)) {
                 updateNextFor(new LambdaSlotKey(hookId, prevKey), nextKey);
             }
-            firstStorageKey = key.equals(firstStorageKey) ? nextKey : firstStorageKey;
+            firstKey = key.equals(firstKey) ? nextKey : firstKey;
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.error(
@@ -226,44 +230,44 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
                     irreparable);
         }
         storage.remove(slotKey);
-        return firstStorageKey;
+        return firstKey;
     }
 
     /**
      * Inserts the given key into the slot storage and into the linked list of storage for the given contract.
      *
-     * @param firstStorageKey The first key in the linked list of storage for the given contract
      * @param hookId The contract id under consideration
-     * @param newKey The slot key to insert
-     * @param newValue The new value for the slot
+     * @param firstKey The first key in the linked list of storage for the given contract
+     * @param key The slot key to insert
+     * @param value The new value for the slot
      * @return the new first key in the linked list of storage for the given contract
      */
     @NonNull
     private Bytes insertSlot(
-            @NonNull final Bytes firstStorageKey,
             @NonNull final CreatedHookId hookId,
-            @NonNull final Bytes newKey,
-            @NonNull final Bytes newValue) {
-        requireNonNull(newKey);
-        requireNonNull(newValue);
+            @NonNull final Bytes firstKey,
+            @NonNull final Bytes key,
+            @NonNull final Bytes value) {
+        requireNonNull(key);
+        requireNonNull(value);
         try {
-            if (!Bytes.EMPTY.equals(firstStorageKey)) {
-                updatePrevFor(new LambdaSlotKey(hookId, firstStorageKey), newKey);
+            if (!Bytes.EMPTY.equals(firstKey)) {
+                updatePrevFor(new LambdaSlotKey(hookId, firstKey), key);
             }
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.error(
                     "Failed link management when inserting {}; will be unable to" + " expire all slots for contract {}",
-                    newKey,
+                    key,
                     hookId,
                     irreparable);
         }
-        storage.put(minimalKey(hookId, newKey), new SlotValue(newValue, Bytes.EMPTY, firstStorageKey));
-        return newKey;
+        storage.put(minimalKey(hookId, key), new SlotValue(value, Bytes.EMPTY, firstKey));
+        return key;
     }
 
     private LambdaSlotKey minimalKey(@NonNull final CreatedHookId hookId, @NonNull final Bytes key) {
-        return new LambdaSlotKey(hookId, minimal(key));
+        return new LambdaSlotKey(hookId, minimalKey(key));
     }
 
     private void updatePrevFor(@NonNull final LambdaSlotKey key, @NonNull final Bytes newPrevKey) {
@@ -276,7 +280,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         storage.put(key, value.copyBuilder().nextKey(newNextKey).build());
     }
 
-    private Bytes minimal(Bytes key) {
+    private Bytes minimalKey(@NonNull final Bytes key) {
         return Bytes.EMPTY.equals(key) ? ZERO_KEY : key;
     }
 

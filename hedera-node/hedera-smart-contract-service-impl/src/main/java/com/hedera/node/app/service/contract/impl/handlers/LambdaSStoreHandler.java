@@ -2,27 +2,41 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_LAMBDA_STORAGE_UPDATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_KEY_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_VALUE_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.minimalRepresentationOf;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.hooks.LambdaStorageSlot;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class LambdaSStoreHandler implements TransactionHandler {
-    private static final long MAX_KV_LEN = 32L;
+    private static final long MAX_UPDATE_BYTES_LEN = 32L;
 
     @Inject
     public LambdaSStoreHandler() {
@@ -40,18 +54,15 @@ public class LambdaSStoreHandler implements TransactionHandler {
         validateTruePreCheck(ownerType == ACCOUNT_ID, INVALID_HOOK_ID);
         for (final var update : op.storageUpdates()) {
             if (update.hasStorageSlot()) {
-                final var slot = update.storageSlotOrThrow();
-                validateTruePreCheck(slot.key().length() <= MAX_KV_LEN, LAMBDA_STORAGE_KEY_TOO_LONG);
-                validateTruePreCheck(slot.value().length() <= MAX_KV_LEN, LAMBDA_STORAGE_VALUE_TOO_LONG);
+                validate(update.storageSlotOrThrow());
             } else if (update.hasMappingEntries()) {
                 final var mappingEntries = update.mappingEntriesOrThrow();
-                validateTruePreCheck(mappingEntries.mappingSlot().length() <= MAX_KV_LEN, LAMBDA_STORAGE_KEY_TOO_LONG);
+                validate(mappingEntries.mappingSlot());
                 for (final var entry : mappingEntries.entries()) {
-                    validateTruePreCheck(entry.key().length() <= MAX_KV_LEN, LAMBDA_STORAGE_KEY_TOO_LONG);
-                    validateTruePreCheck(entry.value().length() <= MAX_KV_LEN, LAMBDA_STORAGE_VALUE_TOO_LONG);
+                    validate(entry);
                 }
             } else {
-                throw new PreCheckException(INVALID_LAMBDA_STORAGE_UPDATE);
+                throw new PreCheckException(EMPTY_LAMBDA_STORAGE_UPDATE);
             }
         }
     }
@@ -60,7 +71,25 @@ public class LambdaSStoreHandler implements TransactionHandler {
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
-        context.requireKeyOrThrow(op.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow(), INVALID_HOOK_ID);
+        final var store = context.createStore(ReadableEvmHookStore.class);
+        final var hook = store.getEvmHook(op.hookIdOrThrow());
+        validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
+        validateFalsePreCheck(hook.deleted(), HOOK_DELETED);
+        validateTruePreCheck(hook.type() == LAMBDA, HOOK_IS_NOT_A_LAMBDA);
+        final var ownerAccountId = hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
+        if (hook.hasAdminKey()) {
+            // Storage for a lambda with an admin key can be managed by either the creator or the admin
+            context.requireKeyOrThrow(
+                    ownerAccountId,
+                    ownerKey -> Key.newBuilder()
+                            .thresholdKey(ThresholdKey.newBuilder()
+                                    .threshold(1)
+                                    .keys(new KeyList(List.of(ownerKey, hook.adminKeyOrThrow()))))
+                            .build(),
+                    INVALID_HOOK_ID);
+        } else {
+            context.requireKeyOrThrow(ownerAccountId, INVALID_HOOK_ID);
+        }
     }
 
     @Override
@@ -68,6 +97,22 @@ public class LambdaSStoreHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
         final var lambdaStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
-        lambdaStore.updateSlots(op.hookIdOrThrow(), op.storageUpdates());
+        final int delta = lambdaStore.updateSlots(op.hookIdOrThrow(), op.storageUpdates());
+        if (delta != 0) {
+            final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+            final var ownerAccountId = op.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
+            tokenServiceApi.updateLambdaStorageSlots(ownerAccountId, delta);
+        }
+    }
+
+    private void validate(@NonNull final LambdaStorageSlot slot) throws PreCheckException {
+        validate(slot.key());
+        validate(slot.value());
+    }
+
+    private void validate(@NonNull final Bytes bytes) throws PreCheckException {
+        validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG);
+        final var minimalBytes = minimalRepresentationOf(bytes);
+        validateTruePreCheck(bytes == minimalBytes, LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
     }
 }
