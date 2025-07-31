@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -38,25 +37,28 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
 
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.getLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.getPlatformStatusResults())
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newPlatformStatusResults())
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
+        assertContinuouslyThat(network.newMarkerFileResults())
+                .haveNoNoSuperMajorityMarkerFiles()
+                .haveNoNoJudgesMarkerFiles()
+                .haveNoConsensusExceptionMarkerFiles()
+                .haveNoIssMarkerFiles();
 
         network.start();
 
-        // Wait for two minutes
+        // Wait for 30 seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(network.getConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(10));
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
-        assertThat(network.getPlatformStatusResults())
+        assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }
 }

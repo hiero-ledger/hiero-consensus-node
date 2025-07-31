@@ -14,6 +14,7 @@ import com.swirlds.metrics.api.DoubleGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -70,10 +71,15 @@ public class ThrottleMetrics {
                 .map(this::setupLiveMetricPair)
                 .toList();
 
+        // If there is a configured throttle to sample, that doesn't have a corresponding
+        // DeterministicThrottle live metric created (not sure when would that be the case?) we add it
+        // as an "inert" metric, that never changes.
+        // Unless it's a GAS or OPS_DURATION throttle - we don't include those.
+        final var throttlesExcludedFromInertMetrics = Set.of(GAS_THROTTLE_ID, OPS_DURATION_ID);
         final var throttleNames =
                 throttles.stream().map(DeterministicThrottle::name).collect(Collectors.toSet());
         throttlesToSample.stream()
-                .filter(name -> !throttleNames.contains(name) && !GAS_THROTTLE_ID.equals(name))
+                .filter(name -> !throttleNames.contains(name) && !throttlesExcludedFromInertMetrics.contains(name))
                 .forEach(this::setupInertMetric);
     }
 

@@ -4,6 +4,7 @@ package com.swirlds.demo.migration.virtual;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A self serializable supplier for AccountVirtualMapValue.
@@ -45,7 +46,12 @@ public class AccountVirtualMapValueSerializer implements ValueSerializer<Account
      */
     @Override
     public int getSerializedSize() {
-        return AccountVirtualMapValue.getSizeInBytes();
+        return VARIABLE_DATA_SIZE;
+    }
+
+    @Override
+    public int getSerializedSize(@NonNull AccountVirtualMapValue value) {
+        return value.getSizeInBytes();
     }
 
     @Override

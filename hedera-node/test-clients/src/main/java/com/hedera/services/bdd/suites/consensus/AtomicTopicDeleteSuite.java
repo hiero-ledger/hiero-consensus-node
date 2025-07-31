@@ -54,7 +54,7 @@ public class AtomicTopicDeleteSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("nonTopicId"),
                 atomicBatch(deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                                .hasPrecheck(INVALID_TOPIC_ID)
+                                .hasKnownStatus(INVALID_TOPIC_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -66,7 +66,7 @@ public class AtomicTopicDeleteSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("nonTopicId"),
                 atomicBatch(deleteTopic((String) null)
-                                .hasPrecheck(INVALID_TOPIC_ID)
+                                .hasKnownStatus(INVALID_TOPIC_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

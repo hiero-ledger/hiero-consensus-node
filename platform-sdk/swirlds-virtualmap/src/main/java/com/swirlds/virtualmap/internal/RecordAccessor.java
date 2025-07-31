@@ -5,14 +5,11 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
@@ -25,18 +22,12 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * a layer on top of the cache and the data source. Every request is first sent to the
  * cache. If the cache doesn't contain the requested record, it is looked up in the data
  * source.
- *
- * @param <K>
- *     The key
- * @param <V>
- *     The value
  */
-public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
+@SuppressWarnings("rawtypes")
+public final class RecordAccessor {
 
-    private final VirtualStateAccessor state;
-    private final VirtualNodeCache<K, V> cache;
-    private final KeySerializer<K> keySerializer;
-    private final ValueSerializer<V> valueSerializer;
+    private final VirtualMapMetadata state;
+    private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
 
     /**
@@ -46,23 +37,15 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
      * 		The state. Cannot be null.
      * @param cache
      * 		The cache. Cannot be null.
-     * @param keySerializer
-     *      The key serializer. Can be null.
-     * @param valueSerializer
-     *      The value serializer. Can be null.
      * @param dataSource
      * 		The data source. Can be null.
      */
     public RecordAccessor(
-            final VirtualStateAccessor state,
-            final VirtualNodeCache<K, V> cache,
-            final KeySerializer<K> keySerializer,
-            final ValueSerializer<V> valueSerializer,
-            final VirtualDataSource dataSource) {
+            @NonNull final VirtualMapMetadata state,
+            @NonNull final VirtualNodeCache cache,
+            @NonNull final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
         this.cache = Objects.requireNonNull(cache);
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
         this.dataSource = dataSource;
     }
 
@@ -78,12 +61,9 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    public Hash findHash(long path) {
+    public Hash findHash(final long path) {
         assert path >= 0;
-        final Hash hash = cache.lookupHashByPath(path, false);
-        if (hash == VirtualNodeCache.DELETED_HASH) {
-            return null;
-        }
+        final Hash hash = cache.lookupHashByPath(path);
         if (hash != null) {
             return hash;
         }
@@ -108,10 +88,7 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
      */
     public boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException {
         assert path >= 0;
-        final Hash hash = cache.lookupHashByPath(path, false);
-        if (hash == VirtualNodeCache.DELETED_HASH) {
-            return false;
-        }
+        final Hash hash = cache.lookupHashByPath(path);
         if (hash != null) {
             hash.serialize(out);
             return true;
@@ -126,28 +103,20 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
      * it in memory, set <code>cache</code> to true. If the key cannot be found in
      * the data source, then null is returned.
      *
-     * @param key
-     * 		The key. Must not be null.
-     * @param copy
-     * 		Whether to make a fast copy if needed.
+     * @param key The key. Must not be null.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    public VirtualLeafRecord<K, V> findLeafRecord(final K key, final boolean copy) {
-        VirtualLeafRecord<K, V> rec = cache.lookupLeafByKey(key, copy);
+    public VirtualLeafBytes findLeafRecord(final @NonNull Bytes key) {
+        VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec == null) {
             try {
-                final Bytes keyBytes = keySerializer.toBytes(key);
-                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(keyBytes, key.hashCode());
-                if (leafBytes != null) {
-                    rec = leafBytes.toRecord(keySerializer, valueSerializer);
-                    assert rec.getKey().equals(key)
+                rec = dataSource.loadLeafRecord(key);
+                if (rec != null) {
+                    assert rec.keyBytes().equals(key)
                             : "The key we found from the DB does not match the one we were looking for! key=" + key;
-                    if (copy) {
-                        cache.putLeaf(rec);
-                    }
                 }
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a leaf record from the data source by key", ex);
@@ -166,14 +135,12 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
      *
      * @param path
      * 		The path
-     * @param copy
-     * 		Whether to make a fast copy if needed.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    public VirtualLeafRecord<K, V> findLeafRecord(final long path, final boolean copy) {
+    public VirtualLeafBytes findLeafRecord(final long path) {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
 
@@ -181,15 +148,13 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
             return null;
         }
 
-        VirtualLeafRecord<K, V> rec = cache.lookupLeafByPath(path, copy);
+        VirtualLeafBytes rec = cache.lookupLeafByPath(path);
         if (rec == null) {
             try {
-                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(path);
-                if (leafBytes != null) {
-                    rec = leafBytes.toRecord(keySerializer, valueSerializer);
-                    if (copy) {
-                        cache.putLeaf(rec);
-                    }
+                rec = dataSource.loadLeafRecord(path);
+                if (rec != null) {
+                    assert rec.path() == path
+                            : "The path we found from the DB does not match the one we were looking for! path=" + path;
                 }
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a leaf record from the data source by path", ex);
@@ -201,18 +166,16 @@ public final class RecordAccessor<K extends VirtualKey, V extends VirtualValue> 
 
     /**
      * Finds the path of the given key.
-     * @param key
-     * 		The key. Must not be null.
+     * @param key The key. Must not be null.
      * @return The path or INVALID_PATH if the key is not found.
      */
-    public long findKey(final K key) {
-        final VirtualLeafRecord<K, V> rec = cache.lookupLeafByKey(key, false);
+    public long findKey(final @NonNull Bytes key) {
+        final VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec != null) {
-            return rec.getPath();
+            return rec.path();
         }
         try {
-            final Bytes keyBytes = keySerializer.toBytes(key);
-            return dataSource.findKey(keyBytes, key.hashCode());
+            return dataSource.findKey(key);
         } catch (final IOException ex) {
             throw new UncheckedIOException("Failed to find key in the data source", ex);
         }

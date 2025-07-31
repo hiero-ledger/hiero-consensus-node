@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.handlers.staking;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.totalStake;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -1248,11 +1249,11 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         readableAccounts = readableBuilder.build();
         writableAccounts = writableBuilder.build();
 
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         given(context.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
 
-        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
         writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
     }

@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
@@ -15,7 +10,9 @@ import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 
 /**
@@ -23,15 +20,37 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final String outputDirectory;
-
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
      *
+     * @param lifeCycleSupplier a supplier that provides the current lifecycle state of the node
      * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
-    public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
-        this.outputDirectory = outputDirectory.toString();
+    public TurtleNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
+        super(lifeCycleSupplier);
+        setTurtleSpecificOverrides(outputDirectory);
+    }
+
+    private void setTurtleSpecificOverrides(@NonNull final Path outputDirectory) {
+        overriddenProperties.put(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP");
+        overriddenProperties.put(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
+        overriddenProperties.put(
+                StateCommonConfig_.SAVED_STATE_DIRECTORY,
+                outputDirectory.resolve("data/saved").toString());
+        overriddenProperties.put(
+                FileSystemManagerConfig_.ROOT_PATH,
+                outputDirectory.resolve("data").toString());
+        overriddenProperties.put(PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString());
+        overriddenProperties.put(
+                PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys").toString());
+        overriddenProperties.put(
+                PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps").toString());
+        overriddenProperties.put(
+                PathsConfig_.MARKER_FILES_DIR,
+                outputDirectory.resolve("data/saved/marker_files").toString());
+        overriddenProperties.put(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
+        overriddenProperties.put(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
     }
 
     /**
@@ -40,34 +59,5 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     @Override
     public TurtleNodeConfiguration self() {
         return this;
-    }
-
-    /**
-     * Gets the output directory for the Turtle node.
-     *
-     * @return the output directory as a string
-     */
-    public String getOutputDirectory() {
-        return outputDirectory;
-    }
-
-    /**
-     * Creates a configuration for the Turtle node using the overridden properties.
-     *
-     * @return the configuration for the Turtle node
-     */
-    @NonNull
-    Configuration createConfiguration() {
-        return new TestConfigBuilder()
-                .withConverter(SemanticVersion.class, new SemanticVersionConverter())
-                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
-                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0)
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory)
-                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
-                .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
-                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
-                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString())
-                .withSource(new SimpleConfigSource(overriddenProperties))
-                .getOrCreateConfig();
     }
 }

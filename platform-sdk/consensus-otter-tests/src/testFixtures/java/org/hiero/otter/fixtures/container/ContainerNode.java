@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -10,19 +11,29 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.ProtocolStringList;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -33,6 +44,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -42,20 +54,28 @@ import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
  * Implementation of {@link Node} for a container environment.
  */
-public class ContainerNode extends AbstractNode implements Node {
+public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -63,14 +83,16 @@ public class ContainerNode extends AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     private final ContainerImage container;
+    private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
     private final TestControlGrpc.TestControlBlockingStub blockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
-    private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
+    private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
+    private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -80,21 +102,32 @@ public class ContainerNode extends AbstractNode implements Node {
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
+     * @param outputDirectory the directory where the node's output will be stored
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
-            @NonNull final ImageFromDockerfile dockerImage) {
+            @NonNull final ImageFromDockerfile dockerImage,
+            @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
+
+        LogConfigBuilder.configureTest();
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+        this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
-        //noinspection resource
-        container = new ContainerImage(dockerImage, network, selfId);
+        final String savedStateDirectory = nodeConfiguration
+                .current()
+                .getConfigData(StateCommonConfig.class)
+                .savedStateDirectory()
+                .toString();
+
+        container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -102,6 +135,12 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
+
+        final InitRequest initRequest = InitRequest.newBuilder()
+                .setSelfId(ProtobufConverter.fromPbj(selfId))
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        blockingStub.init(initRequest);
     }
 
     private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
@@ -183,7 +222,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeConsensusResult getConsensusResult() {
+    public SingleNodeConsensusResult newConsensusResult() {
         return resultsCollector.getConsensusResult();
     }
 
@@ -192,7 +231,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeLogResult getLogResult() {
+    public SingleNodeLogResult newLogResult() {
         return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
@@ -201,7 +240,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePlatformStatusResults getPlatformStatusResults() {
+    public SingleNodePlatformStatusResult newPlatformStatusResult() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -210,8 +249,36 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodePcesResult getPcesResult() {
-        throw new UnsupportedOperationException("Not implemented yet!");
+    public SingleNodePcesResult newPcesResult() {
+        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+
+        final Configuration configuration = nodeConfiguration.current();
+        try {
+            final Path databaseDirectory =
+                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+            final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
+            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to resolve directory of PCES files", e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+        return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeMarkerFileResult newMarkerFileResult() {
+        return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 
     /**
@@ -219,9 +286,21 @@ public class ContainerNode extends AbstractNode implements Node {
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    // ignoring the Empty answer from destroyContainer
     void destroy() {
+        try {
+            // copy logs from container to the local filesystem
+            final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+            Files.createDirectories(logPath.resolve("swirlds-hashstream"));
+
+            container.copyFileFromContainer(
+                    "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+            container.copyFileFromContainer(
+                    "output/swirlds-hashstream/swirlds-hashstream.log",
+                    logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy logs from container", e);
+        }
+
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
@@ -230,6 +309,26 @@ public class ContainerNode extends AbstractNode implements Node {
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    @Override
+    public void tick(@NonNull final Instant now) {
+        EventMessage event;
+        while ((event = receivedEvents.poll()) != null) {
+            switch (event.getEventCase()) {
+                case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(event.getLogEntry()));
+                case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
+                case CONSENSUS_ROUNDS ->
+                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                case MARKER_FILE_ADDED -> {
+                    final ProtocolStringList markerFiles =
+                            event.getMarkerFileAdded().getMarkerFileNameList();
+                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    resultsCollector.addMarkerFiles(markerFiles);
+                }
+                default -> log.warn("Received unexpected event: {}", event);
+            }
+        }
     }
 
     /**
@@ -259,7 +358,6 @@ public class ContainerNode extends AbstractNode implements Node {
             log.info("Starting node {}...", selfId);
 
             final StartRequest startRequest = StartRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.fromPbj(selfId))
                     .setRoster(ProtobufConverter.fromPbj(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                     .setVersion(ProtobufConverter.fromPbj(version))
@@ -270,17 +368,7 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    switch (value.getEventCase()) {
-                        case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
-                        default -> {
-                            final String message = String.format(
-                                    "Received unknown message type from node %s: %s", selfId, value.getEventCase());
-                            throw new RuntimeException(message);
-                        }
-                    }
+                    receivedEvents.add(value);
                 }
 
                 @Override
@@ -290,16 +378,14 @@ public class ContainerNode extends AbstractNode implements Node {
                      * client receives an INTERNAL error. This is expected and must *not* fail the test.
                      * Only report unexpected errors that occur while the node is still running.
                      */
-                    if (lifeCycle == RUNNING) {
-                        if (!isExpectedError(error)) {
-                            final String message = String.format("gRPC error from node %s", selfId);
-                            fail(message, error);
-                        }
+                    if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
+                        final String message = String.format("gRPC error from node %s", selfId);
+                        fail(message, error);
                     }
                 }
 
                 private static boolean isExpectedError(final @NonNull Throwable error) {
-                    if (error instanceof StatusRuntimeException sre) {
+                    if (error instanceof final StatusRuntimeException sre) {
                         final Code code = sre.getStatus().getCode();
                         return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
                     }
@@ -341,7 +427,10 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            log.info("Starting synthetic bottleneck on node {}", selfId);
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
                     .build());
@@ -351,7 +440,10 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void stopSyntheticBottleneck() {
+            log.info("Stopping synthetic bottleneck on node {}", selfId);
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
                     .build());
@@ -361,6 +453,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
+        log.info("Received platform status change from {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;

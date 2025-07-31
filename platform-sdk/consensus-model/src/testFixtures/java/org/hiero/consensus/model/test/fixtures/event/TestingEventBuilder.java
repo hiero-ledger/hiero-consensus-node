@@ -4,7 +4,6 @@ package org.hiero.consensus.model.test.fixtures.event;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -82,8 +81,6 @@ public class TestingEventBuilder {
      * If not set, transactions will be auto generated, based on configured settings.
      */
     private List<Bytes> transactionBytes;
-
-    private List<EventTransaction> transactions;
 
     /**
      * The self parent of the event.
@@ -192,7 +189,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of app transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfAppTransactions the number of app transactions
      * @return this instance
@@ -209,7 +206,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of system transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
@@ -229,7 +226,7 @@ public class TestingEventBuilder {
     /**
      * Set the transaction size.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param transactionSize the transaction size
      * @return this instance
@@ -240,27 +237,6 @@ public class TestingEventBuilder {
         }
 
         this.transactionSize = transactionSize;
-        return this;
-    }
-
-    /**
-     * Explicitly set the transactions of an event.
-     * <p>
-     * Throws an exception if app transaction count, system transaction count, or transaction size are set.
-     *
-     * @param transactions the transactions
-     * @return this instance
-     * @deprecated the {@link EventTransaction} type will be removed in the future
-     */
-    @Deprecated
-    public @NonNull TestingEventBuilder setTransactions(@Nullable final List<EventTransaction> transactions) {
-        if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
-            throw new IllegalStateException(
-                    "Cannot set transactions when app transaction count, system transaction count, or transaction "
-                            + "size are explicitly set");
-        }
-
-        this.transactions = transactions;
         return this;
     }
 
@@ -393,7 +369,7 @@ public class TestingEventBuilder {
     /**
      * Generate transactions based on the settings provided.
      * <p>
-     * Only utilized if the transactions are not set with {@link #setTransactions}.
+     * Only utilized if the transactions are not set with {@link #setTransactionBytes(List)}.
      *
      * @return the generated transactions
      */

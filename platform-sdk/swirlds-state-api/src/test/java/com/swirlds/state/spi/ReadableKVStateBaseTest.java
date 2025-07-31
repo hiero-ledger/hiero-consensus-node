@@ -5,6 +5,7 @@ package com.swirlds.state.spi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.HashMap;
@@ -19,8 +20,8 @@ import org.junit.jupiter.api.Test;
  * ReadableKVStateBase#reset()}) will be covered by other tests in addition to this one.
  */
 public class ReadableKVStateBaseTest extends StateTestBase {
-    private ReadableKVStateBase<String, String> state;
-    protected Map<String, String> backingMap;
+    private ReadableKVStateBase<ProtoBytes, ProtoBytes> state;
+    protected Map<ProtoBytes, ProtoBytes> backingMap;
 
     @BeforeEach
     void setUp() {
@@ -28,8 +29,8 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         this.state = createFruitState(this.backingMap);
     }
 
-    protected Map<String, String> createBackingMap() {
-        final var map = new HashMap<String, String>();
+    protected Map<ProtoBytes, ProtoBytes> createBackingMap() {
+        final var map = new HashMap<ProtoBytes, ProtoBytes>();
         map.put(A_KEY, APPLE);
         map.put(B_KEY, BANANA);
         map.put(C_KEY, CHERRY);
@@ -40,8 +41,15 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         return map;
     }
 
-    protected ReadableKVStateBase<String, String> createFruitState(Map<String, String> backingMap) {
-        return new MapReadableKVState<>(FRUIT_STATE_KEY, backingMap);
+    protected ReadableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(Map<ProtoBytes, ProtoBytes> backingMap) {
+        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, backingMap);
+    }
+
+    /** Make sure the constructor is holding onto the service name properly */
+    @Test
+    @DisplayName("The service name must match what was provided in the constructor")
+    void testServiceName() {
+        assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
     }
 
     /** Make sure the constructor is holding onto the state key properly */
@@ -133,6 +141,6 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     void testIteration() {
         assertThat(state.keys())
                 .toIterable()
-                .containsExactlyInAnyOrder(backingMap.keySet().toArray(new String[0]));
+                .containsExactlyInAnyOrder(backingMap.keySet().toArray(new ProtoBytes[0]));
     }
 }
