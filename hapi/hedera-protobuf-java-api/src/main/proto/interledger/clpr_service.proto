@@ -14,7 +14,7 @@ syntax = "proto3";
 package org.hiero.hapi.interledger.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
-option java_package = "com.hederahashgraph.service.proto.java";
+option java_package = "org.hiero.hapi.interledger.clpr.legacy";
 // <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
 
 import "services/query.proto";
