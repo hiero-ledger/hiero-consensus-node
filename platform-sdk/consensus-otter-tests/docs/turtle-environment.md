@@ -363,8 +363,8 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
     env.timeManager().waitFor(Duration.ofSeconds(30));
 
     // Results will be identical across runs
-    final long lastRound = network.getConsensusResults()
-        .results().get(0).lastRoundNum();
+    final long lastRound = network.newConsensusResults()
+            .results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
     assertThat(lastRound).isEqualTo(35);

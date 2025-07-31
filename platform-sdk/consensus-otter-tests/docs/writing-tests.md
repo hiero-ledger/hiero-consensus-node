@@ -264,7 +264,7 @@ void testWithRegularAssertion(@NonNull final TestEnvironment env) throws Interru
     network.start();
 
     final TimeManager timeManager = env.timeManager();
-    timeManager.waitFor(Duration.ofMinutes(2));
+    timeManager.waitFor(Duration.ofSeconds(30));
 
     // Fluent assertion with method chaining
     assertThat(network.newConsensusResults())
@@ -295,7 +295,7 @@ void testWithContinuousAssertion(@NonNull final TestEnvironment env) throws Inte
         .haveNoErrorLevelMessages();
 
     network.start();
-    timeManager.waitFor(Duration.ofMinutes(5));
+    timeManager.waitFor(Duration.ofSeconds(30));
 }
 ```
 

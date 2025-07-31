@@ -17,7 +17,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
-import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 
 /**
@@ -58,7 +58,7 @@ class DocExamplesTest {
         env.timeManager().waitFor(Duration.ofSeconds(30));
 
         // Results will be identical across runs
-        final long lastRound = network.newConsensusResults().results().get(0).lastRoundNum();
+        final long lastRound = network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
         assertThat(lastRound).isEqualTo(35);
@@ -88,20 +88,25 @@ class DocExamplesTest {
     }
 
     // This test is used in the writing-tests.md file.
-    @OtterTest(requires = Capability.RECONNECT)
+    @OtterTest
     void testSuppressingResults(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
-        final Node problematicNode = network.getNodes().getFirst();
+        final List<Node> nodes = network.addNodes(4);
+        final Node node = nodes.getFirst();
+        final Node problematicNode = nodes.getFirst();
 
         // Ignore specific nodes
-        network.newLogResults().suppressingNode(problematicNode);
+        assertThat(network.newLogResults().suppressingNode(problematicNode))
+                .haveNoErrorLevelMessages();
 
         // Filter out expected log markers
-        network.newLogResults().suppressingLogMarker(STARTUP);
+        assertThat(network.newLogResults().suppressingLogMarker(STARTUP))
+                .haveNoErrorLevelMessages();
 
         // Clear accumulated data
-        final MultipleNodeConsensusResults consensusResults = network.newConsensusResults();
+        final SingleNodeConsensusResult consensusResults = node.newConsensusResult();
         consensusResults.clear();
+        assertThat(consensusResults.consensusRounds()).isEmpty();
     }
 
     // This test is used in the writing-tests.md file.
@@ -112,7 +117,7 @@ class DocExamplesTest {
         network.start();
 
         final TimeManager timeManager = env.timeManager();
-        timeManager.waitFor(Duration.ofMinutes(2));
+        timeManager.waitFor(Duration.ofSeconds(30));
 
         // Fluent assertion with method chaining
         assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
@@ -135,7 +140,7 @@ class DocExamplesTest {
         network.start();
 
         final TimeManager timeManager = env.timeManager();
-        timeManager.waitFor(Duration.ofMinutes(5));
+        timeManager.waitFor(Duration.ofSeconds(30));
     }
 
     // This test is used in the writing-tests.md file.
