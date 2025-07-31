@@ -30,11 +30,11 @@ module com.hedera.state.validator {
     requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
+    requires com.github.spotbugs.annotations;
     requires com.google.gson;
     requires info.picocli;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;
-    requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires org.junit.platform.engine;
     requires org.junit.platform.launcher;

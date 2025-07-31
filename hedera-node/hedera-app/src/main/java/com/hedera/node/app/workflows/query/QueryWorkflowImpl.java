@@ -196,7 +196,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     try {
                         // 3.i Ingest checks
                         ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
-                        txBody = checkerResult.txnInfoOrThrow().txBody();
+                        final var txInfo = checkerResult.txnInfoOrThrow();
+                        txBody = txInfo.txBody();
 
                         // get payer
                         payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
@@ -243,7 +244,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     accountStore, checkerResult.txnInfoOrThrow(), payer, queryFees, txFees);
 
                             // 3.vi Submit payment to platform
-                            submissionManager.submit(txBody, paymentBytes);
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);

@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
@@ -46,14 +48,15 @@ class WritablePlatformStateStoreTest {
                 "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
         virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
-        virtualMap.put(
-                StateUtils.getVirtualMapKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY),
-                toPbjPlatformState(randomPlatformState(randotron)),
-                PlatformState.PROTOBUF);
+        final Bytes key = StateUtils.getVirtualMapKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY);
+        final VirtualMapValue value = StateUtils.getVirtualMapValue(
+                PlatformStateService.NAME, PLATFORM_STATE_KEY, toPbjPlatformState(randomPlatformState(randotron)));
+
+        virtualMap.put(key, value, VirtualMapValue.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new OnDiskWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, virtualMap));
+                .thenReturn(
+                        new OnDiskWritableSingletonState<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 

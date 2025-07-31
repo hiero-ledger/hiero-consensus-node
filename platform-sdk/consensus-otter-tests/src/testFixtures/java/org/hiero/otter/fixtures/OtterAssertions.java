@@ -8,6 +8,8 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
@@ -16,17 +18,21 @@ import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -220,5 +226,51 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodeReconnectResultsAssert assertThat(@Nullable final MultipleNodeReconnectResults actual) {
         return MultipleNodeReconnectResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return an assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultAssert assertThat(@Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return an assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsAssert assertThat(@Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 }
