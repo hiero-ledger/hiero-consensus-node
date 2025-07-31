@@ -17,6 +17,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
+import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 
 /**
@@ -99,7 +100,8 @@ class DocExamplesTest {
         network.newLogResults().suppressingLogMarker(STARTUP);
 
         // Clear accumulated data
-        network.newConsensusResults().clear();
+        final MultipleNodeConsensusResults consensusResults = network.newConsensusResults();
+        consensusResults.clear();
     }
 
     // This test is used in the writing-tests.md file.

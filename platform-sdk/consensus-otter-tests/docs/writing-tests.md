@@ -41,8 +41,8 @@ generated.
 void testConsensus(@NonNull final TestEnvironment env) throws InterruptedException {
 ```
 
-The `@OtterTest` annotation marks this method as an Otter consensus test. It replaces the standard JUnit `@Test`
-annotation and tells the framework to:
+The `@OtterTest` annotation marks this method as an Otter test. It replaces the standard JUnit `@Test` annotation and
+tells the framework to:
 
 - Inject a `TestEnvironment` parameter
 - Set up the appropriate testing environment (Turtle or Container)
@@ -245,8 +245,9 @@ Results can be filtered to focus on specific aspects:
     // Filter out expected log markers
     network.newLogResults().suppressingLogMarker(STARTUP);
 
-    // Clear accumulated data
-    network.newConsensusResults().clear();
+    // Get a results object and clear the accumulated data
+    final MultipleNodeConsensusResults consensusResults = network.newConsensusResults();
+    consensusResults.clear();
 ```
 
 The `clear()` method removes all data collected so far, useful for focusing assertions on specific test phases.
