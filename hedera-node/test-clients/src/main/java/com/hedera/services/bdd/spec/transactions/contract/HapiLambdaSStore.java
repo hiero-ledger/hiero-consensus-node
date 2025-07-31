@@ -41,10 +41,6 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
 
     private boolean omitEntityId = false;
 
-    public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
-        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
-    }
-
     public HapiLambdaSStore omittingEntityId() {
         this.omitEntityId = true;
         return this;
@@ -80,7 +76,12 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(Bytes.EMPTY));
     }
 
-    private HapiLambdaSStore(
+    public HapiLambdaSStore removeMappingEntryWithPreimage(
+            @NonNull final Bytes mappingSlot, @NonNull final Bytes preimage) {
+        return entries(mappingSlot, List.of(MappingKey.preimage(preimage)), List.of(Bytes.EMPTY));
+    }
+
+    public HapiLambdaSStore(
             @NonNull final HookEntityId.EntityIdOneOfType entityType,
             @NonNull final String ownerName,
             final long hookId) {

@@ -10,7 +10,7 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiLambdaSStore.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
@@ -34,6 +34,7 @@ import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.PureEvmHook;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
@@ -52,6 +53,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStatesStoreOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -104,7 +107,7 @@ public class RepeatableLambdaSStoreTests {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hooks.enabled", "true"));
+        testLifecycle.overrideInClass(Map.of("hedera.hooksEnabled", "true"));
         // Manually insert a hook on the owner account for LambdaSStore testing only
         testLifecycle.doAdhoc(
                 HOOK_CONTRACT.getInfo(),
@@ -204,6 +207,25 @@ public class RepeatableLambdaSStoreTests {
 
     @Order(7)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> clearingAllSlotsLeavesZeroUsage() {
+        final AtomicLong origCount = new AtomicLong();
+        return hapiTest(
+                recordCurrentOwnerLambdaSlotUsage(origCount::set),
+                accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
+                        .removeSlot(B)
+                        .removeSlot(D)
+                        .removeMappingEntryWithPreimage(Bytes.EMPTY, ZERO),
+                accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_WITH_ADMIN_ID)
+                        .signedBy(DEFAULT_PAYER, HOOK_ADMIN.name())
+                        .removeMappingEntry(A, F)
+                        .removeSlot(F),
+                assertOwnerHasLambdaSlotUsage(origCount, () -> -origCount.get()),
+                assertLambdaHasSlotUsage(LAMBDA_HOOK_ID, 0),
+                assertLambdaHasSlotUsage(LAMBDA_HOOK_WITH_ADMIN_ID, 0));
+    }
+
+    @Order(99)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> cannotManageStorageOfHooksOnceCreatorIsDeleted(@Account SpecAccount beneficiary) {
         return hapiTest(
                 HOOK_OWNER.deleteWithTransfer(beneficiary),
@@ -253,6 +275,27 @@ public class RepeatableLambdaSStoreTests {
                 HOOK_OWNER.name(),
                 account -> assertEquals(
                         origCount.get() + delta,
+                        account.numberLambdaStorageSlots(),
+                        "Wrong # of lambda storage slots")));
+    }
+
+    private static SpecOperation assertLambdaHasSlotUsage(final long hookId, final long numSlots) {
+        return sourcingContextual(spec ->
+                new ViewKVStateOp<CreatedHookId, EvmHookState>(ContractService.NAME, "EVM_HOOK_STATES", state -> {
+                    final var hookEntityId = new HookEntityId(
+                            new OneOf<>(ACCOUNT_ID, toPbj(spec.registry().getAccountID(HOOK_OWNER.name()))));
+                    final var createdHookId = new CreatedHookId(hookEntityId, hookId);
+                    final var hookState = state.get(createdHookId);
+                    assertNotNull(hookState, "hook" + hookId + " not found");
+                    assertEquals(numSlots, hookState.numStorageSlots(), "hook" + hookId + " has wrong number of slots");
+                }));
+    }
+
+    private static SpecOperation assertOwnerHasLambdaSlotUsage(AtomicLong origCount, final LongSupplier delta) {
+        return sourcing(() -> new ViewAccountOp(
+                HOOK_OWNER.name(),
+                account -> assertEquals(
+                        origCount.get() + delta.getAsLong(),
                         account.numberLambdaStorageSlots(),
                         "Wrong # of lambda storage slots")));
     }

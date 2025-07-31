@@ -23,6 +23,7 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -57,6 +58,8 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
     private Optional<String> newProxy = Optional.empty();
     private Optional<String> newAutoRenewAccount = Optional.empty();
     private Optional<Integer> newMaxAutomaticAssociations = Optional.empty();
+    private List<Long> hookIdsToDelete = List.of();
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
     public HapiContractUpdate(String contract) {
         this.contract = contract;
@@ -75,6 +78,22 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
 
     public HapiContractUpdate newMaxAutomaticAssociations(int max) {
         newMaxAutomaticAssociations = Optional.of(max);
+        return this;
+    }
+
+    public HapiContractUpdate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
+        return this;
+    }
+
+    public HapiContractUpdate removingHook(final long hookId) {
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.add(hookId);
         return this;
     }
 
@@ -208,6 +227,8 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                                 newStakedNodeId.ifPresent(b::setStakedNodeId);
                             }
                             newDeclinedReward.ifPresent(p -> b.setDeclineReward(BoolValue.of(p)));
+                            hookIdsToDelete.forEach(b::addHookIdsToDelete);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
                         });
         return builder -> builder.setContractUpdateInstance(opBody);
     }

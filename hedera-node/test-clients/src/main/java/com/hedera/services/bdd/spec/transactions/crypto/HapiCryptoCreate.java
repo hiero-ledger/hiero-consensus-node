@@ -34,11 +34,13 @@ import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -88,6 +90,8 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     private Optional<ShardID> shardId = Optional.empty();
     private Optional<RealmID> realmId = Optional.empty();
 
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
+
     @Override
     public HederaFunctionality type() {
         return HederaFunctionality.CryptoCreate;
@@ -110,6 +114,14 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
 
     public HapiCryptoCreate exposingEvmAddressTo(final Consumer<Address> addressObserver) {
         this.addressObserver = addressObserver;
+        return this;
+    }
+
+    public HapiCryptoCreate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
         return this;
     }
 
@@ -330,6 +342,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
                         });
         return b -> b.setCryptoCreateAccount(opBody);
     }

@@ -22,6 +22,7 @@ import com.hederahashgraph.api.proto.java.ContractGetInfoResponse;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.RealmID;
@@ -71,12 +72,21 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<ByteString> inlineInitcode = Optional.empty();
     Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
     @Nullable
     private BiConsumer<HapiSpec, ContractCreateTransactionBody.Builder> spec;
 
     public HapiContractCreate exposingContractIdTo(Consumer<ContractID> obs) {
         newIdObserver = Optional.of(obs);
+        return this;
+    }
+
+    public HapiContractCreate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
         return this;
     }
 
@@ -364,6 +374,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
 
                             b.setRealmID(RealmID.newBuilder()
                                     .setShardNum(spec.shard())

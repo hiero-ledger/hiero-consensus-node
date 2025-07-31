@@ -17,6 +17,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.CreatedHookId;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -38,6 +39,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -241,6 +244,18 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_HISTORY_SIGNATURES.protoOrdinal(),
                                 ConstructionNodeId.DEFAULT,
                                 RecordedHistorySignature.DEFAULT);
+
+                    case CREATED_HOOK_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_EVM_HOOK_STATES.protoOrdinal(),
+                                CreatedHookId.DEFAULT,
+                                EvmHookState.DEFAULT);
+
+                    case LAMBDA_SLOT_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_LAMBDA_STORAGE.protoOrdinal(),
+                                LambdaSlotKey.DEFAULT,
+                                SlotValue.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));

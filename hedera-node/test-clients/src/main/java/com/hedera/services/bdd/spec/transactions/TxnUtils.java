@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
+import static com.hederahashgraph.api.proto.java.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
@@ -55,10 +56,15 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.EntityNumber;
+import com.hederahashgraph.api.proto.java.EvmHookSpec;
 import com.hederahashgraph.api.proto.java.FileID;
+import com.hederahashgraph.api.proto.java.HookCreationDetails;
+import com.hederahashgraph.api.proto.java.HookExtensionPoint;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import com.hederahashgraph.api.proto.java.LambdaEvmHook;
 import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.PureEvmHook;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
@@ -152,6 +158,50 @@ public class TxnUtils {
         } else {
             return spec.registry().getKey(keyName.get());
         }
+    }
+
+    /**
+     * Returns a factory for a pure EVM {@link HookExtensionPoint#ACCOUNT_ALLOWANCE_HOOK} at the given id, using
+     * the given contract as the hook contract.
+     * @param hookId the id of the hook to create
+     * @param hookContract the name of the contract to use as the hook
+     * @return the factory
+     */
+    public static Function<HapiSpec, HookCreationDetails> pureAccountAllowanceHook(
+            final long hookId, @NonNull final String hookContract) {
+        return spec -> {
+            final var registry = spec.registry();
+            final var hookSpec = EvmHookSpec.newBuilder()
+                    .setContractId(registry.getContractId(hookContract))
+                    .build();
+            return HookCreationDetails.newBuilder()
+                    .setHookId(hookId)
+                    .setExtensionPoint(ACCOUNT_ALLOWANCE_HOOK)
+                    .setPureEvmHook(PureEvmHook.newBuilder().setSpec(hookSpec))
+                    .build();
+        };
+    }
+
+    /**
+     * Returns a factory for a pure EVM {@link HookExtensionPoint#ACCOUNT_ALLOWANCE_HOOK} at the given id, using
+     * the given contract as the hook contract.
+     * @param hookId the id of the hook to create
+     * @param hookContract the name of the contract to use as the hook
+     * @return the factory
+     */
+    public static Function<HapiSpec, HookCreationDetails> lambdaAccountAllowanceHook(
+            final long hookId, @NonNull final String hookContract) {
+        return spec -> {
+            final var registry = spec.registry();
+            final var hookSpec = EvmHookSpec.newBuilder()
+                    .setContractId(registry.getContractId(hookContract))
+                    .build();
+            return HookCreationDetails.newBuilder()
+                    .setHookId(hookId)
+                    .setExtensionPoint(ACCOUNT_ALLOWANCE_HOOK)
+                    .setLambdaEvmHook(LambdaEvmHook.newBuilder().setSpec(hookSpec))
+                    .build();
+        };
     }
 
     public static void turnLoggingOff(@NonNull final SpecOperation op) {

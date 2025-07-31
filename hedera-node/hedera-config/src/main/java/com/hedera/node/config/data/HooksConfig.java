@@ -6,6 +6,4 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("hooks")
-public record HooksConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enabled,
-        @ConfigProperty(defaultValue = "10") @NetworkProperty int maxLambdaSStoreUpdates) {}
+public record HooksConfig(@ConfigProperty(defaultValue = "10") @NetworkProperty int maxLambdaSStoreUpdates) {}

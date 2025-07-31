@@ -14,6 +14,7 @@ import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.CreatedHookId;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -38,6 +39,8 @@ import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -239,6 +242,10 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case ConstructionNodeId constructionNodeId ->
                 new MapChangeKey(
                         new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CONSTRUCTION_NODE_ID_KEY, constructionNodeId));
+            case LambdaSlotKey lambdaSlotKey ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.LAMBDA_SLOT_KEY, lambdaSlotKey));
+            case CreatedHookId createdHookId ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CREATED_HOOK_ID_KEY, createdHookId));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -310,6 +317,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case CrsPublicationTransactionBody crsPublicationTransactionBody ->
                 new MapChangeValue(new OneOf<>(
                         MapChangeValue.ValueChoiceOneOfType.CRS_PUBLICATION_VALUE, crsPublicationTransactionBody));
+            case EvmHookState evmHookState ->
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.EVM_HOOK_STATE_VALUE, evmHookState));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());
