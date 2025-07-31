@@ -72,8 +72,8 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<String> autoRenewAccount = Optional.empty();
     private Optional<Integer> maxAutomaticTokenAssociations = Optional.empty();
     private Optional<ByteString> inlineInitcode = Optional.empty();
-    Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
-    Optional<Consumer<Address>> addressObserver = Optional.empty();
+    private Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
+    private Optional<Consumer<Address>> addressObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
 
     @Nullable

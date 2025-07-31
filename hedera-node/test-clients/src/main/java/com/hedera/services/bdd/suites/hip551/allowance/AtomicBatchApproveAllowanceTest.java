@@ -91,12 +91,10 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
-import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -108,43 +106,48 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+/**
+ * This class tests the behavior of atomic batch operations
+ * involving approve allowance.
+ */
 @Tag(CRYPTO)
 @HapiTestLifecycle
 public class AtomicBatchApproveAllowanceTest {
-    public static final String OWNER = "owner";
-    public static final String SPENDER = "spender";
+    private static final String OWNER = "owner";
+    private static final String SPENDER = "spender";
     private static final String RECEIVER = "receiver";
-    public static final String OTHER_RECEIVER = "otherReceiver";
-    public static final String FUNGIBLE_TOKEN = "fungible";
-    public static final String NON_FUNGIBLE_TOKEN = "nonFungible";
-    public static final String TOKEN_WITH_CUSTOM_FEE = "tokenWithCustomFee";
+    private static final String OTHER_RECEIVER = "otherReceiver";
+    private static final String FUNGIBLE_TOKEN = "fungible";
+    private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
     private static final String SUPPLY_KEY = "supplyKey";
-    public static final String SCHEDULED_TXN = "scheduledTxn";
-    public static final String NFT_TOKEN_MINT_TXN = "nftTokenMint";
-    public static final String FUNGIBLE_TOKEN_MINT_TXN = "tokenMint";
-    public static final String BASE_APPROVE_TXN = "baseApproveTxn";
-    public static final String PAYER = "payer";
-    public static final String APPROVE_TXN = "approveTxn";
-    public static final String ANOTHER_SPENDER = "spender1";
-    public static final String SECOND_OWNER = "owner2";
-    public static final String SECOND_SPENDER = "spender2";
-    public static final String THIRD_SPENDER = "spender3";
-    public static final String ADMIN_KEY = "adminKey";
-    public static final String FREEZE_KEY = "freezeKey";
-    public static final String KYC_KEY = "kycKey";
-    public static final String PAUSE_KEY = "pauseKey";
-
-    public static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
+    private static final String NFT_TOKEN_MINT_TXN = "nftTokenMint";
+    private static final String FUNGIBLE_TOKEN_MINT_TXN = "tokenMint";
+    private static final String BASE_APPROVE_TXN = "baseApproveTxn";
+    private static final String PAYER = "payer";
+    private static final String APPROVE_TXN = "approveTxn";
+    private static final String ANOTHER_SPENDER = "spender1";
+    private static final String SECOND_OWNER = "owner2";
+    private static final String SECOND_SPENDER = "spender2";
+    private static final String THIRD_SPENDER = "spender3";
+    private static final String ADMIN_KEY = "adminKey";
+    private static final String FREEZE_KEY = "freezeKey";
+    private static final String KYC_KEY = "kycKey";
+    private static final String PAUSE_KEY = "pauseKey";
+    private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+    public static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(
                 Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
+    /**
+     * Tests transfer Erc20 token from contract with approval in batch txn.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
+    public final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
         final var tokenAddress = new AtomicReference<Address>();
@@ -154,7 +157,7 @@ public class AtomicBatchApproveAllowanceTest {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(35)
                         .treasury(TOKEN_TREASURY)
                         .exposingAddressTo(tokenAddress::set),
@@ -164,8 +167,7 @@ public class AtomicBatchApproveAllowanceTest {
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ERC_20_CONTRACT, List.of(FUNGIBLE_TOKEN)),
                         tokenAssociate(nestedContract, List.of(FUNGIBLE_TOKEN)),
-                        cryptoTransfer(
-                                TokenMovement.moving(20, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ERC_20_CONTRACT)),
+                        cryptoTransfer(moving(20, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ERC_20_CONTRACT)),
                         contractCall(
                                         ERC_20_CONTRACT,
                                         APPROVE,
@@ -198,7 +200,7 @@ public class AtomicBatchApproveAllowanceTest {
                     final var receiver =
                             spec.registry().getContractInfo(nestedContract).getContractID();
 
-                    var transferRecord = getTxnRecord(TRANSFER_TXN)
+                    final var transferRecord = getTxnRecord(TRANSFER_TXN)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
                                             .logs(inOrder(logWith()
@@ -215,7 +217,7 @@ public class AtomicBatchApproveAllowanceTest {
                                                     .longValue(5)))))
                             .andAllChildRecords();
 
-                    var transferFromOtherContractWithSignaturesTxnRecord = getTxnRecord(
+                    final var transferFromOtherContractWithSignaturesTxnRecord = getTxnRecord(
                                     transferFromOtherContractWithSignaturesTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -257,8 +259,12 @@ public class AtomicBatchApproveAllowanceTest {
                 getAccountBalance(nestedContract).hasTokenBalance(FUNGIBLE_TOKEN, 10));
     }
 
+    /**
+     * Tests that cannot pay for any transaction with contract account in batch txn.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
+    public final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
         return hapiTest(
@@ -272,8 +278,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND));
     }
 
+    /**
+     * Tests transferring a missing NFT via approval fails with INVALID_NFT_ID inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> transferringMissingNftViaApprovalFailsWithInvalidNftId() {
+    public final Stream<DynamicTest> transferringMissingNftViaApprovalFailsWithInvalidNftId() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -315,15 +325,19 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests the deletion of allowances from a deleted spender inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> canDeleteAllowanceFromDeletedSpender() {
+    public final Stream<DynamicTest> deleteAllowanceFromDeletedSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(500L)
                         .treasury(TOKEN_TREASURY),
                 tokenCreate(NON_FUNGIBLE_TOKEN)
@@ -397,15 +411,19 @@ public class AtomicBatchApproveAllowanceTest {
                                 .nftApprovedForAllAllowancesCount(0)));
     }
 
+    /**
+     * Tests that duplicate keys and serials in the same transaction do not throw an error inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> duplicateKeysAndSerialsInSameTxnDoesntThrow() {
+    public final Stream<DynamicTest> duplicateKeysAndSerialsInSameTxnDoesntThrow() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -465,8 +483,12 @@ public class AtomicBatchApproveAllowanceTest {
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 3L).hasSpenderID(SPENDER));
     }
 
+    /**
+     * Tests that a delegating spender can delegate approveForAll on an NFT inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> approveForAllSpenderCanDelegateOnNFT() {
+    public final Stream<DynamicTest> approveForAllSpenderCanDelegateOnNft() {
         final String delegatingSpender = "delegatingSpender";
         final String newSpender = "newSpender";
         return hapiTest(
@@ -525,8 +547,12 @@ public class AtomicBatchApproveAllowanceTest {
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(newSpender));
     }
 
+    /**
+     * Tests granting fungible and NFT allowances with the treasury as the owner inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> canGrantFungibleAllowancesWithTreasuryOwner() {
+    public final Stream<DynamicTest> grantFungibleAllowancesWithTreasuryOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -558,8 +584,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .logged());
     }
 
+    /**
+     * Tests granting NFT allowances with the treasury as the owner inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> canGrantNftAllowancesWithTreasuryOwner() {
+    public final Stream<DynamicTest> grantNftAllowancesWithTreasuryOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -598,8 +628,12 @@ public class AtomicBatchApproveAllowanceTest {
                 getAccountDetails(TOKEN_TREASURY).has(accountDetailsWith().nftApprovedForAllAllowancesCount(0)));
     }
 
+    /**
+     * Tests that an invalid owner fails to approve allowances inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> invalidOwnerFails() {
+    public final Stream<DynamicTest> invalidOwnerFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -607,7 +641,7 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -660,15 +694,19 @@ public class AtomicBatchApproveAllowanceTest {
                 getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)));
     }
 
+    /**
+     * Tests that an invalid spender fails to approve allowances inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> invalidSpenderFails() {
+    public final Stream<DynamicTest> invalidSpenderFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -714,8 +752,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that if no owner is specified, the payer is used as the owner inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> noOwnerDefaultsToPayer() {
+    public final Stream<DynamicTest> noOwnerDefaultsToPayer() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -723,7 +765,7 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(ANOTHER_SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -756,7 +798,7 @@ public class AtomicBatchApproveAllowanceTest {
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -767,8 +809,12 @@ public class AtomicBatchApproveAllowanceTest {
                                 .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 100L)));
     }
 
+    /**
+     * Tests that multiple owners in a batch transaction fail with INVALID_SIGNATURE.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> canHaveMultipleOwners() {
+    public final Stream<DynamicTest> multipleOwners() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -776,7 +822,7 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(10_000L)
@@ -860,8 +906,12 @@ public class AtomicBatchApproveAllowanceTest {
                                 .cryptoAllowancesContaining(SPENDER, 2 * ONE_HBAR)));
     }
 
+    /**
+     * Tests that the order of serials in approveForAllNftAllowance doesn't meter inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> serialsInAscendingOrder() {
+    public final Stream<DynamicTest> serialsInAscendingOrder() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -903,8 +953,12 @@ public class AtomicBatchApproveAllowanceTest {
                                 .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, SPENDER)));
     }
 
+    /**
+     * Tests that a token can be paused, frozen, and KYC revoked inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
+    public final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(ADMIN_KEY),
@@ -918,7 +972,7 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(THIRD_SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -990,15 +1044,19 @@ public class AtomicBatchApproveAllowanceTest {
                                 .tokenAllowancesCount(4)));
     }
 
+    /**
+     * Tests that a token cannot be minted if the mint exceeds the max supply.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> tokenExceedsMaxSupplyFails() {
+    public final Stream<DynamicTest> tokenExceedsMaxSupplyFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1015,8 +1073,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that an invalid serial number in the NFT allowance fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> validatesSerialNums() {
+    public final Stream<DynamicTest> validatesSerialNums() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1062,15 +1124,19 @@ public class AtomicBatchApproveAllowanceTest {
                         .fee(ONE_HUNDRED_HBARS)));
     }
 
+    /**
+     * Tests that an invalid token type in the allowance fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> invalidTokenTypeFails() {
+    public final Stream<DynamicTest> invalidTokenTypeFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1108,8 +1174,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that an empty allowances list is rejected inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> emptyAllowancesRejected() {
+    public final Stream<DynamicTest> emptyAllowancesRejected() {
         return hapiTest(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
@@ -1118,15 +1188,19 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasPrecheck(EMPTY_ALLOWANCES));
     }
 
+    /**
+     * Tests that a token not associated to the account fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> tokenNotAssociatedToAccountFails() {
+    public final Stream<DynamicTest> tokenNotAssociatedToAccountFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1167,15 +1241,19 @@ public class AtomicBatchApproveAllowanceTest {
                                 .tokenAllowancesCount(0)));
     }
 
+    /**
+     * Tests that a negative amount in the allowance fails for fungible tokens inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> negativeAmountFailsForFungible() {
+    public final Stream<DynamicTest> negativeAmountFailsForFungible() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1221,8 +1299,13 @@ public class AtomicBatchApproveAllowanceTest {
                                 .tokenAllowancesCount(0)));
     }
 
+    /**
+     * Tests that a negative amount in the allowance fails for fungible tokens inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
     public final Stream<DynamicTest> chargedUsdScalesWithAllowances() {
+        final var batchTxn = "batchTxn";
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1250,14 +1333,19 @@ public class AtomicBatchApproveAllowanceTest {
                                         .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
                                         .via(BASE_APPROVE_TXN + "_3")
                                         .blankMemo())
-                        .via("batchTxn"),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", "batchTxn", 0.05, 0.01),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", "batchTxn", 0.0505, 0.1),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", "batchTxn", 0.0509, 0.1));
+                        .via(batchTxn),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1));
     }
 
+    /**
+     * Tests that a batch transaction with multiple cryptoApproveAllowance works as expected.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> happyPathWorks() {
+    public final Stream<DynamicTest> happyPathWorks() {
+        final var batchTxn = "batchTxn";
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1265,7 +1353,7 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(ANOTHER_SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1303,9 +1391,9 @@ public class AtomicBatchApproveAllowanceTest {
                                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                                         .via(APPROVE_TXN)
                                         .blankMemo())
-                        .via("batchTxn"),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, "batchTxn", 0.05, 0.01),
-                validateInnerTxnChargedUsd(APPROVE_TXN, "batchTxn", 0.05238, 0.01),
+                        .via(batchTxn),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01),
+                validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1317,15 +1405,19 @@ public class AtomicBatchApproveAllowanceTest {
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(SPENDER));
     }
 
+    /**
+     * Tests that duplicated allowances are replaced with the last one inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> duplicateEntriesGetsReplacedWithDifferentTxn() {
+    public final Stream<DynamicTest> duplicateEntriesGetsReplacedWithDifferentTxn() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .tokenType(FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey(SUPPLY_KEY)
                         .maxSupply(1000L)
@@ -1382,8 +1474,12 @@ public class AtomicBatchApproveAllowanceTest {
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 3L).hasSpenderID(SPENDER));
     }
 
+    /**
+     * Tests that can't have multiple allowed spenders for the same NFT serial number inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNFTSerial() {
+    public final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1468,8 +1564,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that approving for all does not set the explicit spender for the NFT.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> approveForAllDoesNotSetExplicitNFTSpender() {
+    public final Stream<DynamicTest> approveForAllDoesNotSetExplicitNftSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1504,12 +1604,16 @@ public class AtomicBatchApproveAllowanceTest {
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged());
     }
 
+    /**
+     * Tests various negative cases for approving allowances inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> approveNegativeCases() {
+    public final Stream<DynamicTest> approveNegativeCases() {
         final var tryApprovingTheSender = "tryApprovingTheSender";
         final var tryApprovingAboveBalance = "tryApprovingAboveBalance";
-        final var tryApprovingNFTToOwner = "tryApprovingNFTToOwner";
-        final var tryApprovingNFTWithInvalidSerial = "tryApprovingNFTWithInvalidSerial";
+        final var tryApprovingNftToOwner = "tryApprovingNFTToOwner";
+        final var tryApprovingNftWithInvalidSerial = "tryApprovingNFTWithInvalidSerial";
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1520,7 +1624,7 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(FUNGIBLE_COMMON)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
-                        .maxSupply(10000)
+                        .maxSupply(10_000)
                         .initialSupply(5000),
                 tokenCreate(NON_FUNGIBLE_TOKEN)
                         .supplyType(TokenSupplyType.FINITE)
@@ -1558,27 +1662,31 @@ public class AtomicBatchApproveAllowanceTest {
                                 .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, false, List.of(1L))
                                 .signedBy(DEFAULT_PAYER, OWNER)
                                 .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER)
-                                .via(tryApprovingNFTToOwner))
+                                .via(tryApprovingNftToOwner))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
                                 .payingWith(DEFAULT_PAYER)
                                 .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L, 3L, 4L))
                                 .signedBy(DEFAULT_PAYER, OWNER)
                                 .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER)
-                                .via(tryApprovingNFTWithInvalidSerial))
+                                .via(tryApprovingNftWithInvalidSerial))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 emptyChildRecordsCheck(tryApprovingTheSender, SUCCESS),
                 emptyChildRecordsCheck(tryApprovingAboveBalance, SUCCESS),
-                emptyChildRecordsCheck(tryApprovingNFTToOwner, SPENDER_ACCOUNT_SAME_AS_OWNER),
-                emptyChildRecordsCheck(tryApprovingNFTWithInvalidSerial, INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                emptyChildRecordsCheck(tryApprovingNftToOwner, SPENDER_ACCOUNT_SAME_AS_OWNER),
+                emptyChildRecordsCheck(tryApprovingNftWithInvalidSerial, INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 500L),
                 getAccountBalance(SPENDER).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                 getAccountBalance(SPENDER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L));
     }
 
+    /**
+     * Tests that approving allowances for deleted tokens fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> approveAllowanceForDeletedToken() {
+    public final Stream<DynamicTest> approveAllowanceForDeletedToken() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1617,8 +1725,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that approving allowances for deleted tokens fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> approveAllowanceToOwner() {
+    public final Stream<DynamicTest> approveAllowanceToOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1647,9 +1759,12 @@ public class AtomicBatchApproveAllowanceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    /**
+     * Tests that delegating an allowance from a deleted spender fails inside a batch transaction.
+     * @return hapi test
+     */
     @HapiTest
-    final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
-        final var SECOND_SPENDER = "secondSpender";
+    public final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
