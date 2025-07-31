@@ -129,6 +129,9 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     private synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
         Objects.requireNonNull(transaction);
+        if(priority){
+            logger.info("2 TransactionPoolNexus.submitTransaction()");
+        }
 
         // Always submit system transactions. If it's not a system transaction, then only submit it if we
         // don't violate queue size capacity restrictions.
@@ -137,6 +140,9 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             transactionPoolMetrics.recordRejectedAppTransaction();
             return false;
         }
+        if(priority){
+            logger.info("3 TransactionPoolNexus.submitTransaction()");
+        }
 
         if (priority) {
             bufferedSignatureTransactionCount++;
@@ -144,11 +150,17 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
         } else {
             transactionPoolMetrics.recordAcceptedAppTransaction();
         }
+        if(priority){
+            logger.info("4 TransactionPoolNexus.submitTransaction()");
+        }
 
         if (priority) {
             priorityBufferedTransactions.add(transaction);
         } else {
             bufferedTransactions.add(transaction);
+        }
+        if(priority){
+            logger.info("5 TransactionPoolNexus.submitTransaction()");
         }
 
         return true;
