@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
@@ -56,7 +57,8 @@ class DispatchForResponseCodeHssCallTest extends CallTestBase {
                 TransactionBody.DEFAULT,
                 verificationStrategy,
                 dispatchGasCalculator,
-                emptySet());
+                emptySet(),
+                recordBuilder -> encodedRc(recordBuilder.status()));
     }
 
     @Test
@@ -92,7 +94,8 @@ class DispatchForResponseCodeHssCallTest extends CallTestBase {
                 null,
                 verificationStrategy,
                 dispatchGasCalculator,
-                emptySet());
+                emptySet(),
+                recordBuilder -> encodedRc(recordBuilder.status()));
 
         final var pricedResult = subject.execute(frame);
         final var fullResult = pricedResult.fullResult();

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.hasschedulecapacity;
 
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -13,7 +9,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Return
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -61,22 +56,5 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
         // TODO Glib: call hasScheduleCapacity when it will be implemented
 
         return new HasScheduleCapacityCallStub(attempt);
-    }
-
-    /**
-     * Calculates the gas requirement for a {@code SCHEDULE_CREATE} call.
-     *
-     * @param body                        the transaction body
-     * @param systemContractGasCalculator the gas calculator
-     * @param enhancement                 the enhancement
-     * @param payerId                     the payer account ID
-     * @return the gas requirement
-     */
-    public static long gasRequirement(
-            @NonNull final TransactionBody body,
-            @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId) {
-        return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_DELETE, payerId);
     }
 }

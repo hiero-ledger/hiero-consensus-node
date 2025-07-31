@@ -183,13 +183,13 @@ public class TestHelpers {
     public static final long MAX_GAS_ALLOWANCE = 666_666_666;
     public static final int STACK_DEPTH = 1;
     public static final Bytes INITCODE = Bytes.wrap("0060a06040526000600b55".getBytes());
-    public static final Bytes CALL_DATA = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
-    public static final Bytes CONSTRUCTOR_PARAMS = Bytes.wrap(new byte[] {2, 3, 2, 3, 2, 3, 2, 3, 2, 3});
+    public static final Bytes CALL_DATA = Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9});
+    public static final Bytes CONSTRUCTOR_PARAMS = Bytes.wrap(new byte[]{2, 3, 2, 3, 2, 3, 2, 3, 2, 3});
     public static final Bytecode BYTECODE = new Bytecode(CALL_DATA);
-    public static final Bytes LOG_DATA = Bytes.wrap(new byte[] {6, 6, 6});
-    public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[] {9, 8, 7, 6, 5, 4, 3, 2, 1});
-    public static final Bytes TOPIC = Bytes.wrap(new byte[] {11, 21, 31, 41, 51, 61, 71, 81, 91});
-    public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[] {99, 29, 39, 49, 59, 69, 79, 89, 99});
+    public static final Bytes LOG_DATA = Bytes.wrap(new byte[]{6, 6, 6});
+    public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[]{9, 8, 7, 6, 5, 4, 3, 2, 1});
+    public static final Bytes TOPIC = Bytes.wrap(new byte[]{11, 21, 31, 41, 51, 61, 71, 81, 91});
+    public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[]{99, 29, 39, 49, 59, 69, 79, 89, 99});
     public static final Bytes MAINNET_CHAIN_ID = Bytes.fromHex("0127");
     public static final AccountID SENDER_ID =
             AccountID.newBuilder().accountNum(1234).build();
@@ -209,7 +209,8 @@ public class TestHelpers {
             .evmAddress(Bytes.fromHex("1234123412341234123412341234123412341234"))
             .build();
     public static final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
-    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("dac17f958d2ee523a2206206994597c13d831ec7");
+    public static final String NON_LONG_ZERO_ADDRESS = "dac17f958d2ee523a2206206994597c13d831ec7";
+    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex(NON_LONG_ZERO_ADDRESS);
     public static final ContractID LONG_ZERO_CONTRACT_ID =
             ContractID.newBuilder().evmAddress(LONG_ZERO_ADDRESS_BYTES).build();
 
@@ -596,17 +597,17 @@ public class TestHelpers {
             null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE = explicitSuccessFrom(
-                    GAS_LIMIT / 2,
-                    Wei.of(NETWORK_GAS_PRICE),
-                    SENDER_ID,
-                    CALLED_CONTRACT_ID,
-                    CALLED_CONTRACT_EVM_ADDRESS,
-                    pbjToTuweniBytes(CALL_DATA),
-                    List.of(BESU_LOG),
-                    null,
-                    null,
-                    null,
-                    null)
+            GAS_LIMIT / 2,
+            Wei.of(NETWORK_GAS_PRICE),
+            SENDER_ID,
+            CALLED_CONTRACT_ID,
+            CALLED_CONTRACT_EVM_ADDRESS,
+            pbjToTuweniBytes(CALL_DATA),
+            List.of(BESU_LOG),
+            null,
+            null,
+            null,
+            null)
             .withSignerNonce(SIGNER_NONCE);
 
     public static final HederaEvmTransactionResult HALT_RESULT = new HederaEvmTransactionResult(
@@ -714,6 +715,8 @@ public class TestHelpers {
     public static final Bytes APPROVED_ADDRESS = Bytes.fromHex("aa1e6a49898ea7a44e81599a7c0deeeaa969e990");
     public static final com.esaulpaugh.headlong.abi.Address APPROVED_HEADLONG_ADDRESS =
             asHeadlongAddress(APPROVED_ADDRESS.toByteArray());
+    public static final Address APPROVED_BESU_ADDRESS =
+            Address.fromHexString(APPROVED_ADDRESS.toHex());
 
     public static final AccountID RECEIVER_ID =
             AccountID.newBuilder().accountNum(7773777L).build(); // 7773777L == 0x769e51
@@ -1030,12 +1033,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[]{});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            this.tokenTransferList = Tuple.of(token, new Tuple[]{}, nftTransfers);
             return this;
         }
 
