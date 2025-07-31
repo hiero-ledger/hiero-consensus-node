@@ -84,7 +84,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "0") int roundsToKeepAfterSigning,
         @ConfigProperty(defaultValue = "5m") Duration suspiciousSignedStateAge,
         @ConfigProperty(defaultValue = "10m") Duration signedStateAgeNotifyRateLimit,
-        @ConfigProperty(defaultValue = "true") boolean stateHistoryEnabled,
+        @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "emergencyRecovery.yaml") String emergencyStateFileName,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
