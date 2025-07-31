@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EV
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
@@ -67,7 +68,12 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
 
             // Process the transaction
             final var result = processor.processTransaction(
-                    hevmTransaction, worldUpdater, hederaEvmContext, tracer, context.configuration());
+                    hevmTransaction,
+                    worldUpdater,
+                    hederaEvmContext,
+                    tracer,
+                    context.configuration(),
+                    OpsDurationCounter.disabled());
 
             // Return the outcome (which cannot include sidecars to be externalized, since this is a query)
             return CallOutcome.fromResultsWithoutSidecars(

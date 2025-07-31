@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.validators.Constants.VALIDATE_INCORRECT
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_STALE_KEYS_EXCLUSIONS;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.state.VirtualMapKey;
@@ -15,42 +16,47 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
-import com.hedera.statevalidation.reporting.Report;
+import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("hdhm")
 public class ValidateLeafIndexHalfDiskHashMap {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
-    @ParameterizedTest
-    @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord vmAndSource, Report report) {
-        if (vmAndSource.dataSource().getFirstLeafPath() == -1) {
-            log.info("Skipping the validation for {} as the map is empty", vmAndSource.name());
+    @Test
+    public void validateIndex(DeserializedSignedState deserializedState) {
+        final MerkleNodeState merkleNodeState =
+                deserializedState.reservedSignedState().get().getState();
+        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+        assertNotNull(virtualMap);
+        MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+
+        if (vds.getFirstLeafPath() == -1) {
+            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
             return;
         }
 
-        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(vmAndSource.name());
+        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
         boolean skipIncorrectBucketIndexValidation =
-                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(vmAndSource.name());
-        MerkleDbDataSource vds = vmAndSource.dataSource();
+                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
 
         log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
 
@@ -63,11 +69,13 @@ public class ValidateLeafIndexHalfDiskHashMap {
         final var nullLeafsInfo = new CopyOnWriteArrayList<NullLeafInfo>();
         final var unexpectedKeyInfos = new CopyOnWriteArrayList<UnexpectedKeyInfo>();
         final var pathMismatchInfos = new CopyOnWriteArrayList<PathMismatchInfo>();
+        final var hashCodeMismatchInfos = new CopyOnWriteArrayList<HashCodeMismatchInfo>();
         final var incorrectBucketIndexList = new CopyOnWriteArrayList<Integer>();
+        final LongList index = hdhm.getBucketIndexToBucketLocation();
         LongConsumer consumer = i -> {
             long bucketLocation = 0;
             try {
-                bucketLocation = hdhm.getBucketIndexToBucketLocation().get(i);
+                bucketLocation = index.get(i);
                 if (bucketLocation == 0) {
                     return;
                 }
@@ -76,40 +84,48 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     // FUTURE WORK: report
                     return;
                 }
-                ParsedBucket bucket = new ParsedBucket();
+                final ParsedBucket bucket = new ParsedBucket();
                 bucket.readFrom(bucketData);
-                if (bucket.getBucketIndex() != i) {
-                    incorrectBucketIndexList.add(bucket.getBucketIndex());
+                final int bucketIndex = bucket.getBucketIndex();
+                if ((bucketIndex & i) != bucketIndex) {
+                    incorrectBucketIndexList.add((int) i);
                 }
                 var bucketIterator = new BucketIterator(bucket);
-                long path;
                 while (bucketIterator.hasNext()) {
-                    ParsedBucket.BucketEntry entry = bucketIterator.next();
-                    Bytes keyBytes = entry.getKeyBytes();
-                    path = entry.getValue();
+                    final ParsedBucket.BucketEntry entry = bucketIterator.next();
+                    final Bytes keyBytes = entry.getKeyBytes();
+                    final long path = entry.getValue();
                     // get path -> dataLocation
                     var dataLocation = pathToDiskLocationLeafNodes.get(path);
                     if (dataLocation == 0) {
+                        printFileDataLocationError(log, "Stale path", dfc, bucketLocation);
                         collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
                         continue;
                     }
                     final BufferedData leafData = leafStoreDFC.readDataItem(dataLocation);
                     if (leafData == null) {
-                        printFileDataLocationError(log, "Record with null leafs!", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Null leaf", dfc, bucketLocation);
                         collectInfo(new NullLeafInfo(path, parseKey(keyBytes)), nullLeafsInfo);
                         continue;
                     }
-                    final VirtualLeafBytes leafBytes = VirtualLeafBytes.parseFrom(leafData);
+                    final VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(leafData);
                     if (!keyBytes.equals(leafBytes.keyBytes())) {
-                        printFileDataLocationError(log, "Record with unexpected key!", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf key mismatch", dfc, bucketLocation);
                         collectInfo(
                                 new UnexpectedKeyInfo(path, parseKey(keyBytes), parseKey(leafBytes.keyBytes())),
                                 unexpectedKeyInfos);
                     }
                     if (leafBytes.path() != path) {
-                        printFileDataLocationError(log, "Record with unexpected path!", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf path mismatch", dfc, bucketLocation);
                         collectInfo(
                                 new PathMismatchInfo(path, leafBytes.path(), parseKey(keyBytes)), pathMismatchInfos);
+                        continue;
+                    }
+                    final int hashCode = entry.getHashCode();
+                    if ((hashCode & bucketIndex) != bucketIndex) {
+                        printFileDataLocationError(log, "Hash code mismatch", dfc, bucketLocation);
+                        collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
+                        continue;
                     }
                 }
             } catch (Exception e) {
@@ -149,20 +165,36 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     pathMismatchInfos.size());
         }
 
+        if (!hashCodeMismatchInfos.isEmpty()) {
+            log.error("Hash code mismatch info:\n{}", hashCodeMismatchInfos);
+            log.error(
+                    "There are {} records with mismatch hash codes, please, check the logs for more info",
+                    hashCodeMismatchInfos.size());
+        }
+
         assertTrue(
                 (stalePathsInfos.isEmpty() || skipStaleKeysValidation)
                                 && nullLeafsInfo.isEmpty()
                                 && unexpectedKeyInfos.isEmpty()
                                 && pathMismatchInfos.isEmpty()
                                 && incorrectBucketIndexList.isEmpty()
+                                && hashCodeMismatchInfos.isEmpty()
                         || skipIncorrectBucketIndexValidation,
-                "One of the test condition hasn't been met. " + "Conditions: "
-                        + "(stalePathsInfos.isEmpty() || skipStaleKeysValidation) = %s, nullLeafsInfo.isEmpty() = %s,  unexpectedKeyInfos.isEmpty() = %s, pathMismatchInfos.isEmpty() = %s, incorrectBucketIndexList.isEmpty() = %s || skipIncorrectBucketIndexValidation. IncorrectBucketIndexInfos: %s"
+                "One of the test condition hasn't been met. "
+                        + "Conditions: "
+                        + ("stalePathsInfos.isEmpty() = %s, "
+                                        + "nullLeafsInfo.isEmpty() = %s, "
+                                        + "unexpectedKeyInfos.isEmpty() = %s, "
+                                        + "pathMismatchInfos.isEmpty() = %s, "
+                                        + "hashCodeMismatchInfos.isEmpty() = %s, "
+                                        + "incorrectBucketIndexList.isEmpty() = %s. "
+                                        + "IncorrectBucketIndexInfos: %s")
                                 .formatted(
-                                        (stalePathsInfos.isEmpty() || skipStaleKeysValidation),
+                                        stalePathsInfos.isEmpty(),
                                         nullLeafsInfo.isEmpty(),
                                         unexpectedKeyInfos.isEmpty(),
                                         pathMismatchInfos.isEmpty(),
+                                        hashCodeMismatchInfos.isEmpty(),
                                         incorrectBucketIndexList.isEmpty(),
                                         incorrectBucketIndexList));
     }
@@ -177,22 +209,28 @@ public class ValidateLeafIndexHalfDiskHashMap {
         }
     }
 
+    // Bucket entry path is not found in the leaf index
     record StalePathInfo(long path, VirtualMapKey key) {
         @Override
+        @NonNull
         public String toString() {
             return "StalePathInfo{" + "path=" + path + ", key=" + key + "}\n";
         }
     }
 
+    // Bucket entry path is in the leaf index, but leaf data cannot be loaded
     private record NullLeafInfo(long path, VirtualMapKey key) {
         @Override
+        @NonNull
         public String toString() {
             return "NullLeafInfo{" + "path=" + path + ", key=" + key + "}\n";
         }
     }
 
+    // Bucket entry key doesn't match leaf key, leaf is loaded by entry path
     record UnexpectedKeyInfo(long path, VirtualMapKey expectedKey, VirtualMapKey actualKey) {
         @Override
+        @NonNull
         public String toString() {
             return "UnexpectedKeyInfo{" + "path="
                     + path + ", expectedKey="
@@ -201,13 +239,24 @@ public class ValidateLeafIndexHalfDiskHashMap {
         }
     }
 
+    // Bucket entry path doesn't match leaf path, leaf is loaded by entry path
     private record PathMismatchInfo(long expectedPath, long actualPath, VirtualMapKey key) {
         @Override
+        @NonNull
         public String toString() {
             return "PathMismatchInfo{" + "expectedPath="
                     + expectedPath + ", actualPath="
                     + actualPath + ", key="
                     + key + "}\n";
+        }
+    }
+
+    // Bucket entry hash code doesn't match bucket index (modulo HDHM resize)
+    private record HashCodeMismatchInfo(int entryHashCode, int bucketIndex) {
+        @Override
+        @NonNull
+        public String toString() {
+            return "HashCodeMismatchInfo{" + "entryHashCode=" + entryHashCode + ", bucketIndex=" + bucketIndex + "}\n";
         }
     }
 }
