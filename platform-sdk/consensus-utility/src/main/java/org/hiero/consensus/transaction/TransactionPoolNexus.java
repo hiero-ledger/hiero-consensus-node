@@ -129,7 +129,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     private synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
         Objects.requireNonNull(transaction);
-        if(priority){
+        if (priority) {
             logger.info("2 TransactionPoolNexus.submitTransaction()");
         }
 
@@ -140,7 +140,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             transactionPoolMetrics.recordRejectedAppTransaction();
             return false;
         }
-        if(priority){
+        if (priority) {
             logger.info("3 TransactionPoolNexus.submitTransaction()");
         }
 
@@ -150,7 +150,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
         } else {
             transactionPoolMetrics.recordAcceptedAppTransaction();
         }
-        if(priority){
+        if (priority) {
             logger.info("4 TransactionPoolNexus.submitTransaction()");
         }
 
@@ -159,7 +159,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
         } else {
             bufferedTransactions.add(transaction);
         }
-        if(priority){
+        if (priority) {
             logger.info("5 TransactionPoolNexus.submitTransaction()");
         }
 

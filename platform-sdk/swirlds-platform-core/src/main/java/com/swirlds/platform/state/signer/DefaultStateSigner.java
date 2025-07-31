@@ -59,7 +59,9 @@ public class DefaultStateSigner implements StateSigner {
                     .signature(signature)
                     .hash(stateHash.getBytes())
                     .build();
-            logger.info(LogMarker.STARTUP.getMarker(), "DefaultStateSigner.signState(), round {}",
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "DefaultStateSigner.signState(), round {}",
                     signatureTransaction.round());
             return signatureTransaction;
         }
