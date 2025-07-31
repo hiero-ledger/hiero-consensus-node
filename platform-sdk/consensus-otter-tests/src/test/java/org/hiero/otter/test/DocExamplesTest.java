@@ -58,7 +58,8 @@ class DocExamplesTest {
         env.timeManager().waitFor(Duration.ofSeconds(30));
 
         // Results will be identical across runs
-        final long lastRound = network.newConsensusResults().results().getFirst().lastRoundNum();
+        final long lastRound =
+                network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
         assertThat(lastRound).isEqualTo(35);
@@ -96,12 +97,10 @@ class DocExamplesTest {
         final Node problematicNode = nodes.getFirst();
 
         // Ignore specific nodes
-        assertThat(network.newLogResults().suppressingNode(problematicNode))
-                .haveNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingNode(problematicNode)).haveNoErrorLevelMessages();
 
         // Filter out expected log markers
-        assertThat(network.newLogResults().suppressingLogMarker(STARTUP))
-                .haveNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingLogMarker(STARTUP)).haveNoErrorLevelMessages();
 
         // Clear accumulated data
         final SingleNodeConsensusResult consensusResults = node.newConsensusResult();
