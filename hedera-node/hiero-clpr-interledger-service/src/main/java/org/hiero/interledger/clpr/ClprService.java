@@ -5,6 +5,8 @@ import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.RpcServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody;
+
 import java.util.ServiceLoader;
 import java.util.Set;
 

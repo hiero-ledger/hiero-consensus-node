@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATION_KEY;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -26,23 +27,13 @@ public class ReadableClprLedgerConfigurationStoreImpl implements ReadableClprLed
      */
     public ReadableClprLedgerConfigurationStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        //TODO: Need to create a schema for this following usage.
-        ledgerConfigurations = states.get("ClprLedgerConfigurations");
+        ledgerConfigurations = states.get(CLPR_LEDGER_CONFIGURATION_KEY);
     }
 
-
-    /**
-     * Get a {@link ClprLedgerConfiguration} referenced by {@link ClprLedgerId}.
-     * If the CLPR Ledger Id is null, return the configuration for this ledger.
-     * If the CLPR Ledger Id does not have a key, return {@code null}.
-     *
-     * @param ledgerId the clpr ledger id
-     * @return The CLPR ledger configuration corresponding to the provided ledger id or null if it does not exist.
-     */
     @Override
     @Nullable
-    public ClprLedgerConfiguration get(@Nullable final ClprLedgerId ledgerId) {
-        return null;
+    public ClprLedgerConfiguration get(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        return ledgerConfigurations.get(ledgerId);
     }
-
 }

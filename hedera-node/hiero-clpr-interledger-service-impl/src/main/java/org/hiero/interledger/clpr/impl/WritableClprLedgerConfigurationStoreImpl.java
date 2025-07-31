@@ -11,6 +11,9 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATION_KEY;
+
 /**
  * A writable store that wraps a writable key-value state and supports operations required to create or update
  * CLPR ledger configuration as a result of setRemoteLedgerConfiguration transactions and updated configuration
@@ -26,15 +29,14 @@ public class WritableClprLedgerConfigurationStoreImpl extends ReadableClprLedger
      *
      * @param states The state to use.
      */
-    public WritableClprLedgerConfigurationStoreImpl(
-            @NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
+    public WritableClprLedgerConfigurationStoreImpl(@NonNull final WritableStates states) {
         super(states);
-        //TODO: This needs to be updated with a schema sourced key.
-        ledgerConfigurationsMutable = states.get("ClprLedgerConfigurations");
+        ledgerConfigurationsMutable = states.get(CLPR_LEDGER_CONFIGURATION_KEY);
     }
 
     @Override
-    public void setLedgerConfiguration(@NonNull final ClprLedgerConfiguration ledgerConfiguration) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public void put(@NonNull final ClprLedgerConfiguration ledgerConfiguration) {
+        final var ledgerId = requireNonNull(ledgerConfiguration.ledgerId());
+        ledgerConfigurationsMutable.put(ledgerId, ledgerConfiguration);
     }
 }

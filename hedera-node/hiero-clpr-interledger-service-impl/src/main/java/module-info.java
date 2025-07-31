@@ -9,4 +9,5 @@ module org.hiero.interledger.clpr.impl {
     requires transitive com.swirlds.state.api;
     requires transitive com.hedera.node.hapi;
     requires static transitive com.github.spotbugs.annotations;
+    requires com.hedera.node.app;
 }

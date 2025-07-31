@@ -14,5 +14,5 @@ public interface WritableClprLedgerConfigurationStore extends ReadableClprLedger
      *
      * @param ledgerConfiguration The ledger configuration to set.
      */
-    void setLedgerConfiguration(@NonNull ClprLedgerConfiguration ledgerConfiguration);
+    void put(@NonNull ClprLedgerConfiguration ledgerConfiguration);
 }
