@@ -405,7 +405,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: Hiero Consensus Node - Single Day Performance Test Error Report",
+                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Failed",
                       "emoji": true
                     }
                   },
