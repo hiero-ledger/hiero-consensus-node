@@ -14,10 +14,12 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.ParameterProvider;
@@ -48,14 +50,27 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -145,6 +160,21 @@ public final class EventRecoveryWorkflow {
         }
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
+
+        // Get the method using the classes from the parameter instances
+        Method method;
+        try {
+            method = appMain.getClass().getDeclaredMethod(
+                    "newHedera",
+                    Metrics.class,
+                    PlatformStateFacade.class,
+                    Configuration.class
+            );
+            // create Hedera object to initialize ConstructionRegistry
+            method.invoke(null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
                         signedStateFile,
