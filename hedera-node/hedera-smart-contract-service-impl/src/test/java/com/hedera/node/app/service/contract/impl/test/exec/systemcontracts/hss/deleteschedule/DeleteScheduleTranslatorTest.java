@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.deleteschedule;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_CONTRACT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.when;
+
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -22,18 +34,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
-
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_CONTRACT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.when;
 
 class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
 
@@ -71,8 +71,7 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
                 new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector()), true, true),
                 new TestSelector(Bytes.wrap("wrongSelector".getBytes()), true, false),
                 new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector()), false, false),
-                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector()), false, false)
-        );
+                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector()), false, false));
     }
 
     @ParameterizedTest
@@ -81,11 +80,7 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractDeleteScheduleEnabled()).willReturn(data.enabled());
         // when:
-        attempt = createHssCallAttempt(
-                data.selector(),
-                false,
-                configuration,
-                List.of(subject));
+        attempt = createHssCallAttempt(data.selector(), false, configuration, List.of(subject));
         // then:
         assertEquals(data.present(), subject.identifyMethod(attempt).isPresent());
     }
@@ -94,9 +89,8 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         return List.of(
                 Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULED.encodeCall(
                         Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))),
-                bytesForRedirectScheduleTxn(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector(),
-                        NON_SYSTEM_LONG_ZERO_ADDRESS)
-        );
+                bytesForRedirectScheduleTxn(
+                        DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS));
     }
 
     @ParameterizedTest
@@ -134,5 +128,4 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         // then:
         assertEquals(expectedGas, gas);
     }
-
 }

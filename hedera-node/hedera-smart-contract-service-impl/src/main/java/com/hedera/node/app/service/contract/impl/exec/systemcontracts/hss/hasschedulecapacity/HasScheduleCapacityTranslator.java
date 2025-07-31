@@ -53,7 +53,10 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
         final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
         final BigInteger expirySecond = call.get(EXPIRY_SECOND_INDEX);
         final BigInteger gasLimit = call.get(GAS_LIMIT_INDEX);
-        // TODO Glib: call hasScheduleCapacity when it will be implemented
+        // TODO should be implemented with:
+        //  HIP-1215 https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1215.md
+        //  Issue #20032 https://github.com/hiero-ledger/hiero-consensus-node/issues/20032
+        //  call hasScheduleCapacity when it will be implemented
 
         return new HasScheduleCapacityCallStub(attempt);
     }

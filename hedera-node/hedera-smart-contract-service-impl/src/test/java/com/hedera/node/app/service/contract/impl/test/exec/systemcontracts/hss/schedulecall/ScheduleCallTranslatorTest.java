@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulecall;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_BESU_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_CONTRACT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.when;
+
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -24,19 +37,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
-
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_BESU_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_CONTRACT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_LONG_ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.when;
 
 public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
 
@@ -68,22 +68,20 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
         subject = new ScheduleCallTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
-    public record TestSelector(Bytes selector, boolean enabled, boolean present) {
-    }
+    public record TestSelector(Bytes selector, boolean enabled, boolean present) {}
 
     private static List<TestSelector> scheduleCallSelectors() {
         return List.of(
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULED_CALL.selector()), true, true),
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULED_CALL_WITH_SENDER.selector()), true, true),
-                new TestSelector(Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), true,
-                        true),
+                new TestSelector(
+                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), true, true),
                 new TestSelector(Bytes.wrap("wrongSelector".getBytes()), true, false),
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULED_CALL.selector()), false, false),
-                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULED_CALL_WITH_SENDER.selector()), false,
-                        false),
-                new TestSelector(Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), false,
-                        false)
-        );
+                new TestSelector(
+                        Bytes.wrap(ScheduleCallTranslator.SCHEDULED_CALL_WITH_SENDER.selector()), false, false),
+                new TestSelector(
+                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), false, false));
     }
 
     @ParameterizedTest
@@ -92,52 +90,52 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractScheduleCallEnabled()).willReturn(data.enabled());
         // when:
-        attempt = createHssCallAttempt(
-                data.selector(),
-                false,
-                configuration,
-                List.of(subject));
+        attempt = createHssCallAttempt(data.selector(), false, configuration, List.of(subject));
         // then:
         assertEquals(data.present(), subject.identifyMethod(attempt).isPresent());
     }
 
-    public record TestFunction(Bytes input, Object senderParameter, Address senderAddress) {
-    }
+    public record TestFunction(Bytes input, Object senderParameter, Address senderAddress) {}
 
     private static List<TestFunction> scheduleCallFunctions() {
         return Stream.of(
-                // long zero
-                asHeadlongAddress(666),
-                // non long zero
-                asHeadlongAddress(Address.fromHexString(NON_LONG_ZERO_ADDRESS))
-        ).flatMap(e -> Stream.of(
-                new TestFunction(Bytes.wrapByteBuffer(ScheduleCallTranslator.SCHEDULED_CALL.encodeCall(Tuple.of(
-                        e,
-                        BigInteger.valueOf(1000),
-                        BigInteger.valueOf(1_000_000),
-                        BigInteger.valueOf(0),
-                        new byte[]{0}
-                ))), OWNER_BESU_ADDRESS, OWNER_BESU_ADDRESS),
-                new TestFunction(Bytes.wrapByteBuffer(ScheduleCallTranslator.SCHEDULED_CALL_WITH_SENDER.encodeCall(
-                        Tuple.of(
-                                e,
-                                APPROVED_HEADLONG_ADDRESS,
-                                BigInteger.valueOf(1000),
-                                BigInteger.valueOf(1_000_000),
-                                BigInteger.valueOf(0),
-                                new byte[]{0}
-                        ))), APPROVED_HEADLONG_ADDRESS, APPROVED_BESU_ADDRESS),
-                new TestFunction(
-                        Bytes.wrapByteBuffer(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.encodeCall(
-                                Tuple.of(
+                        // long zero
+                        asHeadlongAddress(666),
+                        // non long zero
+                        asHeadlongAddress(Address.fromHexString(NON_LONG_ZERO_ADDRESS)))
+                .flatMap(e -> Stream.of(
+                        new TestFunction(
+                                Bytes.wrapByteBuffer(ScheduleCallTranslator.SCHEDULED_CALL.encodeCall(Tuple.of(
                                         e,
-                                        APPROVED_HEADLONG_ADDRESS,
                                         BigInteger.valueOf(1000),
                                         BigInteger.valueOf(1_000_000),
                                         BigInteger.valueOf(0),
-                                        new byte[]{0}
-                                ))), APPROVED_HEADLONG_ADDRESS, APPROVED_BESU_ADDRESS)
-        )).toList();
+                                        new byte[] {0}))),
+                                OWNER_BESU_ADDRESS,
+                                OWNER_BESU_ADDRESS),
+                        new TestFunction(
+                                Bytes.wrapByteBuffer(
+                                        ScheduleCallTranslator.SCHEDULED_CALL_WITH_SENDER.encodeCall(Tuple.of(
+                                                e,
+                                                APPROVED_HEADLONG_ADDRESS,
+                                                BigInteger.valueOf(1000),
+                                                BigInteger.valueOf(1_000_000),
+                                                BigInteger.valueOf(0),
+                                                new byte[] {0}))),
+                                APPROVED_HEADLONG_ADDRESS,
+                                APPROVED_BESU_ADDRESS),
+                        new TestFunction(
+                                Bytes.wrapByteBuffer(
+                                        ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.encodeCall(Tuple.of(
+                                                e,
+                                                APPROVED_HEADLONG_ADDRESS,
+                                                BigInteger.valueOf(1000),
+                                                BigInteger.valueOf(1_000_000),
+                                                BigInteger.valueOf(0),
+                                                new byte[] {0}))),
+                                APPROVED_HEADLONG_ADDRESS,
+                                APPROVED_BESU_ADDRESS)))
+                .toList();
     }
 
     @ParameterizedTest
@@ -148,8 +146,8 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
             given(addressIdConverter.convertSender(data.senderAddress())).willReturn(payerId);
         } else {
             given(addressIdConverter.convertSender(data.senderAddress())).willReturn(payerId);
-            given(addressIdConverter.convert((com.esaulpaugh.headlong.abi.Address) data.senderParameter())).willReturn(
-                    payerId);
+            given(addressIdConverter.convert((com.esaulpaugh.headlong.abi.Address) data.senderParameter()))
+                    .willReturn(payerId);
         }
         given(verificationStrategies.activatingOnlyContractKeysFor(data.senderAddress(), false, nativeOperations))
                 .willReturn(verificationStrategy);
