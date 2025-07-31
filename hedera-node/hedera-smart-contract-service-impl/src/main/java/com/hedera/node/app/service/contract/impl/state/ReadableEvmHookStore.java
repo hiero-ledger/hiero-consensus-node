@@ -91,15 +91,4 @@ public class ReadableEvmHookStore {
         });
         return new EvmHookView(state, slots);
     }
-
-    protected static Bytes zeroPaddedTo32(@NonNull final Bytes bytes) {
-        final int len = (int) bytes.length();
-        if (len == 32L) {
-            return bytes;
-        } else {
-            final var padded = new byte[32];
-            System.arraycopy(bytes.toByteArray(), 0, padded, 32 - len, len);
-            return Bytes.wrap(padded);
-        }
-    }
 }

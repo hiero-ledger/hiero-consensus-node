@@ -9,8 +9,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.minimalRepresentationOf;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -29,6 +31,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -98,6 +101,9 @@ public class LambdaSStoreHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
         final var lambdaStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
+        final var storageUpdates = op.storageUpdates();
+        final var config = context.configuration().getConfigData(HooksConfig.class);
+        validateTrue(storageUpdates.size() <= config.maxLambdaSStoreUpdates(), TOO_MANY_LAMBDA_STORAGE_UPDATES);
         final int delta = lambdaStore.updateStorage(op.hookIdOrThrow(), op.storageUpdates());
         if (delta != 0) {
             final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);

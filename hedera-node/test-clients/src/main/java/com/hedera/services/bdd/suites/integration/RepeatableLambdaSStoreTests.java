@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -21,6 +22,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_IS_NOT_A_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +44,7 @@ import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -186,6 +189,17 @@ public class RepeatableLambdaSStoreTests {
     }
 
     @Order(6)
+    @LeakyRepeatableHapiTest(value = NEEDS_STATE_ACCESS, overrides = "hooks.maxLambdaSStoreUpdates")
+    Stream<DynamicTest> cannotExceedMaxStorageUpdates() {
+        return hapiTest(
+                overriding("hooks.maxLambdaSStoreUpdates", "1"),
+                accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
+                        .putSlot(B, C)
+                        .putSlot(D, E)
+                        .hasKnownStatus(TOO_MANY_LAMBDA_STORAGE_UPDATES));
+    }
+
+    @Order(7)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> newEntriesInsertedAtHead() {
         final AtomicLong origCount = new AtomicLong();
@@ -205,7 +219,7 @@ public class RepeatableLambdaSStoreTests {
                         List.of(Pair.of(F, E), Pair.of(slotKeyOfMappingEntry(leftPad32(A), F_E_ENTRY), E))));
     }
 
-    @Order(7)
+    @Order(8)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> clearingAllSlotsLeavesZeroUsage() {
         final AtomicLong origCount = new AtomicLong();

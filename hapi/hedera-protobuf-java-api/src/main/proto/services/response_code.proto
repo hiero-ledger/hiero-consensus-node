@@ -1837,4 +1837,9 @@ enum ResponseCodeEnum {
      * A hook was deleted.
      */
     HOOK_DELETED = 512;
+
+    /**
+     * The LambdaSStore tried to update too many storage slots in a single transaction.
+     */
+    TOO_MANY_LAMBDA_STORAGE_UPDATES = 513;
 }
