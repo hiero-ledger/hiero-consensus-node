@@ -2,9 +2,8 @@
 package com.swirlds.merkledb.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.base.constructable.ConstructableIgnored;
-
 import java.nio.ByteBuffer;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 @ConstructableIgnored
 public class ExampleLongKey {

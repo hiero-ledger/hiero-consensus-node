@@ -6,7 +6,6 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * This class sole purpose is to extend the {@link MerkleStateRoot} class and implement the {@link MerkleNodeState}.

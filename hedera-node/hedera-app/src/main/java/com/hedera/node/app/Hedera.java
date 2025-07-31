@@ -160,9 +160,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
@@ -544,10 +542,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                                 platformStateFacade),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
-            consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
-            final var blockStreamsEnabled = isBlockStreamEnabled();
-            stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
-            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
+        final var blockStreamsEnabled = isBlockStreamEnabled();
+        stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
+        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
     }
 
     /**
