@@ -306,7 +306,7 @@ Another benefit of continuous assertions is that they can suppress assertions ov
 
 ```java
     // Continuous assertion with that checks no errors are written to the log
-    final MultipleNodeLogResultsContinuousAssert assertion = 
+    final MultipleNodeLogResultsContinuousAssert assertion =
             assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
 
     // Suppress RECONNECT log marker during the test
