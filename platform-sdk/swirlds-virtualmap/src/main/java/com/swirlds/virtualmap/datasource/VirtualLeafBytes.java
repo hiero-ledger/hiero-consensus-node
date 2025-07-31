@@ -246,9 +246,7 @@ public class VirtualLeafBytes<V> {
         final Bytes vb = valueBytes();
         if (vb != null) {
             final int valueLen = Math.toIntExact(vb.length());
-            if (valueLen > 0) {
-                innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
-            }
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
         }
 
         // `1 +` for 0x00 prefix
@@ -271,18 +269,14 @@ public class VirtualLeafBytes<V> {
         final Bytes vb = valueBytes();
         if (vb != null) {
             final int valueLen = Math.toIntExact(vb.length());
-            if (valueLen > 0) {
-                innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
-            }
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
         }
 
         ProtoWriterTools.writeDelimited(out, FIELD_MERKLELEAF_STATEITEM, innerLen, innerOut -> {
             ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_KEY, keyLen, kb::writeTo);
             if (vb != null) {
                 final int valueLen = Math.toIntExact(vb.length());
-                if (valueLen > 0) {
-                    ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
-                }
+                ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
             }
         });
 
