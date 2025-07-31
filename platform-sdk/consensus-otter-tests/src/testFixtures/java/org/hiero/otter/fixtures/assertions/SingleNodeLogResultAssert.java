@@ -90,7 +90,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
                 .filter(log -> log.level().intLevel() < level.intLevel())
                 .toList();
         if (!logs.isEmpty()) {
-            final String message = String.format("Expected to find no message with lever higher than '%s'", level);
+            final String message = String.format("Expected to find no message with level higher than '%s'", level);
             failWithMessage(message, logs);
         }
         return this;

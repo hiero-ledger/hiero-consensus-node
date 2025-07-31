@@ -13,6 +13,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
+import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
@@ -128,7 +129,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         super(selfId, roster);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             this.randotron = requireNonNull(randotron);
             this.time = requireNonNull(time);
@@ -151,7 +152,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void killImmediately() throws InterruptedException {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             doShutdownNode();
 
@@ -186,7 +187,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void start() {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             throwIfIn(RUNNING, "Node has already been started.");
             throwIfIn(DESTROYED, "Node has already been destroyed.");
@@ -213,7 +214,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -299,7 +300,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         if (lifeCycle == RUNNING) {
             assert model != null; // model must be initialized if lifeCycle is STARTED
             try {
-                ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+                ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
                 model.tick();
             } finally {
                 ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -317,7 +318,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     void destroy() throws InterruptedException {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, Long.toString(this.selfId.id()));
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             resultsCollector.destroy();
             doShutdownNode();
