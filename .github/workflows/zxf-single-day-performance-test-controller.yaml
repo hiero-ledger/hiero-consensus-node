@@ -201,7 +201,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - Single Day Performance Test Passing Report",
+                        "text": ":tada: SDPT - Single Day Performance Test (${{ inputs.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -354,7 +354,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: Hiero Consensus Node - Single Day Performance Test Error Report",
+                      "text": ":grey_exclamation: SDPT - Single Day Performance Test (${{ inputs.ref }}) Failed",
                       "emoji": true
                     }
                   },
