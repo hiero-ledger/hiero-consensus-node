@@ -76,6 +76,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.addressbook;
+    requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.schedule;
