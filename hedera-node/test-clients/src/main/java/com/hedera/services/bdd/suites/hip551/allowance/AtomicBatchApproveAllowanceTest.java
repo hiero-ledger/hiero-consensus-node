@@ -24,8 +24,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
@@ -34,9 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance.MISSING_OWNER;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.allowanceTinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUniqueWithAllowance;
@@ -47,6 +43,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCh
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -298,7 +295,6 @@ public class AtomicBatchApproveAllowanceTest {
                                                 ByteString.copyFromUtf8("a"),
                                                 ByteString.copyFromUtf8("b"),
                                                 ByteString.copyFromUtf8("c"))),
-                                // TODO: add allowance op and then try to transfer!
                                 cryptoTransfer((spec, builder) ->
                                                 builder.addTokenTransfers(TokenTransferList.newBuilder()
                                                         .setToken(
@@ -1151,16 +1147,18 @@ public class AtomicBatchApproveAllowanceTest {
                                         ByteString.copyFromUtf8("c")))
                         .via(NFT_TOKEN_MINT_TXN),
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1190,26 +1188,30 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
-                        .via(NFT_TOKEN_MINT_TXN),
-                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, -100L)
-                        .fee(ONE_HUNDRED_HBARS)
+                atomicBatchDefaultOperator(
+                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                        mintToken(
+                                        NON_FUNGIBLE_TOKEN,
+                                        List.of(
+                                                ByteString.copyFromUtf8("a"),
+                                                ByteString.copyFromUtf8("b"),
+                                                ByteString.copyFromUtf8("c")))
+                                .via(NFT_TOKEN_MINT_TXN),
+                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
+                        cryptoTransfer(
+                                movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER))),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER, -100L)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(NEGATIVE_ALLOWANCE_AMOUNT))
                         .hasPrecheck(NEGATIVE_ALLOWANCE_AMOUNT),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, -100L)
-                        .fee(ONE_HUNDRED_HBARS)
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, -100L)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(NEGATIVE_ALLOWANCE_AMOUNT))
                         .hasPrecheck(NEGATIVE_ALLOWANCE_AMOUNT),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
@@ -1229,30 +1231,29 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoCreate(SECOND_SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(THIRD_SPENDER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
-                cryptoApproveAllowance()
-                        .payingWith(SPENDER)
-                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
-                cryptoApproveAllowance()
-                        .payingWith(SPENDER)
-                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
-                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0505, 0.1),
-                cryptoApproveAllowance()
-                        .payingWith(SPENDER)
-                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
-                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
-                        .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0509, 0.1));
+                atomicBatchDefaultOperator(
+                                cryptoApproveAllowance()
+                                        .payingWith(SPENDER)
+                                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                                        .via(BASE_APPROVE_TXN + "_1")
+                                        .blankMemo(),
+                                cryptoApproveAllowance()
+                                        .payingWith(SPENDER)
+                                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
+                                        .via(BASE_APPROVE_TXN + "_2")
+                                        .blankMemo(),
+                                cryptoApproveAllowance()
+                                        .payingWith(SPENDER)
+                                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
+                                        .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
+                                        .via(BASE_APPROVE_TXN + "_3")
+                                        .blankMemo())
+                        .via("batchTxn"),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", "batchTxn", 0.05, 0.01),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", "batchTxn", 0.0505, 0.1),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", "batchTxn", 0.0509, 0.1));
     }
 
     @HapiTest
@@ -1277,32 +1278,34 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
-                        .via(NFT_TOKEN_MINT_TXN),
-                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 100L)
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                        .via(APPROVE_TXN)
-                        .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                atomicBatchDefaultOperator(
+                                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                                mintToken(
+                                                NON_FUNGIBLE_TOKEN,
+                                                List.of(
+                                                        ByteString.copyFromUtf8("a"),
+                                                        ByteString.copyFromUtf8("b"),
+                                                        ByteString.copyFromUtf8("c")))
+                                        .via(NFT_TOKEN_MINT_TXN),
+                                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
+                                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L)
+                                        .between(TOKEN_TREASURY, OWNER)),
+                                cryptoApproveAllowance()
+                                        .payingWith(OWNER)
+                                        .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                        .via(BASE_APPROVE_TXN)
+                                        .blankMemo(),
+                                cryptoApproveAllowance()
+                                        .payingWith(OWNER)
+                                        .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)
+                                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+                                        .via(APPROVE_TXN)
+                                        .blankMemo())
+                        .via("batchTxn"),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, "batchTxn", 0.05, 0.01),
+                validateInnerTxnChargedUsd(APPROVE_TXN, "batchTxn", 0.05238, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1335,59 +1338,38 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
-                        .via(NFT_TOKEN_MINT_TXN),
-                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 100L)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of(1L, 2L))
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(accountDetailsWith()
-                                .cryptoAllowancesCount(1)
-                                .nftApprovedForAllAllowancesCount(1)
-                                .tokenAllowancesCount(1)
-                                .cryptoAllowancesContaining(SPENDER, 100L)
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 100L)
-                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, SPENDER)),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(SPENDER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(SPENDER),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 200L)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 300L)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(3L))
-                        .via("duplicateAllowances"),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(SPENDER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(SPENDER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 3L).hasSpenderID(SPENDER),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(accountDetailsWith()
-                                .cryptoAllowancesCount(1)
-                                .nftApprovedForAllAllowancesCount(0)
-                                .tokenAllowancesCount(1)
-                                .cryptoAllowancesContaining(SPENDER, 200L)
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 300L)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 0L)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 0L)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
-                        .via("removeAllowances"),
+                atomicBatchDefaultOperator(
+                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                        mintToken(
+                                        NON_FUNGIBLE_TOKEN,
+                                        List.of(
+                                                ByteString.copyFromUtf8("a"),
+                                                ByteString.copyFromUtf8("b"),
+                                                ByteString.copyFromUtf8("c")))
+                                .via(NFT_TOKEN_MINT_TXN),
+                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
+                        cryptoTransfer(
+                                movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of(1L, 2L))
+                                .via(BASE_APPROVE_TXN)
+                                .blankMemo(),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER, 200L)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 300L)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(3L))
+                                .via("duplicateAllowances"),
+                        cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER, 0L)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 0L)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                                .via("removeAllowances")),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1421,52 +1403,69 @@ public class AtomicBatchApproveAllowanceTest {
                 mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
                         .via(NFT_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of(1L))
-                        .signedBy(DEFAULT_PAYER, OWNER),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, true, List.of(1L))
-                        .signedBy(DEFAULT_PAYER, OWNER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L)
-                        .hasSpenderID(SECOND_SPENDER)
-                        .logged(),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(2)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SECOND_SPENDER)
-                        .signedBy(SECOND_SPENDER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged(),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SECOND_SPENDER)
-                        .signedBy(SECOND_SPENDER),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of())
-                        .signedBy(DEFAULT_PAYER, OWNER),
+
+                // approve for all
+                atomicBatchDefaultOperator(
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of(1L))
+                                .signedBy(DEFAULT_PAYER, OWNER),
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, true, List.of(1L))
+                                .signedBy(DEFAULT_PAYER, OWNER),
+
+                        // Queries are not allowed in batch, but the comments here are good for keeping track
+                        // of what is supposed to happen.
+
+                        //                      getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L)
+                        //                              .hasSpenderID(SECOND_SPENDER),
+                        //                      getAccountDetails(OWNER)
+                        //                              .payingWith(GENESIS)
+                        //                              .has(accountDetailsWith().nftApprovedForAllAllowancesCount(2)),
+                        cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1)
+                                        .between(OWNER, RECEIVER))
+                                .payingWith(SECOND_SPENDER)
+                                .signedBy(SECOND_SPENDER),
+                        //                      getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged(),
+                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER)),
+                        cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1)
+                                        .between(OWNER, RECEIVER))
+                                .payingWith(SECOND_SPENDER)
+                                .signedBy(SECOND_SPENDER),
+                        // delete OWNER -> SECOND_SPENDER allowance
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of())
+                                .signedBy(DEFAULT_PAYER, OWNER),
+                        // return serial 1 to OWNER
+                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER))),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER)),
                 cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
                         .payingWith(SECOND_SPENDER)
                         .signedBy(SECOND_SPENDER)
                         .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of(1L))
-                        .signedBy(DEFAULT_PAYER, OWNER),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SECOND_SPENDER)
-                        .signedBy(SECOND_SPENDER),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SECOND_SPENDER)
-                        .signedBy(SECOND_SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
+
+                // approve for all is false
+                atomicBatchDefaultOperator(
+                                cryptoApproveAllowance()
+                                        .payingWith(DEFAULT_PAYER)
+                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of(1L))
+                                        .signedBy(DEFAULT_PAYER, OWNER),
+                                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1)
+                                                .between(OWNER, RECEIVER))
+                                        .payingWith(SECOND_SPENDER)
+                                        .signedBy(SECOND_SPENDER),
+                                cryptoTransfer(
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 1).between(RECEIVER, OWNER)),
+                                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1)
+                                                .between(OWNER, RECEIVER))
+                                        .payingWith(SECOND_SPENDER)
+                                        .signedBy(SECOND_SPENDER)
+                                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -1484,94 +1483,25 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY),
-                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(RECEIVER, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
-                        .via(NFT_TOKEN_MINT_TXN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
-                        .signedBy(DEFAULT_PAYER, OWNER),
-                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged(),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER),
+                atomicBatchDefaultOperator(
+                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                        tokenAssociate(RECEIVER, NON_FUNGIBLE_TOKEN),
+                        tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
+                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
+                                .via(NFT_TOKEN_MINT_TXN),
+                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                                .signedBy(DEFAULT_PAYER, OWNER),
+                        //                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged(),
+                        //                getAccountDetails(OWNER)
+                        //                        .payingWith(GENESIS)
+                        //                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
+                        cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1)
+                                        .between(OWNER, RECEIVER))
+                                .payingWith(SPENDER)),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender().logged());
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> scheduledCryptoApproveAllowanceWorks() {
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER),
-                cryptoCreate(OTHER_RECEIVER).balance(ONE_HBAR).maxAutomaticTokenAssociations(1),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(10000)
-                        .initialSupply(5000),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(12L)
-                        .supplyKey(SUPPLY_KEY)
-                        .initialSupply(0L),
-                tokenCreate(TOKEN_WITH_CUSTOM_FEE)
-                        .treasury(TOKEN_TREASURY)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(1000)
-                        .maxSupply(5000)
-                        .withCustom(fixedHtsFee(10, "0.0.0", TOKEN_TREASURY)),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("a"),
-                                ByteString.copyFromUtf8("b"),
-                                ByteString.copyFromUtf8("c"))),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, TOKEN_WITH_CUSTOM_FEE),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, TOKEN_WITH_CUSTOM_FEE),
-                cryptoTransfer(
-                        moving(1000, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
-                        moving(15, TOKEN_WITH_CUSTOM_FEE).between(TOKEN_TREASURY, OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
-                scheduleCreate(
-                                SCHEDULED_TXN,
-                                cryptoApproveAllowance()
-                                        .addCryptoAllowance(OWNER, SPENDER, 10 * ONE_HBAR)
-                                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 1500)
-                                        .addTokenAllowance(OWNER, TOKEN_WITH_CUSTOM_FEE, SPENDER, 100)
-                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L, 3L))
-                                        .fee(ONE_HUNDRED_HBARS))
-                        .via("successTx"),
-                getTxnRecord("successTx"),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 3).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR))
-                        .payingWith(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                scheduleSign(SCHEDULED_TXN).alsoSigningWith(OWNER),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 3).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER),
-                getAccountBalance(OTHER_RECEIVER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1),
-                cryptoTransfer(movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER),
-                getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR))
-                        .payingWith(SPENDER),
-                getAccountBalance(RECEIVER).hasTinyBars(15 * ONE_HBAR));
     }
 
     @HapiTest
@@ -1599,41 +1529,44 @@ public class AtomicBatchApproveAllowanceTest {
                         .maxSupply(12L)
                         .supplyKey(SUPPLY_KEY)
                         .initialSupply(0L),
-                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("1"),
-                                ByteString.copyFromUtf8("2"),
-                                ByteString.copyFromUtf8("3"))),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(
-                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(SUCCESS)
-                        .via(tryApprovingTheSender),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 1000L)
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(SUCCESS)
-                        .via(tryApprovingAboveBalance),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, false, List.of(1L))
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER)
-                        .via(tryApprovingNFTToOwner),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L, 3L, 4L))
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER)
-                        .via(tryApprovingNFTWithInvalidSerial),
+                atomicBatchDefaultOperator(
+                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
+                        mintToken(
+                                NON_FUNGIBLE_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("1"),
+                                        ByteString.copyFromUtf8("2"),
+                                        ByteString.copyFromUtf8("3"))),
+                        tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                        cryptoTransfer(
+                                moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                                movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
+                                .signedBy(DEFAULT_PAYER, OWNER)
+                                .hasKnownStatus(SUCCESS)
+                                .via(tryApprovingTheSender),
+                        cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 1000L)
+                                .signedBy(DEFAULT_PAYER, OWNER)
+                                .hasKnownStatus(SUCCESS)
+                                .via(tryApprovingAboveBalance)),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, false, List.of(1L))
+                                .signedBy(DEFAULT_PAYER, OWNER)
+                                .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER)
+                                .via(tryApprovingNFTToOwner))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(DEFAULT_PAYER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L, 3L, 4L))
+                                .signedBy(DEFAULT_PAYER, OWNER)
+                                .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER)
+                                .via(tryApprovingNFTWithInvalidSerial))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 emptyChildRecordsCheck(tryApprovingTheSender, SUCCESS),
                 emptyChildRecordsCheck(tryApprovingAboveBalance, SUCCESS),
                 emptyChildRecordsCheck(tryApprovingNFTToOwner, SPENDER_ACCOUNT_SAME_AS_OWNER),
@@ -1666,19 +1599,22 @@ public class AtomicBatchApproveAllowanceTest {
                 cryptoTransfer(
                         moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
                         movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-                tokenDelete(FUNGIBLE_TOKEN),
-                tokenDelete(NON_FUNGIBLE_TOKEN),
-                // try to approve allowance for deleted fungible token
-                cryptoApproveAllowance()
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(TOKEN_WAS_DELETED),
-
-                // try to approve allowance for deleted nft token
-                cryptoApproveAllowance()
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(TOKEN_WAS_DELETED));
+                atomicBatchDefaultOperator(
+                                tokenDelete(FUNGIBLE_TOKEN),
+                                // try to approve allowance for deleted fungible token
+                                cryptoApproveAllowance()
+                                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                        .signedBy(DEFAULT_PAYER, OWNER)
+                                        .hasKnownStatus(TOKEN_WAS_DELETED))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                atomicBatchDefaultOperator(
+                                tokenDelete(NON_FUNGIBLE_TOKEN),
+                                // try to approve allowance for deleted nft token
+                                cryptoApproveAllowance()
+                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                                        .signedBy(DEFAULT_PAYER, OWNER)
+                                        .hasKnownStatus(TOKEN_WAS_DELETED))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -1694,22 +1630,21 @@ public class AtomicBatchApproveAllowanceTest {
                         .initialSupply(0),
                 mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
                 tokenCreate(FUNGIBLE_TOKEN).supplyKey(SUPPLY_KEY).treasury(TOKEN_TREASURY),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(
-                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-
-                // try to approve allowance to the owner
-                cryptoApproveAllowance()
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(SUCCESS),
-
-                // try to approve allowance to the owner
-                cryptoApproveAllowance()
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, true, List.of())
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER));
+                atomicBatchDefaultOperator(
+                                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                                cryptoTransfer(
+                                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                                // try to approve allowance to the owner
+                                cryptoApproveAllowance()
+                                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
+                                        .signedBy(DEFAULT_PAYER, OWNER),
+                                // try to approve allowance to the owner
+                                cryptoApproveAllowance()
+                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, true, List.of())
+                                        .signedBy(DEFAULT_PAYER, OWNER)
+                                        .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -1726,21 +1661,24 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
-                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(SECOND_SPENDER, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
-                        .signedByPayerAnd(OWNER),
-                cryptoDelete(SPENDER),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addDelegatedNftAllowance(
-                                OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, SPENDER, false, List.of(1L))
-                        .signedByPayerAnd(SPENDER)
-                        .hasKnownStatus(INVALID_DELEGATING_SPENDER));
+                atomicBatchDefaultOperator(
+                                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
+                                tokenAssociate(SECOND_SPENDER, NON_FUNGIBLE_TOKEN),
+                                cryptoTransfer(
+                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                                cryptoApproveAllowance()
+                                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                                        .signedByPayerAnd(OWNER),
+                                cryptoDelete(SPENDER),
+                                cryptoApproveAllowance()
+                                        .payingWith(DEFAULT_PAYER)
+                                        .addDelegatedNftAllowance(
+                                                OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, SPENDER, false, List.of(1L))
+                                        .signedByPayerAnd(SPENDER)
+                                        .hasKnownStatus(INVALID_DELEGATING_SPENDER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {
