@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -12,10 +11,11 @@ import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
-import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,28 +28,26 @@ import java.util.List;
  * @param status the resolved status of the call
  * @param recipientId if known, the Hedera id of the contract that was called
  * @param actions any contract actions that should be externalized in a sidecar
- * @param stateChanges any contract state changes that should be externalized in a sidecar
- * @param slotUsages any contract slot usages that should be externalized in trace data
  * @param logs if not null, any EVM transaction logs that should be externalized in trace data
  * @param changedNonceInfos if not null, any contract IDs that had their nonce changed during the call
  * @param createdContractIds
  * @param txResult the concise EVM transaction result
  * @param newSenderNonce if not null, the new sender nonce after the call
- * @param createdEvmAddress
+ * @param createdEvmAddress if not null, the EVM address of the contract that was created
+ * @param txStorageUsage if not null, the storage usage for the transaction
  */
 public record CallOutcome(
         @NonNull @Deprecated ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
         @Nullable List<ContractAction> actions,
-        @Nullable @Deprecated ContractStateChanges stateChanges,
-        @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable List<EvmTransactionLog> logs,
         @Nullable List<ContractNonceInfo> changedNonceInfos,
         @Nullable List<ContractID> createdContractIds,
         @NonNull EvmTransactionResult txResult,
         @Nullable Long newSenderNonce,
-        @Nullable Bytes createdEvmAddress) {
+        @Nullable Bytes createdEvmAddress,
+        @Nullable TxStorageUsage txStorageUsage) {
 
     /**
      * Returns whether there is a new sender nonce after the call.
@@ -66,18 +64,18 @@ public record CallOutcome(
     }
 
     /**
-     * @return whether some state changes appeared from the execution of the contract
+     * Returns whether there is storage usage information for the EVM transaction.
      */
-    @Deprecated
-    public boolean hasStateChanges() {
-        return stateChanges != null && !stateChanges.contractStateChanges().isEmpty();
+    public boolean hasTxStorageUsage() {
+        return txStorageUsage != null;
     }
 
     /**
-     * @return whether some slot usages appeared from the execution of the contract
+     * Returns the storage usage information for the EVM transaction.
+     * @throws NullPointerException if there is no storage usage information
      */
-    public boolean hasSlotUsages() {
-        return slotUsages != null && !slotUsages.isEmpty();
+    public @NonNull TxStorageUsage txStorageUsageOrThrow() {
+        return requireNonNull(txStorageUsage);
     }
 
     /**
@@ -99,13 +97,6 @@ public record CallOutcome(
      */
     public boolean hasCreatedContractIds() {
         return createdContractIds != null && !createdContractIds.isEmpty();
-    }
-
-    /**
-     * Return the slot usages.
-     */
-    public @NonNull List<ContractSlotUsage> slotUsagesOrThrow() {
-        return requireNonNull(slotUsages);
     }
 
     /**
@@ -150,14 +141,13 @@ public record CallOutcome(
                 hevmResult.finalStatus(),
                 hevmResult.recipientId(),
                 hevmResult.actions(),
-                hevmResult.stateChanges(),
-                hevmResult.slotUsages(),
                 hevmResult.evmLogs(),
                 changedNonceInfos,
                 createdContractIds,
                 txResult,
                 hevmResult.signerNonce(),
-                evmAddress);
+                evmAddress,
+                hevmResult.txStorageUsage());
     }
 
     /**
@@ -181,14 +171,13 @@ public record CallOutcome(
                 hevmResult.finalStatus(),
                 hevmResult.recipientId(),
                 null,
-                null,
-                null,
                 hevmResult.evmLogs(),
                 updatedNonceInfos,
                 createdContractIds,
                 txResult,
                 hevmResult.signerNonce(),
-                evmAddress);
+                evmAddress,
+                null);
     }
 
     /**
@@ -196,14 +185,13 @@ public record CallOutcome(
      * @param status the resolved status of the call
      * @param recipientId if known, the Hedera id of the contract that was called
      * @param actions any contract actions that should be externalized in a sidecar
-     * @param stateChanges any contract state changes that should be externalized in a sidecar
-     * @param slotUsages any contract slot usages that should be externalized in trace data
      * @param logs any EVM transaction logs that should be externalized in trace data
      * @param changedNonceInfos the contract IDs that had their nonce changed during the call
      * @param createdContractIds if not null, the contract IDs that were created during the call
      * @param txResult the concise EVM transaction result
      * @param newSenderNonce if applicable, the new sender nonce after the call
      * @param createdEvmAddress if applicable, the EVM address of the contract that was created
+     * @param txStorageUsage if applicable, the storage usage for the transaction
      */
     public CallOutcome {
         requireNonNull(result);
@@ -222,17 +210,19 @@ public record CallOutcome(
 
     /**
      * Adds the call details to the given stream builder.
-     *
      * @param streamBuilder the stream builder
+     * @param context the HandleContext
      */
-    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder streamBuilder) {
+    public void addCallDetailsTo(
+            @NonNull final ContractCallStreamBuilder streamBuilder, @NonNull final HandleContext context) {
         requireNonNull(streamBuilder);
+        requireNonNull(context);
         addCalledContractIfNotAborted(streamBuilder);
         // (FUTURE) Remove after switching to block stream
         streamBuilder.contractCallResult(result);
         // No-op for the RecordStreamBuilder
         streamBuilder.evmCallTransactionResult(txResult);
-        streamBuilder.withCommonFieldsSetFrom(this);
+        streamBuilder.withCommonFieldsSetFrom(this, context);
     }
 
     /**
@@ -248,17 +238,21 @@ public record CallOutcome(
 
     /**
      * Adds the creation details to the given stream builder.
+     *
      * @param streamBuilder the stream builder
+     * @param context the handle context
      */
-    public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder streamBuilder) {
+    public void addCreateDetailsTo(
+            @NonNull final ContractCreateStreamBuilder streamBuilder, @NonNull final HandleContext context) {
         requireNonNull(streamBuilder);
+        requireNonNull(context);
         // (FUTURE) Remove after switching to block stream
         streamBuilder.contractCreateResult(result);
         streamBuilder
                 .createdContractID(recipientIdIfCreated())
                 .createdEvmAddress(createdEvmAddress)
                 .evmCreateTransactionResult(txResult)
-                .withCommonFieldsSetFrom(this);
+                .withCommonFieldsSetFrom(this, context);
     }
 
     /**
