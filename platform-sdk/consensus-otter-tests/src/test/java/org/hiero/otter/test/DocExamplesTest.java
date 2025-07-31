@@ -69,7 +69,9 @@ class DocExamplesTest {
     // This test requires the capability to reconnect nodes
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
-        // ... test logic here ...
+        // ... more test logic here ...
+
+        assertThat(true).isTrue();
     }
 
     // This test is used in writing-tests.md file.
