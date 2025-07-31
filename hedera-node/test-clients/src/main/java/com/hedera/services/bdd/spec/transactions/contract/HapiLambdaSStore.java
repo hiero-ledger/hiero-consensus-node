@@ -3,15 +3,18 @@ package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.LambdaSStore;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.CreatedHookId;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.LambdaMappingEntries;
 import com.hederahashgraph.api.proto.java.LambdaSStoreTransactionBody;
 import com.hederahashgraph.api.proto.java.LambdaStorageSlot;
@@ -19,13 +22,14 @@ import com.hederahashgraph.api.proto.java.LambdaStorageUpdate;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
-    private List<LambdaStorageSlot> slots = new ArrayList<>();
-    private List<LambdaMappingEntries> entries = new ArrayList<>();
+    private List<LambdaStorageUpdate> updates = new ArrayList<>();
 
     @NonNull
     private final HookEntityId.EntityIdOneOfType ownerType;
@@ -35,8 +39,15 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
 
     private final long hookId;
 
-    public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long index) {
-        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, index);
+    private boolean omitEntityId = false;
+
+    public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
+        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    }
+
+    public HapiLambdaSStore omittingEntityId() {
+        this.omitEntityId = true;
+        return this;
     }
 
     public HapiLambdaSStore putSlot(Bytes key, Bytes value) {
@@ -47,12 +58,26 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         return slots(key, Bytes.EMPTY);
     }
 
-    public HapiLambdaSStore putMappingEntry(Bytes mappingSlot, Bytes key, Bytes value) {
-        return entries(mappingSlot, List.of(key, value));
+    public HapiLambdaSStore putMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final LambdaMappingEntry entry) {
+        return switch (entry.entryKey().kind()) {
+            case UNSET -> throw new IllegalArgumentException("Mapping entry must have a key or preimage");
+            case KEY -> putMappingEntryWithKey(mappingSlot, entry.keyOrThrow(), entry.value());
+            case PREIMAGE -> putMappingEntryWithPreimage(mappingSlot, entry.preimageOrThrow(), entry.value());
+        };
     }
 
-    public HapiLambdaSStore removeMappingEntry(Bytes mappingSlot, Bytes key) {
-        return entries(mappingSlot, List.of(key, Bytes.EMPTY));
+    public HapiLambdaSStore putMappingEntryWithKey(
+            @NonNull final Bytes mappingSlot, @NonNull final Bytes key, @NonNull final Bytes value) {
+        return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(value));
+    }
+
+    public HapiLambdaSStore putMappingEntryWithPreimage(
+            @NonNull final Bytes mappingSlot, @NonNull final Bytes preimage, @NonNull final Bytes value) {
+        return entries(mappingSlot, List.of(MappingKey.preimage(preimage)), List.of(value));
+    }
+
+    public HapiLambdaSStore removeMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final Bytes key) {
+        return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(Bytes.EMPTY));
     }
 
     private HapiLambdaSStore(
@@ -77,7 +102,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
     @Override
     protected long feeFor(@NonNull final HapiSpec spec, @NonNull final Transaction txn, final int numPayerKeys)
             throws Throwable {
-        return 1L;
+        return ONE_HBAR;
     }
 
     @Override
@@ -86,19 +111,38 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
                 .<LambdaSStoreTransactionBody, LambdaSStoreTransactionBody.Builder>body(
                         LambdaSStoreTransactionBody.class, b -> {
                             final var idBuilder = CreatedHookId.newBuilder().setHookId(hookId);
-                            switch (ownerType) {
-                                case ACCOUNT_ID ->
-                                    idBuilder.setEntityId(com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
-                                            .setAccountId(asId(ownerName, spec)));
-                                default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+                            if (!omitEntityId) {
+                                switch (ownerType) {
+                                    case ACCOUNT_ID ->
+                                        idBuilder.setEntityId(
+                                                com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
+                                                        .setAccountId(asId(ownerName, spec)));
+                                    default ->
+                                        throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+                                }
                             }
-                            b.setHookId(idBuilder);
-                            slots.forEach(slot -> b.addStorageUpdates(
-                                    LambdaStorageUpdate.newBuilder().setStorageSlot(slot)));
-                            entries.forEach(entries -> b.addStorageUpdates(
-                                    LambdaStorageUpdate.newBuilder().setMappingEntries(entries)));
+                            b.setHookId(idBuilder).addAllStorageUpdates(updates);
                         });
         return b -> b.setLambdaSstore(op);
+    }
+
+    @Override
+    protected List<Function<HapiSpec, Key>> defaultSigners() {
+        final Function<HapiSpec, Key> ownerSigner =
+                switch (ownerType) {
+                    case ACCOUNT_ID ->
+                        spec -> {
+                            final var ownerKey = spec.registry().getKey(ownerName);
+                            final var payerKey = spec.registry().getKey(effectivePayer(spec));
+                            if (ownerKey.equals(payerKey)) {
+                                return Key.getDefaultInstance();
+                            } else {
+                                return ownerKey;
+                            }
+                        };
+                    default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+                };
+        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ownerSigner);
     }
 
     private HapiLambdaSStore slots(@NonNull final Bytes... kv) {
@@ -106,25 +150,48 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
             throw new IllegalArgumentException("Slots must be key-value pairs");
         }
         for (int i = 0; i < kv.length; i += 2) {
-            slots.add(LambdaStorageSlot.newBuilder()
-                    .setKey(fromPbj(kv[i]))
-                    .setValue(fromPbj(kv[i + 1]))
+            updates.add(LambdaStorageUpdate.newBuilder()
+                    .setStorageSlot(LambdaStorageSlot.newBuilder()
+                            .setKey(fromPbj(kv[i]))
+                            .setValue(fromPbj(kv[i + 1])))
                     .build());
         }
         return this;
     }
 
-    private HapiLambdaSStore entries(@NonNull final Bytes mappingSlot, @NonNull final List<Bytes> kv) {
-        if (kv.size() % 2 != 0) {
-            throw new IllegalArgumentException("Mapping entries must be key-value pairs");
+    private record MappingKey(@Nullable Bytes key, @Nullable Bytes preimage) {
+        public static MappingKey key(@NonNull final Bytes key) {
+            return new MappingKey(requireNonNull(key), null);
         }
+
+        public static MappingKey preimage(@NonNull final Bytes preimage) {
+            return new MappingKey(null, requireNonNull(preimage));
+        }
+
+        public LambdaMappingEntry.EntryKeyOneOfType type() {
+            if (key != null) {
+                return LambdaMappingEntry.EntryKeyOneOfType.KEY;
+            } else {
+                return LambdaMappingEntry.EntryKeyOneOfType.PREIMAGE;
+            }
+        }
+    }
+
+    private HapiLambdaSStore entries(
+            @NonNull final Bytes mappingSlot, @NonNull final List<MappingKey> keys, @NonNull final List<Bytes> values) {
         final var builder = LambdaMappingEntries.newBuilder().setMappingSlot(fromPbj(mappingSlot));
-        for (int i = 0, n = kv.size(); i < n; i += 2) {
-            builder.addEntries(LambdaStorageSlot.newBuilder()
-                    .setKey(fromPbj(kv.get(i)))
-                    .setValue(fromPbj(kv.get(i + 1)))
-                    .build());
+        for (int i = 0, n = keys.size(); i < n; i++) {
+            final var entryBuilder = com.hederahashgraph.api.proto.java.LambdaMappingEntry.newBuilder()
+                    .setValue(fromPbj(values.get(i)));
+            final var key = keys.get(i);
+            switch (key.type()) {
+                case KEY -> entryBuilder.setKey(fromPbj(requireNonNull(key.key())));
+                case PREIMAGE -> entryBuilder.setPreimage(fromPbj(requireNonNull(key.preimage())));
+                default -> throw new IllegalArgumentException("Unsupported mapping key type - " + key.type());
+            }
+            builder.addEntries(entryBuilder.build());
         }
+        updates.add(LambdaStorageUpdate.newBuilder().setMappingEntries(builder).build());
         return this;
     }
 }

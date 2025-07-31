@@ -182,7 +182,6 @@ public interface PreHandleContext extends TransactionKeys {
      * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
      * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
      * {@code responseCode}.
-     *
      * @param accountID The ID of the account whose key is to be added
      * @param responseCode the response code to be used in case the key is null or empty
      * @return {@code this} object
@@ -199,13 +198,27 @@ public interface PreHandleContext extends TransactionKeys {
      * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
      * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
      * {@code responseCode}.
+     * @param accountID The ID of the account whose key is to be added
+     * @param failureStatus the response code to be used in case the key is null or empty
+     * @return {@code this} object
+     * @throws PreCheckException if the key is null or empty or the account is missing or deleted
+     */
+    @NonNull
+    PreHandleContext requireKeyOrThrowOnDeleted(@Nullable AccountID accountID, @NonNull ResponseCodeEnum failureStatus)
+            throws PreCheckException;
+
+    /**
+     * Adds the admin key of the account addressed by the given {@code accountID} to the required non-payer keys. If
+     * the key is the same as the payer key, or if the key has already been added, then the call is a no-op. The
+     * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
+     * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
+     * {@code responseCode}.
      *
      * @param accountID The ID of the account whose key is to be added
      * @param finisher a function to apply to the key before adding it to the required keys
      * @param failureStatus the response code to be used in case the key is null or empty
      * @return {@code this} object
-     * @throws PreCheckException if the key is null or empty or the account is null or the
-     * account does not exist.
+     * @throws PreCheckException if the key is null or empty or the account is missing or deleted
      */
     @NonNull
     PreHandleContext requireKeyOrThrow(

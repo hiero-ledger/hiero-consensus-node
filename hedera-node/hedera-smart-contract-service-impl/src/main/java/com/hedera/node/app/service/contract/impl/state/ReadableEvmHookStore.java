@@ -63,6 +63,11 @@ public class ReadableEvmHookStore {
         return hookStates.get(hookId);
     }
 
+    public @Nullable SlotValue getSlotValue(@NonNull final LambdaSlotKey key) {
+        requireNonNull(key);
+        return storage.get(key);
+    }
+
     /**
      * Returns a list of slot values for the given hook and keys.
      * @param hookId the hook ID
@@ -80,7 +85,7 @@ public class ReadableEvmHookStore {
         }
         final List<Slot> slots = new ArrayList<>(keys.size());
         keys.forEach(key -> {
-            final var slotKey = new LambdaSlotKey(hookId, zeroPaddedTo32(key));
+            final var slotKey = new LambdaSlotKey(hookId, key);
             final var slotValue = storage.get(slotKey);
             slots.add(new Slot(slotKey, slotValue));
         });

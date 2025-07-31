@@ -13,6 +13,8 @@ import static com.hedera.node.app.service.contract.impl.state.StorageAccess.Stor
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.REMOVAL;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.UPDATE;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.ZERO_INTO_EMPTY_SLOT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.leftPad32;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -67,15 +69,24 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      * @param hookId the lambda ID
      * @param updates the slot updates
      * @throws HandleException if the lambda ID is not found
+     * @return the net change in number of storage slots used
      */
-    public int updateSlots(@NonNull final CreatedHookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
+    public int updateStorage(@NonNull final CreatedHookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
             throws HandleException {
         final List<Bytes> keys = new ArrayList<>(updates.size());
+        final List<Bytes> values = new ArrayList<>(updates.size());
         for (final var update : updates) {
             if (update.hasStorageSlot()) {
-                keys.add(update.storageSlotOrThrow().key());
+                final var slot = update.storageSlotOrThrow();
+                keys.add(slot.key());
+                values.add(slot.value());
             } else {
-                throw new AssertionError("Not implemented");
+                final var entries = update.mappingEntriesOrThrow();
+                final var p = leftPad32(entries.mappingSlot());
+                for (final var entry : entries.entries()) {
+                    keys.add(slotKeyOfMappingEntry(p, entry));
+                    values.add(entry.value());
+                }
             }
         }
         final var view = getView(hookId, keys);
@@ -84,7 +95,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         int insertions = 0;
         for (int i = 0, n = keys.size(); i < n; i++) {
             final var slot = view.selectedSlots().get(i);
-            final var update = SlotUpdate.from(slot, updates.get(i));
+            final var update = SlotUpdate.from(slot, values.get(i));
             firstKey = switch (update.asAccessType()) {
                 case REMOVAL -> {
                     removals++;
@@ -112,7 +123,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
                     hookState
                             .copyBuilder()
                             .firstContractStorageKey(firstKey)
-                            .numStorageSlots(hookState.numStorageSlots() + insertions - removals)
+                            .numStorageSlots(hookState.numStorageSlots() + delta)
                             .build());
             return delta;
         }
@@ -158,12 +169,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
                 .previousHookId(null)
                 .nextHookId(creation.nextHookId())
                 .numStorageSlots(0)
+                .adminKey(details.adminKey())
                 .build();
         hookStates.put(hookId, state);
         if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {
-                final int delta = updateSlots(hookId, initialUpdates);
+                final int delta = updateStorage(hookId, initialUpdates);
                 if (delta != 0) {
                     entityCounters.adjustEntityCount(LAMBDA_STORAGE, delta);
                 }
@@ -173,14 +185,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
     }
 
     private record SlotUpdate(@NonNull Bytes key, @Nullable Bytes oldValue, @Nullable Bytes newValue) {
-        public static SlotUpdate from(@NonNull final Slot slot, @NonNull final LambdaStorageUpdate update) {
-            if (update.hasStorageSlot()) {
-                final var value = update.storageSlotOrThrow().value();
-                return new SlotUpdate(
-                        slot.key().key(), slot.maybeBytesValue(), Bytes.EMPTY.equals(value) ? null : value);
-            } else {
-                throw new AssertionError("Not implemented");
-            }
+        public static SlotUpdate from(@NonNull final Slot slot, @NonNull final Bytes value) {
+            return new SlotUpdate(slot.key().key(), slot.maybeBytesValue(), Bytes.EMPTY.equals(value) ? null : value);
         }
 
         public @NonNull Bytes newValueOrThrow() {

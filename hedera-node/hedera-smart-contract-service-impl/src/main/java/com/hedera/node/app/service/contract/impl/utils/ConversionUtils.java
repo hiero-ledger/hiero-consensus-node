@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
@@ -25,6 +26,7 @@ import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
@@ -1161,5 +1163,25 @@ public class ConversionUtils {
             bytes.getBytes(i, stripped, 0, n - i);
             return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(stripped);
         }
+    }
+
+    /**
+     * Returns the slot key for a mapping entry, given the left-padded mapping slot and the entry.
+     * <p>
+     * C.f. Solidity docs <a href="https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html">here</a>.
+     * @param leftPaddedMappingSlot the left-padded mapping slot
+     * @param entry the mapping entry
+     * @return the slot key for the mapping entry
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes slotKeyOfMappingEntry(
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
+            @NonNull final LambdaMappingEntry entry) {
+        final com.hedera.pbj.runtime.io.buffer.Bytes hK;
+        if (entry.hasKey()) {
+            hK = leftPad32(entry.keyOrThrow());
+        } else {
+            hK = keccak256DigestOf(entry.preimageOrThrow());
+        }
+        return keccak256DigestOf(hK.append(leftPaddedMappingSlot));
     }
 }
