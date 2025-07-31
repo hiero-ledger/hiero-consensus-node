@@ -132,7 +132,6 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,
-                // TODO Glib: should we add sender key on call with sender? should we put sender key as adminKey?
                 keys,
                 DispatchForResponseCodeHssCall::scheduleCreateResultEncode);
     }
