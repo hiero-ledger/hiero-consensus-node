@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.metrics.api.snapshot;
+package com.swirlds.metrics.api;
 
-import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import java.util.List;
 import java.util.Objects;
@@ -12,13 +11,13 @@ import java.util.Objects;
 public record Snapshot(Metric metric, List<SnapshotEntry> entries) {
 
     /**
-     * Create a {@code Snapshot} of a {@link SnapshotableMetric}
+     * Create a {@code Snapshot} of a {@link Metric}
      *
      * @param metric The source metric
      * @return the {@code Snapshot}
      * @throws NullPointerException in case {@code metric} parameter is {@code null}
      */
-    public static Snapshot of(final SnapshotableMetric metric) {
+    public static Snapshot of(final Metric metric) {
         Objects.requireNonNull(metric, "metric must not be null");
         return new Snapshot(metric, metric.takeSnapshot());
     }
