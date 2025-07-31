@@ -10,6 +10,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 
@@ -18,6 +20,7 @@ import org.hiero.consensus.model.transaction.EventTransactionSupplier;
  * created.
  */
 public class TransactionPoolNexus implements EventTransactionSupplier {
+    private static final Logger logger = LogManager.getLogger(TransactionPoolNexus.class);
     /**
      * A list of transactions created by this node waiting to be put into a self-event.
      */
@@ -110,6 +113,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     }
 
     public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
+        logger.info("1 TransactionPoolNexus.submitPriorityTransaction()");
         submitTransaction(transaction, true);
     }
 

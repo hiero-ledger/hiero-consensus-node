@@ -117,6 +117,7 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
@@ -1144,6 +1145,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
+        logger.info("Hedera.submitStateSignature(), round {}", stateSignatureTransaction.round());
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
