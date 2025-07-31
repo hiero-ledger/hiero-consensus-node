@@ -168,6 +168,7 @@ public class SwirldsPlatform implements Platform {
         notificationEngine = blocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
+        logger.info(STARTUP.getMarker(), "Transaction limits:\n{}", blocks.execution().getTransactionLimits());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
         registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
