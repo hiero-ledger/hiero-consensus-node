@@ -701,11 +701,7 @@ public class HandleWorkflow {
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
-                if (streamMode != BLOCKS) {
-                    // This updates consTimeOfLastHandledTxn as a side effect
-                    blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
-                }
-                blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
+                stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 initializeBuilderInfo(parentTxn.baseBuilder(), parentTxn.txnInfo(), exchangeRateManager.exchangeRates())
                         .status(BUSY);
                 // Flushes the BUSY builder to the stream, no other side effects

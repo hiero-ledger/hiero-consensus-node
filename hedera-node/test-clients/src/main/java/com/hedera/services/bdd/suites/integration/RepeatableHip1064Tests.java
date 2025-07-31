@@ -22,14 +22,21 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
+import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.untilJustBeforeStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
+import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -37,7 +44,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_ASSETS_LOC;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -48,8 +60,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -691,6 +705,84 @@ public class RepeatableHip1064Tests {
                             assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
                         },
                         Duration.ofSeconds(1)));
+    }
+
+    @Order(8)
+    @RepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    Stream<DynamicTest> preUpgradeButPostFreezeEventTriggersStakePeriodBoundarySideEffects() {
+        return hapiTest(
+                waitUntilStartOfNextStakingPeriod(1),
+                sleepForBlockPeriod(),
+
+                // Prepare the upgrade
+                buildUpgradeZipFrom(FAKE_ASSETS_LOC),
+                sourcing(() -> updateSpecialFile(
+                        GENESIS,
+                        DEFAULT_UPGRADE_FILE_ID,
+                        FAKE_UPGRADE_ZIP_LOC,
+                        TxnUtils.BYTES_4K,
+                        upgradeFileAppendsPerBurst())),
+                sourcing(() -> prepareUpgrade()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+
+                // Advance to, say, 15 seconds before the next staking boundary
+                untilJustBeforeStakingPeriod(1, 15),
+                // And assume a current state round of 85 (15 seconds before the next staking time)
+                mutateSingleton(
+                        "PlatformStateService", "PLATFORM_STATE", (PlatformState platform) -> platform.copyBuilder()
+                                .consensusSnapshot(platform.consensusSnapshot()
+                                        .copyBuilder()
+                                        .round(85))
+                                .build()),
+                // Submit the freeze
+                sourcing(() -> freezeUpgrade()
+                        .startingIn(15) // set for the staking boundary time exactly
+                        .seconds()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))
+                        .via("freezeUpgrade")),
+
+                // Jump ahead to the freeze period. In a regular network we would first need to submit the transaction
+                // that is older than the targeted freeze timestamp, but since repeatable tests call the handle workflow
+                // directly, we have to send the transaction _after_ we mutate the platform state to its expected freeze
+                // condition
+                waitUntilStartOfNextStakingPeriod(1),
+                mutateSingleton(
+                        "PlatformStateService", "PLATFORM_STATE", (PlatformState platform) -> platform.copyBuilder()
+                                .consensusSnapshot(platform.consensusSnapshot()
+                                        .copyBuilder()
+                                        .round(100))
+                                .lastFrozenTime(com.hedera.hapi.node.base.Timestamp.newBuilder()
+                                        .seconds(platform.consensusSnapshot()
+                                                .consensusTimestamp()
+                                                .seconds())
+                                        .build())
+                                .latestFreezeRound(100)
+                                .build()),
+
+                // Send the first transaction that will be processed in the next staking period
+                cryptoTransfer(TokenMovement.movingHbar(1).between(GENESIS, FUNDING))
+                        .hasKnownStatus(BUSY),
+
+                // Close the block
+                sleepForBlockPeriod(),
+                exposeLatestBlock(
+                        b -> {
+                            final var nodeStakeUpdate = findFirst(b, HederaFunctionality.NODE_STAKE_UPDATE);
+                            assertTrue(nodeStakeUpdate.isPresent(), "NodeStakeUpdate should be present in the block");
+                        },
+                        Duration.ofSeconds(2)),
+
+                // Cleanup the test by resetting the platform state
+                mutateSingleton(
+                        "PlatformStateService", "PLATFORM_STATE", (PlatformState platform) -> platform.copyBuilder()
+                                .consensusSnapshot(platform.consensusSnapshot()
+                                        .copyBuilder()
+                                        .round(0))
+                                .latestFreezeRound(0)
+                                .lastFrozenTime((Timestamp) null)
+                                .build()));
     }
 
     private static Optional<TransactionParts> findFirst(
