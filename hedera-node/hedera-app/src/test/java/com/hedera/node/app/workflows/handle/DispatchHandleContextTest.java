@@ -576,7 +576,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     final class DispatcherTest {
         private static final Predicate<Key> VERIFIER_CALLBACK = key -> true;
         private static final String FOOD_SERVICE = "FOOD_SERVICE";
-        private static final Map<ProtoBytes, String> BASE_DATA = Map.of(
+        private static final Map<ProtoBytes, ProtoBytes> BASE_DATA = Map.of(
                 A_KEY, APPLE,
                 B_KEY, BANANA,
                 C_KEY, CHERRY,
@@ -697,7 +697,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @Test
         void testDispatchPrecedingWithChangedDataDoesntFail() {
             final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            final Map<ProtoBytes, String> newData = new HashMap<>(BASE_DATA);
+            final Map<ProtoBytes, ProtoBytes> newData = new HashMap<>(BASE_DATA);
             newData.put(B_KEY, BLUEBERRY);
 
             assertThatNoException()
