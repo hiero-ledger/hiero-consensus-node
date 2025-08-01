@@ -51,7 +51,6 @@ public class SingleNodeReconnectResultContinuousAssert
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
-        isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final ReconnectFailureNotification f ->
@@ -70,7 +69,6 @@ public class SingleNodeReconnectResultContinuousAssert
      */
     @NonNull
     public SingleNodeReconnectResultContinuousAssert doesNotAttemptToReconnect() {
-        isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final ReconnectStartNotification s ->
@@ -91,7 +89,6 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumReconnectTime(
             @NonNull final Duration maximumReconnectTime) {
-        isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final SynchronizationCompleteNotification s ->
@@ -116,7 +113,6 @@ public class SingleNodeReconnectResultContinuousAssert
     @NonNull
     public SingleNodeReconnectResultContinuousAssert hasMaximumTreeInitializationTime(
             final Duration maximumTreeInitializationTime) {
-        isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final SynchronizationCompleteNotification s ->

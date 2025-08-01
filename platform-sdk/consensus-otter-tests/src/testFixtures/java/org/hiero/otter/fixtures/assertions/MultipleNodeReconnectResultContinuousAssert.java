@@ -53,10 +53,13 @@ public class MultipleNodeReconnectResultContinuousAssert
     public MultipleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final ReconnectFailureNotification f ->
+                case final ReconnectFailureNotification failureNotification ->
                     failWithMessage(
                             "Expected no failed reconnects, but node %s had %n%s",
-                            f.nodeId() == null ? "unknown" : f.nodeId().id(), f.payload());
+                            failureNotification.nodeId() == null
+                                    ? "unknown"
+                                    : failureNotification.nodeId().id(),
+                            failureNotification.payload());
                 default -> {
                     // Ignore other notifications
                 }
@@ -73,10 +76,13 @@ public class MultipleNodeReconnectResultContinuousAssert
     public MultipleNodeReconnectResultContinuousAssert doNotAttemptToReconnect() {
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final ReconnectStartNotification s ->
+                case final ReconnectStartNotification startNotification ->
                     failWithMessage(
                             "Expected no attempted reconnects, but node %s had %n%s",
-                            s.nodeId() == null ? "unknown" : s.nodeId().id(), s.payload());
+                            startNotification.nodeId() == null
+                                    ? "unknown"
+                                    : startNotification.nodeId().id(),
+                            startNotification.payload());
                 default -> {
                     // Ignore other notifications
                 }
@@ -96,13 +102,15 @@ public class MultipleNodeReconnectResultContinuousAssert
         isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification s ->
+                case final SynchronizationCompleteNotification syncNotification ->
                     failWithMessage(
                             "Expected maximum reconnect time to be <%s> but node %s took <%s>%n%s",
                             maximumReconnectTime,
-                            s.nodeId() == null ? "unknown" : s.nodeId().id(),
-                            Duration.ofSeconds((long) s.payload().getTimeInSeconds()),
-                            s.payload());
+                            syncNotification.nodeId() == null
+                                    ? "unknown"
+                                    : syncNotification.nodeId().id(),
+                            Duration.ofSeconds((long) syncNotification.payload().getTimeInSeconds()),
+                            syncNotification.payload());
                 default -> {
                     // Ignore other notifications
                 }
@@ -122,13 +130,15 @@ public class MultipleNodeReconnectResultContinuousAssert
         isNotNull();
         return checkContinuously(notification -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification s ->
+                case final SynchronizationCompleteNotification syncNotification ->
                     failWithMessage(
                             "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
                             maximumTreeInitializationTime,
-                            s.nodeId() == null ? "unknown" : s.nodeId().id(),
-                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds()),
-                            s.payload());
+                            syncNotification.nodeId() == null
+                                    ? "unknown"
+                                    : syncNotification.nodeId().id(),
+                            Duration.ofSeconds((long) syncNotification.payload().getInitializationTimeInSeconds()),
+                            syncNotification.payload());
                 default -> {
                     // Ignore other notifications
                 }
@@ -142,7 +152,9 @@ public class MultipleNodeReconnectResultContinuousAssert
 
         final ReconnectNotificationSubscriber subscriber = (notification) -> switch (state) {
             case ACTIVE -> {
-                check.accept(notification);
+                if (!suppressedNodeIds.contains(notification.nodeId())) {
+                    check.accept(notification);
+                }
                 yield CONTINUE;
             }
             case PAUSED -> CONTINUE;

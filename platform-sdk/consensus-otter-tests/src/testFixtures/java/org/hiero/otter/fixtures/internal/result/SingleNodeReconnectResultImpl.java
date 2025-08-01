@@ -12,6 +12,7 @@ import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
 import org.hiero.otter.fixtures.result.ReconnectNotification;
@@ -31,6 +32,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     private final NodeId nodeId;
     private final SingleNodePlatformStatusResult statusResults;
     private final SingleNodeLogResult logResults;
+    private final List<ReconnectNotificationSubscriber> reconnectSubscribers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructor for SingleNodeReconnectResultImpl.
@@ -52,7 +54,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      */
     @Override
     @NonNull
-    public com.hedera.hapi.platform.state.NodeId nodeId() {
+    public NodeId nodeId() {
         return nodeId;
     }
 
@@ -92,14 +94,26 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NonNull final ReconnectNotificationSubscriber subscriber) {
-        logResults.subscribe(logEntry -> {
-            final ReconnectNotification<?> notification = toReconnectNotification(logEntry);
-            if (notification != null) {
-                return subscriber.onNotification(notification);
-            }
-            return SubscriberAction.CONTINUE;
-        });
+    public void subscribe(@NonNull final ReconnectNotificationSubscriber newSubscriber) {
+        if (reconnectSubscribers.isEmpty()) {
+            reconnectSubscribers.add(newSubscriber);
+            logResults.subscribe(this::onLogEntry);
+        } else {
+            reconnectSubscribers.add(newSubscriber);
+        }
+    }
+
+    private SubscriberAction onLogEntry(@NonNull final StructuredLog logEntry) {
+        final ReconnectNotification<?> notification = toReconnectNotification(logEntry);
+        if (notification != null) {
+            reconnectSubscribers.forEach(subscriber -> {
+                if (subscriber.onNotification(notification) == SubscriberAction.UNSUBSCRIBE) {
+                    reconnectSubscribers.remove(subscriber);
+                }
+            });
+            return reconnectSubscribers.isEmpty() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        }
+        return SubscriberAction.CONTINUE;
     }
 
     @Nullable
