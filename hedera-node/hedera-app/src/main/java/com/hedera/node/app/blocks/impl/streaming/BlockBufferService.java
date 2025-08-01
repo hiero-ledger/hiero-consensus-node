@@ -344,10 +344,10 @@ public class BlockBufferService {
     /**
      * Retrieves the lowest unacked block number in the buffer.
      * This is the lowest block number that has not been acknowledged.
-     * @return the lowest unacked block number or -1 if the buffer is empty
+     * @return the lowest unacked block number or 0 if the buffer is empty
      */
     public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get() + 1;
+        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get() + 1;
     }
 
     /**

@@ -27,7 +27,8 @@ val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.0"
 val mockito = "5.18.0"
-val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
+val pbjHelidon = "0.11.10"
+val pbj = "0.11.12" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
 val testContainers = "1.21.3"
 val tuweni = "2.4.2"
@@ -65,6 +66,10 @@ dependencies.constraints {
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
+    api("com.hedera.pbj:pbj-grpc-client-helidon:$pbjHelidon") {
+        because("com.hedera.pbj.grpc.client.helidon")
+    }
+    api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
     api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }

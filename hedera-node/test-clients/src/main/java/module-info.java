@@ -86,6 +86,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
     requires com.swirlds.common;
@@ -114,6 +115,8 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common;
+    requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;

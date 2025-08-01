@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
-import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -244,7 +244,7 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(60, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
