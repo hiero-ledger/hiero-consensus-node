@@ -5,10 +5,14 @@ import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIE
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -20,6 +24,8 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerImage extends GenericContainer<ContainerImage> {
     public static final int CONTROL_PORT = 8080;
     private static final int BASE_DEBUG_PORT = 5005;
+
+    private static final Logger log = LogManager.getLogger();
 
     /**
      * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.
@@ -53,12 +59,13 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
             throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
         }
         withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
-        final String uid = System.getenv("UID");
-        final String gid = System.getenv("GID");
+        final String uid = runIdCommand("-u");
+        final String gid = runIdCommand("-g");
+
+        withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         if (uid != null && gid != null) {
             withCreateContainerCmdModifier(c -> c.withUser(uid + ":" + gid));
         }
-        withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         addFixedExposedPort(debugPort, debugPort);
     }
 
@@ -66,5 +73,23 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         return String.format(
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:%s -Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener",
                 debugPort);
+    }
+
+    private static String runIdCommand(@NonNull final String option) {
+        try {
+            final Process process =
+                    new ProcessBuilder("id", option).redirectErrorStream(true).start();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                final String line = reader.readLine();
+                if (line != null && !line.isEmpty()) {
+                    return line.trim();
+                }
+            }
+
+        } catch (Exception ignored) {
+            // swallow and return null
+        }
+        return null;
     }
 }
