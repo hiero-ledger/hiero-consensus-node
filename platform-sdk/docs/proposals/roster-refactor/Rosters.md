@@ -126,12 +126,12 @@ We need to enable platform code to be able to use those new abstractions.
   Provides nodeIds(), weight(NodeId), getTotalWeight(), size(), index(NodeId), and lookup utilities.
   Implements equality, hashing, JSON serialization, and utility methods for integration.
 
-* `RosterDataEntry` record: Immutable record representing a single node's details like weight, gossip certificate, and endpoints.
+* `RosterDataEntry`: Immutable record representing a single node's details like weight, gossip certificate, and endpoints.
 
 * `RosterHistory`: Tracks the history of rosters across rounds and allows retrieval based on round numbers or hashes. A replacement for `org.hiero.consensus.roster.RosterHistory`.
   It will be mutable, it will return RosterData objects, it will allow components to maintain their own history and manage its updates, it will cache values.
 
-* `SignaturesMap`: Specialized mutable data map with custom transformation support and caching of `Signature` retrieved from a roster, a nodeId and a round number.
+* `SignatureHistory`: Specialized mutable data structure with custom transformation support and caching of `Signature` retrieved from a roster, a nodeId and a round number.
 
 #### Change all uses of `Roster` to `RosterData`
 
@@ -245,18 +245,18 @@ For DAB, all accesses to the RosterHistory needs to provide the round to get the
 * `com.swirlds.platform.state.iss.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
 * `com.swirlds.platform.gossip.SyncGossipModular` The constructor will still use  `rosterHistory.getCurrentRoster()` unless we can create the component sending the round as another parameter.
 
-##### Create a hierarchy of `CustomRosterDataMap`
+##### Create a hierarchy of `CustomRosterDataHistory`
 
 We need to provide the possibility for all components to cache data they need to access from a roster for a particular round.
 This logic will be repeated for different use cases in the platform code, so it's better to have it as centralized piece that can be reused.
-We'll create a class hierarchy based on the previously added SignatureMap
+We'll create a class hierarchy based on the previously added SignatureHistory
 
-- Create a `CustomRosterDataMap` with all the common logic for retrieving particular node's information on the roster for a round.
-- create a `WeightMap`: that allows to store individual weights and total weights.
-- Use the `WeightMap` in:
+- Create a `CustomRosterDataHistory` with all the common logic for retrieving particular node's information on the roster for a round.
+- create a `WeightHistory`: that allows to store individual weights and total weights.
+- Use the `WeightHistory` in:
   - `IssDetector`
-  - `DefaultBranchReporter`
-  - `ConsensusImpl`
+  - `BranchReporter`
+  - `Consensus`
 - It is possible that `SyncGossipModular` will need a similar  `PeerInfo` map, but at this stage its is not defined how gossip will react to the updates of the roster.
 
 ##### Consensus needs to inform all the other components about new rosters for future rounds
