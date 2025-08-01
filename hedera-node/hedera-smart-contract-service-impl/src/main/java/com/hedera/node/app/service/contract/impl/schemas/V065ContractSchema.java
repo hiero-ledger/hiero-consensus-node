@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.schemas;
 
-import com.hedera.hapi.node.base.CreatedHookId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
@@ -38,7 +38,7 @@ public class V065ContractSchema extends Schema {
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
                 StateDefinition.onDisk(
-                        EVM_HOOK_STATES_KEY, CreatedHookId.PROTOBUF, EvmHookState.PROTOBUF, MAX_EVM_HOOK_STATES),
+                        EVM_HOOK_STATES_KEY, HookId.PROTOBUF, EvmHookState.PROTOBUF, MAX_EVM_HOOK_STATES),
                 StateDefinition.onDisk(
                         LAMBDA_STORAGE_KEY, LambdaSlotKey.PROTOBUF, SlotValue.PROTOBUF, MAX_LAMBDA_STORAGE));
     }

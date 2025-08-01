@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.CreatedHookId;
 import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
@@ -183,7 +183,7 @@ public class RepeatableLambdaSStoreTests {
                         .hasPrecheck(LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
                 accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
                         .putMappingEntry(Bytes.EMPTY, PREIMAGE_ZERO_A_ENTRY),
-                assertOwnerHasLambdaSlotUsage(origCount, 1),
+                assertOwnerHasLambdaSlotUsageChange(origCount, 1),
                 assertLambdaHasFirstOrderedSlots(
                         LAMBDA_HOOK_ID, List.of(Pair.of(slotKeyOfMappingEntry(ZERO, PREIMAGE_ZERO_A_ENTRY), A))));
     }
@@ -212,7 +212,7 @@ public class RepeatableLambdaSStoreTests {
                         .signedBy(DEFAULT_PAYER, HOOK_ADMIN.name())
                         .putMappingEntry(A, F_E_ENTRY)
                         .putSlot(F, E),
-                assertOwnerHasLambdaSlotUsage(origCount, 4),
+                assertOwnerHasLambdaSlotUsageChange(origCount, 4),
                 assertLambdaHasFirstOrderedSlots(LAMBDA_HOOK_ID, List.of(Pair.of(D, E), Pair.of(B, C))),
                 assertLambdaHasFirstOrderedSlots(
                         LAMBDA_HOOK_WITH_ADMIN_ID,
@@ -221,12 +221,29 @@ public class RepeatableLambdaSStoreTests {
 
     @Order(8)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> updatingSlotsDontChangeCounts() {
+        final AtomicLong origCount = new AtomicLong();
+        return hapiTest(
+                accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
+                        .putSlot(A, F)
+                        .putSlot(B, F),
+                recordCurrentOwnerLambdaSlotUsage(origCount::set),
+                accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
+                        .putSlot(A, E)
+                        .putSlot(B, E),
+                assertOwnerHasLambdaSlotUsageChange(origCount, 0));
+    }
+
+    @Order(9)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> clearingAllSlotsLeavesZeroUsage() {
         final AtomicLong origCount = new AtomicLong();
         return hapiTest(
                 recordCurrentOwnerLambdaSlotUsage(origCount::set),
                 accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
+                        .removeSlot(A)
                         .removeSlot(B)
+                        .removeSlot(C)
                         .removeSlot(D)
                         .removeMappingEntryWithPreimage(Bytes.EMPTY, ZERO),
                 accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_WITH_ADMIN_ID)
@@ -260,8 +277,8 @@ public class RepeatableLambdaSStoreTests {
             final var registry = spec.registry();
             final var hookEntityId =
                     new HookEntityId(new OneOf<>(ACCOUNT_ID, toPbj(registry.getAccountID(HOOK_OWNER.name()))));
-            final var createdHookId = new CreatedHookId(hookEntityId, hookId);
-            final var hookState = store.getEvmHook(createdHookId);
+            final var HookId = new HookId(hookEntityId, hookId);
+            final var hookState = store.getEvmHook(HookId);
             assertNotNull(hookState, "hook" + hookId + " not found");
             assertTrue(
                     slots.size() <= hookState.numStorageSlots(),
@@ -271,7 +288,7 @@ public class RepeatableLambdaSStoreTests {
             for (final var slot : slots) {
                 assertNotNull(key, "hook" + hookId + " has no slot key for " + slot.key());
                 assertEquals(slot.key(), key, "hook" + hookId + " has wrong slot key");
-                final var slotKey = new LambdaSlotKey(createdHookId, key);
+                final var slotKey = new LambdaSlotKey(HookId, key);
                 final var slotValue = store.getSlotValue(slotKey);
                 assertNotNull(slotValue, "hook" + hookId + " has no value for " + slotKey);
                 assertEquals(slot.value(), slotValue.value(), "hook" + hookId + " has wrong value for " + slotKey);
@@ -284,7 +301,7 @@ public class RepeatableLambdaSStoreTests {
         return new ViewAccountOp(HOOK_OWNER.name(), account -> cb.accept(account.numberLambdaStorageSlots()));
     }
 
-    private static SpecOperation assertOwnerHasLambdaSlotUsage(AtomicLong origCount, final int delta) {
+    private static SpecOperation assertOwnerHasLambdaSlotUsageChange(AtomicLong origCount, final int delta) {
         return sourcing(() -> new ViewAccountOp(
                 HOOK_OWNER.name(),
                 account -> assertEquals(
@@ -294,12 +311,12 @@ public class RepeatableLambdaSStoreTests {
     }
 
     private static SpecOperation assertLambdaHasSlotUsage(final long hookId, final long numSlots) {
-        return sourcingContextual(spec ->
-                new ViewKVStateOp<CreatedHookId, EvmHookState>(ContractService.NAME, "EVM_HOOK_STATES", state -> {
+        return sourcingContextual(
+                spec -> new ViewKVStateOp<HookId, EvmHookState>(ContractService.NAME, "EVM_HOOK_STATES", state -> {
                     final var hookEntityId = new HookEntityId(
                             new OneOf<>(ACCOUNT_ID, toPbj(spec.registry().getAccountID(HOOK_OWNER.name()))));
-                    final var createdHookId = new CreatedHookId(hookEntityId, hookId);
-                    final var hookState = state.get(createdHookId);
+                    final var HookId = new HookId(hookEntityId, hookId);
+                    final var hookState = state.get(HookId);
                     assertNotNull(hookState, "hook" + hookId + " not found");
                     assertEquals(numSlots, hookState.numStorageSlots(), "hook" + hookId + " has wrong number of slots");
                 }));
@@ -370,8 +387,8 @@ public class RepeatableLambdaSStoreTests {
             final var store = new WritableEvmHookStore(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
-                store.markDeleted(new CreatedHookId(
-                        hookEntityId, creation.detailsOrThrow().hookId()));
+                store.markDeleted(
+                        new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
             }
         });
     }

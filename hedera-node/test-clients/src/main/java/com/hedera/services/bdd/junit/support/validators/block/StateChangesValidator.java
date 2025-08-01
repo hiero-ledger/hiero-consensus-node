@@ -898,7 +898,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case PREPROCESSING_VOTE_ID_KEY -> mapChangeKey.preprocessingVoteIdKeyOrThrow();
             case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
-            case CREATED_HOOK_ID_KEY -> mapChangeKey.createdHookIdKeyOrThrow();
+            case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
         };
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
@@ -13,6 +14,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.keys.KeyRole;
@@ -23,7 +25,6 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -228,7 +229,10 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                             }
                             newDeclinedReward.ifPresent(p -> b.setDeclineReward(BoolValue.of(p)));
                             hookIdsToDelete.forEach(b::addHookIdsToDelete);
-                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         return builder -> builder.setContractUpdateInstance(opBody);
     }

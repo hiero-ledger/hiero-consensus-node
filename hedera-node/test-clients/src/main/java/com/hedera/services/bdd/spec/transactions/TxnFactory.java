@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import com.hedera.hapi.node.hooks.legacy.LambdaSStoreTransactionBody;
 import com.hedera.hapi.platform.event.legacy.StateSignatureTransaction;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
@@ -32,7 +33,6 @@ import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.FileDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
-import com.hederahashgraph.api.proto.java.LambdaSStoreTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.crypto;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
@@ -13,6 +14,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoUpdateMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
@@ -247,7 +249,10 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                             }
                             isDeclinedReward.ifPresent(b -> builder.setDeclineReward(BoolValue.of(b)));
                             hookIdsToDelete.forEach(builder::addHookIdsToDelete);
-                            hookFactories.forEach(factory -> builder.addHookCreationDetails(factory.apply(spec)));
+                            hookFactories.forEach(factory -> builder.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         if (logUpdateDetailsToSysout) {
             System.out.println("\n---- Raw update ----\n");

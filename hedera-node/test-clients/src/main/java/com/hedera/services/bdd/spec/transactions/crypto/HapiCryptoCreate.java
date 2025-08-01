@@ -16,9 +16,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -34,7 +36,6 @@ import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
@@ -342,7 +343,10 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
-                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(CommonPbjConverters.pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         return b -> b.setCryptoCreateAccount(opBody);
     }

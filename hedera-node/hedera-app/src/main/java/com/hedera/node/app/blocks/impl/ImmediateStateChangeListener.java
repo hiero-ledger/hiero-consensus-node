@@ -14,8 +14,8 @@ import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.CreatedHookId;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -244,8 +244,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                         new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CONSTRUCTION_NODE_ID_KEY, constructionNodeId));
             case LambdaSlotKey lambdaSlotKey ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.LAMBDA_SLOT_KEY, lambdaSlotKey));
-            case CreatedHookId createdHookId ->
-                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CREATED_HOOK_ID_KEY, createdHookId));
+            case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());

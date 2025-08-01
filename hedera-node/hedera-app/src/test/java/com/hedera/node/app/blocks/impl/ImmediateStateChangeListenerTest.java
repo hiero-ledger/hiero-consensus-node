@@ -17,8 +17,8 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.CreatedHookId;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -245,10 +245,10 @@ class ImmediateStateChangeListenerTest {
                                 ConstructionNodeId.DEFAULT,
                                 RecordedHistorySignature.DEFAULT);
 
-                    case CREATED_HOOK_ID_KEY ->
+                    case HOOK_ID_KEY ->
                         new MapUpdateScenario<>(
                                 StateIdentifier.STATE_ID_EVM_HOOK_STATES.protoOrdinal(),
-                                CreatedHookId.DEFAULT,
+                                HookId.DEFAULT,
                                 EvmHookState.DEFAULT);
 
                     case LAMBDA_SLOT_KEY ->

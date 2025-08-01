@@ -188,5 +188,5 @@ message ContractUpdateTransactionBody {
     /**
      * The hooks to create for the contract.
      */
-    repeated HookCreationDetails hook_creation_details = 17;
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 17;
 }

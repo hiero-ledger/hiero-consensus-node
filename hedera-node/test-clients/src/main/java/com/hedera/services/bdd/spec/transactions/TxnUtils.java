@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -19,7 +20,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
-import static com.hederahashgraph.api.proto.java.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
@@ -35,6 +35,9 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.LambdaEvmHook;
+import com.hedera.hapi.node.hooks.PureEvmHook;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -56,15 +59,10 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.EntityNumber;
-import com.hederahashgraph.api.proto.java.EvmHookSpec;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.HookCreationDetails;
-import com.hederahashgraph.api.proto.java.HookExtensionPoint;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.LambdaEvmHook;
 import com.hederahashgraph.api.proto.java.NftTransfer;
-import com.hederahashgraph.api.proto.java.PureEvmHook;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
@@ -167,17 +165,17 @@ public class TxnUtils {
      * @param hookContract the name of the contract to use as the hook
      * @return the factory
      */
-    public static Function<HapiSpec, HookCreationDetails> pureAccountAllowanceHook(
+    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> pureAccountAllowanceHook(
             final long hookId, @NonNull final String hookContract) {
         return spec -> {
             final var registry = spec.registry();
-            final var hookSpec = EvmHookSpec.newBuilder()
-                    .setContractId(registry.getContractId(hookContract))
+            final var hookSpec = com.hedera.hapi.node.hooks.EvmHookSpec.newBuilder()
+                    .contractId(toPbj(registry.getContractId(hookContract)))
                     .build();
-            return HookCreationDetails.newBuilder()
-                    .setHookId(hookId)
-                    .setExtensionPoint(ACCOUNT_ALLOWANCE_HOOK)
-                    .setPureEvmHook(PureEvmHook.newBuilder().setSpec(hookSpec))
+            return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
+                    .hookId(hookId)
+                    .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                    .pureEvmHook(PureEvmHook.newBuilder().spec(hookSpec))
                     .build();
         };
     }
@@ -189,17 +187,17 @@ public class TxnUtils {
      * @param hookContract the name of the contract to use as the hook
      * @return the factory
      */
-    public static Function<HapiSpec, HookCreationDetails> lambdaAccountAllowanceHook(
+    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> lambdaAccountAllowanceHook(
             final long hookId, @NonNull final String hookContract) {
         return spec -> {
             final var registry = spec.registry();
-            final var hookSpec = EvmHookSpec.newBuilder()
-                    .setContractId(registry.getContractId(hookContract))
+            final var hookSpec = com.hedera.hapi.node.hooks.EvmHookSpec.newBuilder()
+                    .contractId(toPbj(registry.getContractId(hookContract)))
                     .build();
-            return HookCreationDetails.newBuilder()
-                    .setHookId(hookId)
-                    .setExtensionPoint(ACCOUNT_ALLOWANCE_HOOK)
-                    .setLambdaEvmHook(LambdaEvmHook.newBuilder().setSpec(hookSpec))
+            return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
+                    .hookId(hookId)
+                    .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                    .lambdaEvmHook(LambdaEvmHook.newBuilder().spec(hookSpec))
                     .build();
         };
     }

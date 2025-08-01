@@ -225,5 +225,5 @@ message CryptoUpdateTransactionBody {
     /**
      * The hooks to create for the account.
      */
-    repeated HookCreationDetails hook_creation_details = 20;
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 20;
 }

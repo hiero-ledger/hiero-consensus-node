@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.LambdaSStore;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.hooks.LambdaMappingEntries;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.hooks.LambdaStorageSlot;
+import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.hooks.legacy.LambdaSStoreTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.CreatedHookId;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.HookId;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.LambdaMappingEntries;
-import com.hederahashgraph.api.proto.java.LambdaSStoreTransactionBody;
-import com.hederahashgraph.api.proto.java.LambdaStorageSlot;
-import com.hederahashgraph.api.proto.java.LambdaStorageUpdate;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -111,7 +111,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         final var op = spec.txns()
                 .<LambdaSStoreTransactionBody, LambdaSStoreTransactionBody.Builder>body(
                         LambdaSStoreTransactionBody.class, b -> {
-                            final var idBuilder = CreatedHookId.newBuilder().setHookId(hookId);
+                            final var idBuilder = HookId.newBuilder().setHookId(hookId);
                             if (!omitEntityId) {
                                 switch (ownerType) {
                                     case ACCOUNT_ID ->
@@ -122,7 +122,13 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
                                         throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
                                 }
                             }
-                            b.setHookId(idBuilder).addAllStorageUpdates(updates);
+                            b.setHookId(idBuilder)
+                                    .addAllStorageUpdates(updates.stream()
+                                            .map(update -> pbjToProto(
+                                                    update,
+                                                    LambdaStorageUpdate.class,
+                                                    com.hedera.hapi.node.hooks.legacy.LambdaStorageUpdate.class))
+                                            .toList());
                         });
         return b -> b.setLambdaSstore(op);
     }
@@ -152,9 +158,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         }
         for (int i = 0; i < kv.length; i += 2) {
             updates.add(LambdaStorageUpdate.newBuilder()
-                    .setStorageSlot(LambdaStorageSlot.newBuilder()
-                            .setKey(fromPbj(kv[i]))
-                            .setValue(fromPbj(kv[i + 1])))
+                    .storageSlot(LambdaStorageSlot.newBuilder().key(kv[i]).value(kv[i + 1]))
                     .build());
         }
         return this;
@@ -180,19 +184,20 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
 
     private HapiLambdaSStore entries(
             @NonNull final Bytes mappingSlot, @NonNull final List<MappingKey> keys, @NonNull final List<Bytes> values) {
-        final var builder = LambdaMappingEntries.newBuilder().setMappingSlot(fromPbj(mappingSlot));
+        final var builder = LambdaMappingEntries.newBuilder().mappingSlot(mappingSlot);
+        final List<LambdaMappingEntry> entries = new ArrayList<>();
         for (int i = 0, n = keys.size(); i < n; i++) {
-            final var entryBuilder = com.hederahashgraph.api.proto.java.LambdaMappingEntry.newBuilder()
-                    .setValue(fromPbj(values.get(i)));
+            final var entryBuilder = LambdaMappingEntry.newBuilder().value(values.get(i));
             final var key = keys.get(i);
             switch (key.type()) {
-                case KEY -> entryBuilder.setKey(fromPbj(requireNonNull(key.key())));
-                case PREIMAGE -> entryBuilder.setPreimage(fromPbj(requireNonNull(key.preimage())));
+                case KEY -> entryBuilder.key(requireNonNull(key.key()));
+                case PREIMAGE -> entryBuilder.preimage(requireNonNull(key.preimage()));
                 default -> throw new IllegalArgumentException("Unsupported mapping key type - " + key.type());
             }
-            builder.addEntries(entryBuilder.build());
+            entries.add(entryBuilder.build());
         }
-        updates.add(LambdaStorageUpdate.newBuilder().setMappingEntries(builder).build());
+        builder.entries(entries);
+        updates.add(LambdaStorageUpdate.newBuilder().mappingEntries(builder).build());
         return this;
     }
 }

@@ -18,7 +18,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.sl
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.CreatedHookId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -51,7 +51,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
     private static final Bytes ZERO_KEY = Bytes.fromHex("00");
 
     private final WritableEntityCounters entityCounters;
-    private final WritableKVState<CreatedHookId, EvmHookState> hookStates;
+    private final WritableKVState<HookId, EvmHookState> hookStates;
     private final WritableKVState<LambdaSlotKey, SlotValue> storage;
 
     public WritableEvmHookStore(
@@ -71,7 +71,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      * @throws HandleException if the lambda ID is not found
      * @return the net change in number of storage slots used
      */
-    public int updateStorage(@NonNull final CreatedHookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
+    public int updateStorage(@NonNull final HookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
             throws HandleException {
         final List<Bytes> keys = new ArrayList<>(updates.size());
         final List<Bytes> values = new ArrayList<>(updates.size());
@@ -135,7 +135,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
-    public void markDeleted(@NonNull final CreatedHookId hookId) {
+    public void markDeleted(@NonNull final HookId hookId) {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
         hookStates.put(hookId, state.copyBuilder().deleted(true).build());
@@ -148,7 +148,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      */
     public void createEvmHook(@NonNull final HookCreation creation) throws HandleException {
         final var details = creation.detailsOrThrow();
-        final var hookId = new CreatedHookId(creation.entityIdOrThrow(), details.hookId());
+        final var hookId = new HookId(creation.entityIdOrThrow(), details.hookId());
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
         final var type =
                 switch (details.hook().kind()) {
@@ -211,7 +211,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      * @return the new first key in the linked list of storage for the given contract
      */
     @NonNull
-    private Bytes removeSlot(@NonNull final CreatedHookId hookId, @NonNull Bytes firstKey, @NonNull final Bytes key) {
+    private Bytes removeSlot(@NonNull final HookId hookId, @NonNull Bytes firstKey, @NonNull final Bytes key) {
         requireNonNull(firstKey);
         requireNonNull(hookId);
         requireNonNull(key);
@@ -250,7 +250,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      */
     @NonNull
     private Bytes insertSlot(
-            @NonNull final CreatedHookId hookId,
+            @NonNull final HookId hookId,
             @NonNull final Bytes firstKey,
             @NonNull final Bytes key,
             @NonNull final Bytes value) {
@@ -272,7 +272,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         return key;
     }
 
-    private LambdaSlotKey minimalKey(@NonNull final CreatedHookId hookId, @NonNull final Bytes key) {
+    private LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
         return new LambdaSlotKey(hookId, minimalKey(key));
     }
 

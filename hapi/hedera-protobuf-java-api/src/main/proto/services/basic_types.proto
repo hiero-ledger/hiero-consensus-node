@@ -438,12 +438,12 @@ message TransactionID {
 /**
  * Once a hook is created, its full id.
  * <p>
- * A composite of its owning entity's id and an arbitrary 64-bit hook id
+ * A composite of its creating entity's id and an arbitrary 64-bit hook id
  * (which need not be sequential).
  */
-message CreatedHookId {
+message HookId {
     /**
-     * The hook's owning entity id.
+     * The hook's creating entity id.
      */
     HookEntityId entity_id = 1;
 
@@ -466,16 +466,25 @@ message HookEntityId {
 }
 
 /**
- * Specifies a call to a hook from within a transaction where the hook owner is implied by the point of use.
+ * Specifies a call to a hook from within a transaction.
  * <p>
- * For example, if the hook is an account allowance hook, then it is clear from the balance adjustment being
- * attempted which account must own the referenced hook.
+ * Often the hook's entity is implied by the nature of the call site. For example, when using an account allowance hook
+ * inside a crypto transfer, the hook's entity is necessarily the account whose authorization is required.
+ * <p>
+ * For future extension points where the hook owner is not forced by the context, we include the option to fully
+ * specify the hook id for the call.
  */
 message HookCall {
-    /**
-     * The id of the hook to call.
-     */
-    int64 hook_id = 1;
+    oneof id {
+        /**
+         * The full id of the hook to call, when the owning entity is not forced by the call site.
+         */
+        HookId full_hook_id  = 1;
+        /**
+         * The numeric id of the hook to call, when the owning entity is forced by the call site.
+         */
+        int64 hook_id = 2;
+    }
 
     /**
      * Specifies details of the call.
@@ -484,7 +493,7 @@ message HookCall {
         /**
          * Specification of how to call an EVM hook.
          */
-        EvmHookCall evm_hook_call = 2;
+        EvmHookCall evm_hook_call = 3;
     }
 }
 

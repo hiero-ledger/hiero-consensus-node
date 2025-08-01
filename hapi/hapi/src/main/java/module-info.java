@@ -15,7 +15,6 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.freeze;
     exports com.hedera.hapi.node.freeze.codec;
     exports com.hedera.hapi.node.freeze.schema;
-    exports com.hedera.hapi.node.lambda;
     exports com.hedera.hapi.node.hooks;
     exports com.hedera.hapi.node.network;
     exports com.hedera.node.internal.network;
@@ -103,6 +102,8 @@ module com.hedera.node.hapi {
             org.assertj.core;
     opens com.hedera.hapi.node.token to
             org.assertj.core;
+
+    exports com.hedera.hapi.node.hooks.legacy;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

@@ -896,9 +896,9 @@ message MapChangeKey {
         com.hedera.hapi.node.state.history.ConstructionNodeId construction_node_id_key = 22;
 
         /**
-         * A created hook id key.
+         * A hook id key.
          */
-        proto.CreatedHookId created_hook_id_key = 23;
+        proto.HookId hook_id_key = 23;
 
         /**
          * A lambda storage slot key.

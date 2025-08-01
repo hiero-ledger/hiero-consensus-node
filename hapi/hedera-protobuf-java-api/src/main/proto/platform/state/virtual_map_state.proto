@@ -256,7 +256,7 @@ message VirtualMapKey {
     /**
      * A state identifier for EVM hook states.
      */
-    proto.CreatedHookId ContractService_I_EVM_HOOK_STATES = 51;
+    proto.HookId ContractService_I_EVM_HOOK_STATES = 51;
 
     /**
      * A state identifier for lambda storage.

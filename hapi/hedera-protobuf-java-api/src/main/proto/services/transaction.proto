@@ -655,12 +655,12 @@ message TransactionBody {
         /**
          * A transaction body for updating the storage of a EVM lambda hook.
          */
-        LambdaSStoreTransactionBody lambda_sstore = 75;
+        com.hedera.hapi.node.hooks.LambdaSStoreTransactionBody lambda_sstore = 75;
 
         /**
          * An internal-only transaction body for dispatching a hook CRUD operation.
          */
-        HookDispatchTransactionBody hook_dispatch = 76;
+        com.hedera.hapi.node.hooks.HookDispatchTransactionBody hook_dispatch = 76;
     }
 
     /**

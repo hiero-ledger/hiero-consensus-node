@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
@@ -12,6 +13,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
@@ -22,7 +24,6 @@ import com.hederahashgraph.api.proto.java.ContractGetInfoResponse;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.HookCreationDetails;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.RealmID;
@@ -374,7 +375,10 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
-                            hookFactories.forEach(factory -> b.addHookCreationDetails(factory.apply(spec)));
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
 
                             b.setRealmID(RealmID.newBuilder()
                                     .setShardNum(spec.shard())
