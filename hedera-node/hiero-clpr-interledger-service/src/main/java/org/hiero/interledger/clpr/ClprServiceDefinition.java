@@ -7,7 +7,9 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.Set;
 
 /**

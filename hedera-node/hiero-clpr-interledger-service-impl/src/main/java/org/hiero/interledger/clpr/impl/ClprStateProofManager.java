@@ -22,9 +22,9 @@ public class ClprStateProofManager {
     /**
      * Gets the local ledger ID from the latest provable state.
      *
-     * @return The local ledger ID.
+     * @return The local ledger ID, or null if not determined yet.
      */
-    @NonNull
+    @Nullable
     public ClprLedgerId getLocalLedgerId() {
         throw new UnsupportedOperationException("getLocalLedgerId() is not implemented yet.");
     }

@@ -3,7 +3,6 @@ package org.hiero.interledger.clpr.impl.test;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
@@ -21,7 +20,6 @@ import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
 import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
 import org.mockito.Mock;
 
-import java.time.Instant;
 import java.util.*;
 
 import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATION_KEY;
@@ -55,7 +53,7 @@ public class ClprTestBase {
     protected ReadableStoreFactory mockStoreFactory;
 
     protected void setupStates() {
-        configurationMap =  new HashMap<>(0);
+        configurationMap = new HashMap<>(0);
         writableLedgerConfiguration = new MapWritableKVState<>(CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
         readableLedgerConfiguration = new MapReadableKVState<>(CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
         writableStatesMap = new TreeMap<>();
@@ -74,7 +72,7 @@ public class ClprTestBase {
                         ClprEndpoint.newBuilder().signingCertificate(Bytes.EMPTY).build(),
                         ClprEndpoint.newBuilder().signingCertificate(Bytes.EMPTY).build()
                 ))
-                .timestamp(Timestamp.newBuilder().seconds(System.currentTimeMillis()/1000).build())
+                .timestamp(Timestamp.newBuilder().seconds(System.currentTimeMillis() / 1000).build())
                 .build();
         remoteClprLedgerId = ClprLedgerId.newBuilder().ledgerId(Bytes.wrap(rawRemoteLedgerId)).build();
         remoteClprConfig = ClprLedgerConfiguration.newBuilder()
@@ -83,7 +81,7 @@ public class ClprTestBase {
                         ClprEndpoint.newBuilder().signingCertificate(Bytes.EMPTY).build(),
                         ClprEndpoint.newBuilder().signingCertificate(Bytes.EMPTY).build()
                 ))
-                .timestamp(Timestamp.newBuilder().seconds(System.currentTimeMillis()/1000).build())
+                .timestamp(Timestamp.newBuilder().seconds(System.currentTimeMillis() / 1000).build())
                 .build();
         configurationMap.put(localClprLedgerId, localClprConfig);
         configurationMap.put(remoteClprLedgerId, remoteClprConfig);
@@ -93,7 +91,6 @@ public class ClprTestBase {
         setupStates();
         setupScenario();
     }
-
 
 
 }

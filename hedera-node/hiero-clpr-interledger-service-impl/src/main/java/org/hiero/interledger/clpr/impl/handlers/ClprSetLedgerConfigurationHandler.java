@@ -16,6 +16,11 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+/**
+ * Handles the {@link  org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody} to set the
+ * configuration of a CLPR ledger.
+ * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger configurations.
+ */
 public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
 
     private final ClprStateProofManager stateProofManager;
@@ -38,6 +43,15 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         pureChecks(context.body());
     }
 
+    /**
+     * Performs the pre-checks for the CLPR ledger configuration transaction.
+     * These checks are performed on the submitting node during {@link this.pureCheck()} and again by all nodes during
+     * {@link this.preHandle()}.  The transaction and ledger configuraiton is validated for currectness and the
+     * state proof is verified.
+     *
+     * @param txn The transaction body containing the CLPR ledger configuration to validate.
+     * @throws PreCheckException If any of the checks fail, indicating an invalid transaction.
+     */
     private void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
         validateTruePreCheck(txn.hasClprLedgerConfiguration(), ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         final var configTxn = txn.clprLedgerConfigurationOrThrow();
@@ -101,7 +115,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var configStore = context.storeFactory()
                 .writableStore(WritableClprLedgerConfigurationStore.class);
         final var existingConfig = configStore.get(ledgerId);
-        if(updatesConfig(existingConfig, newConfig)) {
+        if (updatesConfig(existingConfig, newConfig)) {
             // If the configuration is an update, we store it in the writable store.
             configStore.put(newConfig);
         }

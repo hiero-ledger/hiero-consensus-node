@@ -6,6 +6,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
+import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import org.assertj.core.api.Assertions;
 import org.hiero.interledger.clpr.ClprServiceDefinition;
 import org.junit.jupiter.api.Test;
@@ -16,5 +17,15 @@ class ClprServiceDefinitionTest {
     void checkBasePath() {
         Assertions.assertThat(ClprServiceDefinition.INSTANCE.basePath())
                 .isEqualTo("org.hiero.hapi.interledger.clpr.ClprService");
+    }
+
+
+    @Test
+    void methodsDefined() {
+        final var methods = ClprServiceDefinition.INSTANCE.methods();
+        Assertions.assertThat(methods)
+                .containsExactlyInAnyOrder(
+                        new RpcMethodDefinition<>("setRemoteLedgerConfiguration", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
     }
 }

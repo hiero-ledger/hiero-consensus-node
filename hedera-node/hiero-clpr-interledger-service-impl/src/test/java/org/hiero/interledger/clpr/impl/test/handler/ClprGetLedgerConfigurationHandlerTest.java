@@ -7,15 +7,14 @@ import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.history.ReadableHistoryStore;
-import com.hedera.node.app.spi.workflows.*;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse;
-import org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
@@ -30,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 
@@ -40,8 +40,6 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     private QueryContext context;
     @Mock
     private ClprStateProofManager stateProofManager;
-
-
 
 
     private ClprGetLedgerConfigurationHandler subject;
@@ -81,6 +79,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     void validatesQueryWhenValidNonEmptyLedgerId() {
         final var query = createClprGetLedgerConfigurationQuery(remoteClprLedgerId);
         given(context.query()).willReturn(query);
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
@@ -88,7 +88,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     void validatesQueryWhenValidEmptyLedgerId() {
         final var query = createClprGetLedgerConfigurationQuery(null);
         given(context.query()).willReturn(query);
-        given(readableHistoryStore.getLedgerId()).willReturn(Bytes.wrap(rawLocalLedgerId));
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
@@ -97,6 +98,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var query = createClprGetLedgerConfigurationQuery(ClprLedgerId.newBuilder()
                 .ledgerId(Bytes.wrap("invalidledgerid".getBytes())).build());
         given(context.query()).willReturn(query);
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(any(ClprLedgerId.class))).willReturn(null);
         assertThatCode(() -> subject.validate(context))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessageContaining(ResponseCodeEnum.CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE.name());
@@ -106,7 +109,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     void validatesQueryWhenWaitingForLedgerId() {
         final var query = createClprGetLedgerConfigurationQuery(ClprLedgerId.newBuilder().build());
         given(context.query()).willReturn(query);
-        given(readableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(stateProofManager.getLocalLedgerId()).willReturn(null);
         assertThatCode(() -> subject.validate(context))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessageContaining(ResponseCodeEnum.WAITING_FOR_LEDGER_ID.name());
@@ -116,6 +119,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     void getResponseIfLedgerIdIsValidRemote() {
         final var query = createClprGetLedgerConfigurationQuery(remoteClprLedgerId);
         given(context.query()).willReturn(query);
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
         checkResponse(remoteClprConfig);
     }
 
@@ -123,7 +128,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     void getResponseIfLedgerIdIsEmpty() {
         final var query = createClprGetLedgerConfigurationQuery(null);
         given(context.query()).willReturn(query);
-        given(readableHistoryStore.getLedgerId()).willReturn(Bytes.wrap(rawLocalLedgerId));
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         checkResponse(localClprConfig);
     }
 
