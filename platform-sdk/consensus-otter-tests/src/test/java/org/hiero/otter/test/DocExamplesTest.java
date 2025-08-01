@@ -70,8 +70,6 @@ class DocExamplesTest {
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
         // ... more test logic here ...
-
-        assertThat(true).isTrue();
     }
 
     // This test is used in writing-tests.md file.

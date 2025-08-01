@@ -44,7 +44,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             }
             Files.createDirectories(rootOutputDirectory);
         } catch (final IOException ex) {
-            fail("Failed to delete directory: {}", rootOutputDirectory, ex);
+            fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
         network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
     }
