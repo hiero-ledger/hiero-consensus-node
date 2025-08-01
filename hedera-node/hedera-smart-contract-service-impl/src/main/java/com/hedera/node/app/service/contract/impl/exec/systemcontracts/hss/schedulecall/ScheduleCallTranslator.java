@@ -109,7 +109,6 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         Set<Key> keys = attempt.keySetFor();
         // create TransactionBody
         TransactionBody body = TransactionBody.newBuilder()
-                .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
                 // create ScheduleCreateTransactionBody
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
                         .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
