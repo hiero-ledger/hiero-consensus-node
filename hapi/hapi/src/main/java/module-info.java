@@ -16,6 +16,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.freeze.codec;
     exports com.hedera.hapi.node.freeze.schema;
     exports com.hedera.hapi.node.hooks;
+    exports com.hedera.hapi.node.hooks.legacy;
     exports com.hedera.hapi.node.network;
     exports com.hedera.node.internal.network;
     exports com.hedera.hapi.node.network.codec;
@@ -91,6 +92,7 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.block.stream.trace.protoc;
     opens com.hedera.hapi.node.state.tss.legacy;
     opens com.hedera.hapi.platform.state.legacy;
+    opens com.hedera.hapi.node.state.hooks.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
     opens com.hedera.node.internal.network.legacy;
@@ -102,8 +104,6 @@ module com.hedera.node.hapi {
             org.assertj.core;
     opens com.hedera.hapi.node.token to
             org.assertj.core;
-
-    exports com.hedera.hapi.node.hooks.legacy;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;
