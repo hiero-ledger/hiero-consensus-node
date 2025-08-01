@@ -829,8 +829,7 @@ public class LeakyContractTestsSuite {
                                     List.of(ContractAction.newBuilder()
                                             .setCallType(CREATE)
                                             .setCallOperationType(CallOperationType.OP_CREATE)
-                                            .setCallingAccount(
-                                                    spec.registry().getAccountID(DEFAULT_PAYER))
+                                            .setCallingAccount(spec.registry().getAccountID(DEFAULT_PAYER))
                                             .setRecipientContract(
                                                     spec.registry().getContractId("CreateTrivial"))
                                             .setGas(2934672)
