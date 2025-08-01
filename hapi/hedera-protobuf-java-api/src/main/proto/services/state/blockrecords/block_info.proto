@@ -68,10 +68,9 @@ message BlockInfo {
      * A consensus timestamp.
      * <p>
      * The consensus time of the last transaction that was handled by the node
-     * within the current block.<br/>
-     * This property is how we 'advance the consensus clock'. The node MUST
-     * continually set this property to the consensus timestamp for the most
-     * recent transaction completed by the node.
+     * within the current block. Only top-level transactions can trigger stake
+     * period side effects, so we track them separately from the last-used
+     * time of <i>all</i> transactions, which include children.<br/>
      */
     Timestamp cons_time_of_last_handled_txn = 4;
 
@@ -93,4 +92,21 @@ message BlockInfo {
      * is finished.
      */
     Timestamp first_cons_time_of_current_block = 6;
+
+    /**
+     * The consensus time of the last transaction that was handled by the node.
+     * <p>
+     * This property is how we 'advance the consensus clock'. The node MUST
+     * continually set this property to the consensus timestamp for the most
+     * recent transaction completed by the node.
+     */
+    Timestamp last_used_cons_time = 7;
+
+    /**
+     * The time stamp at which the last interval process was done.
+     * <p>
+     * This field SHALL hold the consensus time for the last time
+     * at which an interval of time-dependent events were processed.
+     */
+    proto.Timestamp last_interval_process_time = 8;
 }
