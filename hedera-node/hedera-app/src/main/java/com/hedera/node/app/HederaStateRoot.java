@@ -6,7 +6,6 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * This class sole purpose is to extend the {@link MerkleStateRoot} class and implement the {@link MerkleNodeState}.
@@ -16,7 +15,6 @@ import org.hiero.base.constructable.ConstructableIgnored;
  * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
 @Deprecated
-@ConstructableIgnored
 public class HederaStateRoot extends MerkleStateRoot<HederaStateRoot> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0x8e300b0dfdafbb1aL;

@@ -3,7 +3,9 @@ package com.swirlds.merkledb.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
+import org.hiero.base.constructable.ConstructableIgnored;
 
+@ConstructableIgnored
 @SuppressWarnings("unused")
 public class ExampleLongLongKey {
 

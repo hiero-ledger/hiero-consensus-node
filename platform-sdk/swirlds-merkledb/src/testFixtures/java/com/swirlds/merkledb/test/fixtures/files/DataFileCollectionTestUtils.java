@@ -9,7 +9,9 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.files.DataFileCollection;
 import java.util.Arrays;
+import org.hiero.base.constructable.ConstructableIgnored;
 
+@ConstructableIgnored
 public class DataFileCollectionTestUtils {
 
     /**
