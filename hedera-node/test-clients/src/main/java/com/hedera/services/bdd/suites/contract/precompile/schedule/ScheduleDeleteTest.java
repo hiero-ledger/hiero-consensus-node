@@ -7,7 +7,9 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -51,6 +53,9 @@ public class ScheduleDeleteTest {
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
+                // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE, SubType.SCHEDULE_CREATE_CONTRACT_CALL
+                // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+                uploadScheduledContractPrices(GENESIS),
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
                 overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"));
     }
