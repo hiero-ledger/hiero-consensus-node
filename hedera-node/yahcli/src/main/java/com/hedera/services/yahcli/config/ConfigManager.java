@@ -84,6 +84,12 @@ public class ConfigManager {
             specConfig.put("fees.fixedOffer", String.valueOf(useFixedFee() ? fixedFee() : "0"));
             specConfig.put("fees.useFixedOffer", "true");
         }
+
+        if (defaultPayer == null || defaultPayer.isBlank()) {
+            fail(String.format(
+                    "Illegal state, no default payer specified despite previous assertion of no missing defaults in %s for network '%s'",
+                    yahcli.getConfigLoc(), targetName));
+        }
         var payerId = asEntityString(targetNet.getShard(), targetNet.getRealm(), Long.parseLong(defaultPayer));
         if (TxnUtils.isIdLiteral(payerId)) {
             addPayerConfig(specConfig, payerId);
@@ -227,7 +233,9 @@ public class ConfigManager {
 
     private void assertDefaultPayerIsKnown() {
         final var normalizedPayer = normalizePossibleIdLiteral(this, yahcli.getPayer());
-        if (normalizedPayer == null && targetNet.getDefaultPayer() == null) {
+        if (normalizedPayer == null
+                && (targetNet.getDefaultPayer() == null
+                        || targetNet.getDefaultPayer().isBlank())) {
             fail(String.format(
                     "No payer was specified, and no default is available in %s for network" + " '%s'",
                     yahcli.getConfigLoc(), targetName));

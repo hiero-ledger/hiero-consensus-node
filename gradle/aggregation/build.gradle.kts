@@ -21,6 +21,7 @@ dependencies {
     implementation(project(":test-clients"))
     implementation(project(":consensus-otter-docker-app"))
     implementation(project(":consensus-otter-tests"))
+    implementation(project(":yahcli"))
 }
 
 tasks.testCodeCoverageReport {
