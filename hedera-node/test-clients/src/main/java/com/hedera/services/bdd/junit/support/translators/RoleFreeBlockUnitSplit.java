@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS_QUEUE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -104,7 +105,7 @@ public class RoleFreeBlockUnitSplit {
             if (item.hasTransactionResult()) {
                 return null;
             } else {
-                return TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                return TransactionParts.from(item.signedTransactionOrThrow());
             }
         });
 
@@ -112,10 +113,10 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                if (hasKvOrEmptyChanges(item.stateChangesOrThrow())) {
+                if (hasEmptyOrKvOrNonReceiptQueueChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
-            } else if (item.hasEventTransaction()) {
+            } else if (item.hasSignedTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
                 resultIndexes.add(i);
@@ -159,7 +160,7 @@ public class RoleFreeBlockUnitSplit {
             for (int k = i; k < j && !done; k++) {
                 final var item = items.get(k);
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
+                    case SIGNED_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
                         txItems.add(item);
                     default -> done = true;
                 }
@@ -224,7 +225,7 @@ public class RoleFreeBlockUnitSplit {
             final var pending = new PendingBlockTransactionParts();
             for (final var item : nextPartItems) {
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
+                    case SIGNED_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());
@@ -285,9 +286,16 @@ public class RoleFreeBlockUnitSplit {
         txIndexes.clear();
     }
 
-    private static boolean hasKvOrEmptyChanges(@NonNull final StateChanges stateChanges) {
+    private static boolean hasEmptyOrKvOrNonReceiptQueueChanges(@NonNull final StateChanges stateChanges) {
         final var changes = stateChanges.stateChanges();
-        return changes.isEmpty() || changes.stream().anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
+        return changes.isEmpty()
+                || changes.stream()
+                        .anyMatch(change -> change.hasMapUpdate()
+                                || change.hasMapDelete()
+                                || (change.hasQueuePush()
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal())
+                                || (change.hasQueuePop()
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal()));
     }
 
     /**

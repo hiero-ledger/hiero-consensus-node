@@ -25,11 +25,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -98,15 +98,20 @@ class DispatchUsageManagerTest {
                     .build())
             .build();
     private static final TransactionInfo ETH_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, ETH_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
+            SignedTransaction.DEFAULT, ETH_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
     private static final TransactionInfo CRYPTO_TRANSFER_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, NONDESCRIPT_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+            SignedTransaction.DEFAULT, NONDESCRIPT_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
     private static final TransactionInfo CONTRACT_CALL_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, CONTRACT_CALL_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
+            SignedTransaction.DEFAULT, CONTRACT_CALL_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
     private static final TransactionInfo CONTRACT_CREATE_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, CONTRACT_CREATE_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CREATE, null);
+            SignedTransaction.DEFAULT,
+            CONTRACT_CREATE_TXN_BODY,
+            SignatureMap.DEFAULT,
+            Bytes.EMPTY,
+            CONTRACT_CREATE,
+            null);
     private static final TransactionInfo SUBMIT_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT,
+            SignedTransaction.DEFAULT,
             NONDESCRIPT_TXN_BODY,
             SignatureMap.DEFAULT,
             Bytes.EMPTY,

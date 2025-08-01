@@ -49,7 +49,7 @@ public class KeyValueStoreBench extends BaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
                 BenchmarkRecord value = new BenchmarkRecord(id, nextValue());
-                store.put(id, value::serialize, BenchmarkRecord.getSerializedSize());
+                store.put(id, value::serialize, value.getSizeInBytes());
                 if (verify) map[(int) id] = value;
             }
             store.endWriting();

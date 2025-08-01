@@ -30,4 +30,21 @@ public class VirtualMapReport {
     public void setObjectKeyToPathReport(final StorageReport objectKeyToPathReport) {
         this.objectKeyToPathReport = objectKeyToPathReport;
     }
+
+    @Override
+    public String toString() {
+        @SuppressWarnings("StringBufferReplaceableByString")
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Path-to-Hash Storage:\n");
+        sb.append(pathToHashReport.toString());
+
+        sb.append("\nPath-to-KeyValue Storage:\n");
+        sb.append(pathToKeyValueReport.toString());
+
+        sb.append("\nObjectKey-to-Path Storage:\n");
+        sb.append(objectKeyToPathReport.toString());
+
+        return sb.toString();
+    }
 }

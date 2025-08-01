@@ -70,7 +70,7 @@ jobs:
     with:
       test-asset: "SDPT1"
       ref: "${{ inputs.ref }}"
-      solo-version: "latest_tested_solo-charts0.59"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
       nlg-time: "330"
       add-app-props: ""
@@ -102,7 +102,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -201,7 +201,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - Single Day Performance Test Passing Report",
+                        "text": ":tada: SDPT - Single Day Performance Test (${{ inputs.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -354,7 +354,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: Hiero Consensus Node - Single Day Performance Test Error Report",
+                      "text": ":grey_exclamation: SDPT - Single Day Performance Test (${{ inputs.ref }}) Failed",
                       "emoji": true
                     }
                   },

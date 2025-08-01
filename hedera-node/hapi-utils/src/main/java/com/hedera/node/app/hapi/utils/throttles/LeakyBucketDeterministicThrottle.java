@@ -79,6 +79,21 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     }
 
     /**
+     * Returns the available free capacity of this throttle, at a time which may be later than the last
+     * throttling decision (which would imply some capacity has been freed).
+     *
+     * @param now a time which will be ignored if before the last throttling decision
+     * @return the capacity available at this time
+     */
+    public long capacityFree(@NonNull final Instant now) {
+        if (lastDecisionTime == null) {
+            return delegate().capacityFree();
+        }
+        final var elapsedNanos = Math.max(0, nanosBetween(lastDecisionTime, now));
+        return delegate.capacityFree(elapsedNanos);
+    }
+
+    /**
      * Returns the percent usage of this throttle, at a time which may be later than the last
      * throttling decision (which would imply some capacity has been freed).
      *

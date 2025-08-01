@@ -116,7 +116,7 @@ public class StakePeriodChangesTest {
 
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -138,7 +138,7 @@ public class StakePeriodChangesTest {
                         .build());
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -171,7 +171,7 @@ public class StakePeriodChangesTest {
 
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
         subject.advanceTimeTo(parentTxn, true);
 
         verify(stakingPeriodCalculator)
@@ -198,7 +198,7 @@ public class StakePeriodChangesTest {
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockStreamManager.lastTopLevelConsensusTime()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -227,7 +227,7 @@ public class StakePeriodChangesTest {
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         Assertions.assertThatNoException().isThrownBy(() -> subject.advanceTimeTo(parentTxn, true));
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));

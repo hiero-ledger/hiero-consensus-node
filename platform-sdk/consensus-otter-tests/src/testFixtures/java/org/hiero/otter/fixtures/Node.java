@@ -9,8 +9,9 @@ import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
@@ -46,6 +47,7 @@ public interface Node {
      * behavior when the handle thread cannot keep up.
      *
      * <p>Equivalent to calling {@link #startSyntheticBottleneck(Duration)} with a delay of 100 milliseconds.
+     *
      * @see #startSyntheticBottleneck(Duration)
      */
     default void startSyntheticBottleneck() {
@@ -68,6 +70,7 @@ public interface Node {
      *
      * <p>This method stops the delay in processing rounds of consensus that was started by
      * {@link #startSyntheticBottleneck(Duration)}.
+     *
      * @see #startSyntheticBottleneck(Duration)
      * @see #startSyntheticBottleneck()
      */
@@ -97,8 +100,8 @@ public interface Node {
     void submitTransaction(@NonNull byte[] transaction);
 
     /**
-     * Gets the configuration of the node. The returned object can be used to evaluate the current
-     * configuration, but also for modifications.
+     * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
+     * also for modifications.
      *
      * @return the configuration of the node
      */
@@ -115,6 +118,7 @@ public interface Node {
 
     /**
      * Gets the weight of the node. This value is always non-negative.
+     *
      * @return the weight
      */
     long weight();
@@ -157,6 +161,7 @@ public interface Node {
     /**
      * Checks if the node's {@link PlatformStatus} is {@code status}.
      *
+     * @param status the status to check against
      * @return {@code true} if the node is in the supplied status, {@code false} otherwise
      */
     default boolean isInStatus(@NonNull final PlatformStatus status) {
@@ -174,53 +179,64 @@ public interface Node {
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is not running.
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is
+     * not running.
      *
      * @param version the software version to set for the node
      */
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be called while the node is not running.
+     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be
+     * called while the node is not running.
      */
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of the node.
+     * Creates a new result with all the consensus rounds of the node.
      *
      * @return the consensus rounds of the node
      */
     @NonNull
-    SingleNodeConsensusResult getConsensusResult();
+    SingleNodeConsensusResult newConsensusResult();
 
     /**
-     * Gets the log results of this node.
+     * Creates a new result with all the log results of this node.
      *
      * @return the log results of this node
      */
     @NonNull
-    SingleNodeLogResult getLogResult();
+    SingleNodeLogResult newLogResult();
 
     /**
-     * Gets the status progression result of the node.
+     * Creates a new result with all the status progression results of the node.
      *
      * @return the status progression result of the node
      */
     @NonNull
-    SingleNodePlatformStatusResults getPlatformStatusResults();
+    SingleNodePlatformStatusResult newPlatformStatusResult();
 
     /**
-     * Gets the results related to PCES files.
+     * Creates a new result with all the results related to PCES files.
      *
      * @return the PCES files created by the node
      */
     @NonNull
-    SingleNodePcesResult getPcesResult();
+    SingleNodePcesResult newPcesResult();
 
     /**
-     * Gets the results of any reconnects this node performed.
+     * Creates a new result with all the reconnects this node performed.
+     *
      * @return the reconnect results of the node
      */
     @NonNull
-    SingleNodeReconnectResult getReconnectResults();
+    SingleNodeReconnectResult newReconnectResult();
+
+    /**
+     * Creates a new result with all marker file result of the node.
+     *
+     * @return the marker file result of the node
+     */
+    @NonNull
+    SingleNodeMarkerFileResult newMarkerFileResult();
 }
