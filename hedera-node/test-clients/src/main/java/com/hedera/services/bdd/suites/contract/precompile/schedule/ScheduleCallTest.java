@@ -7,16 +7,14 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -58,14 +56,13 @@ public class ScheduleCallTest {
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-                // SubType.SCHEDULE_CREATE_CONTRACT_CALL
-                // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-                uploadScheduledContractPrices(GENESIS),
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
@@ -73,7 +70,10 @@ public class ScheduleCallTest {
                 scheduledCallTest(new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
@@ -86,7 +86,10 @@ public class ScheduleCallTest {
                 BigInteger.valueOf(41))));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();

@@ -7,14 +7,12 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -53,15 +51,14 @@ public class ScheduleDeleteTest {
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-                // SubType.SCHEDULE_CREATE_CONTRACT_CALL
-                // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-                uploadScheduledContractPrices(GENESIS),
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
                 overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
@@ -69,7 +66,10 @@ public class ScheduleDeleteTest {
                         "scheduleCallExample", deleteFunc, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
@@ -80,7 +80,10 @@ public class ScheduleDeleteTest {
                         BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
