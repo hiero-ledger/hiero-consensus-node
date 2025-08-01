@@ -73,6 +73,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -369,6 +370,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public TargetNetworkType targetNetworkType() {
         return targetNetworkOrThrow().type();
+    }
+
+    public PrometheusClient prometheusClient() {
+        return targetNetworkOrThrow().prometheusClient();
     }
 
     public void setSpecStateObserver(@NonNull final SpecStateObserver specStateObserver) {

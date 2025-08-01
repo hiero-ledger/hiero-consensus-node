@@ -99,7 +99,7 @@ public class VirtualHasherTestBase extends VirtualTestBase {
 
         final long rightChildPath = Path.getRightChildPath(internalNode.path());
         VirtualHashRecord rightChild = ds.getInternal(rightChildPath);
-        Hash rightHash = Cryptography.NULL_HASH;
+        Hash rightHash = null;
         if (rightChild != null) {
             if (rightChildPath < ds.firstLeafPath) {
                 rightChild = hashSubTree(ds, md, rightChild);
@@ -111,7 +111,9 @@ public class VirtualHasherTestBase extends VirtualTestBase {
         md.reset();
         md.update((byte) 0x02);
         leftHash.getBytes().writeTo(md);
-        rightHash.getBytes().writeTo(md);
+        if (rightHash != null) {
+            rightHash.getBytes().writeTo(md);
+        }
         final Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         VirtualHashRecord record = new VirtualHashRecord(internalNode.path(), hash);
         ds.setInternal(record);

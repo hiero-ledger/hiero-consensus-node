@@ -1765,4 +1765,9 @@ enum ResponseCodeEnum {
      * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
      */
     NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
+
+    /**
+     * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
+     */
+    INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 }
