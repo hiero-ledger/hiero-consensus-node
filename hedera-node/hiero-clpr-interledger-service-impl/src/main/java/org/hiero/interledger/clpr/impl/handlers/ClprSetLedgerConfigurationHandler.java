@@ -5,6 +5,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.*;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 import javax.inject.Inject;
@@ -28,6 +31,10 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
+        //TODO: Determine what throttles apply to this transaction.
+        //  Number of state proofs per second?
+        //  Number of ledger configurations per second?
+        //  Number of ledger configurations per ledger id per second?
         pureChecks(context.body());
     }
 
@@ -73,6 +80,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         try {
             //TODO: This call needs to have a deterministic result.
             // How do we ensure that the configuration in the latest block proven state hasn't changed across all nodes?
+            // We could keep a 10 minute recent history of block signed states and use the greatest one prior to
+            // the transaction time.
             pureChecks(txn);
         } catch (PreCheckException e) {
             //TODO: The submitting nodes should be held accountable for the failure.
@@ -85,8 +94,36 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // We assume that the state proof is valid and the configuration is ready to be set.
-        // We'll check one last time that the ledger configuration is an update of what exists in the state.
+        final var txn = context.body();
+        final var configTxn = txn.clprLedgerConfigurationOrThrow();
+        final var newConfig = configTxn.ledgerConfigurationOrThrow();
+        final var ledgerId = newConfig.ledgerIdOrThrow();
+        final var configStore = context.storeFactory()
+                .writableStore(WritableClprLedgerConfigurationStore.class);
+        final var existingConfig = configStore.get(ledgerId);
+        if(updatesConfig(existingConfig, newConfig)) {
+            // If the configuration is an update, we store it in the writable store.
+            configStore.put(newConfig);
+        }
+    }
 
-        throw new UnsupportedOperationException("Not supported yet.");
+    /**
+     * Determines if the new configuration updates the existing configuration.
+     *
+     * @param existingConfig The existing configuration, or null if there is no existing configuration.
+     * @param newConfig      The new configuration to be set.
+     * @return true if the new configuration is more recent than the existing one, false otherwise.
+     */
+    private boolean updatesConfig(@Nullable final ClprLedgerConfiguration existingConfig,
+                                  @NonNull final ClprLedgerConfiguration newConfig) {
+        // If the existing configuration is null, we are setting a new configuration.
+        if (existingConfig == null) {
+            return true;
+        }
+        // If the existing configuration is not null, we check if the new configuration is more recent.
+        final var existingTime = existingConfig.timestampOrThrow();
+        final var newTime = newConfig.timestampOrThrow();
+        return newTime.seconds() > existingTime.seconds()
+                || (newTime.seconds() == existingTime.seconds() && newTime.nanos() > existingTime.nanos());
     }
 }
