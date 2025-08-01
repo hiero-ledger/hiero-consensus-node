@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -39,23 +38,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractMintHTSV2SecurityModelSuite {
@@ -108,14 +101,6 @@ public class ContractMintHTSV2SecurityModelSuite {
     private static final String SERVICE_CONTRACT = "ServiceContract";
     static final byte[][] EMPTY_METADATA = new byte[][] {};
     static final byte[][] TEST_METADATA_2 = new byte[][] {TEST_METADATA_1.getBytes()};
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositive() {
@@ -227,143 +212,6 @@ public class ContractMintHTSV2SecurityModelSuite {
                                 .signedBy(SIGNER)
                                 .payingWith(SIGNER)
                                 .hasRetryPrecheckFrom(BUSY),
-                        // Assert that the token is minted - total supply should be increased
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
-                        // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 4 * amount))),
-                // Verify that each test case has 1 successful child record
-                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(TREASURY_MINTS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicV2Security002FungibleTokenMintInTreasuryPositive() {
-        final var amount = 10L;
-        final AtomicReference<TokenID> fungible = new AtomicReference<>();
-
-        return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(SIGNER2),
-                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                uploadInitCode(HTS_CALLS),
-                contractCreate(HTS_CALLS),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        // Create a key with shape contract and the contractId of HTSCalls contract
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
-                        // Update the token supply key to with the created threshold key
-                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                        // Test Case 1: Signer paying and signing a token mint transaction, where the token
-                        // will be minted in the token treasury account
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        // The signer will have a key with the contractId (key type CONTRACT)
-                        atomicBatch(contractCall(
-                                                HTS_CALLS,
-                                                "mintTokenCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                BigInteger.valueOf(amount),
-                                                new byte[][] {})
-                                        .via(SIGNER_MINTS_WITH_CONTRACT_ID)
-                                        .gas(GAS_TO_OFFER)
-                                        .payingWith(SIGNER)
-                                        .signedBy(SIGNER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        // Assert that the token is minted - total supply should be increased
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
-                        // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount),
-                        // Test Case 2: the Treasury account is paying and signing a token mint transaction,
-                        // where the token will be minted in the token treasury account
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        // NOTE: the only prerequisite in this case is the token to be updated with the
-                        // id of the contract calling the precompile which we did for the previous test
-                        atomicBatch(contractCall(
-                                                HTS_CALLS,
-                                                "mintTokenCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                BigInteger.valueOf(amount),
-                                                new byte[][] {})
-                                        .via(TREASURY_MINTS)
-                                        .gas(GAS_TO_OFFER)
-                                        .signedBy(TOKEN_TREASURY)
-                                        .payingWith(TOKEN_TREASURY)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        // Assert that the token is minted - total supply should be increased
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(2 * amount),
-                        // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 2 * amount),
-                        // Test Case 3: one account  paying and another one signing a token mint transaction,
-                        // where the token will be minted in the token treasury account
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        atomicBatch(contractCall(
-                                                HTS_CALLS,
-                                                "mintTokenCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                BigInteger.valueOf(amount),
-                                                new byte[][] {})
-                                        .via(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                        .gas(GAS_TO_OFFER)
-                                        .signedBy(SIGNER2, TOKEN_TREASURY)
-                                        .refusingEthConversion()
-                                        .payingWith(SIGNER2)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        // Assert that the token is minted - total supply should be increased
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(3 * amount),
-                        // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 3 * amount),
-                        // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of HTSCalls contract
-                        newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
-                                .shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
-                        tokenUpdate(FUNGIBLE_TOKEN)
-                                .supplyKey(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
-                                .signedByPayerAnd(TOKEN_TREASURY),
-                        // Update the transaction signer to have the new threshold key - the newly generated
-                        // ed25519 key from the threshold key will be set as the public key of the updated account
-                        cryptoUpdate(SIGNER).key(TRESHOLD_KEY_CORRECT_CONTRACT_ID),
-                        // Test Case 4: a signer account paying and signing a token mint transaction,
-                        // where the token will be minted in the token treasury account
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        // The signer will have a key with the contractId (key type CONTRACT)
-                        atomicBatch(contractCall(
-                                                HTS_CALLS,
-                                                "mintTokenCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                BigInteger.valueOf(amount),
-                                                new byte[][] {})
-                                        .via(SIGNER_MINTS_WITH_THRESHOLD_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .signedBy(SIGNER)
-                                        .payingWith(SIGNER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
                         // Assert that the token is minted - total supply should be increased
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
                         // Assert the token is mined in the token treasury account

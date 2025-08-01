@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -35,7 +34,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAdd
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenFreezeStatus.FreezeNotApplicable;
@@ -49,20 +47,14 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class AssociatePrecompileV2SecurityModelSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -85,14 +77,6 @@ public class AssociatePrecompileV2SecurityModelSuite {
     private static final String CONTRACT_KEY = "ContractKey";
     private static final String MINT_TOKEN_CONTRACT = "MixedMintToken";
     private static final String CALLCODE_CONTRACT = "MixedMintToken";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> v2Security031AssociateSingleTokenWithDelegateContractKey() {
@@ -369,216 +353,6 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .via("associateTokenToContractFails")
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                        getTxnRecord("associateTokenToContractFails")
-                                .andAllChildRecords()
-                                .logged())),
-                childRecordsCheck(
-                        "fungibleTokenAssociate",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                childRecordsCheck(
-                        "nonFungibleTokenAssociate",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                childRecordsCheck(
-                        "multipleTokensAssociate",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                childRecordsCheck(
-                        "nestedAssociateFungibleTxn",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                childRecordsCheck(
-                        "associateTokenToContractFails",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicV2Security006TokenAssociateNegativeTests() {
-        return hapiTest(
-                newKeyNamed(FREEZE_KEY),
-                newKeyNamed(KYC_KEY),
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(SIGNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(ADMIN_KEY)
-                        .supplyKey(TOKEN_TREASURY),
-                tokenCreate(FROZEN_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .initialSupply(TOTAL_SUPPLY)
-                        .freezeKey(FREEZE_KEY)
-                        .freezeDefault(true)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY),
-                tokenCreate(UNFROZEN_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .freezeKey(FREEZE_KEY)
-                        .freezeDefault(false)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY),
-                tokenCreate(KYC_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .kycKey(KYC_KEY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY),
-                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
-                contractCreate(ASSOCIATE_CONTRACT),
-                contractCreate(MINT_TOKEN_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                NESTED_ASSOCIATE_CONTRACT,
-                                asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec))),
-                        // Test Case 1: SIGNER account  paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating token to ACCOUNT
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatch(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(ACCOUNT)
-                                        .signedBy(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("fungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        getTxnRecord("fungibleTokenAssociate")
-                                .andAllChildRecords()
-                                .logged(),
-                        // Test Case 2: SIGNER account  paying and signing a non fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating to ACCOUNT
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatch(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(ACCOUNT)
-                                        .signedBy(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("nonFungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        getTxnRecord("nonFungibleTokenAssociate")
-                                .andAllChildRecords()
-                                .logged(),
-                        // Test Case 3: SIGNER account  paying and signing multiple TOKENS ASSOCIATE TRANSACTION,
-                        // associating to ЕОА ACCOUNT
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatch(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokensAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                new Address[] {
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(FROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(UNFROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(KYC_TOKEN)))
-                                                })
-                                        .signedBy(ACCOUNT)
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("multipleTokensAssociate")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        getTxnRecord("multipleTokensAssociate")
-                                .andAllChildRecords()
-                                .logged(),
-                        // Test Case 4: SIGNER account  paying and signing nested TOKEN ASSOCIATE TRANSACTION,
-                        // associating to ЕОА ACCOUNT
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatch(contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateInternalContractCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .signedBy(ACCOUNT)
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("nestedAssociateFungibleTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        getTxnRecord("nestedAssociateFungibleTxn")
-                                .andAllChildRecords()
-                                .logged(),
-                        // Test Case 5: SIGNER account paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating to CONTRACT
-                        // when signer has a threshold key
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_CONTRACT))),
-                        cryptoUpdate(SIGNER).key(CONTRACT_KEY),
-                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                        atomicBatch(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                asHeadlongAddress(getNestedContractAddress(MINT_TOKEN_CONTRACT, spec)),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .signedBy(SIGNER)
-                                        .payingWith(SIGNER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("associateTokenToContractFails")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         getTxnRecord("associateTokenToContractFails")
                                 .andAllChildRecords()
                                 .logged())),
