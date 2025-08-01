@@ -96,10 +96,29 @@ public interface HederaRecordCache extends RecordCache {
      * @param blockStreamManager           The block stream manager
      * @param streamMode                   The stream mode
      */
-    void commitRoundReceipts(
+    void commitReceipts(
             @NonNull State state,
             @NonNull Instant consensusNow,
             @NonNull ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull BlockStreamManager blockStreamManager,
+            @NonNull StreamMode streamMode);
+
+    /**
+     * Does the same work as {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)},
+     * <b>if</b> the number of receipts accumulated so far in the round exceeds the given batch size.
+     *
+     * @param state                        The state to commit the transaction receipts to
+     * @param consensusNow                 The current consensus time
+     * @param immediateStateChangeListener The listener to capture the state changes
+     * @param blockStreamManager           The block stream manager
+     * @param receiptEntriesBatchSize      The maximum number of receipts to accumulate in a batch before committing
+     * @param streamMode                   The stream mode
+     */
+    void maybeCommitReceiptsBatch(
+            @NonNull State state,
+            @NonNull Instant consensusNow,
+            @NonNull ImmediateStateChangeListener immediateStateChangeListener,
+            int receiptEntriesBatchSize,
             @NonNull BlockStreamManager blockStreamManager,
             @NonNull StreamMode streamMode);
 
