@@ -12,6 +12,7 @@ module com.swirlds.demo.stats {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires java.desktop;
     requires static com.github.spotbugs.annotations;
 }

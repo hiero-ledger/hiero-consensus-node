@@ -4,21 +4,14 @@ package org.hiero.consensus.event.creator.impl.pool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.base.time.internal.OSTime;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
-import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.config.TransactionConfig;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,22 +22,14 @@ class TransactionPoolNexusTest {
 
     static final int MAX_TX_BYTES_PER_EVENT = 245_760;
     static final int TX_MAX_BYTES = 6_144;
+    static final int TX_QUEUE_SIZE = 100_000;
 
     TransactionPoolNexus nexus;
 
     @BeforeEach
     public void beforeEach() {
-        final TransactionConfig txConfig =
-                new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, 245_760, 100_000);
-        final EventCreationConfig eventCreationConfig =
-                new EventCreationConfig(20, 100, 10, 10, 1024, Duration.ofSeconds(1));
-        final Configuration configuration = mock(Configuration.class);
-        when(configuration.getConfigData(TransactionConfig.class)).thenReturn(txConfig);
-        when(configuration.getConfigData(EventCreationConfig.class)).thenReturn(eventCreationConfig);
-        final Metrics metrics = new NoOpMetrics();
-        final Time time = OSTime.getInstance();
-
-        nexus = new TransactionPoolNexus(configuration, metrics, time);
+        final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics());
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
@@ -86,7 +71,7 @@ class TransactionPoolNexusTest {
         // get the transactions
         // this should happen in two batches, the first will all of the random size transactions created in the loop
         // above, followed by a second batch that should be just the single large transaction submitted last
-        final List<Bytes> firstBatch = nexus.getTransactions();
+        final List<Bytes> firstBatch = nexus.getTransactionsForEvent();
         assertNotNull(firstBatch);
         assertEquals(numCreated, firstBatch.size());
 
@@ -99,13 +84,13 @@ class TransactionPoolNexusTest {
                         + MAX_TX_BYTES_PER_EVENT + ")");
 
         // get the second batch; it should be just the final transaction
-        final List<Bytes> secondBatch = nexus.getTransactions();
+        final List<Bytes> secondBatch = nexus.getTransactionsForEvent();
         assertNotNull(secondBatch);
         assertEquals(1, secondBatch.size());
         assertEquals(TX_MAX_BYTES, secondBatch.getFirst().length());
 
         // and just for fun, make sure there aren't any more batches
-        final List<Bytes> thirdBatch = nexus.getTransactions();
+        final List<Bytes> thirdBatch = nexus.getTransactionsForEvent();
         assertNotNull(thirdBatch);
         assertTrue(thirdBatch.isEmpty());
     }
