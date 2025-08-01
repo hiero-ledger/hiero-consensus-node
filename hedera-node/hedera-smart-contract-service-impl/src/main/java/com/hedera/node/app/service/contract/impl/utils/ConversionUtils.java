@@ -1159,9 +1159,7 @@ public class ConversionUtils {
         } else if (i == 0) {
             return bytes;
         } else {
-            final var stripped = new byte[n - i];
-            bytes.getBytes(i, stripped, 0, n - i);
-            return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(stripped);
+            return bytes.slice(i, n - i);
         }
     }
 

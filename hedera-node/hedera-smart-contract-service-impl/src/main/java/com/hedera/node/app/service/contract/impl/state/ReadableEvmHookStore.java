@@ -33,6 +33,11 @@ public class ReadableEvmHookStore {
     }
 
     public record EvmHookView(@NonNull EvmHookState state, @NonNull List<Slot> selectedSlots) {
+        public EvmHookView {
+            requireNonNull(state);
+            requireNonNull(selectedSlots);
+        }
+
         public Bytes firstStorageKey() {
             return state.firstContractStorageKey();
         }

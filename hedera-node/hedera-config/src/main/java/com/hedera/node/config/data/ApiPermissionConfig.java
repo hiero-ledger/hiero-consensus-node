@@ -93,7 +93,16 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * A configuration for the permissions of the API.
+ * A configuration for the permissions of the Hiero API (HAPI).
+ * <p>
+ * Permissions are set by payer account id ranges. For example, on Hedera mainnet ({@code shard=0}, {@code realm=0}),
+ * a permission range of {@literal 0-*} for {@link HederaFunctionality#CRYPTO_TRANSFER} means that <i>any</i> account
+ * {@literal 0.0.X} can pay to execute a crypto transfer transaction. But a permission range of {@literal 2-55} for
+ * {@link HederaFunctionality#NODE_CREATE} means that Hedera mainnet will reject any node create with a payer not in
+ * the range {@link 0.0.2} to {@link 0.0.55}.
+ * <p>
+ * Finally, a degenerate permission range of {@literal 0-0} means the functionality is not available at all through
+ * HAPI; instead, nodes use it as part of the L1 protocol directly.
  *
  * @param createAccount              the permission for {@link HederaFunctionality#CRYPTO_CREATE} functionality
  * @param cryptoTransfer             the permission for {@link HederaFunctionality#CRYPTO_TRANSFER} functionality
