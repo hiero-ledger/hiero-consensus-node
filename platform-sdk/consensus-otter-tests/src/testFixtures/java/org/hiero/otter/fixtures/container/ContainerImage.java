@@ -53,6 +53,11 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
             throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
         }
         withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
+        final String uid = System.getenv("UID");
+        final String gid = System.getenv("GID");
+        if (uid != null && gid != null) {
+            withCreateContainerCmdModifier(c -> c.withUser(uid + ":" + gid));
+        }
         withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         addFixedExposedPort(debugPort, debugPort);
     }
