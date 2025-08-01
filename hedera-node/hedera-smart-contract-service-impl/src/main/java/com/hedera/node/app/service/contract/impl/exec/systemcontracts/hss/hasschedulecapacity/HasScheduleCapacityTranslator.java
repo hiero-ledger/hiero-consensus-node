@@ -49,7 +49,7 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
         // read parameters
-        //        final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
+        final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
         //        final BigInteger expirySecond = call.get(EXPIRY_SECOND_INDEX);
         //        final BigInteger gasLimit = call.get(GAS_LIMIT_INDEX);
         // TODO should be implemented with:

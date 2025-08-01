@@ -88,7 +88,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 new DispatchForResponseCodeHssCall(attempt, TransactionBody.DEFAULT, dispatchGasCalculator, emptySet());
     }
 
-    private void successResult(final DispatchForResponseCodeHssCall subject) {
+    private byte[] successResult(final DispatchForResponseCodeHssCall subject) {
         given(systemContractOperations.dispatch(
                         TransactionBody.DEFAULT,
                         verificationStrategy,
@@ -104,17 +104,17 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
         final var pricedResult = subject.execute(frame);
         final var contractResult = pricedResult.fullResult().result().getOutput();
-        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
+        return contractResult.toArray();
     }
 
     @Test
     void successResult() {
-        successResult(subject);
+        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subject));
     }
 
     @Test
     void successResultFromAttemptConstructor() {
-        successResult(subjectFromAttempt);
+        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
     }
 
     @Test

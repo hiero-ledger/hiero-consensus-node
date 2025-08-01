@@ -92,7 +92,9 @@ public class ScheduleDeleteTest {
     }
 
     private Stream<DynamicTest> deleteScheduleTest(
-            String scheduleFunction, String deleteFunction, @NonNull final Object... parameters) {
+            @NonNull final String scheduleFunction,
+            @NonNull final String deleteFunction,
+            @NonNull final Object... parameters) {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();

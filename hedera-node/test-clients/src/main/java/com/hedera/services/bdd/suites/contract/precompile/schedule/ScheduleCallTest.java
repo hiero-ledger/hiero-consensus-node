@@ -56,7 +56,7 @@ public class ScheduleCallTest {
     static SpecAccount sender;
 
     @BeforeAll
-    public static void setup(TestLifecycle lifecycle) {
+    public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
                 // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
                 // SubType.SCHEDULE_CREATE_CONTRACT_CALL
