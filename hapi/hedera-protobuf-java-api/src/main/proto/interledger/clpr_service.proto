@@ -28,25 +28,25 @@ import "services/transaction.proto";
  *
  */
 service ClprService {
-  /**
-   * Sets a remote ledger's configuration to enable interledger communication.
-   * <p>
-   * If the `stateProof` is for an older configuration of the remote ledger
-   * than what is currently in the state, this has no effect.
-   * <p>
-   * The request body MUST be a
-   * [ClprSetRemoteLedgerConfigurationTransactionBody](#org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody)
-   */
-  rpc setRemoteLedgerConfiguration (proto.Transaction) returns (proto.TransactionResponse);
+    /**
+     * Sets a remote ledger's configuration to enable interledger communication.
+     * <p>
+     * If the `stateProof` is for an older configuration of the remote ledger
+     * than what is currently in the state, this has no effect.
+     * <p>
+     * The request body MUST be a
+     * [ClprSetRemoteLedgerConfigurationTransactionBody](#org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody)
+     */
+    rpc setRemoteLedgerConfiguration (proto.Transaction) returns (proto.TransactionResponse);
 
-  /**
-   * Retrieves the CLPR ledger configuration of this ledger or for a
-   * remote ledger whose configuration has been set.
-   * <p>
-   * The request body MUST be a
-   * [ClprGetLedgerConfigurationQuery](#ClprGetLedgerConfigurationQuery)<br/>
-   * The response body SHALL be a
-   * [ClprGetLedgerConfigurationResponse](#org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse)
-   */
-  rpc getLedgerConfiguration (proto.Query) returns (proto.Response);
+    /**
+     * Retrieves the CLPR ledger configuration of this ledger or for a
+     * remote ledger whose configuration has been set.
+     * <p>
+     * The request body MUST be a
+     * [ClprGetLedgerConfigurationQuery](#ClprGetLedgerConfigurationQuery)<br/>
+     * The response body SHALL be a
+     * [ClprGetLedgerConfigurationResponse](#org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse)
+     */
+    rpc getLedgerConfiguration (proto.Query) returns (proto.Response);
 }
