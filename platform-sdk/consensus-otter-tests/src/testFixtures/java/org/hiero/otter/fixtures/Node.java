@@ -28,6 +28,30 @@ public interface Node {
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
+     * Gets the self id of the node. This value can be used to identify a node.
+     *
+     * @return the self id
+     */
+    @NonNull
+    NodeId selfId();
+
+    /**
+     * Gets the continent of the node.
+     *
+     * @return the continent of the node
+     */
+    @NonNull
+    String continent();
+
+    /**
+     * Gets the region of the node.
+     *
+     * @return the region of the node
+     */
+    @NonNull
+    String region();
+
+    /**
      * Kill the node without prior cleanup.
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
@@ -107,14 +131,6 @@ public interface Node {
      */
     @NonNull
     NodeConfiguration<?> configuration();
-
-    /**
-     * Gets the self id of the node. This value can be used to identify a node.
-     *
-     * @return the self id
-     */
-    @NonNull
-    NodeId selfId();
 
     /**
      * Gets the weight of the node. This value is always non-negative.
