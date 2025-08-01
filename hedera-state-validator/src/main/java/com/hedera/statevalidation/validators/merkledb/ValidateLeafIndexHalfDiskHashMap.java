@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.validators.Constants.VALIDATE_INCORRECT
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_STALE_KEYS_EXCLUSIONS;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.state.StateKey;
@@ -15,14 +16,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
-import com.hedera.statevalidation.reporting.Report;
+import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -30,29 +31,32 @@ import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("hdhm")
 public class ValidateLeafIndexHalfDiskHashMap {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
-    @ParameterizedTest
-    @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord vmAndSource, Report report) {
-        if (vmAndSource.dataSource().getFirstLeafPath() == -1) {
-            log.info("Skipping the validation for {} as the map is empty", vmAndSource.name());
+    @Test
+    public void validateIndex(DeserializedSignedState deserializedState) {
+        final MerkleNodeState merkleNodeState =
+                deserializedState.reservedSignedState().get().getState();
+        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+        assertNotNull(virtualMap);
+        MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+
+        if (vds.getFirstLeafPath() == -1) {
+            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
             return;
         }
 
-        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(vmAndSource.name());
+        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
         boolean skipIncorrectBucketIndexValidation =
-                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(vmAndSource.name());
-        MerkleDbDataSource vds = vmAndSource.dataSource();
+                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
 
         log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
 
