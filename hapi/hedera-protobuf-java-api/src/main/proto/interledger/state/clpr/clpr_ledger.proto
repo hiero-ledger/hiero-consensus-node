@@ -14,8 +14,9 @@ package org.hiero.hapi.interledger.state.clpr;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/basic_types.proto";
+import "services/timestamp.proto";
 
-option java_package = "com.hederahashgraph.api.proto.java";
+option java_package = "org.hiero.hapi.interledger.state.clpr.legacy";
 // <<<pbj.java_package = "org.hiero.hapi.interledger.state.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
@@ -41,10 +42,15 @@ message ClprLedgerConfiguration {
    */
   ClprLedgerId ledger_id = 1;
 
+  /**
+   * The consensus timestamp for when the configuration became valid.
+   */
+  proto.Timestamp timestamp = 2;
+
   /*
    * The list of CLPR Endpoints for the ledger
    */
-  repeated ClprEndpoint endpoints = 2;
+  repeated ClprEndpoint endpoints = 3;
 }
 
 /**
