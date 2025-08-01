@@ -55,8 +55,7 @@ public class ScheduleCallTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
