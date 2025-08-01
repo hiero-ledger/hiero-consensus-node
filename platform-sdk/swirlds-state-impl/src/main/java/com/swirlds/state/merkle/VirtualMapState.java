@@ -17,6 +17,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
@@ -836,21 +837,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
                         final JSONObject singletonJson = new JSONObject();
-                        singletonJson.put("hash", hash);
+                        singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
                         singletonJson.put("path", leafBytes.path());
-                        try {
-                            final VirtualMapValue virtualMapValue =
-                                    VirtualMapValue.PROTOBUF.parse(leafBytes.valueBytes());
-                            final var typedSingletonValue = stateDefinition
-                                    .valueCodec()
-                                    .getDefaultInstance()
-                                    .getClass()
-                                    .cast(virtualMapValue.value().as());
-                            singletonJson.put("value", typedSingletonValue);
-                        } catch (ParseException e) {
-                            singletonJson.put("value", "ParseException: " + e.getMessage());
-                        }
-
                         singletons.put(StateUtils.computeLabel(serviceName, stateKey), singletonJson);
                     }
                 } else if (stateDefinition.queue()) {
