@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractActionSidecarFor;
+import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractBytecodeSansInitcodeFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidation;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
@@ -75,7 +76,9 @@ import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddre
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.ACCOUNT_INFO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.ACCOUNT_INFO_AFTER_CALL;
@@ -107,6 +110,7 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.utils.contracts.AddressResult.hexedAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hedera.services.stream.proto.ContractActionType.CALL;
+import static com.hedera.services.stream.proto.ContractActionType.CREATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -806,6 +810,34 @@ public class LeakyContractTestsSuite {
                         .payingWith(GENESIS)
                         .gas(300_000L)
                         .via(callTxn)));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> bytecodeSidecarExternalizedEvenWithInlineInitcode() {
+        return hapiTest(
+                sidecarValidation(),
+                contractCreate("CreateTrivial")
+                        .via("inlineCreation")
+                        .inlineInitCode(extractBytecodeUnhexed(getResourcePath("CreateTrivial", ".bin"))),
+                withOpContext((spec, opLog) -> {
+                    final HapiGetTxnRecord txnRecord = getTxnRecord("inlineCreation");
+                    allRunFor(
+                            spec,
+                            txnRecord,
+                            expectContractActionSidecarFor(
+                                    "inlineCreation",
+                                    List.of(ContractAction.newBuilder()
+                                            .setCallType(CREATE)
+                                            .setCallOperationType(CallOperationType.OP_CREATE)
+                                            .setCallingAccount(spec.registry().getAccountID(DEFAULT_PAYER))
+                                            .setRecipientContract(
+                                                    spec.registry().getContractId("CreateTrivial"))
+                                            .setGas(2934672)
+                                            .setGasUsed(214)
+                                            .setOutput(EMPTY)
+                                            .build())));
+                }),
+                expectContractBytecodeSansInitcodeFor("inlineCreation", "CreateTrivial"));
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
