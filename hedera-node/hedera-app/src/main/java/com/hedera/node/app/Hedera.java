@@ -522,8 +522,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
-                Utils.maxIngestParseSize(bootstrapConfig),
-                bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent());
+                2621440,
+                2621440);
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent(),
