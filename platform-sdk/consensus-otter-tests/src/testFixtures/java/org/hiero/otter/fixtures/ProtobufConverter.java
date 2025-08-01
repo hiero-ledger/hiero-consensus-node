@@ -652,7 +652,9 @@ public class ProtobufConverter {
                 sourceLog.getLoggerName(),
                 sourceLog.getThread(),
                 MarkerManager.getMarker(sourceLog.getMarker()),
-                NodeId.newBuilder().id(sourceLog.getNodeId()).build());
+                sourceLog.getNodeId() < 0
+                        ? null
+                        : NodeId.newBuilder().id(sourceLog.getNodeId()).build());
     }
 
     /**
