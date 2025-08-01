@@ -12,6 +12,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -48,7 +49,6 @@ import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
 import org.junit.jupiter.api.DisplayName;
@@ -79,14 +79,13 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {}, x -> {
-            return null;
-        });
+        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
 
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, true);
+        final PlatformWiring wiring =
+                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionLayer.class));
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
@@ -111,7 +110,6 @@ class PlatformWiringTests {
                 .withStateHasher(mock(StateHasher.class))
                 .withStaleEventDetector(mock(DefaultStaleEventDetector.class))
                 .withTransactionResubmitter(mock(TransactionResubmitter.class))
-                .withTransactionPool(mock(TransactionPool.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
                 .withBranchDetector(mock(BranchDetector.class))

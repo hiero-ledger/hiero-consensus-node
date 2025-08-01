@@ -2,8 +2,7 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -17,7 +16,7 @@ import org.hiero.consensus.model.node.NodeId;
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
+public interface SwirldMain<T extends MerkleNodeState> extends Runnable, ExecutionLayer {
 
     /**
      * Get configuration types to be registered.
@@ -105,13 +104,4 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      */
     @NonNull
     SemanticVersion getSemanticVersion();
-
-    /**
-     * Encodes a system transaction to {@link Bytes} representation of a {@link com.hedera.hapi.node.base.Transaction}.
-     *
-     * @param transaction the {@link StateSignatureTransaction} to encode
-     * @return {@link Bytes} representation of the transaction
-     */
-    @NonNull
-    Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
 }

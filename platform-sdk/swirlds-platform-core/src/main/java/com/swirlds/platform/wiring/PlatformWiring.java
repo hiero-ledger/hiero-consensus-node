@@ -10,7 +10,6 @@ import static org.hiero.consensus.model.event.StaleEventDetectorOutput.STALE_SEL
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -23,6 +22,7 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -71,11 +71,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.Function;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -134,11 +132,10 @@ public class PlatformWiring {
     private final boolean publishPreconsensusEvents;
     private final boolean publishSnapshotOverrides;
     private final boolean publishStaleEvents;
-    private final ApplicationCallbacks applicationCallbacks;
+    private final ExecutionLayer execution;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionResubmitter, List<TransactionWrapper>> transactionResubmitterWiring;
-    private final ComponentWiring<TransactionPool, Void> transactionPoolWiring;
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
@@ -155,10 +152,11 @@ public class PlatformWiring {
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final ApplicationCallbacks applicationCallbacks,
-            final boolean isGenesis) {
+            @NonNull final ExecutionLayer execution) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.model = Objects.requireNonNull(model);
+        this.execution = Objects.requireNonNull(execution);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
@@ -227,7 +225,6 @@ public class PlatformWiring {
         this.publishPreconsensusEvents = applicationCallbacks.preconsensusEventConsumer() != null;
         this.publishSnapshotOverrides = applicationCallbacks.snapshotOverrideConsumer() != null;
         this.publishStaleEvents = applicationCallbacks.staleEventConsumer() != null;
-        this.applicationCallbacks = applicationCallbacks;
 
         final TaskSchedulerConfiguration publisherConfiguration;
         if (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents) {
@@ -246,7 +243,6 @@ public class PlatformWiring {
         staleEventDetectorWiring = new ComponentWiring<>(model, StaleEventDetector.class, config.staleEventDetector());
         transactionResubmitterWiring =
                 new ComponentWiring<>(model, TransactionResubmitter.class, config.transactionResubmitter());
-        transactionPoolWiring = new ComponentWiring<>(model, TransactionPool.class, config.transactionPool());
         branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
         branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
 
@@ -264,7 +260,6 @@ public class PlatformWiring {
                 transactionHandlerWiring,
                 stateHasherWiring,
                 staleEventDetectorWiring,
-                transactionPoolWiring,
                 statusStateMachineWiring,
                 branchDetectorWiring,
                 branchReporterWiring,
@@ -368,9 +363,6 @@ public class PlatformWiring {
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
 
-        model.getHealthMonitorWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::reportUnhealthyDuration));
-
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
 
@@ -400,9 +392,6 @@ public class PlatformWiring {
 
         staleEventsFromStaleEventDetector.solderTo(
                 transactionResubmitterWiring.getInputWire(TransactionResubmitter::resubmitStaleTransactions));
-
-        final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder =
-                applicationCallbacks.systemTransactionEncoder();
 
         if (publishStaleEvents) {
             staleEventsFromStaleEventDetector.solderTo(
@@ -532,14 +521,10 @@ public class PlatformWiring {
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendStateHashedNotification));
 
-        final OutputWire<Bytes> systemTransactionEncoderOutputWireForStateSigner = stateSignerWiring
+        // send state signatures to execution
+        stateSignerWiring
                 .getOutputWire()
-                .buildTransformer(
-                        "postSigner_encode_systemTransactions",
-                        "system transactions from signer",
-                        systemTransactionEncoder);
-        systemTransactionEncoderOutputWireForStateSigner.solderTo(
-                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+                .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -582,7 +567,7 @@ public class PlatformWiring {
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
         statusStateMachineWiring
                 .getOutputWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
+                .solderTo("ExecutionStatusHandler", "status updates", execution::updatePlatformStatus);
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
@@ -618,7 +603,6 @@ public class PlatformWiring {
         issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::setInitialEventWindow);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear);
-        transactionPoolWiring.getInputWire(TransactionPool::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
         branchDetectorWiring.getInputWire(BranchDetector::clear);
         branchReporterWiring.getInputWire(BranchReporter::clear);
@@ -684,7 +668,6 @@ public class PlatformWiring {
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         staleEventDetectorWiring.bind(builder::buildStaleEventDetector);
         transactionResubmitterWiring.bind(builder::buildTransactionResubmitter);
-        transactionPoolWiring.bind(builder::buildTransactionPool);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);

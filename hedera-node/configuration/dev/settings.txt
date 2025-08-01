@@ -24,7 +24,7 @@ transaction.maxTransactionBytesPerEvent,       2621440                      # 2.
                                           #############################
 
 metrics.csvFileName,                           MainNetStats
-metrics.csvOutputFolder,                       data/stats
+metrics.csvOutputFolder,                       output/
 showInternalStats,                             true
 prometheus.endpointEnabled,                    true                        # differs from mainnet
 

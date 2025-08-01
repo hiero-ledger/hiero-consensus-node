@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config;
 
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,5 +57,15 @@ public final class Utils {
         });
 
         return Collections.unmodifiableSortedMap(recordProperties);
+    }
+
+    public static int maxIngestParseSize(final Configuration configuration) {
+        final var jumboTxnEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        final var jumboMaxTxnSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
+        final var transactionMaxBytes =
+                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 }

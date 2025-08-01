@@ -10,7 +10,6 @@ import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
@@ -66,7 +65,6 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -136,11 +134,6 @@ public class SwirldsPlatform implements Platform {
     private final SavedStateController savedStateController;
 
     /**
-     * Used to submit application transactions.
-     */
-    private final TransactionPoolNexus transactionPoolNexus;
-
-    /**
      * Encapsulated wiring for the platform.
      */
     private final PlatformWiring platformWiring;
@@ -175,6 +168,10 @@ public class SwirldsPlatform implements Platform {
         notificationEngine = blocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
+        logger.info(
+                STARTUP.getMarker(),
+                "Transaction limits:\n{}",
+                blocks.execution().getTransactionLimits());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
         registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
@@ -262,8 +259,6 @@ public class SwirldsPlatform implements Platform {
                     savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
             platformWiring.getPcesMinimumGenerationToStoreInput().inject(minimumGenerationNonAncientForOldestState);
         }
-
-        transactionPoolNexus = blocks.transactionPoolNexus();
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 
@@ -410,14 +405,6 @@ public class SwirldsPlatform implements Platform {
                 .getStatusActionSubmitter()
                 .submitStatusAction(
                         new DoneReplayingEventsAction(platformContext.getTime().now()));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean createTransaction(@NonNull final byte[] transaction) {
-        return transactionPoolNexus.submitApplicationTransaction(Bytes.wrap(transaction));
     }
 
     /**
