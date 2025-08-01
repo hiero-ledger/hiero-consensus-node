@@ -44,6 +44,10 @@ public class ReadableEvmHookStore {
     }
 
     public record Slot(@NonNull LambdaSlotKey key, @Nullable SlotValue value) {
+        public Slot {
+            requireNonNull(key);
+        }
+
         @Nullable
         public Bytes maybeBytesValue() {
             return (value == null || Bytes.EMPTY.equals(value.value())) ? null : value.value();
