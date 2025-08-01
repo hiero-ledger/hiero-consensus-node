@@ -3,7 +3,7 @@ package com.hedera.node.app.state.listeners;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
@@ -38,8 +38,8 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
     private final Executor executor;
     private final ConfigProvider configProvider;
     private final StartupNetworks startupNetworks;
-    private final SemanticVersion softwareVersionFactory;
     private final EntityIdFactory entityIdFactory;
+    private final BlockBufferService blockBufferService;
 
     @Inject
     public WriteStateToDiskListener(
@@ -47,18 +47,24 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final StartupNetworks startupNetworks,
-            @NonNull final SemanticVersion softwareVersionFactory,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final BlockBufferService blockBufferService) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);
         this.startupNetworks = requireNonNull(startupNetworks);
-        this.softwareVersionFactory = softwareVersionFactory;
         this.entityIdFactory = requireNonNull(entityIdFactory);
+        this.blockBufferService = requireNonNull(blockBufferService);
     }
 
     @Override
     public void notify(@NonNull final StateWriteToDiskCompleteNotification notification) {
+        try {
+            blockBufferService.persistBuffer();
+        } catch (final Exception e) {
+            log.error("Error while writing block buffer to disk", e);
+        }
+
         if (notification.isFreezeState()) {
             log.info(
                     "StateWriteToDiskCompleteNotification Received : Freeze State Finished. "
@@ -83,7 +89,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                         entityIdFactory);
                 log.info("Externalizing freeze if upgrade is pending");
                 upgradeActions.externalizeFreezeIfUpgradePending();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 log.error("Error while responding to freeze state notification", e);
             }
         }

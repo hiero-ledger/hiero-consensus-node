@@ -3,18 +3,22 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.internal.BufferedBlock;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,6 +46,8 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
+
+    private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
@@ -110,6 +116,10 @@ public class BlockBufferService {
      * the recovery threshold.
      */
     private boolean awaitingRecovery = false;
+    /**
+     * Utility for managing reading and writing block buffer to disk.
+     */
+    private final BlockBufferIO bufferIO;
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -123,10 +133,12 @@ public class BlockBufferService {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
         isStreamingEnabled.set(streamToBlockNodesEnabled());
+        this.bufferIO = new BlockBufferIO(bufferDirectory());
 
-        // Only start the pruning thread if we're streaming to block nodes
+        // Initialize buffer and start worker thread if streaming is enabled
         if (isStreamingEnabled.get()) {
-            scheduleNextPruning();
+            loadBufferFromDisk();
+            scheduleNextWorkerTask();
         }
     }
 
@@ -141,13 +153,18 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the interval in which the block buffer will be pruned (a duration of 0 means pruning is disabled)
+     * @return the interval in which the block buffer periodic operations will be invoked
      */
-    private Duration blockBufferPruneInterval() {
-        return configProvider
+    private Duration workerTaskInterval() {
+        final Duration interval = configProvider
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
-                .pruneInterval();
+                .workerInterval();
+        if (interval.isNegative() || interval.isZero()) {
+            return DEFAULT_WORKER_INTERVAL;
+        } else {
+            return interval;
+        }
     }
 
     /**
@@ -204,6 +221,46 @@ public class BlockBufferService {
                 .getConfigData(BlockBufferConfig.class)
                 .recoveryThreshold();
         return Math.max(0.0D, threshold);
+    }
+
+    /**
+     * @return true if buffer persistence is enabled, else false
+     */
+    private boolean isBufferPersistenceEnabled() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockBufferConfig.class)
+                .isBufferPersistenceEnabled();
+    }
+
+    /**
+     * @return true if buffer pruning is enabled, else false
+     */
+    private boolean isPruningEnabled() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockBufferConfig.class)
+                .isPruningEnabled();
+    }
+
+    /**
+     * @return the directory where the block buffer will be persisted
+     */
+    private String bufferDirectory() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockBufferConfig.class)
+                .bufferDirectory();
+    }
+
+    /**
+     * @return the batch size for a request to send to the block node
+     */
+    private int blockItemBatchSize() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .blockItemBatchSize();
     }
 
     /**
@@ -395,6 +452,82 @@ public class BlockBufferService {
             } catch (final Exception e) {
                 logger.warn("Failed to wait for block buffer to be available", e);
             }
+        }
+    }
+
+    /**
+     * Loads the latest block buffer from disk, if one exists.
+     */
+    private void loadBufferFromDisk() {
+        if (!isBufferPersistenceEnabled()) {
+            return;
+        }
+
+        final List<BufferedBlock> blocks;
+        try {
+            blocks = bufferIO.read();
+        } catch (final IOException e) {
+            logger.error("Failed to read block buffer from disk!", e);
+            return;
+        }
+
+        if (blocks.isEmpty()) {
+            logger.info("Block buffer will not be repopulated (reason: no blocks found on disk)");
+            return;
+        }
+
+        final int batchSize = blockItemBatchSize();
+
+        logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
+
+        for (final BufferedBlock bufferedBlock : blocks) {
+            final BlockState block = new BlockState(bufferedBlock.blockNumber());
+            bufferedBlock.block().items().forEach(block::addItem);
+            // create the requests
+            block.processPendingItems(batchSize);
+            if (bufferedBlock.isProofSent()) {
+                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
+                for (int i = 0; i < block.numRequestsCreated(); ++i) {
+                    block.markRequestSent(i);
+                }
+            }
+
+            final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
+            final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            block.closeBlock(closedInstant);
+
+            if (bufferedBlock.isAcknowledged()) {
+                setLatestAcknowledgedBlock(bufferedBlock.blockNumber());
+            }
+
+            if (blockBuffer.putIfAbsent(bufferedBlock.blockNumber(), block) != null) {
+                logger.debug(
+                        "Block {} was read from disk but it was already in the buffer; ignoring block from disk",
+                        bufferedBlock.blockNumber());
+            }
+        }
+    }
+
+    /**
+     * If block buffer persistence is enabled, then all blocks that are closed at the time of invocation will be
+     * persisted to disk. These persisted blocks can be loaded upon startup to recover the buffer.
+     *
+     * @see BlockBufferIO
+     */
+    public void persistBuffer() {
+        if (!isStreamingEnabled.get() || !isBufferPersistenceEnabled()) {
+            return;
+        }
+
+        // collect all closed blocks
+        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                .filter(block -> block.closedTimestamp() != null)
+                .toList();
+
+        try {
+            bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
+        } catch (final RuntimeException | IOException e) {
+            logger.error("Failed to write block buffer to disk!", e);
         }
     }
 
@@ -695,39 +828,30 @@ public class BlockBufferService {
         } while (!backpressureCompletableFutureRef.compareAndSet(oldCf, newCf));
     }
 
-    private void scheduleNextPruning() {
+    private void scheduleNextWorkerTask() {
         if (!streamToBlockNodesEnabled()) {
             return;
         }
 
-        /*
-        The prune interval may be set to 0, which will effectively disable the pruning. However, we still want to
-        maintain some sensible interval to re-check if the interval has changed, in particular if it is no longer set to
-        0 and thus pruning should be enabled.
-         */
-        final Duration pruneInterval = blockBufferPruneInterval();
-        final long millis = pruneInterval.toMillis() != 0 ? pruneInterval.toMillis() : TimeUnit.SECONDS.toMillis(1);
-        execSvc.schedule(new BufferPruneTask(), millis, TimeUnit.MILLISECONDS);
+        final Duration interval = workerTaskInterval();
+        execSvc.schedule(new BufferWorkerTask(), interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Task that prunes the block buffer.
-     * @see #checkBuffer()
+     * Task that performs regular operations on the buffer (e.g. pruning and persisting to disk).
      */
-    private class BufferPruneTask implements Runnable {
+    private class BufferWorkerTask implements Runnable {
 
         @Override
         public void run() {
-            final Duration pruneInterval = blockBufferPruneInterval();
             try {
-                // If the interval is 0, pruning is disabled, so only do the prune if the interval is NOT 0.
-                if (!pruneInterval.isZero()) {
+                if (isPruningEnabled()) {
                     checkBuffer();
                 }
             } catch (final RuntimeException e) {
-                logger.warn("Periodic buffer pruning failed", e);
+                logger.warn("Periodic buffer worker task failed", e);
             } finally {
-                scheduleNextPruning();
+                scheduleNextWorkerTask();
             }
         }
     }

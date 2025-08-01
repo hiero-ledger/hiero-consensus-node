@@ -1,0 +1,59 @@
+/**
+ * # Block Buffer
+ * A representation of the block buffer than can be persisted.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+
+syntax = "proto3";
+
+package com.hedera.hapi.block.internal;
+
+// SPDX-License-Identifier: Apache-2.0
+import "block/stream/block.proto";
+import "services/timestamp.proto";
+
+option java_package = "com.hedera.hapi.block.internal.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.internal">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * Represents a block that is/was part of the in-memory block buffer. This record
+ * contains all of the necessary data to re-load the block back into the buffer and
+ * replicate the full state pre-export. For example, details such as when the block
+ * was closed and whether it was acknowledged are included. This additional
+ * information is required to ensure upon repopulating the buffer we don't
+ * immediately enter a saturated buffer state.
+ */
+message BufferedBlock {
+  /**
+   * The block number.
+   */
+  int64 block_number = 1;
+
+  /**
+   * The timestamp this block was closed.
+   */
+  proto.Timestamp closed_timestamp = 2;
+
+  /**
+   * Flag indicating if this block's proof has been sent to a block node.
+   */
+  bool is_proof_sent = 3;
+
+  /**
+   * Flag indicating if this block has been acknowledged by a block node.
+   */
+  bool is_acknowledged = 4;
+
+  /**
+   * The block data.
+   */
+  com.hedera.hapi.block.stream.Block block = 5;
+}
