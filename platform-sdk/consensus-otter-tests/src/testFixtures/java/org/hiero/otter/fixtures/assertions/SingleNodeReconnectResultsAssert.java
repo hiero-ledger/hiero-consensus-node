@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.util.List;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
@@ -33,12 +36,15 @@ public class SingleNodeReconnectResultsAssert
      *
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasNoReconnects() {
         isNotNull();
         if (actual.numSuccessfulReconnects() > 0 || actual.numFailedReconnects() > 0) {
             failWithMessage(
-                    "Expected no reconnects but found <%d> successful and <%d> failed reconnects",
-                    actual.numSuccessfulReconnects(), actual.numFailedReconnects());
+                    "Expected no reconnects but found <%d> successful and <%d> failed reconnects on node %s",
+                    actual.numSuccessfulReconnects(),
+                    actual.numFailedReconnects(),
+                    actual.nodeId().id());
         }
         return this;
     }
@@ -48,6 +54,7 @@ public class SingleNodeReconnectResultsAssert
      *
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasNoFailedReconnects() {
         isNotNull();
         if (actual.numFailedReconnects() > 0) {
@@ -62,6 +69,7 @@ public class SingleNodeReconnectResultsAssert
      *
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasMaximumFailedReconnects(final int maximum) {
         isNotNull();
         if (actual.numFailedReconnects() >= maximum) {
@@ -78,6 +86,7 @@ public class SingleNodeReconnectResultsAssert
      * @param expected the expected number of successful reconnects
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasExactSuccessfulReconnects(final int expected) {
         isNotNull();
         if (actual.numSuccessfulReconnects() != expected) {
@@ -94,6 +103,7 @@ public class SingleNodeReconnectResultsAssert
      * @param minimum the minimum number of successful reconnects expected
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasMinimumSuccessfulReconnects(final int minimum) {
         isNotNull();
         if (actual.numSuccessfulReconnects() < minimum) {
@@ -110,6 +120,7 @@ public class SingleNodeReconnectResultsAssert
      * @param maximum the maximum number of successful reconnects expected
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
+    @NonNull
     public SingleNodeReconnectResultsAssert hasMaximumSuccessfulReconnects(final int maximum) {
         isNotNull();
         if (actual.numSuccessfulReconnects() >= maximum) {
@@ -117,6 +128,53 @@ public class SingleNodeReconnectResultsAssert
                     "Expected maximum successful reconnects to be <%d> but found <%d>",
                     maximum, actual.numSuccessfulReconnects());
         }
+        return this;
+    }
+
+    /**
+     * Asserts that the node took no longer than the provided time to complete any of its reconnects.
+     *
+     * <p>If no reconnects occurred, this check will pass.</p>
+     *
+     * @param maximumReconnectTime the maximum allowed reconnect time
+     * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public SingleNodeReconnectResultsAssert hasMaximumReconnectTime(@NonNull final Duration maximumReconnectTime) {
+        isNotNull();
+        final List<SynchronizationCompletePayload> payloads = actual.getSynchronizationCompletePayloads();
+        payloads.forEach(payload -> {
+            if (payload.getTimeInSeconds() > maximumReconnectTime.getSeconds()) {
+                failWithMessage(
+                        "Expected maximum reconnect time to be <%s> but found <%s>",
+                        maximumReconnectTime, Duration.ofSeconds((long) payload.getTimeInSeconds()));
+            }
+        });
+        return this;
+    }
+
+    /**
+     * Asserts that the node took no longer than the provided time to complete tree initialization after any of its
+     * reconnects.
+     *
+     * <p>If no reconnects occurred, this check will pass.</p>
+     *
+     * @param maximumTreeInitializationTime the maximum allowed tree initialization time
+     * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public SingleNodeReconnectResultsAssert hasMaximumTreeInitializationTime(
+            @NonNull final Duration maximumTreeInitializationTime) {
+        isNotNull();
+        final List<SynchronizationCompletePayload> payloads = actual.getSynchronizationCompletePayloads();
+        payloads.forEach(payload -> {
+            if (payload.getInitializationTimeInSeconds() > maximumTreeInitializationTime.getSeconds()) {
+                failWithMessage(
+                        "Expected maximum tree initialization time to be <%s> but found <%s>",
+                        maximumTreeInitializationTime,
+                        Duration.ofSeconds((long) payload.getInitializationTimeInSeconds()));
+            }
+        });
         return this;
     }
 }
