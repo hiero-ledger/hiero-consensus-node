@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1765,4 +1765,14 @@ enum ResponseCodeEnum {
      * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
      */
     NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
+
+    /**
+     * The requested ledger configuration is not available for the given ledger id.
+     */
+    CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE = 401;
+
+    /**
+     * The state proof is not valid for the given transaction.
+     */
+    CLPR_INVALID_STATE_PROOF = 402;
 }
