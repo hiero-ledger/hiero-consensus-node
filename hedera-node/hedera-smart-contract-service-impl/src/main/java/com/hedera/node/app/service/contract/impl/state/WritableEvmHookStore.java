@@ -263,7 +263,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.error(
-                    "Failed link management when inserting {}; will be unable to" + " expire all slots for contract {}",
+                    "Failed link management when inserting {}; will be unable to expire all slots for contract {}",
                     key,
                     hookId,
                     irreparable);
