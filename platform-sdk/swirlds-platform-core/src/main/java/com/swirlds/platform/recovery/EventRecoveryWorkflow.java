@@ -42,6 +42,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
@@ -165,29 +166,29 @@ public final class EventRecoveryWorkflow {
             throw new RuntimeException(e);
         }
 
-        try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile,
-                        (virtualMap) -> {
-                            try {
-                                Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
-                                Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
-                                return (MerkleNodeState) constructor.newInstance(virtualMap);
-                            } catch (ClassNotFoundException
-                                    | NoSuchMethodException
-                                    | InvocationTargetException
-                                    | InstantiationException
-                                    | IllegalAccessException e) {
-                                throw new RuntimeException(e);
-                            }
-                        },
-                        platformStateFacade,
-                        platformContext)
-                .reservedSignedState()) {
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+                signedStateFile,
+                (virtualMap) -> {
+                    try {
+                        Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
+                        Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
+                        return (MerkleNodeState) constructor.newInstance(virtualMap);
+                    } catch (ClassNotFoundException
+                             | NoSuchMethodException
+                             | InvocationTargetException
+                             | InstantiationException
+                             | IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                platformStateFacade,
+                platformContext);
+        try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
 
             try {
                 Method setInitialStateHash = hederaApp.getClass()
                         .getDeclaredMethod("setInitialStateHash", Hash.class);
-                setInitialStateHash.invoke(hederaApp, initialState.get().getState().getHash());
+               setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
             } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
