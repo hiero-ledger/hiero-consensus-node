@@ -44,16 +44,16 @@ public class ServiceScopeLookup {
     @NonNull
     public String getServiceName(@NonNull final TransactionBody txBody) {
         return switch (txBody.data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE -> ConsensusService.NAME;
+            case CONSENSUS_CREATE_TOPIC, CONSENSUS_UPDATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE ->
+                ConsensusService.NAME;
 
             case CONTRACT_CREATE_INSTANCE,
                     CONTRACT_UPDATE_INSTANCE,
                     CONTRACT_CALL,
                     CONTRACT_DELETE_INSTANCE,
-                    ETHEREUM_TRANSACTION -> ContractService.NAME;
+                    ETHEREUM_TRANSACTION,
+                    LAMBDA_SSTORE,
+                    HOOK_DISPATCH -> ContractService.NAME;
 
             case CRYPTO_CREATE_ACCOUNT,
                     CRYPTO_UPDATE_ACCOUNT,
@@ -95,23 +95,23 @@ public class ServiceScopeLookup {
 
             case UTIL_PRNG, ATOMIC_BATCH -> UtilService.NAME;
 
-            case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> ContractService.NAME;
-                case FILE_ID -> FileService.NAME;
-                default -> NON_EXISTING_SERVICE;
-            };
-            case SYSTEM_UNDELETE -> switch (txBody.systemUndeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> ContractService.NAME;
-                case FILE_ID -> FileService.NAME;
-                default -> NON_EXISTING_SERVICE;
-            };
+            case SYSTEM_DELETE ->
+                switch (txBody.systemDeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> ContractService.NAME;
+                    case FILE_ID -> FileService.NAME;
+                    default -> NON_EXISTING_SERVICE;
+                };
+            case SYSTEM_UNDELETE ->
+                switch (txBody.systemUndeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> ContractService.NAME;
+                    case FILE_ID -> FileService.NAME;
+                    default -> NON_EXISTING_SERVICE;
+                };
 
             case NODE_CREATE, NODE_DELETE, NODE_UPDATE -> AddressBookService.NAME;
             case HISTORY_PROOF_KEY_PUBLICATION, HISTORY_PROOF_SIGNATURE, HISTORY_PROOF_VOTE -> HistoryService.NAME;
-            case HINTS_KEY_PUBLICATION,
-                    HINTS_PARTIAL_SIGNATURE,
-                    HINTS_PREPROCESSING_VOTE,
-                    CRS_PUBLICATION -> HintsService.NAME;
+            case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
+                HintsService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

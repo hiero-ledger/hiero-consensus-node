@@ -1,0 +1,118 @@
+/**
+ * # EVM Bytecode
+ * The verified bytecode of an EVM contract for the Hedera Smart Contract service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.hooks;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.state.hooks.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.hooks">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * The representation of an EVM hook in state, including the previous and next hook ids in its owner's list.
+ */
+message EvmHookState {
+  /**
+   * For state proofs, the id of this hook.
+   */
+  proto.HookId hook_id = 1;
+
+  /**
+   * The type of the EVM hook.
+   */
+  EvmHookType type = 2;
+
+  /**
+   * The type of the extension point the hook implements.
+   */
+  com.hedera.hapi.node.hooks.HookExtensionPoint extension_point = 3;
+
+  /**
+   * The id of the contract with this hook's bytecode.
+   */
+  proto.ContractID hook_contract_id = 4;
+
+  /**
+   * True if the hook has been deleted.
+   */
+  bool deleted = 5;
+
+  /**
+   * If set, a key that that can be used to remove or replace the hook; or (if
+   * applicable, as with a lambda EVM hook) perform transactions that customize
+   * the hook.
+   */
+  proto.Key admin_key = 6;
+
+  /**
+   * For a lambda, its first storage key. Must be the minimal
+   * bytes representation (no leading zeros). A lambda with
+   * no storage slots and a lambda whose last-written storage
+   * slot was at the zero key can be differentiated by checking
+   * the `num_storage_slots` field.
+   */
+  bytes first_contract_storage_key = 7;
+
+  /**
+   * If set, the id of the hook preceding this one in the owner's
+   * doubly-linked list of hooks.
+   */
+  google.protobuf.Int64Value previous_hook_id = 8;
+
+  /**
+   * If set, the id of the hook following this one in the owner's
+   * doubly-linked list of hooks.
+   */
+  google.protobuf.Int64Value next_hook_id = 9;
+
+  /**
+   * The number of storage slots a lambda is using.
+   */
+  uint32 num_storage_slots = 10;
+}
+
+/**
+ * The type of an EVM hook.
+ */
+enum EvmHookType {
+  /**
+   * A pure EVM hook.
+   */
+  PURE = 0;
+  /**
+   * A lambda EVM hook.
+   */
+  LAMBDA = 1;
+}
+
+/**
+ * The key of a lambda's storage slot.
+ *
+ * For each lambda, its EVM storage is a mapping of 256-bit keys (or "words")
+ * to 256-bit values.
+ */
+message LambdaSlotKey {
+  /**
+   * The id of the lambda EVM hook that owns this slot.
+   */
+  proto.HookId hook_id = 1;
+
+  /**
+   * The EVM key of this slot. Must be the minimal bytes representation
+   * (no leading zeros).
+   */
+  bytes key = 2;
+}

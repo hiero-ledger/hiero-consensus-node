@@ -12,6 +12,7 @@ public record HederaConfig(
         @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hooksEnabled,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
         @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
                 int nodeTransactionMaxBytes,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures.workflows;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
@@ -31,6 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.UnaryOperator;
 
 /**
  * Fake implementation of {@link PreHandleContext} to simplify moving forward without breaking all kinds of tests
@@ -247,7 +249,7 @@ public class FakePreHandleContext implements PreHandleContext {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode)
             throws PreCheckException {
         requireNonNull(responseCode);
-        return requireKey(accountID, responseCode, true);
+        return requireKey(accountID, responseCode, true, null, false);
     }
 
     @Override
@@ -256,11 +258,24 @@ public class FakePreHandleContext implements PreHandleContext {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode)
             throws PreCheckException {
         requireNonNull(responseCode);
-        return requireKey(accountID, responseCode, false);
+        return requireKey(accountID, responseCode, false, null, false);
+    }
+
+    @NonNull
+    @Override
+    public PreHandleContext requireKeyOrThrowOnDeleted(
+            @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum failureStatus)
+            throws PreCheckException {
+        requireNonNull(failureStatus);
+        return requireKey(accountID, failureStatus, false, null, true);
     }
 
     private @NonNull PreHandleContext requireKey(
-            final @Nullable AccountID accountID, final @NonNull ResponseCodeEnum responseCode, boolean allowAliases)
+            final @Nullable AccountID accountID,
+            final @NonNull ResponseCodeEnum responseCode,
+            boolean allowAliases,
+            @Nullable final UnaryOperator<Key> finisher,
+            final boolean failOnDeleted)
             throws PreCheckException {
         if (accountID == null) {
             throw new PreCheckException(responseCode);
@@ -274,8 +289,11 @@ public class FakePreHandleContext implements PreHandleContext {
         if (account == null) {
             throw new PreCheckException(responseCode);
         }
+        if (failOnDeleted && account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
 
-        final var key = account.key();
+        var key = account.key();
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
@@ -285,7 +303,22 @@ public class FakePreHandleContext implements PreHandleContext {
         // Verify this key isn't for an immutable account
         verifyIsNotImmutableAccount(key, responseCode);
 
+        if (finisher != null) {
+            key = finisher.apply(key);
+        }
         return requireKey(key);
+    }
+
+    @NonNull
+    @Override
+    public PreHandleContext requireKeyOrThrow(
+            @Nullable final AccountID accountID,
+            @NonNull final UnaryOperator<Key> finisher,
+            @NonNull final ResponseCodeEnum failureStatus)
+            throws PreCheckException {
+        requireNonNull(finisher);
+        requireNonNull(failureStatus);
+        return requireKey(accountID, failureStatus, false, finisher, true);
     }
 
     @Override

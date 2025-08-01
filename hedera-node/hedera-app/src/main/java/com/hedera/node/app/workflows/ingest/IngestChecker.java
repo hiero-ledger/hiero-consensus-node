@@ -2,14 +2,21 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -17,6 +24,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.InnerTransaction.NO;
 import static com.hedera.node.app.workflows.InnerTransaction.YES;
@@ -28,6 +36,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -80,6 +89,8 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
+    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS =
+            EnumSet.of(LAMBDA_S_STORE, CRYPTO_CREATE, CONTRACT_CREATE, CRYPTO_UPDATE, CONTRACT_UPDATE, CRYPTO_TRANSFER);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
@@ -348,10 +359,11 @@ public final class IngestChecker {
 
     private void assertThrottlingPreconditions(
             @NonNull final TransactionInfo txInfo, @NonNull final HederaConfig hederaConfig) throws PreCheckException {
-        if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
+        final var function = txInfo.functionality();
+        if (UNSUPPORTED_TRANSACTIONS.contains(function)) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
-        if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
+        if (PRIVILEGED_TRANSACTIONS.contains(function)) {
             final var payerNum =
                     txInfo.payerID() == null ? Long.MAX_VALUE : txInfo.payerID().accountNumOrElse(Long.MAX_VALUE);
             // This adds a mild restriction that privileged transactions can only
@@ -361,6 +373,65 @@ public final class IngestChecker {
             // https://github.com/hashgraph/hedera-services/issues/12559
             if (payerNum >= hederaConfig.firstUserEntity()) {
                 throw new PreCheckException(NOT_SUPPORTED);
+            }
+        }
+        if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
+            if (!hederaConfig.hooksEnabled()) {
+                switch (function) {
+                    case LAMBDA_S_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
+                    case CRYPTO_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .cryptoCreateAccountOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    case CONTRACT_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .contractCreateInstanceOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    case CRYPTO_UPDATE -> {
+                        final var op = txInfo.txBody().cryptoUpdateAccountOrThrow();
+                        validateTruePreCheck(
+                                op.hookIdsToDelete().isEmpty()
+                                        && op.hookCreationDetails().isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    }
+                    case CONTRACT_UPDATE -> {
+                        final var op = txInfo.txBody().contractUpdateInstanceOrThrow();
+                        validateTruePreCheck(
+                                op.hookIdsToDelete().isEmpty()
+                                        && op.hookCreationDetails().isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    }
+                    case CRYPTO_TRANSFER -> {
+                        final var op = txInfo.txBody().cryptoTransferOrThrow();
+                        for (final var adjust :
+                                op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+                            validateFalsePreCheck(
+                                    adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
+                                    HOOKS_NOT_ENABLED);
+                        }
+                        for (final var tokenTransfers : op.tokenTransfers()) {
+                            for (final var adjust : tokenTransfers.transfers()) {
+                                validateFalsePreCheck(
+                                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
+                                        HOOKS_NOT_ENABLED);
+                            }
+                            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
+                                validateFalsePreCheck(
+                                        nftTransfer.hasPreTxSenderAllowanceHook()
+                                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
+                                                || nftTransfer.hasPreTxReceiverAllowanceHook()
+                                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                                        HOOKS_NOT_ENABLED);
+                            }
+                        }
+                    }
+                }
             }
         }
     }

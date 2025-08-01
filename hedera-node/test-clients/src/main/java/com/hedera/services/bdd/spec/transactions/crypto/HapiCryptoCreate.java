@@ -16,9 +16,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -39,6 +41,7 @@ import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -88,6 +91,8 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     private Optional<ShardID> shardId = Optional.empty();
     private Optional<RealmID> realmId = Optional.empty();
 
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
+
     @Override
     public HederaFunctionality type() {
         return HederaFunctionality.CryptoCreate;
@@ -110,6 +115,14 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
 
     public HapiCryptoCreate exposingEvmAddressTo(final Consumer<Address> addressObserver) {
         this.addressObserver = addressObserver;
+        return this;
+    }
+
+    public HapiCryptoCreate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
         return this;
     }
 
@@ -330,6 +343,10 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(CommonPbjConverters.pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         return b -> b.setCryptoCreateAccount(opBody);
     }

@@ -622,7 +622,7 @@ public class BaseTranslator {
                                     throw new IllegalStateException("No written value found for write to " + slotKey
                                             + " in " + remainingStateChanges);
                                 }
-                                value = sansLeadingZeros(valueFromState);
+                                value = ConversionUtils.minimalRepresentationOf(valueFromState);
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else {
@@ -718,7 +718,7 @@ public class BaseTranslator {
                     slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
                 }
                 if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
-                    writtenKeys.add(sansLeadingZeros(slotKey.key()));
+                    writtenKeys.add(ConversionUtils.minimalRepresentationOf(slotKey.key()));
                 }
             }
             return writtenKeys;
@@ -804,23 +804,6 @@ public class BaseTranslator {
                 .data(log.data())
                 .topic(log.topics().stream().map(ConversionUtils::leftPad32).toList())
                 .build();
-    }
-
-    private static Bytes sansLeadingZeros(@NonNull final Bytes bytes) {
-        int i = 0;
-        int n = (int) bytes.length();
-        while (i < n && bytes.getByte(i) == 0) {
-            i++;
-        }
-        if (i == n) {
-            return Bytes.EMPTY;
-        } else if (i == 0) {
-            return bytes;
-        } else {
-            final var stripped = new byte[n - i];
-            bytes.getBytes(i, stripped, 0, n - i);
-            return Bytes.wrap(stripped);
-        }
     }
 
     /**

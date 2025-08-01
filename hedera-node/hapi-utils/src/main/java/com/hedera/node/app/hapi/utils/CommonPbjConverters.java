@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -54,6 +55,11 @@ public class CommonPbjConverters {
         } catch (InvalidProtocolBufferException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static @NonNull com.hederahashgraph.api.proto.java.HookCall fromPbj(@NonNull final HookCall hookCall) {
+        requireNonNull(hookCall);
+        return pbjToProto(hookCall, HookCall.class, com.hederahashgraph.api.proto.java.HookCall.class);
     }
 
     @NonNull
@@ -242,6 +248,11 @@ public class CommonPbjConverters {
             builder.accountNum(accountID.getAccountNum());
         }
         return builder.build();
+    }
+
+    public static @NonNull ContractID toPbj(@NonNull com.hederahashgraph.api.proto.java.ContractID contractID) {
+        requireNonNull(contractID);
+        return protoToPbj(contractID, ContractID.class);
     }
 
     public static @NonNull EntityNumber toPbj(@NonNull com.hederahashgraph.api.proto.java.EntityNumber entityNumber) {

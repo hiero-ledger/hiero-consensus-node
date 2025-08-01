@@ -313,6 +313,26 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     @Override
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var account = accountStore.get(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("No account found for ID " + accountId);
+        }
+        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        if (newSlotsUsed < 0) {
+            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
+                    + account.numberLambdaStorageSlots()
+                    + ") by "
+                    + netChangeInSlotsUsed
+                    + " for account "
+                    + accountId);
+        }
+        accountStore.put(
+                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
+    }
+
+    @Override
     public Fees chargeFee(
             @NonNull final AccountID payerId,
             final long amount,

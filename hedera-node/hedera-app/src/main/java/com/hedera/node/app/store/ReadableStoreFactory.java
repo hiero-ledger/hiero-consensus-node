@@ -23,6 +23,7 @@ import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
@@ -107,6 +108,9 @@ public class ReadableStoreFactory {
                 new StoreEntry(FreezeService.NAME, (states, entityCounters) -> new ReadableFreezeStoreImpl(states)));
         // Contracts
         newMap.put(ContractStateStore.class, new StoreEntry(ContractService.NAME, ReadableContractStateStore::new));
+        newMap.put(
+                ReadableEvmHookStore.class,
+                new StoreEntry(ContractService.NAME, (states, entityCounters) -> new ReadableEvmHookStore(states)));
         // Block Records
         newMap.put(
                 ReadableBlockRecordStore.class,

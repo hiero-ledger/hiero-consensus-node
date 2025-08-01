@@ -436,6 +436,83 @@ message TransactionID {
 }
 
 /**
+ * Once a hook is created, its full id.
+ * <p>
+ * A composite of its creating entity's id and an arbitrary 64-bit hook id
+ * (which need not be sequential).
+ */
+message HookId {
+    /**
+     * The hook's creating entity id.
+     */
+    HookEntityId entity_id = 1;
+
+    /**
+     * An arbitrary 64-bit identifier.
+     */
+    int64 hook_id = 2;
+}
+
+/**
+ * The id of an entity using a hook.
+ */
+message HookEntityId {
+    oneof entity_id {
+        /**
+         * An account using a hook.
+         */
+        AccountID account_id = 1;
+    }
+}
+
+/**
+ * Specifies a call to a hook from within a transaction.
+ * <p>
+ * Often the hook's entity is implied by the nature of the call site. For example, when using an account allowance hook
+ * inside a crypto transfer, the hook's entity is necessarily the account whose authorization is required.
+ * <p>
+ * For future extension points where the hook owner is not forced by the context, we include the option to fully
+ * specify the hook id for the call.
+ */
+message HookCall {
+    oneof id {
+        /**
+         * The full id of the hook to call, when the owning entity is not forced by the call site.
+         */
+        HookId full_hook_id  = 1;
+        /**
+         * The numeric id of the hook to call, when the owning entity is forced by the call site.
+         */
+        int64 hook_id = 2;
+    }
+
+    /**
+     * Specifies details of the call.
+     */
+    oneof call_spec {
+        /**
+         * Specification of how to call an EVM hook.
+         */
+        EvmHookCall evm_hook_call = 3;
+    }
+}
+
+/**
+ * Specifies details of a call to an EVM hook.
+ */
+message EvmHookCall {
+    /**
+     * Call data to pass to the hook via the IHieroHook.HookContext#data field.
+     */
+    bytes data = 1;
+
+    /**
+     * The gas limit to use.
+     */
+    uint64 gas_limit = 2;
+}
+
+/**
  * An account, and the amount that it sends or receives during a token transfer.
  *
  * This message is only relevant to fungible/common token transfers.
@@ -467,6 +544,28 @@ message AccountAmount {
      * The default value SHALL be false (unset).
      */
     bool is_approval = 3;
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` on scoped
+     * account; the hook's invoked methods must not revert and must return
+     * true for the containing CryptoTransfer to succeed.
+     * <p>
+     * Cannot be set if `is_approval` is true.
+     */
+    oneof hook_call {
+        /**
+         * A single call made before attempting the CryptoTransfer, to a
+         * method with logical signature allow(HookContext, ProposedTransfers)
+         */
+        HookCall pre_tx_allowance_hook = 4;
+        /**
+         * Two calls, the first call before attempting the CryptoTransfer, to a
+         * method with logical signature allowPre(HookContext, ProposedTransfers);
+         * and the second call after attempting the CryptoTransfer, to a method
+         * with logical signature allowPost(HookContext, ProposedTransfers).
+         */
+        HookCall pre_post_tx_allowance_hook = 5;
+    }
 }
 
 /**
@@ -525,6 +624,51 @@ message NftTransfer {
      * The default value SHALL be false (unset).
      */
     bool is_approval = 4;
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` installed on
+     * senderAccountID that must succeed for the transaction to occur.
+     * <p>
+     * Cannot be set if `is_approval` is true.
+     */
+    oneof sender_allowance_hook_call {
+        /**
+         * A single call made before attempting the CryptoTransfer, to a
+         * method with logical signature allow(HookContext, ProposedTransfers)
+         */
+        HookCall pre_tx_sender_allowance_hook = 5;
+        /**
+         * Two calls, the first call before attempting the CryptoTransfer, to a
+         * method with logical signature allowPre(HookContext, ProposedTransfers);
+         * and the second call after attempting the CryptoTransfer, to a method
+         * with logical signature allowPost(HookContext, ProposedTransfers).
+         */
+        HookCall pre_post_tx_sender_allowance_hook = 6;
+    }
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` installed on
+     * receiverAccountID that must succeed for the transaction to occur.
+     * <p>
+     * May be set even if `is_approval` is true. In this case, the approval applies
+     * to the sender authorization, and the hook applies to the receiver authorization
+     * (if needed, e.g. because of a fallback royalty fee or receiver signature
+     * requirement).
+     */
+    oneof receiver_allowance_hook_call {
+        /**
+         * A single call made before attempting the CryptoTransfer, to a
+         * method with logical signature allow(HookContext, ProposedTransfers)
+         */
+        HookCall pre_tx_receiver_allowance_hook = 7;
+        /**
+         * Two calls, the first call before attempting the CryptoTransfer, to a
+         * method with logical signature allowPre(HookContext, ProposedTransfers);
+         * and the second call after attempting the CryptoTransfer, to a method
+         * with logical signature allowPost(HookContext, ProposedTransfers).
+         */
+        HookCall pre_post_tx_receiver_allowance_hook = 8;
+    }
 }
 
 /**
@@ -1689,6 +1833,16 @@ enum HederaFunctionality {
      * Submit a batch of transactions to run atomically
      */
     AtomicBatch = 108;
+
+    /**
+     * Update one or more storage slots in an lambda EVM hook.
+     */
+    LambdaSStore = 109;
+
+    /**
+     * (Internal-only) Dispatch a hook action.
+     */
+    HookDispatch = 110;
 }
 
 /**
