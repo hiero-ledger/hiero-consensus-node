@@ -49,5 +49,5 @@ public record HederaConfig(
                 boolean ingestThrottleEnabled,
         @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
                 int throttleTransactionQueueSize,
-        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "245760") @NetworkProperty
+        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "2621440") @NetworkProperty
                 int maxTransactionBytesPerEvent) {}
