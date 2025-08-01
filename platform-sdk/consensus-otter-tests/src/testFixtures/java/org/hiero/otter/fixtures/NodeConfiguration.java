@@ -8,10 +8,8 @@ import java.nio.file.Path;
 /**
  * This class contains the current configuration of the node at the time it was requested via
  * {@link Node#configuration()}. It can also be used to modify the configuration.
- *
- * @param <T> the type of the configuration, allowing for method chaining
  */
-public interface NodeConfiguration<T extends NodeConfiguration<T>> {
+public interface NodeConfiguration {
 
     /**
      * Updates a single property of the configuration. Can only be invoked when the node is not running.
@@ -21,7 +19,7 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, boolean value);
+    NodeConfiguration set(@NonNull String key, boolean value);
 
     /**
      * Updates a single property of the configuration. Can only be invoked when the node is not running.
@@ -31,7 +29,7 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull String value);
+    NodeConfiguration set(@NonNull String key, @NonNull String value);
 
     /**
      * Updates a single property of the configuration to an integer value. Can only be invoked when the node is not
@@ -41,7 +39,17 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
      * @param value the integer value to set
      * @return this {@code NodeConfiguration} instance for method chaining
      */
-    T set(@NonNull String key, int value);
+    NodeConfiguration set(@NonNull String key, int value);
+
+    /**
+     * Updates a single property of the configuration to a long value. Can only be invoked when the node is not
+     * running.
+     *
+     * @param key the key of the property
+     * @param value the long value to set
+     * @return this {@code NodeConfiguration} instance for method chaining
+     */
+    NodeConfiguration set(@NonNull String key, long value);
 
     /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the node is not running.
@@ -50,7 +58,7 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
      * @param path the file path to set
      * @return this {@code NodeConfiguration} instance for method chaining
      */
-    T set(@NonNull String key, @NonNull Path path);
+    NodeConfiguration set(@NonNull String key, @NonNull Path path);
 
     /**
      * Returns the current configuration of the node including all overridden properties.

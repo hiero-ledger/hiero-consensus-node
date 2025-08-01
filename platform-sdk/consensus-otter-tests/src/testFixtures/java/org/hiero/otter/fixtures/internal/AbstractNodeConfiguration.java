@@ -16,11 +16,8 @@ import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 
 /**
  * An abstract base class for node configurations that provides common functionality
- *
- * @param <T> the type of the configuration, allowing for method chaining
  */
-public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfiguration<T>>
-        implements NodeConfiguration<T> {
+public abstract class AbstractNodeConfiguration implements NodeConfiguration {
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
 
@@ -43,10 +40,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, final boolean value) {
+    public NodeConfiguration set(@NonNull final String key, final boolean value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, Boolean.toString(value));
-        return self();
+        return this;
     }
 
     /**
@@ -54,10 +51,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, @NonNull final String value) {
+    public NodeConfiguration set(@NonNull final String key, @NonNull final String value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, value);
-        return self();
+        return this;
     }
 
     /**
@@ -65,10 +62,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, final int value) {
+    public NodeConfiguration set(@NonNull final String key, final int value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, Integer.toString(value));
-        return self();
+        return this;
     }
 
     /**
@@ -76,10 +73,21 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, @NonNull final Path path) {
+    public NodeConfiguration set(@NonNull final String key, final long value) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, Long.toString(value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, @NonNull final Path path) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, path.toString());
-        return self();
+        return this;
     }
 
     private void throwIfNodeIsRunning() {
@@ -96,11 +104,4 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     public Configuration current() {
         return createConfiguration(overriddenProperties);
     }
-
-    /**
-     * Returns the current instance of the configuration for method chaining.
-     *
-     * @return this instance
-     */
-    protected abstract T self();
 }

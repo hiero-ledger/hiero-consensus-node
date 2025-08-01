@@ -106,7 +106,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration<?> configuration();
+    NodeConfiguration configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
