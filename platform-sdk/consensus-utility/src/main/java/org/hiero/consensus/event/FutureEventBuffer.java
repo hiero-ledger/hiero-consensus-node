@@ -69,7 +69,7 @@ public class FutureEventBuffer {
                 .withUnit("count"));
         maxBufferedBirthRoundMetric =
                 metrics.getOrCreate(new Config("platform", "futureEventBuffer_%s_maxBR".formatted(name))
-                        .withDescription("max BR")
+                        .withDescription("the maximum birth round of events in the future event buffer")
                         .withUnit("BR"));
     }
 
