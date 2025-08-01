@@ -51,11 +51,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         this.schedule = schedule;
     }
 
-    boolean shouldBeExecuted = false;
-    boolean shouldNotBeExecuted = false;
-    boolean shouldBeDeleted = false;
-    boolean shouldNotBeDeleted = false;
-    boolean checkForRecordedScheduledTxn = false;
+    private boolean shouldBeExecuted = false;
+    private boolean shouldNotBeExecuted = false;
+    private boolean shouldBeDeleted = false;
+    private boolean shouldNotBeDeleted = false;
+    private boolean checkForRecordedScheduledTxn = false;
     Optional<String> deletionTxn = Optional.empty();
     Optional<String> executionTxn = Optional.empty();
     Optional<String> expectedScheduleId = Optional.empty();

@@ -69,8 +69,7 @@ public class HasScheduleCapacityTest {
     }
 
     @HapiTest
-    @DisplayName(
-            "hasScheduleCapacity(uint256,uint256) -> scheduleCall(address,uint256,uint256,uint64,bytes) -> deleteSchedule(address)")
+    @DisplayName("hasScheduleCapacity -> scheduleCall -> deleteSchedule")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
@@ -81,13 +80,13 @@ public class HasScheduleCapacityTest {
                             .gas(2_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
-            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
-            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
+            final var scheduleId = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
             allRunFor(
                     spec,
                     // check schedule deleted
-                    getScheduleInfo(scheduleIDString)
-                            .hasScheduleId(scheduleIDString)
+                    getScheduleInfo(scheduleIdString)
+                            .hasScheduleId(scheduleIdString)
                             .isDeleted());
         }));
     }

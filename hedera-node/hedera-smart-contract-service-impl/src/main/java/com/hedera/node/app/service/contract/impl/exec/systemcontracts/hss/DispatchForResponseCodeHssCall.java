@@ -69,7 +69,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 authorizingKeys,
-                recordBuilder -> encodedRc(recordBuilder.status()));
+                e -> encodedRc(e.status()));
     }
 
     /**

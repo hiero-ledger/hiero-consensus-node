@@ -48,7 +48,7 @@ public class ScheduleDeleteTest {
     @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
     static SpecAccount sender;
     // COUNTER is used to create scheduled with different expirySecond, to prevent identical schedule creation
-    static AtomicInteger COUNTER = new AtomicInteger();
+    private static final AtomicInteger COUNTER = new AtomicInteger();
 
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
@@ -101,13 +101,13 @@ public class ScheduleDeleteTest {
                             .gas(2_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
-            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
-            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
+            final var scheduleId = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
             allRunFor(
                     spec,
                     // check schedule exists
-                    getScheduleInfo(scheduleIDString)
-                            .hasScheduleId(scheduleIDString)
+                    getScheduleInfo(scheduleIdString)
+                            .hasScheduleId(scheduleIdString)
                             .isNotExecuted()
                             .isNotDeleted(),
                     // delete schedule
@@ -115,8 +115,8 @@ public class ScheduleDeleteTest {
                             .gas(200_000L)
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
                     // check schedule deleted
-                    getScheduleInfo(scheduleIDString)
-                            .hasScheduleId(scheduleIDString)
+                    getScheduleInfo(scheduleIdString)
+                            .hasScheduleId(scheduleIdString)
                             .isDeleted());
         }));
     }

@@ -32,7 +32,7 @@ import javax.inject.Singleton;
 
 /**
  * Translates {@code deleteSchedule*} calls to the HSS system contract. For details
- * {@see <a href=https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1215.md>HIP-1215</a>}
+ * {@see <a href=https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1215.md>HIP-1215</a>}.
  */
 @Singleton
 public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAttempt> {

@@ -121,13 +121,13 @@ public class ScheduleCallTest {
                                             })))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
             // check schedule exists
-            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
-            final var scheduleIDString = String.valueOf(scheduleID.getScheduleNum());
-            scheduleIdHolder.set(scheduleIDString);
+            final var scheduleId = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
+            scheduleIdHolder.set(scheduleIdString);
             allRunFor(
                     spec,
-                    getScheduleInfo(scheduleIDString)
-                            .hasScheduleId(scheduleIDString)
+                    getScheduleInfo(scheduleIdString)
+                            .hasScheduleId(scheduleIdString)
                             .isNotExecuted()
                             .isNotDeleted());
         };
