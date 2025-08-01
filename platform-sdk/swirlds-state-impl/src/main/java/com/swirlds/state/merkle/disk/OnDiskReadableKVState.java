@@ -2,13 +2,13 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.spi.ReadableKVState;
@@ -56,9 +56,8 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
      */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final VirtualMapValue virtualMapValue =
-                virtualMap.get(getVirtualMapKeyForKv(serviceName, stateKey, key), VirtualMapValue.PROTOBUF);
-        final V value = virtualMapValue != null ? virtualMapValue.value().as() : null;
+        final StateValue stateValue = virtualMap.get(getStateKeyForKv(serviceName, stateKey, key), StateValue.PROTOBUF);
+        final V value = stateValue != null ? stateValue.value().as() : null;
         // Log to transaction state log, what was read
         logMapGet(computeLabel(serviceName, stateKey), key, value);
         return value;
@@ -87,6 +86,6 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
 
     @Override
     public void warm(@NonNull final K key) {
-        virtualMap.warm(getVirtualMapKeyForKv(serviceName, stateKey, key));
+        virtualMap.warm(getStateKeyForKv(serviceName, stateKey, key));
     }
 }

@@ -2,14 +2,14 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyValueStateId;
+import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -74,12 +74,12 @@ public class AccountValidator {
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = extractVirtualMapKeyValueStateId(keyBytes);
-            final int readValueStateId = extractVirtualMapKeyValueStateId(valueBytes);
+            final int readKeyStateId = extractStateKeyValueStateId(keyBytes);
+            final int readValueStateId = extractStateKeyValueStateId(valueBytes);
             if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
                 try {
-                    final VirtualMapValue virtualMapValue = VirtualMapValue.PROTOBUF.parse(valueBytes);
-                    final Account account = virtualMapValue.value().as();
+                    final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    final Account account = stateValue.value().as();
                     final long tinybarBalance = account.tinybarBalance();
                     assertTrue(tinybarBalance >= 0);
                     totalBalance.addAndGet(tinybarBalance);

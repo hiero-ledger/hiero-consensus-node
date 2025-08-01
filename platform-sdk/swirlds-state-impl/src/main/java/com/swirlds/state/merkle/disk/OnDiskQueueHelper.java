@@ -2,13 +2,13 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getQueueStateVirtualMapValue;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getQueueStateValue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.QueueState;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.StateUtils;
@@ -112,9 +112,9 @@ public final class OnDiskQueueHelper<E> {
      */
     @NonNull
     public E getFromStore(final long index) {
-        final VirtualMapValue virtualMapValue = virtualMap.get(
-                StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, index), VirtualMapValue.PROTOBUF);
-        final E value = virtualMapValue != null ? virtualMapValue.value().as() : null;
+        final StateValue stateValue =
+                virtualMap.get(StateUtils.getStateKeyForQueue(serviceName, stateKey, index), StateValue.PROTOBUF);
+        final E value = stateValue != null ? stateValue.value().as() : null;
         if (value == null) {
             throw new IllegalStateException("Can't find queue element at index " + index + " in the store");
         }
@@ -127,9 +127,9 @@ public final class OnDiskQueueHelper<E> {
      * @return The current state of the queue.
      */
     public QueueState getState() {
-        final VirtualMapValue virtualMapValue =
-                virtualMap.get(getVirtualMapKeyForSingleton(serviceName, stateKey), VirtualMapValue.PROTOBUF);
-        return virtualMapValue != null ? virtualMapValue.value().as() : null;
+        final StateValue stateValue =
+                virtualMap.get(getStateKeyForSingleton(serviceName, stateKey), StateValue.PROTOBUF);
+        return stateValue != null ? stateValue.value().as() : null;
     }
 
     /**
@@ -138,10 +138,10 @@ public final class OnDiskQueueHelper<E> {
      * @param state The new state to set for the queue.
      */
     public void updateState(@NonNull final QueueState state) {
-        final Bytes keyBytes = getVirtualMapKeyForSingleton(serviceName, stateKey);
+        final Bytes keyBytes = getStateKeyForSingleton(serviceName, stateKey);
 
-        final VirtualMapValue virtualMapValue = getQueueStateVirtualMapValue(state);
-        virtualMap.put(keyBytes, virtualMapValue, VirtualMapValue.PROTOBUF);
+        final StateValue queueStateValue = getQueueStateValue(state);
+        virtualMap.put(keyBytes, queueStateValue, StateValue.PROTOBUF);
     }
 
     /**

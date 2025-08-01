@@ -109,7 +109,7 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         final var state =
                 new OnDiskReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, virtualMapMock);
         state.warm(A_KEY);
-        verify(virtualMapMock).warm(StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY));
+        verify(virtualMapMock).warm(StateUtils.getStateKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY));
     }
 
     @AfterEach

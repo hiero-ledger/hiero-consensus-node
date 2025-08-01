@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -151,14 +151,14 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
 
         boolean merkleMapContainsKey(ProtoBytes key) {
-            final Bytes keyBytes = StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
+            final Bytes keyBytes = StateUtils.getStateKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
             return fruitVirtualMap.containsKey(keyBytes);
         }
 
         ProtoBytes readValueFromMerkleMap(ProtoBytes key) {
-            final Bytes keyBytes = StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
-            final VirtualMapValue virtualMapValue = fruitVirtualMap.get(keyBytes, VirtualMapValue.PROTOBUF);
-            return virtualMapValue != null ? virtualMapValue.value().as() : null;
+            final Bytes keyBytes = StateUtils.getStateKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
+            final StateValue stateValue = fruitVirtualMap.get(keyBytes, StateValue.PROTOBUF);
+            return stateValue != null ? stateValue.value().as() : null;
         }
 
         @Test
