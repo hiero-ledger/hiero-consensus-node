@@ -8,12 +8,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
 
+/**
+ * A no-op implementation of the {@link ExecutionLayer} interface.
+ * This class is used when no execution layer is needed, such as in CLI applications.
+ */
 public class NoOpExecutionLayer implements ExecutionLayer {
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {}
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {}
+    public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {}
 
     @NonNull
     @Override

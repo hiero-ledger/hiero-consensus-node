@@ -52,7 +52,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
     }
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+    public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         transactionPool.updatePlatformStatus(platformStatus);
     }
 }

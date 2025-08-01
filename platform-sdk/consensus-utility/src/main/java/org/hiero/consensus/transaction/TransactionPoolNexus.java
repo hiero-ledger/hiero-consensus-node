@@ -109,6 +109,12 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
         return submitTransaction(appTransaction, false);
     }
 
+    /**
+     * Submit a transaction that is considered a priority transaction. This transaction will be submitted before other
+     * waiting transactions that are not marked with the priority flag.
+     *
+     * @param transaction the transaction to submit
+     */
     public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
         submitTransaction(transaction, true);
     }

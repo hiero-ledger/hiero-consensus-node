@@ -38,12 +38,13 @@ public class TransactionGenerator implements Startable {
      *
      * @param random                           a source of randomness
      * @param platform                         the platform to submit transactions to
+     * @param transactionPool                  the transaction pool to submit transactions to
      * @param networkWideTransactionsPerSecond the number of transactions to generate per second, network-wide
      */
     public TransactionGenerator(
             @NonNull final Random random,
             @NonNull final Platform platform,
-            TransactionPoolNexus transactionPool,
+            @NonNull final TransactionPoolNexus transactionPool,
             final int networkWideTransactionsPerSecond) {
 
         this.random = Objects.requireNonNull(random);

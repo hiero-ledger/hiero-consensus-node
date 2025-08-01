@@ -218,7 +218,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert executionLayer != null; // platform must be initialized if lifeCycle is STARTED
+            assert platform != null; // platform must be initialized if lifeCycle is STARTED
+            assert executionLayer != null; // executionLayer must be initialized
 
             executionLayer.submitApplicationTransaction(transaction);
 

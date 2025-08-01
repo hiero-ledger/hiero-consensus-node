@@ -9,10 +9,10 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
- * An interface via which the consensus layer can interact with the execution layer.
+ * An interface via which the consensus layer can interact with the execution layer (AKA the application).
  */
 public interface ExecutionLayer extends EventTransactionSupplier, SignatureTransactionCheck {
-    /** Default transaction limits, for application that do not need to override them */
+    /** Default transaction limits, for applications that do not need to override them */
     TransactionLimits DEFAULT_TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
 
     /**
@@ -30,15 +30,16 @@ public interface ExecutionLayer extends EventTransactionSupplier, SignatureTrans
      *
      * @param platformStatus the new platform status
      */
-    void updatePlatformStatus(@NonNull final PlatformStatus platformStatus);
+    void newPlatformStatus(@NonNull final PlatformStatus platformStatus);
 
     /**
      * Returns the transaction size limits for the execution layer.
      * <p>
-     * This is used by the consensus layer to enforce limits on transaction sizes. Previously, this was duplicated in
-     * both layers and had to match. Now, the execution layer provides the limits, and the consensus layer uses them.
-     * Ideally, this would be configured when building the platform, but it is not possible at the moment because of
-     * the Browser startup. Once the usage of Browser is removed, this can be just a parameter in the PlatformBuilder.
+     * This is used by the consensus layer to enforce limits on transaction sizes in events received via gossip.
+     * Previously, this was duplicated in both layers and had to match. Now, the execution layer provides the limits,
+     * and the consensus layer uses them. Ideally, this would be configured when building the platform, but it is not
+     * possible at the moment because of the Browser startup. Once the usage of Browser is removed, this can be just a
+     * parameter in the PlatformBuilder.
      *
      * @return the transaction limits
      */

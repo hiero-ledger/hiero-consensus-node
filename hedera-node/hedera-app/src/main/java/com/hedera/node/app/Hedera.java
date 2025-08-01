@@ -614,7 +614,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+    public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());

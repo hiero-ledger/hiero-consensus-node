@@ -195,8 +195,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        hederaOrThrow().updatePlatformStatus(platformStatus);
+    public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        hederaOrThrow().newPlatformStatus(platformStatus);
     }
 
     @Override

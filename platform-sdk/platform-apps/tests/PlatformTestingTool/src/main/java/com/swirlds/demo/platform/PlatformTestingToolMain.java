@@ -891,8 +891,8 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     }
 
     @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus newStatus) {
-        super.updatePlatformStatus(newStatus);
+    public void newPlatformStatus(@NonNull final PlatformStatus newStatus) {
+        super.newPlatformStatus(newStatus);
         // set isActive
         isActive = newStatus == PlatformStatus.ACTIVE;
 

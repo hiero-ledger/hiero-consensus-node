@@ -147,6 +147,7 @@ public class PlatformWiring {
      * @param model                the wiring model
      * @param applicationCallbacks the application callbacks (some wires are only created if the application wants a
      *                             callback for something)
+     * @param execution            the execution layer instance
      */
     public PlatformWiring(
             @NonNull final PlatformContext platformContext,
@@ -567,7 +568,7 @@ public class PlatformWiring {
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
         statusStateMachineWiring
                 .getOutputWire()
-                .solderTo("ExecutionStatusHandler", "status updates", execution::updatePlatformStatus);
+                .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
