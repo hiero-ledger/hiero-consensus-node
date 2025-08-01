@@ -96,28 +96,24 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     @Override
     public void subscribe(@NonNull final ReconnectNotificationSubscriber newSubscriber) {
         if (reconnectSubscribers.isEmpty()) {
-            reconnectSubscribers.add(newSubscriber);
             logResults.subscribe(this::onLogEntry);
-        } else {
-            reconnectSubscribers.add(newSubscriber);
         }
+        reconnectSubscribers.add(newSubscriber);
     }
 
+    @NonNull
     private SubscriberAction onLogEntry(@NonNull final StructuredLog logEntry) {
         final ReconnectNotification<?> notification = toReconnectNotification(logEntry);
         if (notification != null) {
-            reconnectSubscribers.forEach(subscriber -> {
-                if (subscriber.onNotification(notification) == SubscriberAction.UNSUBSCRIBE) {
-                    reconnectSubscribers.remove(subscriber);
-                }
-            });
+            reconnectSubscribers.removeIf(
+                    subscriber -> subscriber.onNotification(notification) == SubscriberAction.UNSUBSCRIBE);
             return reconnectSubscribers.isEmpty() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
         }
         return SubscriberAction.CONTINUE;
     }
 
     @Nullable
-    private ReconnectNotification<?> toReconnectNotification(final StructuredLog logEntry) {
+    private ReconnectNotification<?> toReconnectNotification(@NonNull final StructuredLog logEntry) {
         final String message = logEntry.message();
         if (message.contains(ReconnectFailurePayload.class.toString())) {
             return new ReconnectFailureNotification(
