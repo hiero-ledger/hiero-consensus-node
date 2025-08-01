@@ -78,8 +78,7 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
                         Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), true, true),
                 new TestSelector(Bytes.wrap("wrongSelector".getBytes()), true, false),
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL.selector()), false, false),
-                new TestSelector(
-                        Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.selector()), false, false),
+                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.selector()), false, false),
                 new TestSelector(
                         Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), false, false));
     }
