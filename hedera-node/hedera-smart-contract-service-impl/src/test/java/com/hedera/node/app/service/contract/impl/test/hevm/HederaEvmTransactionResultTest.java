@@ -257,6 +257,26 @@ class HederaEvmTransactionResultTest {
         assertEquals(SOME_REVERT_REASON.toString(), protoResult.errorMessage());
     }
 
+    @Test
+    void UpdateGasUsedTest() {
+        givenFrameWithDefaultConfigNoAccessTracker();
+        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
+        given(frame.getLogs()).willReturn(BESU_LOGS);
+        given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
+
+        final var result = HederaEvmTransactionResult.successFrom(
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
+
+        final var updatedResult = result.withGasUsed(GAS_LIMIT / 4);
+        assertEquals(GAS_LIMIT / 4, updatedResult.gasUsed());
+    }
+
     private void givenFrameWithDefaultConfigNoAccessTracker() {
         givenFrameStack(frame);
     }
