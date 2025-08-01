@@ -53,9 +53,9 @@ import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -153,45 +153,15 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
-        final SwirldMain hederaApp;
-        // Get the method using the classes from the parameter instances
-        Method method;
-        try {
-            method = appMain.getClass()
-                    .getDeclaredMethod("newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
-            // create Hedera object to initialize ConstructionRegistry
-            hederaApp = (SwirldMain)
-                    method.invoke(null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        final SwirldMain<?> hederaApp = createHederaApp(platformContext, platformStateFacade, appMain);
 
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
                 signedStateFile,
-                (virtualMap) -> {
-                    try {
-                        Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
-                        Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
-                        return (MerkleNodeState) constructor.newInstance(virtualMap);
-                    } catch (ClassNotFoundException
-                             | NoSuchMethodException
-                             | InvocationTargetException
-                             | InstantiationException
-                             | IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-                },
+                EventRecoveryWorkflow::createrNewMerkleNodeState,
                 platformStateFacade,
                 platformContext);
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-
-            try {
-                Method setInitialStateHash = hederaApp.getClass()
-                        .getDeclaredMethod("setInitialStateHash", Hash.class);
-               setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
-            } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
+            updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
                     STARTUP.getMarker(),
@@ -257,6 +227,44 @@ public final class EventRecoveryWorkflow {
             mutableStateCopy.release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
+        }
+    }
+
+    private static void updateStateHash(SwirldMain<?> hederaApp, DeserializedSignedState deserializedSignedState) {
+        try {
+            Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
+            setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static SwirldMain<?> createHederaApp(
+            PlatformContext platformContext, PlatformStateFacade platformStateFacade, SwirldMain<?> appMain) {
+        final SwirldMain<?> hederaApp;
+        Method newHederaMethod;
+        try {
+            newHederaMethod = appMain.getClass()
+                    .getDeclaredMethod("newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
+            hederaApp = (SwirldMain<?>) newHederaMethod.invoke(
+                    null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return hederaApp;
+    }
+
+    private static MerkleNodeState createrNewMerkleNodeState(VirtualMap virtualMap) {
+        try {
+            Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
+            Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
+            return (MerkleNodeState) constructor.newInstance(virtualMap);
+        } catch (ClassNotFoundException
+                | NoSuchMethodException
+                | InvocationTargetException
+                | InstantiationException
+                | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -351,8 +359,7 @@ public final class EventRecoveryWorkflow {
                 new RecoveryPlatform(configuration, initialSignedState.get(), selfId, loadSigningKeys);
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
-        SemanticVersion softwareVersion =
-                platformStateFacade.creationSoftwareVersionOf(initialState);
+        SemanticVersion softwareVersion = platformStateFacade.creationSoftwareVersionOf(initialState);
         initialSignedState.get().init(platformContext);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
