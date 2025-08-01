@@ -67,11 +67,11 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
 
     private static List<TestSelector> deleteScheduleSelectors() {
         return List.of(
-                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector()), true, true),
-                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector()), true, true),
+                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULE.selector()), true, true),
+                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector()), true, true),
                 new TestSelector(Bytes.wrap("wrongSelector".getBytes()), true, false),
-                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector()), false, false),
-                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector()), false, false));
+                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULE.selector()), false, false),
+                new TestSelector(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector()), false, false));
     }
 
     @ParameterizedTest
@@ -87,10 +87,10 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
 
     private static List<Bytes> deleteScheduleFunctions() {
         return List.of(
-                Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULED.encodeCall(
+                Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
                         Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))),
                 bytesForRedirectScheduleTxn(
-                        DeleteScheduleTranslator.DELETE_SCHEDULED_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS));
+                        DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS));
     }
 
     @ParameterizedTest

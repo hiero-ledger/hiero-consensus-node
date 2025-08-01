@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.sched
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
@@ -28,7 +27,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -39,10 +37,10 @@ import javax.inject.Singleton;
 @Singleton
 public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttempt> {
 
-    public static final SystemContractMethod SCHEDULED_CALL = SystemContractMethod.declare(
+    public static final SystemContractMethod SCHEDULE_CALL = SystemContractMethod.declare(
                     "scheduleCall(address,uint256,uint256,uint64,bytes)", ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
-    public static final SystemContractMethod SCHEDULED_CALL_WITH_SENDER = SystemContractMethod.declare(
+    public static final SystemContractMethod SCHEDULE_CALL_WITH_SENDER = SystemContractMethod.declare(
                     "scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)",
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
@@ -56,16 +54,14 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
-        registerMethods(SCHEDULED_CALL);
-        registerMethods(SCHEDULED_CALL_WITH_SENDER);
-        registerMethods(EXECUTE_CALL_ON_SENDER_SIGNATURE);
+        registerMethods(SCHEDULE_CALL, SCHEDULE_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
         if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractScheduleCallEnabled()) {
-            return attempt.isMethod(SCHEDULED_CALL, SCHEDULED_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
+            return attempt.isMethod(SCHEDULE_CALL, SCHEDULE_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
         } else {
             return Optional.empty();
         }
@@ -79,13 +75,13 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         final AccountID sender;
         final boolean waitForExpiry;
         int paramIndex = 0;
-        if (attempt.isSelector(SCHEDULED_CALL)) {
-            call = SCHEDULED_CALL.decodeCall(attempt.inputBytes());
+        if (attempt.isSelector(SCHEDULE_CALL)) {
+            call = SCHEDULE_CALL.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
             sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
             waitForExpiry = true;
-        } else if (attempt.isSelector(SCHEDULED_CALL_WITH_SENDER)) {
-            call = SCHEDULED_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
+        } else if (attempt.isSelector(SCHEDULE_CALL_WITH_SENDER)) {
+            call = SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
             sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
             waitForExpiry = true;
@@ -106,9 +102,11 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
         final var contractId = ConversionUtils.asContractId(
                 attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
 
-        Set<Key> keys = attempt.keySetFor();
+        final var keys = attempt.keySetFor();
         // create TransactionBody
-        TransactionBody body = TransactionBody.newBuilder()
+        final var body = TransactionBody.newBuilder()
+                // passing current TransactionID to HSS via child call for actual schedule creation
+                .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
                 // create ScheduleCreateTransactionBody
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
                         .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()

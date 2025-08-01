@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
 /**
- * Enumerates the types of child transactions that can be dispatched to the HTS system contract.
+ * Enumerates the types of child transactions that can be dispatched to the system contracts.
  */
 public enum DispatchType {
     /**

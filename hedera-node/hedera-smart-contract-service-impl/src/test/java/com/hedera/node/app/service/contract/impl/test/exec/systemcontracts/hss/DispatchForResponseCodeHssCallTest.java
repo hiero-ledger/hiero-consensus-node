@@ -77,7 +77,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
         DeleteScheduleTranslator translator =
                 new DeleteScheduleTranslator(systemContractMethodRegistry, contractMetrics);
         HssCallAttempt attempt = createHssCallAttempt(
-                Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector()),
+                Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULE.selector()),
                 false,
                 configuration,
                 List.of(translator));

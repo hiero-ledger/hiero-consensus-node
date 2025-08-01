@@ -37,12 +37,12 @@ import javax.inject.Singleton;
 @Singleton
 public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAttempt> {
 
-    public static final SystemContractMethod DELETE_SCHEDULED = SystemContractMethod.declare(
+    public static final SystemContractMethod DELETE_SCHEDULE = SystemContractMethod.declare(
                     "deleteSchedule(address)", ReturnTypes.INT_64)
             .withCategories(Category.SCHEDULE);
     private static final int SCHEDULE_ID_INDEX = 0;
 
-    public static final SystemContractMethod DELETE_SCHEDULED_PROXY = SystemContractMethod.declare(
+    public static final SystemContractMethod DELETE_SCHEDULE_PROXY = SystemContractMethod.declare(
                     "deleteSchedule()", ReturnTypes.INT_64)
             .withVia(CallVia.PROXY)
             .withCategories(Category.SCHEDULE);
@@ -52,14 +52,14 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
-        registerMethods(DELETE_SCHEDULED, DELETE_SCHEDULED_PROXY);
+        registerMethods(DELETE_SCHEDULE, DELETE_SCHEDULE_PROXY);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
         if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractDeleteScheduleEnabled()) {
-            return attempt.isMethod(DELETE_SCHEDULED, DELETE_SCHEDULED_PROXY);
+            return attempt.isMethod(DELETE_SCHEDULE, DELETE_SCHEDULE_PROXY);
         } else {
             return Optional.empty();
         }
@@ -68,7 +68,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
         // create TransactionBody
-        TransactionBody body = TransactionBody.newBuilder()
+        final var body = TransactionBody.newBuilder()
                 // create ScheduleCreateTransactionBody
                 .scheduleDelete(ScheduleDeleteTransactionBody.newBuilder()
                         .scheduleID(scheduleIdFor(attempt))
@@ -88,12 +88,12 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     @VisibleForTesting
     public ScheduleID scheduleIdFor(@NonNull HssCallAttempt attempt) {
         requireNonNull(attempt);
-        if (attempt.isSelector(DELETE_SCHEDULED)) {
-            final var call = DELETE_SCHEDULED.decodeCall(attempt.inputBytes());
+        if (attempt.isSelector(DELETE_SCHEDULE)) {
+            final var call = DELETE_SCHEDULE.decodeCall(attempt.inputBytes());
             final Address scheduleAddress = call.get(SCHEDULE_ID_INDEX);
             final var number = ConversionUtils.numberOfLongZero(explicitFromHeadlong(scheduleAddress));
             return attempt.nativeOperations().entityIdFactory().newScheduleId(number);
-        } else if (attempt.isSelector(DELETE_SCHEDULED_PROXY)) {
+        } else if (attempt.isSelector(DELETE_SCHEDULE_PROXY)) {
             return attempt.redirectScheduleId();
         }
         throw new IllegalStateException("Unexpected function selector");
