@@ -74,32 +74,31 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 emptySet(),
                 recordBuilder -> encodedRc(recordBuilder.status()));
         // create call from Attempt constructor
-        DeleteScheduleTranslator translator = new DeleteScheduleTranslator(systemContractMethodRegistry,
-                contractMetrics);
-        HssCallAttempt attempt = createHssCallAttempt(Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector())
-                , false, configuration, List.of(translator));
+        DeleteScheduleTranslator translator =
+                new DeleteScheduleTranslator(systemContractMethodRegistry, contractMetrics);
+        HssCallAttempt attempt = createHssCallAttempt(
+                Bytes.wrap(DeleteScheduleTranslator.DELETE_SCHEDULED.selector()),
+                false,
+                configuration,
+                List.of(translator));
         given(addressIdConverter.convertSender(attempt.senderAddress())).willReturn(AccountID.DEFAULT);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
                 .willReturn(verificationStrategy);
-        subjectFromAttempt = new DispatchForResponseCodeHssCall(
-                attempt,
-                TransactionBody.DEFAULT,
-                dispatchGasCalculator,
-                emptySet()
-        );
+        subjectFromAttempt =
+                new DispatchForResponseCodeHssCall(attempt, TransactionBody.DEFAULT, dispatchGasCalculator, emptySet());
     }
 
     private void successResult(final DispatchForResponseCodeHssCall subject) {
         given(systemContractOperations.dispatch(
-                TransactionBody.DEFAULT,
-                verificationStrategy,
-                AccountID.DEFAULT,
-                ContractCallStreamBuilder.class,
-                Collections.emptySet(),
-                DispatchOptions.UsePresetTxnId.NO))
+                        TransactionBody.DEFAULT,
+                        verificationStrategy,
+                        AccountID.DEFAULT,
+                        ContractCallStreamBuilder.class,
+                        Collections.emptySet(),
+                        DispatchOptions.UsePresetTxnId.NO))
                 .willReturn(recordBuilder);
         given(dispatchGasCalculator.gasRequirement(
-                TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
+                        TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
                 .willReturn(123L);
         given(recordBuilder.status()).willReturn(SUCCESS);
 
@@ -146,15 +145,15 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
     @Test
     void failureResultCustomized() {
         given(systemContractOperations.dispatch(
-                TransactionBody.DEFAULT,
-                verificationStrategy,
-                AccountID.DEFAULT,
-                ContractCallStreamBuilder.class,
-                emptySet(),
-                DispatchOptions.UsePresetTxnId.NO))
+                        TransactionBody.DEFAULT,
+                        verificationStrategy,
+                        AccountID.DEFAULT,
+                        ContractCallStreamBuilder.class,
+                        emptySet(),
+                        DispatchOptions.UsePresetTxnId.NO))
                 .willReturn(recordBuilder);
         given(dispatchGasCalculator.gasRequirement(
-                TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
+                        TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
                 .willReturn(123L);
         given(recordBuilder.status()).willReturn(INVALID_SCHEDULE_ID);
 

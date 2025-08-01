@@ -58,7 +58,8 @@ public class ScheduleCallTest {
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE, SubType.SCHEDULE_CREATE_CONTRACT_CALL
+                // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+                // SubType.SCHEDULE_CREATE_CONTRACT_CALL
                 // that is why we are reuploading 'scheduled-contract-fees.json' in tests
                 uploadScheduledContractPrices(GENESIS),
                 overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
