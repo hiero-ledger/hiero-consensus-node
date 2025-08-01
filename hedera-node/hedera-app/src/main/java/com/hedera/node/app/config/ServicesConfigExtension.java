@@ -49,6 +49,7 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.RatesConfig;
+import com.hedera.node.config.data.S3IssConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.StatsConfig;
@@ -106,6 +107,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 NettyConfig.class,
                 NetworkAdminConfig.class,
                 RatesConfig.class,
+                S3IssConfig.class,
                 SchedulingConfig.class,
                 StakingConfig.class,
                 StatsConfig.class,

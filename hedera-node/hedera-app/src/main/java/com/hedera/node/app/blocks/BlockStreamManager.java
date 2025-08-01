@@ -170,7 +170,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
      * trigger any essential fatal shutdown logic.
      */
-    void notifyFatalEvent();
+    void notifyFatalEvent(final long roundNumber);
 
     /**
      * Synchronous method that, when invoked, blocks until the block stream manager signals a successful

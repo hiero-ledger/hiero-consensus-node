@@ -54,4 +54,10 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    /**
+     * Returns the block number of the currently open block.
+     * @return the block number
+     */
+    long blockNumber();
 }

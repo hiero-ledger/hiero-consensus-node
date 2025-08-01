@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.MINIO_BUCKET_NAME;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.MINIO_ROOT_PASSWORD;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.MINIO_ROOT_PORT;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.MINIO_ROOT_USER;
 import static com.hedera.services.bdd.junit.TestTags.ISS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -22,6 +26,7 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.con
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
@@ -64,7 +69,20 @@ class IssHandlingTest implements LifecycleTest {
                                     .get((int) ISS_NODE_ID)
                                     .getExternalPath(APPLICATION_PROPERTIES);
                             log.info("Setting artificial transfer limit @ {}", loc);
-                            updateBootstrapProperties(loc, Map.of("ledger.transfers.maxLen", "5"));
+                            updateBootstrapProperties(
+                                    loc,
+                                    Map.of(
+                                            "ledger.transfers.maxLen",
+                                            "5",
+                                            "s3IssConfig.endpointUrl",
+                                            "http://" + HapiSpec.MINIO_CONTAINER.getHost() + ":"
+                                                    + HapiSpec.MINIO_CONTAINER.getMappedPort(MINIO_ROOT_PORT),
+                                            "s3IssConfig.bucketName",
+                                            MINIO_BUCKET_NAME,
+                                            "s3IssConfig.accessKey",
+                                            MINIO_ROOT_USER,
+                                            "s3IssConfig.secretKey",
+                                            MINIO_ROOT_PASSWORD));
                         }))),
                 assertHgcaaLogContains(
                         NodeSelector.byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
@@ -83,6 +101,9 @@ class IssHandlingTest implements LifecycleTest {
                         NodeSelector.byNodeId(ISS_NODE_ID),
                         "Block stream fatal shutdown complete",
                         Duration.ofSeconds(30)),
+                // Verify the ISS Block was written to S3 bucket
+                assertHgcaaLogContains(
+                        NodeSelector.byNodeId(ISS_NODE_ID), "Successfully uploaded ISS Block", Duration.ofSeconds(30)),
                 // Submit a freeze
                 freezeOnly().startingIn(2).seconds(),
                 waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)),
