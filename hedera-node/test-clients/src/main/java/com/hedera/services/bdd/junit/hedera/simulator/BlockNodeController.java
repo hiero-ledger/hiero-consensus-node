@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.junit.hedera.simulator;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,24 +17,31 @@ import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
  * A utility class to control simulated block node servers in a SubProcessNetwork.
  * This allows tests to induce specific response codes for testing error handling and edge cases.
  */
-public class BlockNodeSimulatorController {
-    private static final Logger log = LogManager.getLogger(BlockNodeSimulatorController.class);
-
+public class BlockNodeController {
+    private static final Logger log = LogManager.getLogger(BlockNodeController.class);
     private static Map<Long, SimulatedBlockNodeServer> simulatedBlockNodes = new HashMap<>();
+    private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown simulators for restart
-    private static final Map<Long, Integer> shutdownSimulatorPorts = new HashMap<>();
+    private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
 
     /**
      * Create a controller for the given network's simulated block nodes.
      *
      * @param network the SubProcessNetwork containing simulated block nodes
      */
-    public BlockNodeSimulatorController(final BlockNodeNetwork network) {
+    public BlockNodeController(@NonNull final BlockNodeNetwork network) {
         simulatedBlockNodes = network.getSimulatedBlockNodeById();
         if (simulatedBlockNodes.isEmpty()) {
             log.warn("No simulated block nodes found in the network. Make sure BlockNodeMode.SIMULATOR is set.");
         } else {
             log.info("Controlling {} simulated block nodes", simulatedBlockNodes.size());
+        }
+
+        blockNodeContainers = network.getBlockNodeContainerById();
+        if (blockNodeContainers.isEmpty()) {
+            log.warn("No block nodes containers found in the network. Make sure BlockNodeMode.REAL is set.");
+        } else {
+            log.info("Controlling {} containerized block nodes", blockNodeContainers.size());
         }
     }
 
@@ -215,12 +224,12 @@ public class BlockNodeSimulatorController {
      * The servers can be restarted using {@link #startAllSimulators()}.
      */
     public void shutdownAllSimulators() {
-        shutdownSimulatorPorts.clear();
+        shutdownBlockNodePorts.clear();
         for (final Map.Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodes.entrySet()) {
             final long nodeId = entry.getKey();
             final SimulatedBlockNodeServer server = entry.getValue();
             final int port = server.getPort();
-            shutdownSimulatorPorts.put(nodeId, port);
+            shutdownBlockNodePorts.put(nodeId, port);
             server.stop();
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
@@ -236,7 +245,7 @@ public class BlockNodeSimulatorController {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
             final int port = server.getPort();
-            shutdownSimulatorPorts.put(index, port);
+            shutdownBlockNodePorts.put(index, port);
             server.stop();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", index, port);
         } else {
@@ -251,10 +260,10 @@ public class BlockNodeSimulatorController {
      * @throws IOException if a server fails to start
      */
     public void startAllSimulators() throws IOException {
-        for (final Entry<Long, Integer> entry : shutdownSimulatorPorts.entrySet()) {
+        for (final Entry<Long, Integer> entry : shutdownBlockNodePorts.entrySet()) {
             final long index = entry.getKey();
             startSimulator(index);
-            shutdownSimulatorPorts.remove(index);
+            shutdownBlockNodePorts.remove(index);
         }
 
         log.info("Started simulators");
@@ -268,13 +277,13 @@ public class BlockNodeSimulatorController {
      * @throws IOException if the server fails to start
      */
     public void startSimulator(final long index) throws IOException {
-        if (!shutdownSimulatorPorts.containsKey(index)) {
+        if (!shutdownBlockNodePorts.containsKey(index)) {
             log.error("Simulator {} was not previously shutdown or has already been restarted", index);
             return;
         }
 
         if (index >= 0 && index < simulatedBlockNodes.size()) {
-            final int port = shutdownSimulatorPorts.get(index);
+            final int port = shutdownBlockNodePorts.get(index);
 
             // Create a new server on the same port
             final SimulatedBlockNodeServer newServer = new SimulatedBlockNodeServer(port);
@@ -284,7 +293,7 @@ public class BlockNodeSimulatorController {
             simulatedBlockNodes.put(index, newServer);
 
             // Remove from the shutdown map
-            shutdownSimulatorPorts.remove(index);
+            shutdownBlockNodePorts.remove(index);
 
             log.info("Restarted simulator {} on port {}", index, port);
         } else {
@@ -358,13 +367,13 @@ public class BlockNodeSimulatorController {
     }
 
     /**
-     * Check if a specific simulator has been shut down.
+     * Check if a specific block node has been shut down.
      *
-     * @param index the index of the simulated block node (0-based)
-     * @return true if the simulator has been shut down, false otherwise
+     * @param index the index of the block node (0-based)
+     * @return true if the block node has been shut down, false otherwise
      */
-    public boolean isSimulatorShutdown(final long index) {
-        return shutdownSimulatorPorts.containsKey(index);
+    public boolean isBlockNodeShutdown(final long index) {
+        return shutdownBlockNodePorts.containsKey(index);
     }
 
     /**
@@ -372,8 +381,43 @@ public class BlockNodeSimulatorController {
      *
      * @return true if any simulators have been shut down, false otherwise
      */
-    public boolean areAnySimulatorsShutdown() {
-        return !shutdownSimulatorPorts.isEmpty();
+    public boolean areAnyBlockNodesBeenShutdown() {
+        return !shutdownBlockNodePorts.isEmpty();
+    }
+
+    public void startContainer(long nodeIndex) {
+        if (!shutdownBlockNodePorts.containsKey(nodeIndex)) {
+            log.error("Block Node container {} was not previously shutdown or has already been restarted", nodeIndex);
+            return;
+        }
+
+        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
+            final int port = shutdownBlockNodePorts.get(nodeIndex);
+            final BlockNodeContainer blockNodeContainer = new BlockNodeContainer(nodeIndex, port);
+
+            blockNodeContainer.start();
+
+            log.info("Started container {} and waited for readiness", nodeIndex);
+            blockNodeContainers.put(nodeIndex, blockNodeContainer);
+            shutdownBlockNodePorts.remove(nodeIndex);
+        } else {
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+        }
+    }
+
+    public void shutdownContainer(long nodeIndex) {
+        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
+            log.info("Shutting down container {}", nodeIndex);
+            final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeIndex);
+
+            shutdownBlockNodePorts.put(nodeIndex, shutdownContainer.getPort());
+            shutdownContainer.stop();
+
+            log.info("Container {} shutdown complete", nodeIndex);
+            // blockNodeContainers.remove(nodeIndex, shutdownContainer);
+        } else {
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+        }
     }
 
     /**
