@@ -38,6 +38,7 @@ public class TokenMovement {
     private Optional<String> sender;
     private Optional<String> receiver;
     private Optional<ByteString> evmAddressReceiver;
+    private Optional<ByteString> evmAddressSender;
     private final Optional<List<String>> receivers;
     private final Optional<Function<HapiSpec, String>> senderFn;
     private final Optional<Function<HapiSpec, String>> receiverFn;
@@ -77,6 +78,22 @@ public class TokenMovement {
         this.evmAddressReceiver = evmAddressReceiver;
 
         receiver = Optional.empty();
+        receivers = Optional.empty();
+        senderFn = Optional.empty();
+        receiverFn = Optional.empty();
+        expectedDecimals = -1;
+    }
+
+    TokenMovement(String token, ByteString evmAddressSender, long amount, long[] serialNums, String receiver) {
+        this.token = token;
+        this.amount = amount;
+        this.serialNums = serialNums;
+
+        this.sender = Optional.empty();
+        this.receiver = Optional.ofNullable(receiver);
+        this.evmAddressSender = Optional.ofNullable(evmAddressSender);
+        this.evmAddressReceiver = Optional.empty();
+
         receivers = Optional.empty();
         senderFn = Optional.empty();
         receiverFn = Optional.empty();
@@ -246,7 +263,9 @@ public class TokenMovement {
         var scopedTransfers = TokenTransferList.newBuilder();
         var id = isTrulyToken() ? asTokenId(token, spec) : HBAR_SENTINEL_TOKEN_ID;
         scopedTransfers.setToken(id);
-        if (senderFn.isPresent()) {
+        if (evmAddressSender != null && evmAddressSender.isPresent()) {
+            scopedTransfers.addTransfers(adjustment(evmAddressSender.get(), -amount));
+        } else if (senderFn.isPresent()) {
             var specialSender = senderFn.get().apply(spec);
             sender = Optional.of(specialSender);
             scopedTransfers.addTransfers(adjustment(specialSender, -amount, spec));
@@ -441,6 +460,10 @@ public class TokenMovement {
                     Optional.of(receiver),
                     Optional.empty(),
                     isAllowance);
+        }
+
+        public TokenMovement between(ByteString sender, String receiver) {
+            return new TokenMovement(token, sender, amount, serialNums, receiver);
         }
 
         public TokenMovement between(String sender, ByteString receiver) {
