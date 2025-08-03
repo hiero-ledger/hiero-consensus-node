@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.hiero.otter.fixtures.logging.LogConfigBuilder;
 
 /**
  * Provides logging configurations and functionality for the Turtle framework.
@@ -36,6 +35,6 @@ public class TurtleLogging {
     }
 
     private void updateLogging() {
-        LogConfigBuilder.configureMultiNode(rootOutputDirectory, nodeIdConfigurations);
+        TurtleLogConfigBuilder.configure(rootOutputDirectory, nodeIdConfigurations);
     }
 }
