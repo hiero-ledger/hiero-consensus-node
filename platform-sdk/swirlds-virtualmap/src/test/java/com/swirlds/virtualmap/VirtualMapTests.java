@@ -23,7 +23,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -1457,8 +1456,7 @@ class VirtualMapTests extends VirtualTestBase {
     void detachTest() throws IOException {
         final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
-        original.put(
-                testKey, ProtoBytes.newBuilder().value(Bytes.wrap("testValue")).build(), ProtoBytes.PROTOBUF);
+        original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
         final VirtualMap copy = original.copy();
 
         original.getHash(); // forces copy to become hashed
