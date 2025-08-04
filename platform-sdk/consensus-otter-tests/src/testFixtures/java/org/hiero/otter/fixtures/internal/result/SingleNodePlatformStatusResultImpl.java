@@ -69,6 +69,6 @@ public class SingleNodePlatformStatusResultImpl implements SingleNodePlatformSta
      */
     @Override
     public void clear() {
-        startIndex = collector.currentStatusProgression(0).size();
+        startIndex = collector.currentStatusProgressionCount();
     }
 }

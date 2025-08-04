@@ -42,6 +42,12 @@ import org.hiero.base.crypto.Hash;
  */
 public final class VirtualHasher {
 
+    // When virtual tree is of size 1 (only the root node and a single leaf), root hash should
+    // include the hash for path 1 (leaf), but not for path 2. This marker Hash object is used
+    // as path 2 input hash for the root hashing task. Null hash cannot be used here as it would
+    // trigger loading path 2 hash from disk
+    private static final Hash NO_PATH2_HASH = new Hash();
+
     /**
      * Use this for all logging, as controlled by the optional data/log4j2.xml file
      */
@@ -181,6 +187,7 @@ public final class VirtualHasher {
 
         void setHash(final long path, final Hash hash) {
             assert Path.getRank(this.path) + height == Path.getRank(path);
+            assert hash != null;
             final long firstPathInPathRank = Path.getLeftGrandChildPath(this.path, height);
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
@@ -206,10 +213,18 @@ public final class VirtualHasher {
                         ins[i] = null;
                     } else {
                         if (left == null) {
-                            left = hashReader.apply(rankPath + i * 2);
+                            final long leftPath = rankPath + i * 2;
+                            left = hashReader.apply(leftPath);
+                            if (left == null) {
+                                throw new RuntimeException("Failed to load hash for path = " + leftPath);
+                            }
                         }
                         if (right == null) {
-                            right = hashReader.apply(rankPath + i * 2 + 1);
+                            final long rightPath = rankPath + i * 2 + 1;
+                            right = hashReader.apply(rightPath);
+                            if ((right == null) && (rightPath != 2)) {
+                                throw new RuntimeException("Failed to load hash for path = " + rightPath);
+                            }
                         }
                         ins[i] = hash(left, right);
                         listener.onNodeHashed(hashedPath, ins[i]);
@@ -230,7 +245,9 @@ public final class VirtualHasher {
             // Unique value to make sure internal node hashes are different from leaf hashes
             md.update((byte) 0x02);
             left.getBytes().writeTo(md);
-            right.getBytes().writeTo(md);
+            if (right != NO_PATH2_HASH) { // use identity check rather than equals
+                right.getBytes().writeTo(md);
+            }
             return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         }
     }
@@ -589,7 +606,7 @@ public final class VirtualHasher {
                     if (siblingPath > lastLeafPath) {
                         // Special case for a tree with one leaf at path 1
                         assert siblingPath == 2;
-                        parentTask.setHash(siblingPath, Cryptography.NULL_HASH);
+                        parentTask.setHash(siblingPath, NO_PATH2_HASH);
                     } else if ((siblingPath < curPath) && !firstLeaf) {
                         assert !allTasks.containsKey(siblingPath);
                         // Mark the sibling as clean, reducing the number of parent task dependencies

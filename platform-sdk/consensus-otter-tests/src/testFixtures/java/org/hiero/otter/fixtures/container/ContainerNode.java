@@ -29,10 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,12 +53,9 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
-import org.hiero.otter.fixtures.logging.LogConfigBuilder;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
@@ -91,7 +85,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
     private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
 
     /**
@@ -113,7 +106,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
 
-        LogConfigBuilder.configureTest();
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -223,7 +215,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodeConsensusResult newConsensusResult() {
-        return resultsCollector.getConsensusResult();
+        return resultsCollector.newConsensusResult();
     }
 
     /**
@@ -232,7 +224,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(selfId, Set.of());
+        return resultsCollector.newLogResult();
     }
 
     /**
@@ -241,7 +233,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePlatformStatusResult newPlatformStatusResult() {
-        return resultsCollector.getStatusProgression();
+        return resultsCollector.newStatusProgression();
     }
 
     /**
@@ -316,7 +308,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         EventMessage event;
         while ((event = receivedEvents.poll()) != null) {
             switch (event.getEventCase()) {
-                case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(event.getLogEntry()));
+                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
                     resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
