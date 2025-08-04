@@ -68,7 +68,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     // This test requires the capability to reconnect nodes
-    @Disabled
+    @Disabled("Can be enabled once this issue is fixed: https://github.com/hiero-ledger/hiero-consensus-node/issues/20499")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
         // ... more test logic here ...
