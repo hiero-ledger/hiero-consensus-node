@@ -68,12 +68,6 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "false")
                 @NetworkProperty
                 boolean systemContractScheduleCallEnabled,
-        @ConfigProperty(value = "systemContract.scheduleService.deleteSchedule.enabled", defaultValue = "false")
-                @NetworkProperty
-                boolean systemContractDeleteScheduleEnabled,
-        @ConfigProperty(value = "systemContract.scheduleService.hasScheduleCapacity.enabled", defaultValue = "false")
-                @NetworkProperty
-                boolean systemContractHasScheduleCapacityEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractAccountServiceIsAuthorizedRawEnabled,

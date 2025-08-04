@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -14,7 +15,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -35,7 +36,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestMethodOrder;
 
 /**
  * Tests success scenarios of the HRC-1215 functions when enabled
@@ -43,6 +46,7 @@ import org.junit.jupiter.api.Tag;
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
+@TestMethodOrder(OrderAnnotation.class)
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class ScheduleCallTest {
@@ -61,22 +65,23 @@ public class ScheduleCallTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(withOpContext(
-                scheduledCallTest(new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
+                scheduledCallTest(2_600_000, new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
+                2_800_000,
                 scheduleIdHolder,
                 false,
                 sender.name(),
@@ -88,11 +93,12 @@ public class ScheduleCallTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
     @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
+                3_000_000,
                 scheduleIdHolder,
                 true,
                 sender.name(),
@@ -102,6 +108,7 @@ public class ScheduleCallTest {
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallTest(
+            final long gas,
             @NonNull final AtomicReference<String> scheduleIdHolder,
             @NonNull final String functionName,
             @NonNull final Object... parameters) {
@@ -111,7 +118,8 @@ public class ScheduleCallTest {
             allRunFor(
                     spec,
                     contract.call(functionName, parameters)
-                            .gas(2_000_000L)
+                            .gas(gas)
+                            .via(functionName) // TODO add function name to tx name to identify tx
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
                                     .resultThruAbi(
@@ -137,13 +145,14 @@ public class ScheduleCallTest {
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallWithSignTest(
+            final long gas,
             @NonNull final AtomicReference<String> scheduleIdHolder,
             final boolean executedAfterSigning,
             @NonNull final String payer,
             @NonNull final String functionName,
             @NonNull final Object... parameters) {
         return (spec, opLog) -> {
-            scheduledCallTest(scheduleIdHolder, functionName, parameters).assertFor(spec, opLog);
+            scheduledCallTest(gas, scheduleIdHolder, functionName, parameters).assertFor(spec, opLog);
             HapiGetScheduleInfo info = getScheduleInfo(scheduleIdHolder.get())
                     .hasScheduleId(scheduleIdHolder.get())
                     .isNotDeleted();
@@ -158,11 +167,11 @@ public class ScheduleCallTest {
                     spec,
                     // sign schedule
                     contractCallWithFunctionAbi(
-                                    scheduleIdHolder.get(),
-                                    getABIFor(
-                                            FUNCTION,
-                                            SignScheduleFromEOATest.SIGN_SCHEDULE,
-                                            SignScheduleFromEOATest.IHRC755))
+                            scheduleIdHolder.get(),
+                            getABIFor(
+                                    FUNCTION,
+                                    SignScheduleFromEOATest.SIGN_SCHEDULE,
+                                    SignScheduleFromEOATest.IHRC755))
                             .payingWith(payer)
                             .gas(1_000_000),
                     info);

@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Tests success scenarios of the HRC-1215 functions when enabled
- * {@code contracts.systemContract.scheduleService.deleteSchedule.enabled} feature flag. This tests checks just a happy
+ * {@code contracts.systemContract.scheduleService.scheduleCall.enabled} feature flag. This tests checks just a happy
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
@@ -51,8 +51,7 @@ public class ScheduleDeleteTest {
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"),
-                overriding("contracts.systemContract.scheduleService.deleteSchedule.enabled", "true"));
+                overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,

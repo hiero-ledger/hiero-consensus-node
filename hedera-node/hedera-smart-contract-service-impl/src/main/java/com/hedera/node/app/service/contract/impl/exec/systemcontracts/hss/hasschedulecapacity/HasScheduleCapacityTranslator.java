@@ -39,7 +39,7 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
-        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractHasScheduleCapacityEnabled()) {
+        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractScheduleCallEnabled()) {
             return attempt.isMethod(HAS_SCHEDULE_CAPACITY);
         } else {
             return Optional.empty();

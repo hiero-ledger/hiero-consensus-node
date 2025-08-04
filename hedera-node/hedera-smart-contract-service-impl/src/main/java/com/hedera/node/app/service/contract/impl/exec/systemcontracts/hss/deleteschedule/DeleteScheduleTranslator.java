@@ -58,7 +58,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
-        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractDeleteScheduleEnabled()) {
+        if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractScheduleCallEnabled()) {
             return attempt.isMethod(DELETE_SCHEDULE, DELETE_SCHEDULE_PROXY);
         } else {
             return Optional.empty();

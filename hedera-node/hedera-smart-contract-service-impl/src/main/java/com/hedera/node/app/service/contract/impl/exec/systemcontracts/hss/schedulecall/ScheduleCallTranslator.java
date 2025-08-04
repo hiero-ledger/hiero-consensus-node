@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulecall;
 
-import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.contract.ContractCallTransactionBody;
-import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
-import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -21,11 +15,8 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -49,11 +40,15 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
 
+    private final ScheduleCallDecoder decoder;
+
     @Inject
     public ScheduleCallTranslator(
+            @NonNull final ScheduleCallDecoder decoder,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
+        this.decoder = decoder;
         registerMethods(SCHEDULE_CALL, SCHEDULE_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
     }
 
@@ -69,63 +64,12 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
-        // read parameters
-        final Tuple call;
-        final Address to;
-        final AccountID sender;
-        final boolean waitForExpiry;
-        int paramIndex = 0;
-        if (attempt.isSelector(SCHEDULE_CALL)) {
-            call = SCHEDULE_CALL.decodeCall(attempt.inputBytes());
-            to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
-            waitForExpiry = true;
-        } else if (attempt.isSelector(SCHEDULE_CALL_WITH_SENDER)) {
-            call = SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
-            to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
-            waitForExpiry = true;
-        } else if (attempt.isSelector(EXECUTE_CALL_ON_SENDER_SIGNATURE)) {
-            call = EXECUTE_CALL_ON_SENDER_SIGNATURE.decodeCall(attempt.inputBytes());
-            to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
-            waitForExpiry = false;
-        } else {
-            throw new IllegalStateException("Unexpected function selector");
-        }
-        final BigInteger expiry = call.get(paramIndex++);
-        final BigInteger gasLimit = call.get(paramIndex++);
-        final BigInteger value = call.get(paramIndex++);
-        final var callData = Bytes.wrap((byte[]) call.get(paramIndex));
-
-        // convert parameters
-        final var contractId = ConversionUtils.asContractId(
-                attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
-
         final var keys = attempt.keySetFor();
-        // create TransactionBody
-        final var body = TransactionBody.newBuilder()
-                // passing current TransactionID to HSS via child call for actual schedule creation
-                .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
-                // create ScheduleCreateTransactionBody
-                .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
-                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
-                                .contractCall(ContractCallTransactionBody.newBuilder()
-                                        .contractID(contractId)
-                                        .gas(gasLimit.longValueExact())
-                                        .amount(value.longValueExact())
-                                        .functionParameters(callData)))
-                        // we need to set adminKey for make schedule not immutable and to be able to delete schedule
-                        .adminKey(keys.stream().findFirst().orElse(null))
-                        .expirationTime(Timestamp.newBuilder().seconds(expiry.longValueExact()))
-                        .payerAccountID(sender)
-                        .waitForExpiry(waitForExpiry))
-                .build();
-
+        final var body = decoder.decodeScheduleCall(attempt, keys);
         return new DispatchForResponseCodeHssCall(
                 attempt.enhancement(),
                 attempt.systemContractGasCalculator(),
-                sender,
+                body.scheduleCreate().payerAccountID(), // TODO Glib: should we use tx sender?
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,
