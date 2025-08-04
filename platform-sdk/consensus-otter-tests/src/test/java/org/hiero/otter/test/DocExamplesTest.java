@@ -19,6 +19,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure to
@@ -67,6 +68,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     // This test requires the capability to reconnect nodes
+    @Disabled
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
         // ... more test logic here ...
