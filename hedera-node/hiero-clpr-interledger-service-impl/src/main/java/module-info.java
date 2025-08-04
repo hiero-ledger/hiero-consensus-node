@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.interledger.clpr.impl {
     exports org.hiero.interledger.clpr.impl;
+
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.state.api;

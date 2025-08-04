@@ -55,8 +55,10 @@ public class ClprTestBase {
 
     protected void setupStates() {
         configurationMap = new HashMap<>(0);
-        writableLedgerConfiguration = new MapWritableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
-        readableLedgerConfiguration = new MapReadableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
+        writableLedgerConfiguration =
+                new MapWritableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
+        readableLedgerConfiguration =
+                new MapReadableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
         writableStatesMap = new TreeMap<>();
         writableStatesMap.put(CLPR_LEDGER_CONFIGURATION_KEY, writableLedgerConfiguration);
         clprStates = new MapWritableStates(writableStatesMap);
