@@ -196,18 +196,18 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> insufficientBalanceForCustomFeeFails() {
         final var operatorKey = "operatorKey";
-        final var accountId1Key = "accountId1Val";
-        final var accountId2Key = "accountId2Val";
+        final var account1Key = "accountId1Key";
+        final var account2Key = "accountId2Key";
         final var operator = "operator";
         final var accountId1 = "accountId1";
         final var accountId2 = "accountId2";
         final var tokenId = "tokenId";
         return hapiTest(
                 newKeyNamed(operatorKey),
-                newKeyNamed(accountId1Key),
-                newKeyNamed(accountId2Key),
-                cryptoCreate(accountId1).balance(2 * ONE_HBAR).key(accountId1Key),
-                cryptoCreate(accountId2).balance(2 * ONE_HBAR).key(accountId2Key),
+                newKeyNamed(account1Key),
+                newKeyNamed(account2Key),
+                cryptoCreate(accountId1).balance(2 * ONE_HBAR).key(account1Key),
+                cryptoCreate(accountId2).balance(2 * ONE_HBAR).key(account2Key),
                 cryptoCreate(operator).balance(0L).key(operatorKey),
                 tokenCreate(tokenId)
                         .name("ffff")
