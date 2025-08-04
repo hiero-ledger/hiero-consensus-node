@@ -984,14 +984,15 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         final AtomicInteger exceptionCount = new AtomicInteger();
         final AtomicBoolean isLastXTheMinValueWhenProcessingException = new AtomicBoolean();
+        final RunnableCompletionControl exceptionHandler = RunnableCompletionControl.unblocked(() -> {
+            // check that is never called before the task that threw the exception.
+            isLastXTheMinValueWhenProcessingException.set(lastX.get() >= 50);
+            exceptionCount.incrementAndGet();
+        });
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> {
-                    // check that is never called before the task that threw the exception.
-                    isLastXTheMinValueWhenProcessingException.set(lastX.get() >= 50);
-                    exceptionCount.incrementAndGet();
-                })
+                .withUncaughtExceptionHandler((t, e) -> exceptionHandler.run())
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1015,6 +1016,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // So we check
         // a: that it was at least after that task,
         // b: the handler was executed.
+        exceptionHandler.waitIsFinished(AWAIT_MAX_DURATION);
         assertTrue(isLastXTheMinValueWhenProcessingException.get());
         assertEquals(1, exceptionCount.get(), "Exception handler did not update the expected value");
         model.stop();
