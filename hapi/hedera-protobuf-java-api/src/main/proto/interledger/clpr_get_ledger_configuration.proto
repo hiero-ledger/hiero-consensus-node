@@ -53,18 +53,18 @@ message ClprGetLedgerConfigurationQuery {
  * state proof for this ledger's CLPR Configuration.
  */
 message ClprGetLedgerConfigurationResponse {
-  /**
-   * The standard response information for queries.<br/>
-   * This includes the values requested in the `QueryHeader`
-   * (cost, state proof, both, or neither).
-   */
-  proto.ResponseHeader header = 1;
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    proto.ResponseHeader header = 1;
 
-  /**
-   * The ledger configuration requested by the query
-   * <p>
-   * This value may be absent if there does not exist
-   * a ledger configuration for the given ledger id.
-   */
-  org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 2;
+    /**
+     * The ledger configuration requested by the query
+     * <p>
+     * This value may be absent if there does not exist
+     * a ledger configuration for the given ledger id.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 2;
 }

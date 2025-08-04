@@ -27,8 +27,8 @@ import "interledger/state/clpr/clpr_ledger.proto";
  *
  */
 message ClprSetRemoteLedgerConfigurationTransactionBody {
-  /**
-   * The ledger configuration to set.
-   */
-  org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
+    /**
+     * The ledger configuration to set.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
 }
