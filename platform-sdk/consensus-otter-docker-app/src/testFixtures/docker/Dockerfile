@@ -1,6 +1,7 @@
 FROM eclipse-temurin:21
 RUN useradd -m appuser || true && \
-    mkdir -p /opt/DockerApp/apps /opt/DockerApp/lib
+    mkdir -p /opt/DockerApp/apps /opt/DockerApp/lib /output && \
+    chown appuser:appuser /output
 COPY apps/* /opt/DockerApp/apps/
 COPY lib/* /opt/DockerApp/lib/
 USER appuser
