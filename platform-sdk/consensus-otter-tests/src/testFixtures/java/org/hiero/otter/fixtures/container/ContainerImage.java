@@ -59,13 +59,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
             throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
         }
         withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
-        final String uid = runIdCommand("-u");
-        final String gid = runIdCommand("-g");
-
         withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
-        if (uid != null && gid != null) {
-            withCreateContainerCmdModifier(c -> c.withUser(uid + ":" + gid));
-        }
         addFixedExposedPort(debugPort, debugPort);
     }
 
@@ -73,23 +67,5 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         return String.format(
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:%s -Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener",
                 debugPort);
-    }
-
-    private static String runIdCommand(@NonNull final String option) {
-        try {
-            final Process process =
-                    new ProcessBuilder("id", option).redirectErrorStream(true).start();
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                final String line = reader.readLine();
-                if (line != null && !line.isEmpty()) {
-                    return line.trim();
-                }
-            }
-
-        } catch (Exception ignored) {
-            // swallow and return null
-        }
-        return null;
     }
 }
