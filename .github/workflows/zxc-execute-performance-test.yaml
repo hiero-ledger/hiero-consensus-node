@@ -106,25 +106,25 @@ jobs:
           echo ${{ github.workspace }}
 
       - name: Generate Google Storage URL for Publishing
-        id: gs_dir_url
+        id: gs-dir-url
         run: |
           GS_DIR_URL="${{ inputs.gs-root-dir }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
-          echo "Calculated gs_dir_url: ${GS_DIR_URL}"
+          echo "Calculated gs-dir-url: ${GS_DIR_URL}"
           echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate HTTPS URL for Publishing
-        id: gs_https_url
+        id: gs-https-url
         run: |
           GS_HTTPS_URL="${{ inputs.gs-root-https }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
-          echo "Calculated gs_https_url: ${GS_HTTPS_URL}"
+          echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
           echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate the GCP URLs Are Set
         run: |
           echo "GS DIR URL"
-          echo "${{ steps.gs_dir_url.outputs.url }}"
+          echo "${{ steps.gs-dir-url.outputs.url }}"
           echo "GS HTTPS URL"
-          echo "${{ steps.gs_https_url.outputs.url }}"
+          echo "${{ steps.gs-https-url.outputs.url }}"
 
       - name: Set namespace
         id: set-namespace
@@ -364,8 +364,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs_dir_url.outputs.url }}"
-          echo Done: see results in "${{ steps.gs_https_url.outputs.url }}"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs-dir-url.outputs.url }}"
+          echo Done: see results in "${{ steps.gs-https-url.outputs.url }}"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
