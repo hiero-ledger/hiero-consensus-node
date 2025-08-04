@@ -77,8 +77,6 @@ jobs:
     name: Start
     runs-on: hiero-citr-linux-large
     env:
-      crypto-bench-merkle-db-java-args: ${{ inputs.crypto-bench-merkle-db-java-args }}
-      crypto-bench-merkle-db-test-params: ${{ inputs.crypto-bench-merkle-db-test-params }}
       run_NLG_Test: NftTransferLoadTest
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
@@ -412,7 +410,7 @@ jobs:
           merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
+          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
         run: |
