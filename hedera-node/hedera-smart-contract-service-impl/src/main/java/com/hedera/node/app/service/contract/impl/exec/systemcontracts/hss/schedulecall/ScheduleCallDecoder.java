@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulecall;
 
+import static java.util.Objects.requireNonNull;
+
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.annotations.VisibleForTesting;
@@ -21,8 +23,6 @@ import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import static java.util.Objects.requireNonNull;
-
 /**
  * Provides help in decoding an {@link HssCallAttempt} representing an scheduleCall into a synthetic
  * {@link TransactionBody}.
@@ -40,10 +40,12 @@ public class ScheduleCallDecoder {
 
     /**
      * @param attempt the HSS call attempt
+     * @param callSender  the id of the spender if the current call attempt
      * @param keys    the key set for scheduled calls
      * @return the schedule call transaction body
      */
-    public TransactionBody decodeScheduleCall(@NonNull final HssCallAttempt attempt, @NonNull final Set<Key> keys) {
+    public TransactionBody decodeScheduleCall(
+            @NonNull final HssCallAttempt attempt, @NonNull final AccountID callSender, @NonNull final Set<Key> keys) {
         // read parameters
         final Tuple call;
         final Address to;
@@ -53,7 +55,7 @@ public class ScheduleCallDecoder {
         if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
+            sender = callSender;
             waitForExpiry = true;
         } else if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
@@ -77,9 +79,14 @@ public class ScheduleCallDecoder {
         final var contractId = ConversionUtils.asContractId(
                 attempt.enhancement().nativeOperations().entityIdFactory(), ConversionUtils.fromHeadlongAddress(to));
 
-        return transactionBodyFor(attempt,
-                scheduleCreateTransactionBodyFor(scheduledTransactionBodyFor(contractId, gasLimit, value, callData),
-                        keys, expirySecond, sender, waitForExpiry));
+        return transactionBodyFor(
+                attempt,
+                scheduleCreateTransactionBodyFor(
+                        scheduledTransactionBodyFor(contractId, gasLimit, value, callData),
+                        keys,
+                        expirySecond,
+                        sender,
+                        waitForExpiry));
     }
 
     /**
@@ -97,9 +104,7 @@ public class ScheduleCallDecoder {
      */
     @VisibleForTesting
     private TransactionBody transactionBodyFor(
-            @NonNull final HssCallAttempt attempt,
-            @NonNull final ScheduleCreateTransactionBody scheduleCreateTrx
-    ) {
+            @NonNull final HssCallAttempt attempt, @NonNull final ScheduleCreateTransactionBody scheduleCreateTrx) {
         return TransactionBody.newBuilder()
                 // passing current TransactionID to HSS via child call for actual schedule creation
                 .transactionID(attempt.enhancement().nativeOperations().getTransactionID())
@@ -141,7 +146,8 @@ public class ScheduleCallDecoder {
                 .adminKey(keys.stream().findFirst().orElse(null))
                 .expirationTime(Timestamp.newBuilder().seconds(expirySecond.longValueExact()))
                 .payerAccountID(sender)
-                .waitForExpiry(waitForExpiry).build();
+                .waitForExpiry(waitForExpiry)
+                .build();
     }
 
     /**
@@ -162,7 +168,8 @@ public class ScheduleCallDecoder {
      * @return the 'schedule transaction' body with 'contract call'
      */
     @VisibleForTesting
-    private SchedulableTransactionBody scheduledTransactionBodyFor(@NonNull final ContractID contractId,
+    private SchedulableTransactionBody scheduledTransactionBodyFor(
+            @NonNull final ContractID contractId,
             @NonNull final BigInteger gasLimit,
             @NonNull final BigInteger value,
             @NonNull Bytes callData) {
@@ -175,6 +182,7 @@ public class ScheduleCallDecoder {
                         .contractID(contractId)
                         .gas(gasLimit.longValueExact())
                         .amount(value.longValueExact())
-                        .functionParameters(callData)).build();
+                        .functionParameters(callData))
+                .build();
     }
 }

@@ -64,12 +64,13 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
+        final var callSender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
         final var keys = attempt.keySetFor();
-        final var body = decoder.decodeScheduleCall(attempt, keys);
+        final var body = decoder.decodeScheduleCall(attempt, callSender, keys);
         return new DispatchForResponseCodeHssCall(
                 attempt.enhancement(),
                 attempt.systemContractGasCalculator(),
-                body.scheduleCreate().payerAccountID(), // TODO Glib: should we use tx sender?
+                callSender,
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,

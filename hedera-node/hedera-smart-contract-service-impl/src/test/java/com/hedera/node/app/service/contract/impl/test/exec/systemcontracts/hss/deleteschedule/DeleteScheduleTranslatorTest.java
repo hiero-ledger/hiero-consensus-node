@@ -78,7 +78,7 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
     @MethodSource("deleteScheduleSelectors")
     public void testConfig(final TestSelector data) {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.systemContractDeleteScheduleEnabled()).willReturn(data.enabled());
+        given(contractsConfig.systemContractScheduleCallEnabled()).willReturn(data.enabled());
         // when:
         attempt = createHssCallAttempt(data.selector(), false, configuration, List.of(subject));
         // then:

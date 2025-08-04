@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulecall.ScheduleCallDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulecall.ScheduleCallTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.config.data.ContractsConfig;
@@ -65,7 +66,7 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new ScheduleCallTranslator(systemContractMethodRegistry, contractMetrics);
+        subject = new ScheduleCallTranslator(new ScheduleCallDecoder(), systemContractMethodRegistry, contractMetrics);
     }
 
     public record TestSelector(Bytes selector, boolean enabled, boolean present) {}
@@ -161,6 +162,11 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void testAttemptWrongSelector() {
+        // given
+        given(nativeOperations.getAccount(payerId)).willReturn(B_CONTRACT);
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         attempt = createHssCallAttempt(Bytes.wrap("wrongSelector".getBytes()), false, configuration, List.of(subject));
         // then:

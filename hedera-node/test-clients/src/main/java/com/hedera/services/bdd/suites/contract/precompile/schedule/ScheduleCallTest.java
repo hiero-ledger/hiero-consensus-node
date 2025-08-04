@@ -167,11 +167,11 @@ public class ScheduleCallTest {
                     spec,
                     // sign schedule
                     contractCallWithFunctionAbi(
-                            scheduleIdHolder.get(),
-                            getABIFor(
-                                    FUNCTION,
-                                    SignScheduleFromEOATest.SIGN_SCHEDULE,
-                                    SignScheduleFromEOATest.IHRC755))
+                                    scheduleIdHolder.get(),
+                                    getABIFor(
+                                            FUNCTION,
+                                            SignScheduleFromEOATest.SIGN_SCHEDULE,
+                                            SignScheduleFromEOATest.IHRC755))
                             .payingWith(payer)
                             .gas(1_000_000),
                     info);

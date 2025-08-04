@@ -58,7 +58,7 @@ class HasScheduleCapacityTranslatorTest extends CallAttemptTestBase {
     @MethodSource("hasScheduleCapacitySelectors")
     public void testConfig(final TestSelector data) {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.systemContractHasScheduleCapacityEnabled()).willReturn(data.enabled());
+        given(contractsConfig.systemContractScheduleCallEnabled()).willReturn(data.enabled());
 
         // when:
         attempt = createHssCallAttempt(data.selector(), false, configuration, List.of(subject));
