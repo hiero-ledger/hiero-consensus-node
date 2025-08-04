@@ -814,7 +814,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         final JSONObject rootJson = new JSONObject();
 
         final RecordAccessor recordAccessor = virtualMap.getRecords();
-        final VirtualMapMetadata virtualMapMetadata = virtualMap.getState();
+        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
 
         final JSONObject virtualMapMetadataJson = new JSONObject();
         virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
