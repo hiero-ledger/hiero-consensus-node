@@ -110,7 +110,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         if (needsExternalization) {
                                             builder.explicitInitcode(initcode);
                                         }
-                                        baseTranslator.trackInitcode(parts.consensusTimestamp(), builder.build());
+                                        baseTranslator.trackInitcode(
+                                                parts.consensusTimestamp(), builder.build(), false);
                                     }
                                 }
                                 recordBuilder.contractCreateResult(derivedBuilder.build());
