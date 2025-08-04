@@ -37,6 +37,9 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * Constructor for the {@link ContainerTestEnvironment} class.
      */
     public ContainerTestEnvironment() {
+
+        ContainerLogConfigBuilder.configure();
+
         final Path rootOutputDirectory = Path.of("build", "container");
         try {
             if (Files.exists(rootOutputDirectory)) {

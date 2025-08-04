@@ -778,10 +778,6 @@ public class SystemTransactions {
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
-        if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
-        }
         try {
             long prevEntityNum;
             if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
