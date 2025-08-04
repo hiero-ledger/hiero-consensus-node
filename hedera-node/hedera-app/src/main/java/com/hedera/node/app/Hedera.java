@@ -526,7 +526,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent());
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
-                bootstrapConfig.getConfigData(HederaConfig.class).maxTransactionBytesPerEvent(),
+                bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
                 metrics);
 
         // Register all service schema RuntimeConstructable factories before platform init
