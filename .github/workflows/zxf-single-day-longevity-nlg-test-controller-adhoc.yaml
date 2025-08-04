@@ -252,7 +252,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - Single Day Longevity NLG Test Passing Report",
+                        "text": ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Passed",
                         "emoji": true
                       }
                     },

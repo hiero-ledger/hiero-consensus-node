@@ -378,7 +378,7 @@ jobs:
            if [ ${?} -eq 0 ]
            then
               echo "ERROR: Wrong config/environment"
-              tail ${logfile}
+              tail "${logfile}"
               ec=1
            fi
 
