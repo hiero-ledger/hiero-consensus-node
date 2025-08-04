@@ -6,6 +6,8 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -22,11 +24,14 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -143,14 +148,29 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .flatMap(recordWithSidecars ->
                         recordWithSidecars.sidecarFiles().stream().flatMap(f -> f.getSidecarRecordsList().stream()))
                 .toList();
-        final List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
+        List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
                 .flatMap(r -> r.transactionSidecarRecords().stream())
                 .map(r -> pbjToProto(
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))
                 .toList();
+        final Set<Timestamp> times = new HashSet<>();
+        final Set<Timestamp> duplicates = new HashSet<>();
+        for (final var sidecar : actualSidecars) {
+            if (sidecar.hasBytecode()) {
+                final var consensusTimestamp = sidecar.getConsensusTimestamp();
+                if (!times.add(consensusTimestamp)) {
+                    duplicates.add(consensusTimestamp);
+                }
+            }
+        }
+        if (!duplicates.isEmpty()) {
+            actualSidecars = actualSidecars.stream()
+                    .filter(sidecar -> !sidecar.hasBytecode() || !duplicates.remove(sidecar.getConsensusTimestamp()))
+                    .toList();
+        }
         if (expectedSidecars.size() != actualSidecars.size()) {
-            Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "
-                    + actualSidecars.size());
+            Assertions.fail("Mismatch in number of sidecars - expected " + sidecarTypeDescription(expectedSidecars)
+                    + ", found " + sidecarTypeDescription(actualSidecars));
         } else {
             for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
                 final var expected = expectedSidecars.get(i);
@@ -161,6 +181,12 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 }
             }
         }
+    }
+
+    private String sidecarTypeDescription(List<TransactionSidecarRecord> r) {
+        return r.stream()
+                .collect(groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()))
+                .toString();
     }
 
     private RecordStreamEntry asEntry(@NonNull final SingleTransactionRecord record) {
