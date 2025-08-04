@@ -9,8 +9,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -22,8 +20,6 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerImage extends GenericContainer<ContainerImage> {
     public static final int CONTROL_PORT = 8080;
     private static final int BASE_DEBUG_PORT = 5005;
-
-    private static final Logger log = LogManager.getLogger();
 
     /**
      * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.

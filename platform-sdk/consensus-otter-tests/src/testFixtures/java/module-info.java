@@ -32,7 +32,6 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
-    requires com.github.dockerjava.api;
     requires io.grpc.protobuf;
     requires java.net.http;
     requires org.junit.jupiter.params;
