@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
  */
-public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
+public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
 
     /**
      * Constructor for the {@link ContainerNodeConfiguration} class.
@@ -24,15 +24,9 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected ContainerNodeConfiguration self() {
-        return this;
-    }
-
-    /**
      * Returns the overridden properties for this node configuration.
+     *
+     * @return an unmodifiable map of overridden properties
      */
     @NonNull
     public Map<String, String> overriddenProperties() {

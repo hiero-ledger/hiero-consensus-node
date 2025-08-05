@@ -19,7 +19,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * The most simple sanity test for the Otter framework.
+ * The simplest sanity test for the Otter framework.
  */
 public class HappyPathTest {
 
