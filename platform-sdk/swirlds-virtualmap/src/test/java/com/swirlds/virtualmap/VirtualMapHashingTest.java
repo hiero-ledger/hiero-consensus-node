@@ -306,7 +306,7 @@ class VirtualMapHashingTest {
         cache.seal();
         assertEquals(
                 0,
-                cache.dirtyHashesForFlush(current.getState().getLastLeafPath())
+                cache.dirtyHashesForFlush(current.getMetadata().getLastLeafPath())
                         .toList()
                         .size());
 
