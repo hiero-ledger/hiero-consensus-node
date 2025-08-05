@@ -55,20 +55,20 @@ import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
 
 /**
- * This message defines the Virtual Leaf.
+ * This message defines the State Item.
  */
-message VirtualLeaf {
+message StateItem {
   /**
-   * Virtual Key.<br/>
+   * State Key.<br/>
    * The key used to identify and locate this virtual map entry.
    */
-  VirtualMapKey key = 2;
+  StateKey key = 2;
 
   /**
-   * Virtual Value.<br/>
+   * State Value.<br/>
    * The actual data content stored for this virtual map entry.
    */
-  VirtualMapValue value = 3;
+  StateValue value = 3;
 
 }
 
@@ -100,7 +100,7 @@ message QueueState {
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.
  */
-message VirtualMapKey {
+message StateKey {
   oneof key {
     SingletonType singleton = 1;
 
@@ -315,7 +315,7 @@ message VirtualMapKey {
  * Note that `_I_` plays a role of a reliable separator between the service name
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.<br/>
- * ID ranges for VirtualMapValue types:
+ * ID ranges for StateValue types:
  * <ol>
  *   <li>0–7999: Core state entries. Reserved for all platform states
  *       (accounts, tokens, schedules, consensus topics, etc.).</li>
@@ -326,7 +326,7 @@ message VirtualMapKey {
  *       contents, etc.).</li>
  * </ol>
  */
-message VirtualMapValue {
+message StateValue {
   oneof value{
     /**
      * A state identifier for the next entity Identifier.

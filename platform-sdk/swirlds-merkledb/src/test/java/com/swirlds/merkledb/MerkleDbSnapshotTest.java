@@ -98,7 +98,7 @@ class MerkleDbSnapshotTest {
     private void verify(final MerkleInternal stateRoot) {
         for (int i = 0; i < MAPS_COUNT; i++) {
             final VirtualMap vm = stateRoot.getChild(i);
-            final VirtualMapMetadata state = vm.getState();
+            final VirtualMapMetadata state = vm.getMetadata();
             for (int path = 0; path <= state.getLastLeafPath(); path++) {
                 final Hash hash = vm.getRecords().findHash(path);
                 Assertions.assertNotNull(hash);
