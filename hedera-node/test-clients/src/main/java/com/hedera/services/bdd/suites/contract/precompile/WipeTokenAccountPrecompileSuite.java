@@ -47,12 +47,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -208,16 +211,15 @@ public class WipeTokenAccountPrecompileSuite {
 
     @HapiTest
     final Stream<DynamicTest> atomicWipeFungibleTokenScenarios() {
-        final AtomicReference<AccountID> adminAccountID = new AtomicReference<>();
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> secondAccountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(WIPE_KEY),
-                cryptoCreate(ADMIN_ACCOUNT).exposingCreatedIdTo(adminAccountID::set),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
+                cryptoCreate(ADMIN_ACCOUNT),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -225,7 +227,7 @@ public class WipeTokenAccountPrecompileSuite {
                         .wipeKey(WIPE_KEY)
                         .adminKey(WIPE_KEY)
                         .initialSupply(1_000)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 uploadInitCode(WIPE_CONTRACT),
                 contractCreate(WIPE_CONTRACT),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
@@ -236,8 +238,8 @@ public class WipeTokenAccountPrecompileSuite {
                         atomicBatch(contractCall(
                                                 WIPE_CONTRACT,
                                                 WIPE_FUNGIBLE_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
                                                 10L)
                                         .signedBy(GENESIS, ADMIN_ACCOUNT)
                                         .via("accountDoesNotOwnWipeKeyTxn")
@@ -252,8 +254,8 @@ public class WipeTokenAccountPrecompileSuite {
                         atomicBatch(contractCall(
                                                 WIPE_CONTRACT,
                                                 WIPE_FUNGIBLE_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
                                                 1_000L)
                                         .signedBy(GENESIS, ADMIN_ACCOUNT)
                                         .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
@@ -266,8 +268,8 @@ public class WipeTokenAccountPrecompileSuite {
                         atomicBatch(contractCall(
                                                 WIPE_CONTRACT,
                                                 WIPE_FUNGIBLE_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())),
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get(),
                                                 10L)
                                         .signedBy(GENESIS, ADMIN_ACCOUNT)
                                         .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
@@ -280,8 +282,8 @@ public class WipeTokenAccountPrecompileSuite {
                         atomicBatch(contractCall(
                                                 WIPE_CONTRACT,
                                                 WIPE_FUNGIBLE_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
                                                 10L)
                                         .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
                                         .via("wipeFungibleTxn")
@@ -291,8 +293,8 @@ public class WipeTokenAccountPrecompileSuite {
                         atomicBatch(contractCall(
                                                 WIPE_CONTRACT,
                                                 WIPE_FUNGIBLE_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
                                                 0L)
                                         .signedBy(GENESIS, ADMIN_ACCOUNT)
                                         .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
@@ -300,41 +302,23 @@ public class WipeTokenAccountPrecompileSuite {
                                         .gas(GAS_TO_OFFER)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR))),
-                childRecordsCheck(
-                        "accountDoesNotOwnWipeKeyTxn",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_SIGNATURE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                childRecordsCheck(
-                        "amountLargerThanBalanceTxn",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_WIPING_AMOUNT)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
-                childRecordsCheck(
-                        "accountDoesNotOwnTokensTxn",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_WIPING_AMOUNT)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
-                childRecordsCheck(
-                        "wipeFungibleTxnWithZeroAmount",
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS))
-                                        .gasUsed(15284L))),
+                validatePrecompileStatus("accountDoesNotOwnWipeKeyTxn", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
+                validatePrecompileStatus("amountLargerThanBalanceTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
+                validatePrecompileStatus("accountDoesNotOwnTokensTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
+                validatePrecompileStatus("wipeFungibleTxnWithZeroAmount", SUCCESS, SUCCESS),
                 getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
                 getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
+    }
+
+    private SpecOperation validatePrecompileStatus(
+            String contractCallTxn, ResponseCodeEnum parentStatus, ResponseCodeEnum precompileStatus) {
+        return childRecordsCheck(
+                contractCallTxn,
+                parentStatus,
+                recordWith()
+                        .status(precompileStatus)
+                        .contractCallResult(resultWith()
+                                .contractCallResult(htsPrecompileResult().withStatus(precompileStatus))));
     }
 
     @HapiTest

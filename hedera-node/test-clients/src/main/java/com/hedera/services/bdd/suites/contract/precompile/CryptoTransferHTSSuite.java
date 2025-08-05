@@ -43,6 +43,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransfer;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -76,6 +77,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
@@ -84,12 +86,14 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -98,6 +102,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -346,18 +351,33 @@ public class CryptoTransferHTSSuite {
         final var successfulTransferFromTxn2 = "txn2";
         final var revertingTransferFromTxn = "revertWhenMoreThanAllowance";
         final var revertingTransferFromTxn2 = "revertingTxn";
+
+        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> ownerAddress = new AtomicReference<>();
+        final AtomicReference<AccountID> ownerId = new AtomicReference<>();
+        final AtomicReference<ByteString> ownerByteStr = new AtomicReference<>();
+        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
+        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+        final AtomicReference<ByteString> receiverByteStr = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
-                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
-                cryptoCreate(SPENDER).maxAutomaticTokenAssociations(5),
-                cryptoCreate(RECEIVER).maxAutomaticTokenAssociations(5),
+                cryptoCreate(OWNER)
+                        .balance(100 * ONE_HUNDRED_HBARS)
+                        .maxAutomaticTokenAssociations(5)
+                        .exposingCreatedIdTo(ownerId::set)
+                        .exposingEvmAddressTo(ownerAddress::set),
+                cryptoCreate(RECEIVER)
+                        .maxAutomaticTokenAssociations(5)
+                        .exposingCreatedIdTo(receiverId::set)
+                        .exposingEvmAddressTo(receiverAddress::set),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .initialSupply(10L)
                         .maxSupply(1000L)
                         .supplyKey(MULTI_KEY)
-                        .treasury(OWNER),
+                        .treasury(OWNER)
+                        .exposingAddressTo(tokenAddress::set),
                 uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
                 contractCreate(HTS_TRANSFER_FROM_CONTRACT),
                 cryptoApproveAllowance()
@@ -366,164 +386,118 @@ public class CryptoTransferHTSSuite {
                         .via("baseApproveTxn")
                         .signedBy(DEFAULT_PAYER, OWNER)
                         .fee(ONE_HBAR),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(accountDetailsWith()
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        // trying to transfer more than allowance should
-                        // revert
-                        atomicBatch(contractCall(
+                // trying to transfer more than allowance should revert
+                sourcing(() -> atomicBatch(contractCall(
+                                        HTS_TRANSFER_FROM_CONTRACT,
+                                        HTS_TRANSFER_FROM,
+                                        tokenAddress.get(),
+                                        ownerAddress.get(),
+                                        receiverAddress.get(),
+                                        BigInteger.valueOf(allowance + 1))
+                                .via(revertingTransferFromTxn)
+                                .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                // transfer allowance/2 amount
+                sourcing(() -> atomicBatch(
+                                contractCall(
                                                 HTS_TRANSFER_FROM_CONTRACT,
                                                 HTS_TRANSFER_FROM,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(OWNER))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(RECEIVER))),
-                                                BigInteger.valueOf(allowance + 1))
-                                        .via(revertingTransferFromTxn)
-                                        .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        // transfer allowance/2 amount
-                        atomicBatch(contractCall(
-                                                HTS_TRANSFER_FROM_CONTRACT,
-                                                HTS_TRANSFER_FROM,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(OWNER))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(RECEIVER))),
+                                                tokenAddress.get(),
+                                                ownerAddress.get(),
+                                                receiverAddress.get(),
                                                 BigInteger.valueOf(allowance / 2))
                                         .via(successfulTransferFromTxn)
                                         .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                         .hasKnownStatus(SUCCESS)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR), // transfer the rest of the allowance
-                        atomicBatch(contractCall(
+                                        .batchKey(BATCH_OPERATOR),
+                                // transfer the rest of the allowance
+                                contractCall(
                                                 HTS_TRANSFER_FROM_CONTRACT,
                                                 HTS_TRANSFER_FROM,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(OWNER))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(RECEIVER))),
+                                                tokenAddress.get(),
+                                                ownerAddress.get(),
+                                                receiverAddress.get(),
                                                 BigInteger.valueOf(allowance / 2))
                                         .via(successfulTransferFromTxn2)
                                         .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                         .hasKnownStatus(SUCCESS)
                                         .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        getAccountDetails(OWNER)
-                                .payingWith(GENESIS)
-                                .has(accountDetailsWith().noAllowances()),
-                        // no allowance left, should fail
-                        atomicBatch(contractCall(
-                                                HTS_TRANSFER_FROM_CONTRACT,
-                                                HTS_TRANSFER_FROM,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(OWNER))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(RECEIVER))),
-                                                BigInteger.ONE)
-                                        .via(revertingTransferFromTxn2)
-                                        .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
-                childRecordsCheck(
+                        .payingWith(BATCH_OPERATOR)),
+                // no allowance left, should fail
+                sourcing(() -> atomicBatch(contractCall(
+                                        HTS_TRANSFER_FROM_CONTRACT,
+                                        HTS_TRANSFER_FROM,
+                                        tokenAddress.get(),
+                                        ownerAddress.get(),
+                                        receiverAddress.get(),
+                                        BigInteger.ONE)
+                                .via(revertingTransferFromTxn2)
+                                .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                validatePrecompileChildResult(
                         revertingTransferFromTxn,
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(AMOUNT_EXCEEDS_ALLOWANCE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_TRANSFER_FROM)
-                                                .withStatus(AMOUNT_EXCEEDS_ALLOWANCE)))),
-                childRecordsCheck(
-                        successfulTransferFromTxn,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_TRANSFER_FROM)
-                                                .withStatus(SUCCESS)))),
-                withOpContext((spec, log) -> {
-                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
-                    final var sender = spec.registry().getAccountID(OWNER);
-                    final var receiver = spec.registry().getAccountID(RECEIVER);
-                    final var txnRecord = getTxnRecord(successfulTransferFromTxn)
-                            .hasPriority(recordWith()
-                                    .contractCallResult(resultWith()
-                                            .logs(inOrder(logWith()
-                                                    .contract(idOfToken)
-                                                    .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    sender.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    receiver.getShardNum(),
-                                                                    receiver.getRealmNum(),
-                                                                    receiver.getAccountNum())))
-                                                    .longValue(allowance / 2)))))
-                            .andAllChildRecords();
-                    allRunFor(spec, txnRecord);
-                }),
-                childRecordsCheck(
-                        successfulTransferFromTxn2,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_TRANSFER_FROM)
-                                                .withStatus(SUCCESS)))),
-                withOpContext((spec, log) -> {
-                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
-                    final var sender = spec.registry().getAccountID(OWNER);
-                    final var receiver = spec.registry().getAccountID(RECEIVER);
-                    final var txnRecord = getTxnRecord(successfulTransferFromTxn2)
-                            .hasPriority(recordWith()
-                                    .contractCallResult(resultWith()
-                                            .logs(inOrder(logWith()
-                                                    .contract(idOfToken)
-                                                    .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    sender.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    receiver.getShardNum(),
-                                                                    receiver.getRealmNum(),
-                                                                    receiver.getAccountNum())))
-                                                    .longValue(allowance / 2)))))
-                            .andAllChildRecords()
-                            .logged();
-                    allRunFor(spec, txnRecord);
-                }),
-                childRecordsCheck(
+                        FunctionType.HAPI_TRANSFER_FROM,
+                        AMOUNT_EXCEEDS_ALLOWANCE),
+                validatePrecompileChildResult(
+                        successfulTransferFromTxn, SUCCESS, FunctionType.HAPI_TRANSFER_FROM, SUCCESS),
+                validatePrecompileChildResult(
+                        successfulTransferFromTxn2, SUCCESS, FunctionType.HAPI_TRANSFER_FROM, SUCCESS),
+                validatePrecompileChildResult(
                         revertingTransferFromTxn2,
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
+                        FunctionType.HAPI_TRANSFER_FROM,
+                        SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                withOpContext((spec, log) -> {
+                    final var owner = ownerId.get();
+                    ownerByteStr.set(
+                            parsedToByteString(owner.getShardNum(), owner.getRealmNum(), owner.getAccountNum()));
+                    final var receiver = receiverId.get();
+                    receiverByteStr.set(parsedToByteString(
+                            receiver.getShardNum(), receiver.getRealmNum(), receiver.getAccountNum()));
+                }),
+                sourcing(() -> getTxnRecord(successfulTransferFromTxn)
+                        .hasPriority(recordWith()
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_TRANSFER_FROM)
-                                                .withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))));
+                                        .logs(inOrder(logWith()
+                                                .withTopicsInOrder(List.of(
+                                                        eventSignatureOf(TRANSFER_SIGNATURE),
+                                                        ownerByteStr.get(),
+                                                        receiverByteStr.get()))
+                                                .longValue(allowance / 2)))))
+                        .andAllChildRecords()),
+                sourcing(() -> getTxnRecord(successfulTransferFromTxn2)
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .logs(inOrder(logWith()
+                                                .withTopicsInOrder(List.of(
+                                                        eventSignatureOf(TRANSFER_SIGNATURE),
+                                                        ownerByteStr.get(),
+                                                        receiverByteStr.get()))
+                                                .longValue(allowance / 2)))))
+                        .andAllChildRecords()));
+    }
+
+    private SpecOperation validatePrecompileChildResult(
+            String contractCallTxn,
+            ResponseCodeEnum parentStatus,
+            FunctionType functionType,
+            ResponseCodeEnum precompileStatus) {
+        return childRecordsCheck(
+                contractCallTxn,
+                parentStatus,
+                recordWith()
+                        .status(precompileStatus)
+                        .contractCallResult(resultWith()
+                                .contractCallResult(htsPrecompileResult()
+                                        .forFunction(functionType)
+                                        .withStatus(precompileStatus))));
     }
 
     @HapiTest

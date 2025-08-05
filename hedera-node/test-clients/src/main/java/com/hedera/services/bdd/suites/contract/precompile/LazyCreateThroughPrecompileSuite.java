@@ -182,7 +182,7 @@ public class LazyCreateThroughPrecompileSuite {
 
     @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
     final Stream<DynamicTest> atomicResourceLimitExceededRevertsAllRecords() {
-        final var n = 4;
+        final var n = 6; // + 2 for the nint and approve allowance in the batch
         final var nft = "nft";
         final var nftKey = NFT_KEY;
         final var creationAttempt = CREATION_ATTEMPT;
@@ -201,29 +201,33 @@ public class LazyCreateThroughPrecompileSuite {
                         .initialSupply(0)
                         .treasury(CIVILIAN)
                         .exposingCreatedIdTo(idLit -> nftMirrorAddr.set(asHexedSolidityAddress(asToken(idLit)))),
-                mintToken(
-                        nft,
-                        IntStream.range(0, n)
-                                .mapToObj(i -> ByteString.copyFromUtf8(ONE_TIME + i))
-                                .toList()),
-                cryptoApproveAllowance()
-                        .payingWith(CIVILIAN)
-                        .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
                 withOpContext((spec, log) -> {
-                    final var callOp = atomicBatch(contractCall(
-                                            AUTO_CREATION_MODES,
-                                            "createSeveralDirectly",
-                                            headlongFromHexed(nftMirrorAddr.get()),
-                                            nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
-                                            nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
-                                            LongStream.iterate(1L, l -> l + 1)
-                                                    .limit(n)
-                                                    .toArray())
-                                    .via(creationAttempt)
-                                    .gas(GAS_TO_OFFER)
-                                    .alsoSigningWithFullPrefix(CIVILIAN)
-                                    .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED)
-                                    .batchKey(BATCH_OPERATOR))
+                    final var callOp = atomicBatch(
+                                    mintToken(
+                                                    nft,
+                                                    IntStream.range(0, n)
+                                                            .mapToObj(i -> ByteString.copyFromUtf8(ONE_TIME + i))
+                                                            .toList())
+                                            .batchKey(BATCH_OPERATOR),
+                                    cryptoApproveAllowance()
+                                            .payingWith(CIVILIAN)
+                                            .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of())
+                                            .batchKey(BATCH_OPERATOR),
+                                    contractCall(
+                                                    AUTO_CREATION_MODES,
+                                                    "createSeveralDirectly",
+                                                    headlongFromHexed(nftMirrorAddr.get()),
+                                                    nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
+                                                    nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
+                                                    LongStream.iterate(1L, l -> l + 1)
+                                                            .limit(n)
+                                                            .toArray())
+                                            .via(creationAttempt)
+                                            .gas(GAS_TO_OFFER
+                                                    + 500_000L) // todo check if we charge more gas inside atomic batch
+                                            .alsoSigningWithFullPrefix(CIVILIAN)
+                                            .hasKnownStatusFrom(CONTRACT_REVERT_EXECUTED)
+                                            .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED);
                     allRunFor(spec, callOp);

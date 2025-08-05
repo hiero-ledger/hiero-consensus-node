@@ -195,31 +195,38 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         newKeyNamed(THRESHOLD_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, PAUSE_UNPAUSE_CONTRACT))),
-                        tokenUpdate(VANILLA_TOKEN).pauseKey(THRESHOLD_KEY).signedByPayerAnd(MULTI_KEY),
-                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
-                        atomicBatch(contractCall(
-                                                PAUSE_UNPAUSE_CONTRACT,
-                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
-                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
-                                        .signedBy(GENESIS, ACCOUNT)
-                                        .alsoSigningWithFullPrefix(ACCOUNT)
-                                        .via(PAUSE_FUNGIBLE_TXN)
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
+                        atomicBatch(
+                                        tokenUpdate(VANILLA_TOKEN)
+                                                .pauseKey(THRESHOLD_KEY)
+                                                .signedByPayerAnd(MULTI_KEY)
+                                                .batchKey(BATCH_OPERATOR),
+                                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY).batchKey(BATCH_OPERATOR),
+                                        contractCall(
+                                                        PAUSE_UNPAUSE_CONTRACT,
+                                                        PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                        asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                                .signedBy(GENESIS, ACCOUNT)
+                                                .alsoSigningWithFullPrefix(ACCOUNT)
+                                                .via(PAUSE_FUNGIBLE_TXN)
+                                                .gas(GAS_TO_OFFER)
+                                                .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR),
                         getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Paused),
-                        tokenUnpause(VANILLA_TOKEN),
-                        tokenDelete(VANILLA_TOKEN),
-                        atomicBatch(contractCall(
-                                                PAUSE_UNPAUSE_CONTRACT,
-                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
-                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
-                                        .signedBy(GENESIS, ACCOUNT)
-                                        .alsoSigningWithFullPrefix(ACCOUNT)
-                                        .via("pauseFungibleAccountIsDeletedFailingTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
+                        //                        tokenUnpause(VANILLA_TOKEN),
+                        //                        tokenDelete(VANILLA_TOKEN),
+                        atomicBatch(
+                                        tokenUnpause(VANILLA_TOKEN).batchKey(BATCH_OPERATOR),
+                                        tokenDelete(VANILLA_TOKEN).batchKey(BATCH_OPERATOR),
+                                        contractCall(
+                                                        PAUSE_UNPAUSE_CONTRACT,
+                                                        PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                        asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                                .signedBy(GENESIS, ACCOUNT)
+                                                .alsoSigningWithFullPrefix(ACCOUNT)
+                                                .via("pauseFungibleAccountIsDeletedFailingTxn")
+                                                .gas(GAS_TO_OFFER)
+                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                                .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(

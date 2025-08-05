@@ -46,14 +46,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenKycStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -266,39 +269,30 @@ public class GrantRevokeKycSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicGrantRevokeKycFail() {
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> secondAccountID = new AtomicReference<>();
-        final AtomicReference<TokenID> tokenWithoutKeyID = new AtomicReference<>();
-        final var invalidTokenID = TokenID.newBuilder().build();
+    final Stream<DynamicTest> atomicRevokeKycFailWithoutKeyTx() {
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(KYC_KEY),
-                newKeyNamed(NON_KYC_KEY),
-                cryptoCreate(ACCOUNT).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
+                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(TOKEN_WITHOUT_KEY).exposingCreatedIdTo(id -> tokenWithoutKeyID.set(asToken(id))),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .kycKey(KYC_KEY)
                         .initialSupply(1_000)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
                 contractCreate(GRANT_REVOKE_KYC_CONTRACT),
-                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_GRANT_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("GrantKycAccountWithoutKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -308,24 +302,45 @@ public class GrantRevokeKycSuite {
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_REVOKE_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("RevokeKycAccountWithoutKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        cryptoUpdate(ACCOUNT).key(NON_KYC_KEY),
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                validatePrecompileStatus("RevokeKycAccountWithoutKeyTx", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
+                validatePrecompileStatus("GrantKycAccountWithoutKeyTx", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicGrantRevokeKycFailKeyNotMatchingTokenKey() {
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
+
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(NON_KYC_KEY),
+                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(vanillaTokenAddress::set),
+                uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
+                contractCreate(GRANT_REVOKE_KYC_CONTRACT),
+                tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        cryptoUpdate(SECOND_ACCOUNT).key(NON_KYC_KEY),
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_GRANT_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("GrantKycAccountKeyNotMatchingTokenKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -335,24 +350,49 @@ public class GrantRevokeKycSuite {
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_REVOKE_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("RevokeKycAccountKeyNotMatchingTokenKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        cryptoUpdate(ACCOUNT).key(KYC_KEY),
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                validatePrecompileStatus(
+                        "GrantKycAccountKeyNotMatchingTokenKeyTx", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
+                validatePrecompileStatus(
+                        "RevokeKycAccountKeyNotMatchingTokenKeyTx", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicGrantRevokeKycFailTokenWithoutKey() {
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
+        final AtomicReference<Address> tokenWithoutKeyAddress = new AtomicReference<>();
+
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(NON_KYC_KEY),
+                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN_WITHOUT_KEY).exposingAddressTo(tokenWithoutKeyAddress::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(vanillaTokenAddress::set),
+                uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
+                contractCreate(GRANT_REVOKE_KYC_CONTRACT),
+                tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        cryptoUpdate(SECOND_ACCOUNT).key(KYC_KEY),
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_GRANT_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(tokenWithoutKeyID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                tokenWithoutKeyAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("GrantKycTokenWithoutKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -362,23 +402,34 @@ public class GrantRevokeKycSuite {
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_REVOKE_KYC,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(tokenWithoutKeyID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                tokenWithoutKeyAddress.get(),
+                                                secondAccountAddress.get())
                                         .via("RevokeKycTokenWithoutKeyTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                validatePrecompileStatus("GrantKycTokenWithoutKeyTx", CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_KYC_KEY),
+                validatePrecompileStatus("RevokeKycTokenWithoutKeyTx", CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_KYC_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicGrantRevokeKycFailInvalidToken() {
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
+        final var invalidTokenID = TokenID.newBuilder().build();
+
+        return hapiTest(
+                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
+                uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
+                contractCreate(GRANT_REVOKE_KYC_CONTRACT),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
                         atomicBatch(contractCall(
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_REVOKE_KYC,
                                                 HapiParserUtil.asHeadlongAddress(asAddress(invalidTokenID)),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                secondAccountAddress.get())
                                         .via("RevokeKycWrongTokenTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -389,79 +440,26 @@ public class GrantRevokeKycSuite {
                                                 GRANT_REVOKE_KYC_CONTRACT,
                                                 TOKEN_GRANT_KYC,
                                                 HapiParserUtil.asHeadlongAddress(asAddress(invalidTokenID)),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(secondAccountID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
+                                                secondAccountAddress.get())
                                         .via("GrantKycWrongTokenTx")
                                         .gas(GAS_TO_OFFER)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
-                childRecordsCheck(
-                        "RevokeKycAccountWithoutKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_SIGNATURE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                childRecordsCheck(
-                        "GrantKycAccountWithoutKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_SIGNATURE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                childRecordsCheck(
-                        "GrantKycAccountKeyNotMatchingTokenKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_SIGNATURE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                childRecordsCheck(
-                        "RevokeKycAccountKeyNotMatchingTokenKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_SIGNATURE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                childRecordsCheck(
-                        "GrantKycTokenWithoutKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(TOKEN_HAS_NO_KYC_KEY)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(TOKEN_HAS_NO_KYC_KEY)))),
-                childRecordsCheck(
-                        "RevokeKycTokenWithoutKeyTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(TOKEN_HAS_NO_KYC_KEY)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(TOKEN_HAS_NO_KYC_KEY)))),
-                childRecordsCheck(
-                        "RevokeKycWrongTokenTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_TOKEN_ID)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_TOKEN_ID)))),
-                childRecordsCheck(
-                        "GrantKycWrongTokenTx",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_TOKEN_ID)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_TOKEN_ID)))));
+                validatePrecompileStatus("RevokeKycWrongTokenTx", CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID),
+                validatePrecompileStatus("GrantKycWrongTokenTx", CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID));
+    }
+
+    private SpecOperation validatePrecompileStatus(
+            String contractCallTxn, ResponseCodeEnum parentStatus, ResponseCodeEnum precompileStatus) {
+        return childRecordsCheck(
+                contractCallTxn,
+                parentStatus,
+                recordWith()
+                        .status(precompileStatus)
+                        .contractCallResult(resultWith()
+                                .contractCallResult(htsPrecompileResult().withStatus(precompileStatus))));
     }
 
     @HapiTest
