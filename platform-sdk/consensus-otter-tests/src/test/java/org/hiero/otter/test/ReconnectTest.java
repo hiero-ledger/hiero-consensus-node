@@ -47,8 +47,8 @@ public class ReconnectTest {
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         network.getNodes().forEach(node -> {
             node.configuration()
-                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, String.valueOf(ROUNDS_NON_ANCIENT))
-                    .set(ConsensusConfig_.ROUNDS_EXPIRED, String.valueOf(ROUNDS_EXPIRED));
+                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
+                    .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
         });
 
         // Set the node we will force to reconnect
