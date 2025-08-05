@@ -86,10 +86,12 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 }
                                 if (!SKIPPED_INITCODE_STATUSES.contains(parts.status())) {
                                     Bytes initcode = null;
+                                    boolean needsExternalization = false;
                                     final var op = parts.body().contractCreateInstanceOrThrow();
-                                    if (!op.hasInitcode()
-                                            && !TESTS_WITH_DISABLED_BYTECODE_SIDECARS.contains(
-                                                    parts.body().memo())) {
+                                    if (op.hasInitcode()) {
+                                        initcode = op.initcodeOrThrow();
+                                    } else if (!TESTS_WITH_DISABLED_BYTECODE_SIDECARS.contains(
+                                            parts.body().memo())) {
                                         final long fileNum =
                                                 op.fileIDOrElse(FileID.DEFAULT).fileNum();
                                         if (baseTranslator.knowsFileContents(fileNum)) {
@@ -97,15 +99,19 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                             final var hexedInitcode = new String(removeIfAnyLeading0x(initcode));
                                             initcode = Bytes.fromHex(hexedInitcode
                                                     + op.constructorParameters().toHex());
+                                            needsExternalization = true;
                                         }
                                     }
                                     if (initcode != null) {
-                                        final var builder =
-                                                ExecutedInitcode.newBuilder().explicitInitcode(initcode);
+                                        final var builder = ExecutedInitcode.newBuilder();
                                         if (createdId != null) {
                                             builder.contractId(createdId);
                                         }
-                                        baseTranslator.trackInitcode(parts.consensusTimestamp(), builder.build());
+                                        if (needsExternalization) {
+                                            builder.explicitInitcode(initcode);
+                                        }
+                                        baseTranslator.trackInitcode(
+                                                parts.consensusTimestamp(), builder.build(), false);
                                     }
                                 }
                                 recordBuilder.contractCreateResult(derivedBuilder.build());
