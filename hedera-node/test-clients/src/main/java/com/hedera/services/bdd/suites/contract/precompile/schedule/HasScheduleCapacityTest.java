@@ -24,6 +24,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -47,8 +48,13 @@ public class HasScheduleCapacityTest {
         lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
+    @AfterAll
+    public static void shutdown(final TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "false"));
+    }
+
     @HapiTest
-    @DisplayName("hasScheduleCapacity(uint256,uint256)")
+    @DisplayName("call hasScheduleCapacity(uint256,uint256)")
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
@@ -66,7 +72,7 @@ public class HasScheduleCapacityTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("hasScheduleCapacity -> scheduleCall -> deleteSchedule")
+    @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule

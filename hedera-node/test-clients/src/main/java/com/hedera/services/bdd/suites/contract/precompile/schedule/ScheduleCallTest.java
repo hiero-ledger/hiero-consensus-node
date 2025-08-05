@@ -32,6 +32,7 @@ import java.math.BigInteger;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -62,11 +63,16 @@ public class ScheduleCallTest {
         lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
+    @AfterAll
+    public static void shutdown(final TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "false"));
+    }
+
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("scheduleCall(address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(withOpContext(
@@ -77,7 +83,7 @@ public class ScheduleCallTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
@@ -93,7 +99,7 @@ public class ScheduleCallTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(

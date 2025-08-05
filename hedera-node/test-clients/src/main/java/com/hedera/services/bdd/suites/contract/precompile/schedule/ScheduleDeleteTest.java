@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -53,11 +54,16 @@ public class ScheduleDeleteTest {
         lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
+    @AfterAll
+    public static void shutdown(final TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "false"));
+    }
+
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
@@ -68,7 +74,7 @@ public class ScheduleDeleteTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
@@ -82,7 +88,7 @@ public class ScheduleDeleteTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
-    @DisplayName("deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
