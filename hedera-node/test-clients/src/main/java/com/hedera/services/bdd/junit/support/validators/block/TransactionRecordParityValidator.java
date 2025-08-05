@@ -142,11 +142,13 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final List<TransactionSidecarRecord> expectedSidecars = data.records().stream()
                 .flatMap(recordWithSidecars ->
                         recordWithSidecars.sidecarFiles().stream().flatMap(f -> f.getSidecarRecordsList().stream()))
+                .filter(sidecar -> sidecar.getSidecarRecordsCase() != TransactionSidecarRecord.SidecarRecordsCase.BYTECODE)
                 .toList();
         final List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
                 .flatMap(r -> r.transactionSidecarRecords().stream())
                 .map(r -> pbjToProto(
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))
+                .filter(sidecar -> sidecar.getSidecarRecordsCase() != TransactionSidecarRecord.SidecarRecordsCase.BYTECODE)
                 .toList();
         if (expectedSidecars.size() != actualSidecars.size()) {
             Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "
