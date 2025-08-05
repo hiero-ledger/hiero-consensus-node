@@ -357,7 +357,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
-                    // fill in the 1 free auto-association slotMore actions
+                    // fill in the 1 free auto-association slot
                     tokenCreate("dummy")
                             .treasury(OWNER)
                             .tokenType(FUNGIBLE_COMMON)
