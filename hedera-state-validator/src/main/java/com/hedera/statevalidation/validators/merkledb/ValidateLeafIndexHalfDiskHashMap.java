@@ -9,7 +9,7 @@ import static com.hedera.statevalidation.validators.Utils.printFileDataLocationE
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -199,8 +199,8 @@ public class ValidateLeafIndexHalfDiskHashMap {
                                         incorrectBucketIndexList));
     }
 
-    private static VirtualMapKey parseKey(Bytes keyBytes) throws ParseException {
-        return VirtualMapKey.PROTOBUF.parse(keyBytes);
+    private static StateKey parseKey(Bytes keyBytes) throws ParseException {
+        return StateKey.PROTOBUF.parse(keyBytes);
     }
 
     private static <T> void collectInfo(T info, CopyOnWriteArrayList<T> list) {
@@ -210,7 +210,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
     }
 
     // Bucket entry path is not found in the leaf index
-    record StalePathInfo(long path, VirtualMapKey key) {
+    record StalePathInfo(long path, StateKey key) {
         @Override
         @NonNull
         public String toString() {
@@ -219,7 +219,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
     }
 
     // Bucket entry path is in the leaf index, but leaf data cannot be loaded
-    private record NullLeafInfo(long path, VirtualMapKey key) {
+    private record NullLeafInfo(long path, StateKey key) {
         @Override
         @NonNull
         public String toString() {
@@ -228,7 +228,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
     }
 
     // Bucket entry key doesn't match leaf key, leaf is loaded by entry path
-    record UnexpectedKeyInfo(long path, VirtualMapKey expectedKey, VirtualMapKey actualKey) {
+    record UnexpectedKeyInfo(long path, StateKey expectedKey, StateKey actualKey) {
         @Override
         @NonNull
         public String toString() {
@@ -240,7 +240,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
     }
 
     // Bucket entry path doesn't match leaf path, leaf is loaded by entry path
-    private record PathMismatchInfo(long expectedPath, long actualPath, VirtualMapKey key) {
+    private record PathMismatchInfo(long expectedPath, long actualPath, StateKey key) {
         @Override
         @NonNull
         public String toString() {

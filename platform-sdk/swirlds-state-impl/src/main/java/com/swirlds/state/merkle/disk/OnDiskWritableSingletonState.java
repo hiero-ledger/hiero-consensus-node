@@ -2,14 +2,14 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapValue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getStateValue;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRemove;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonWrite;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -53,10 +53,10 @@ public class OnDiskWritableSingletonState<T> extends WritableSingletonStateBase<
     /** {@inheritDoc} */
     @Override
     protected void putIntoDataSource(@NonNull T value) {
-        final Bytes keyBytes = getVirtualMapKeyForSingleton(serviceName, stateKey);
-        final VirtualMapValue virtualMapValue = getVirtualMapValue(serviceName, stateKey, value);
+        final Bytes keyBytes = getStateKeyForSingleton(serviceName, stateKey);
+        final StateValue stateValue = getStateValue(serviceName, stateKey, value);
 
-        virtualMap.put(keyBytes, virtualMapValue, VirtualMapValue.PROTOBUF);
+        virtualMap.put(keyBytes, stateValue, StateValue.PROTOBUF);
         // Log to transaction state log, what was put
         logSingletonWrite(computeLabel(serviceName, stateKey), value);
     }
@@ -64,10 +64,9 @@ public class OnDiskWritableSingletonState<T> extends WritableSingletonStateBase<
     /** {@inheritDoc} */
     @Override
     protected void removeFromDataSource() {
-        final VirtualMapValue virtualMapValue =
-                virtualMap.remove(getVirtualMapKeyForSingleton(serviceName, stateKey), VirtualMapValue.PROTOBUF);
-        final var removedValue =
-                virtualMapValue != null ? virtualMapValue.value().as() : null;
+        final StateValue stateValue =
+                virtualMap.remove(getStateKeyForSingleton(serviceName, stateKey), StateValue.PROTOBUF);
+        final var removedValue = stateValue != null ? stateValue.value().as() : null;
         // Log to transaction state log, what was removed
         logSingletonRemove(computeLabel(serviceName, stateKey), removedValue);
     }

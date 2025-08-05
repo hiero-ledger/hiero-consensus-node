@@ -7,7 +7,7 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.QueueState;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -17,6 +17,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
@@ -813,7 +814,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         final JSONObject rootJson = new JSONObject();
 
         final RecordAccessor recordAccessor = virtualMap.getRecords();
-        final VirtualMapMetadata virtualMapMetadata = virtualMap.getState();
+        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
 
         final JSONObject virtualMapMetadataJson = new JSONObject();
         virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
@@ -831,36 +832,22 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 final String stateKey = stateDefinition.stateKey();
 
                 if (stateDefinition.singleton()) {
-                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final Bytes keyBytes = StateUtils.getStateKeyForSingleton(serviceName, stateKey);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
                         final JSONObject singletonJson = new JSONObject();
-                        singletonJson.put("hash", hash);
+                        singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
                         singletonJson.put("path", leafBytes.path());
-                        try {
-                            final VirtualMapValue virtualMapValue =
-                                    VirtualMapValue.PROTOBUF.parse(leafBytes.valueBytes());
-                            final var typedSingletonValue = stateDefinition
-                                    .valueCodec()
-                                    .getDefaultInstance()
-                                    .getClass()
-                                    .cast(virtualMapValue.value().as());
-                            singletonJson.put("value", typedSingletonValue);
-                        } catch (ParseException e) {
-                            singletonJson.put("value", "ParseException: " + e.getMessage());
-                        }
-
                         singletons.put(StateUtils.computeLabel(serviceName, stateKey), singletonJson);
                     }
                 } else if (stateDefinition.queue()) {
-                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final Bytes keyBytes = StateUtils.getStateKeyForSingleton(serviceName, stateKey);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
                     if (leafBytes != null) {
                         try {
-                            final VirtualMapValue virtualMapValue =
-                                    VirtualMapValue.PROTOBUF.parse(leafBytes.valueBytes());
-                            final QueueState queueState = virtualMapValue.queueState();
+                            final StateValue stateValue = StateValue.PROTOBUF.parse(leafBytes.valueBytes());
+                            final QueueState queueState = stateValue.queueState();
                             final JSONObject queueJson = new JSONObject();
                             queueJson.put("head", queueState.head());
                             queueJson.put("tail", queueState.tail());

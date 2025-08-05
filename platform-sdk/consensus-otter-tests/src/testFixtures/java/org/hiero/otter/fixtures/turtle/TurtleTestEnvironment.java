@@ -22,7 +22,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 
 /**
  * A test environment for the Turtle framework.
@@ -129,7 +129,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     public void destroy() throws InterruptedException {
-        InMemoryAppender.reset();
+        InMemorySubscriptionManager.INSTANCE.reset();
         network.destroy();
         ConstructableRegistry.getInstance().reset();
         RuntimeObjectRegistry.reset();
