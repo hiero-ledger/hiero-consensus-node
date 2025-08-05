@@ -92,7 +92,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param configuration       the configuration for the event creator
      * @param metrics             the metrics for the event creator
      * @param time                provides the time source for the event creator
-     * @param random              a source of randomness, does not need to be cryptographically secure
+     * @param random              a source of randomness that must be cryptographically secure
      * @param signer              used for signing things with this node's private key
      * @param roster              the current roster
      * @param selfId              this node's ID
@@ -400,7 +400,8 @@ public class TipsetEventCreator implements EventCreator {
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.newEventBirthRound(),
                 timeCreated,
-                transactionSupplier.getTransactions());
+                transactionSupplier.getTransactions(),
+                random.nextLong(0, roster.rosterEntries().size())+1);
         eventHasher.hashUnsignedEvent(event);
 
         return event;
