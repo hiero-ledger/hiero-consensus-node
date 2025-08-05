@@ -76,10 +76,13 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
      * More general constructor, for cases where perhaps a custom {@link VerificationStrategy} is needed.
      *
      * @param enhancement           the enhancement to use
+     * @param gasCalculator         the gas calculator to use
      * @param senderId              the id of the spender
      * @param syntheticBody         the synthetic body to dispatch
      * @param verificationStrategy  the verification strategy to use
      * @param dispatchGasCalculator the dispatch gas calculator to use
+     * @param authorizingKeys       the keys authorizing the dispatch
+     * @param resultEncoder         the encoder to encode ouptup of the result
      */
     // too many parameters
     @SuppressWarnings("java:S107")
@@ -98,7 +101,8 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
         this.verificationStrategy = Objects.requireNonNull(verificationStrategy);
         this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
         this.authorizingKeys = authorizingKeys;
-        this.usePresetTxnId = UsePresetTxnId.NO;
+        this.usePresetTxnId =
+                syntheticBody != null && syntheticBody.hasTransactionID() ? UsePresetTxnId.YES : UsePresetTxnId.NO;
         this.resultEncoder = resultEncoder;
     }
 
@@ -116,7 +120,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 .dispatch(
                         syntheticBody,
                         verificationStrategy,
-                        senderId, // TODO tx sender
+                        senderId,
                         ContractCallStreamBuilder.class,
                         authorizingKeys,
                         usePresetTxnId);
@@ -130,8 +134,8 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
     }
 
     /**
-     * Encodes the given {@code ContractCallStreamBuilder.status} and {@code ContractCallStreamBuilder.scheduleID}
-     * as a return value for a schedule create call.
+     * Encodes the given {@code ContractCallStreamBuilder.status} and {@code ContractCallStreamBuilder.scheduleID} as a
+     * return value for a schedule create call.
      *
      * @param recordBuilder the result of the dispatch to encode
      * @return the encoded status

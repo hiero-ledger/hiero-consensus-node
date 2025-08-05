@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -15,7 +14,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -71,7 +70,7 @@ public class HasScheduleCapacityTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {

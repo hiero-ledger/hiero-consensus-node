@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -15,7 +14,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -71,7 +70,7 @@ public class ScheduleCallTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
@@ -82,7 +81,7 @@ public class ScheduleCallTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
@@ -98,7 +97,7 @@ public class ScheduleCallTest {
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
@@ -123,15 +122,20 @@ public class ScheduleCallTest {
                     contract.call(functionName, parameters)
                             .gas(2_000_000)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
-                            .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
-                                    .resultThruAbi(
-                                            getABIFor(FUNCTION, functionName, contract.name()), ignore -> res -> {
-                                                Assertions.assertEquals(2, res.length);
-                                                Assertions.assertEquals(
-                                                        (long) ResponseCodeEnum.SUCCESS.getNumber(), res[0]);
-                                                Assertions.assertInstanceOf(Address.class, res[1]);
-                                                return Optional.empty();
-                                            })))
+                            .andAssert(txn -> txn.hasResults(
+                                    ContractFnResultAsserts.resultWith()
+                                            .resultThruAbi(
+                                                    getABIFor(FUNCTION, functionName, contract.name()),
+                                                    ignore -> res -> {
+                                                        Assertions.assertEquals(2, res.length);
+                                                        Assertions.assertEquals(
+                                                                (long) ResponseCodeEnum.SUCCESS.getNumber(), res[0]);
+                                                        Assertions.assertInstanceOf(Address.class, res[1]);
+                                                        return Optional.empty();
+                                                    }),
+                                    // for child record asserting, because executeCall* creating child schedule
+                                    // transaction
+                                    ContractFnResultAsserts.anyResult()))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
             // check schedule exists
             final var scheduleId = asScheduleId(spec, scheduleAddress.get());
