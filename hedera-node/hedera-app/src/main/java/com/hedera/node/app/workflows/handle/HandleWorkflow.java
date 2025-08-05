@@ -445,7 +445,7 @@ public class HandleWorkflow {
             }
         }
         final var headerItem = BlockItem.newBuilder()
-                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
+                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event)))
                 .build();
         blockStreamManager.writeItem(headerItem);
     }
