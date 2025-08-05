@@ -41,13 +41,12 @@ jobs:
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
           # return the build tag as an output
           # if the tag is not a build tag then we will fail the workflow
-          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
+          if [[ ${{ inputs.ref }} =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
@@ -55,10 +54,10 @@ jobs:
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+            echo "::notice title=Invalid Build Tag::The provided tag (${{ inputs.ref }}) is not a valid build tag."
 
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${{ inputs.ref }}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
   run-single-day-longevity-nlg-test:
