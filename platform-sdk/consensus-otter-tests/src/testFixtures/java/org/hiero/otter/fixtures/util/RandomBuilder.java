@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.util;
+package org.hiero.otter.fixtures.util;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
+import java.util.function.Supplier;
 
 /**
  * A utility for building random number generators.
  */
-public class RandomBuilder {
+public class RandomBuilder implements Supplier<Random> {
 
     private final Random seedSource;
 
@@ -32,8 +32,8 @@ public class RandomBuilder {
      *
      * @return a non-cryptographic random number generator
      */
-    @NonNull
-    public Random buildNonCryptographicRandom() {
+    @Override
+    public Random get() {
         return new Random(seedSource.nextLong());
     }
 }

@@ -39,7 +39,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.RandomBuilder;
+import org.hiero.otter.fixtures.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -411,7 +411,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
                         TransactionFactory.createStateSignatureTransaction(txn).toByteArray()))
                 .withModel(model)
-                .withRandomBuilder(new RandomBuilder(randotron.nextLong()));
+                .withSecureRandomSupplier(new RandomBuilder(randotron.nextLong()));
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
