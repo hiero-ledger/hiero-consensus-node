@@ -60,7 +60,7 @@ public class UnsignedEvent implements Hashable {
         this.parents = this.metadata.getAllParents().stream()
                 .map(EventDescriptorWrapper::eventDescriptor)
                 .toList();
-        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), null);
+        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), 0);//TODO
     }
 
     /**

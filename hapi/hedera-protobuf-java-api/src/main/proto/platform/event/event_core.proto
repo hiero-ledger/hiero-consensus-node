@@ -65,6 +65,8 @@ message EventCore {
    */
   proto.Timestamp time_created = 3;
 
+  int64 coin = 5;
+
   /**
    * Used to be a list of EventDescriptors representing the parents of this event.<br/>
    * This field has been moved to GossipEvent.
