@@ -29,7 +29,7 @@ class DocExamplesTest {
 
     // This test is used in the README.md, the getting-started.md, and the writing-tests.md files.
     @OtterTest
-    void testConsensus(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testConsensus(@NonNull final TestEnvironment env) {
         // 1. Get the network and time manager
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -50,7 +50,7 @@ class DocExamplesTest {
     // This test is used in the turtle-environment.md file.
     @OtterTest
     @TurtleSpecs(randomSeed = 42)
-    void testDeterministicBehavior(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testDeterministicBehavior(@NonNull final TestEnvironment env) {
         // This test will produce identical results every time
         final Network network = env.network();
         network.addNodes(4);
@@ -71,13 +71,13 @@ class DocExamplesTest {
     @Disabled(
             "Can be enabled once this issue is fixed: https://github.com/hiero-ledger/hiero-consensus-node/issues/20499")
     @OtterTest(requires = Capability.RECONNECT)
-    void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) {
         // ... more test logic here ...
     }
 
     // This test is used in writing-tests.md file.
     @OtterTest
-    void testNodeConfiguration(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testNodeConfiguration(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final List<Node> nodes = network.addNodes(4);
 
@@ -93,7 +93,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     @OtterTest
-    void testSuppressingResults(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testSuppressingResults(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final List<Node> nodes = network.addNodes(4);
         final Node node = nodes.getFirst();
@@ -113,7 +113,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     @OtterTest
-    void testWithRegularAssertion(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testWithRegularAssertion(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         network.addNodes(4);
         network.start();
@@ -129,7 +129,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     @OtterTest
-    void testWithContinuousAssertion(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testWithContinuousAssertion(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         network.addNodes(4);
 
@@ -147,7 +147,7 @@ class DocExamplesTest {
 
     // This test is used in the writing-tests.md file.
     @OtterTest
-    void testWithContinuousSuppression(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testWithContinuousSuppression(@NonNull final TestEnvironment env) {
         final Network network = env.network();
 
         // Continuous assertion with that checks no errors are written to the log
