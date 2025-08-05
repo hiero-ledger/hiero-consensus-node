@@ -68,7 +68,9 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
         return new DispatchForResponseCodeHssCall(
-                attempt, transactionBodyFor(scheduleIdFor(attempt)), DeleteScheduleTranslator::gasRequirement,
+                attempt,
+                transactionBodyFor(scheduleIdFor(attempt)),
+                DeleteScheduleTranslator::gasRequirement,
                 attempt.keySetFor());
     }
 

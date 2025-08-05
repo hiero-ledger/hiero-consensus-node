@@ -117,8 +117,12 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
     void testScheduleIdFor() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHssCallAttempt(Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
-                Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))), false, configuration, List.of(subject));
+        attempt = createHssCallAttempt(
+                Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
+                        Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))),
+                false,
+                configuration,
+                List.of(subject));
         final var scheduleId = subject.scheduleIdFor(attempt);
         // then:
         assertEquals(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS), scheduleId.scheduleNum());
@@ -130,8 +134,12 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHssCallAttempt(bytesForRedirectScheduleTxn(
-                DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), false, configuration, List.of(subject));
+        attempt = createHssCallAttempt(
+                bytesForRedirectScheduleTxn(
+                        DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                false,
+                configuration,
+                List.of(subject));
         final var scheduleId = subject.scheduleIdFor(attempt);
         // then:
         assertEquals(scheduleID, scheduleId);

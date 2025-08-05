@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulecall;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.BDDMockito.given;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -22,12 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
-
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.BDDMockito.given;
 
 public class ScheduleCallDecoderTest extends CallAttemptTestBase {
 
@@ -65,17 +65,17 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         // given:
         BigInteger gasLimit = BigInteger.valueOf(1_000_000);
         BigInteger value = BigInteger.valueOf(0);
-        byte[] callData = new byte[]{1, 2, 3, 4};
+        byte[] callData = new byte[] {1, 2, 3, 4};
         // when:
-        final var body = subject.scheduledTransactionBodyFor(contractId, gasLimit,
-                value, callData);
+        final var body = subject.scheduledTransactionBodyFor(contractId, gasLimit, value, callData);
         // then:
         assertTrue(body.hasContractCall());
         assertTrue(body.contractCallOrThrow().hasContractID());
         assertEquals(contractId, body.contractCallOrThrow().contractIDOrThrow());
         assertEquals(gasLimit.longValueExact(), body.contractCallOrThrow().gas());
         assertEquals(value.longValueExact(), body.contractCallOrThrow().amount());
-        assertEquals(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(callData),
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(callData),
                 body.contractCallOrThrow().functionParameters());
     }
 
@@ -85,15 +85,15 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         final var keys = Set.of(key);
         final var expirySecond = BigInteger.valueOf(1_000);
         // when:
-        final var body = subject.scheduleCreateTransactionBodyFor(scheduleTrx, keys,
-                expirySecond, sender, false);
+        final var body = subject.scheduleCreateTransactionBodyFor(scheduleTrx, keys, expirySecond, sender, false);
         // then:
         assertTrue(body.hasScheduledTransactionBody());
         assertEquals(scheduleTrx, body.scheduledTransactionBody());
         assertTrue(body.hasAdminKey());
         assertEquals(key, body.adminKey());
         assertTrue(body.hasExpirationTime());
-        assertEquals(Timestamp.newBuilder().seconds(expirySecond.longValueExact()).build(), body.expirationTime());
+        assertEquals(
+                Timestamp.newBuilder().seconds(expirySecond.longValueExact()).build(), body.expirationTime());
         assertTrue(body.hasPayerAccountID());
         assertEquals(sender, body.payerAccountID());
     }
@@ -101,7 +101,12 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
     @Test
     public void testTransactionBodyFor() {
         given(nativeOperations.getTransactionID()).willReturn(transactionId);
-        attempt = createHssCallAttempt(scheduleCallFunctions().getFirst().input(), OWNER_BESU_ADDRESS, false, configuration, List.of(translator));
+        attempt = createHssCallAttempt(
+                scheduleCallFunctions().getFirst().input(),
+                OWNER_BESU_ADDRESS,
+                false,
+                configuration,
+                List.of(translator));
         // when:
         final var body = subject.transactionBodyFor(attempt, scheduleCreateTrx);
         // then:
@@ -110,7 +115,6 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         assertTrue(body.hasScheduleCreate());
         assertEquals(scheduleCreateTrx, body.scheduleCreateOrThrow());
     }
-
 
     public static List<TestFunction> scheduleCallFunctions() {
         return ScheduleCallTranslatorTest.scheduleCallFunctions();
@@ -134,5 +138,4 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         assertEquals(transactionId, body.transactionID());
         assertTrue(body.hasScheduleCreate());
     }
-
 }
