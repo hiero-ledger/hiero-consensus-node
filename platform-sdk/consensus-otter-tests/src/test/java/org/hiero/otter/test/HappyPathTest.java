@@ -27,10 +27,9 @@ public class HappyPathTest {
      * Simple test that runs a network with 4 nodes for some time and does some basic validations.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
-    void testHappyPath(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testHappyPath(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

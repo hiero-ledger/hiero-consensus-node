@@ -35,7 +35,7 @@ public class ReconnectTest {
 
     @Disabled("Disabled until the container networks are fully supported")
     @OtterTest(requires = Capability.RECONNECT)
-    void testSimpleNodeDeathReconnect(final TestEnvironment env) throws InterruptedException {
+    void testSimpleNodeDeathReconnect(final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

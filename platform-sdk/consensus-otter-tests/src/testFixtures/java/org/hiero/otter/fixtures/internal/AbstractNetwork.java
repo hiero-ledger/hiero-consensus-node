@@ -123,7 +123,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() throws InterruptedException {
+    public void start() {
         defaultStartAction.start();
     }
 
@@ -131,7 +131,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void freeze() throws InterruptedException {
+    public void freeze() {
         defaultFreezeAction.freeze();
     }
 
@@ -147,7 +147,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void shutdown() throws InterruptedException {
+    public void shutdown() {
         defaultShutdownAction.shutdown();
     }
 
@@ -334,7 +334,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() throws InterruptedException {
+        public void start() {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");
@@ -355,7 +355,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void freeze() throws InterruptedException {
+        public void freeze() {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
@@ -380,7 +380,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void shutdown() throws InterruptedException {
+        public void shutdown() {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 

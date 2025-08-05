@@ -147,7 +147,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void killImmediately() throws InterruptedException {
+    public void killImmediately() {
         defaultAsyncAction.killImmediately();
     }
 
