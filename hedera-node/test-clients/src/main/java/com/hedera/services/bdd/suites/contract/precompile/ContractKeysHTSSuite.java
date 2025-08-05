@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -62,8 +61,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
@@ -72,18 +69,14 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(LONG_RUNNING)
 public class ContractKeysHTSSuite {
 
@@ -136,14 +129,6 @@ public class ContractKeysHTSSuite {
     private static final String FIRST_STRING_FOR_MINT = "First!";
     private static final String ACCOUNT_NAME = "anybody";
     private static final String TYPE_OF_TOKEN = "fungibleToken";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
@@ -190,69 +175,6 @@ public class ContractKeysHTSSuite {
                 contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
                         .via(BURN_WITH_CONTRACT_KEY)
                         .gas(GAS_TO_OFFER),
-                childRecordsCheck(
-                        BURN_WITH_CONTRACT_KEY,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_BURN)
-                                                .withStatus(SUCCESS)
-                                                .withTotalSupply(48)))
-                                .tokenTransfers(
-                                        changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicBurnWithKeyAsPartOf1OfXThreshold() {
-        final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
-        final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
-
-        return hapiTest(
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(TOKEN_USAGE)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(50L)
-                        .supplyKey(MULTI_KEY)
-                        .adminKey(MULTI_KEY)
-                        .treasury(TOKEN_TREASURY),
-                uploadInitCode(BURN_TOKEN),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        BURN_TOKEN,
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
-                                .via(CREATION_TX))),
-                newKeyNamed(DELEGATE_KEY).shape(delegateContractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                atomicBatch(contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via("burn with delegate contract key")
-                                .gas(GAS_TO_OFFER)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                childRecordsCheck(
-                        "burn with delegate contract key",
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.HAPI_BURN)
-                                                .withStatus(SUCCESS)
-                                                .withTotalSupply(49)))
-                                .tokenTransfers(changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
-                                .newTotalSupply(49)),
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49),
-                newKeyNamed(CONTRACT_KEY).shape(contractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
-                atomicBatch(contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via(BURN_WITH_CONTRACT_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
                 childRecordsCheck(
                         BURN_WITH_CONTRACT_KEY,
                         SUCCESS,

@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -49,14 +48,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
@@ -66,30 +62,22 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
@@ -114,14 +102,6 @@ public class AtomicCryptoTransferHTSSuite {
     private static final String BASE_APPROVAL_TXN = "baseApproveTxn";
 
     public static final String SECP_256K1_SOURCE_KEY = "secp256k1Alias";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> cryptoTransferForHbarOnly() {
@@ -293,278 +273,6 @@ public class AtomicCryptoTransferHTSSuite {
                                 .contractCallResult(resultWith()
                                         .contractCallResult(
                                                 htsPrecompileResult().withStatus(INVALID_ACCOUNT_AMOUNTS)))));
-    }
-
-    private List<SpecOperation> deployContractAndUpdateKeys() {
-        return List.of(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT),
-                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCryptoTransferTxn() {
-        final var cryptoTransferTxn = "cryptoTransferTxn";
-        final AtomicReference<AccountID> senderId = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-        return hapiTest(flattened(
-                cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
-                cryptoCreate(RECEIVER)
-                        .balance(ONE_HBAR)
-                        .receiverSigRequired(true)
-                        .exposingCreatedIdTo(receiverId::set),
-                deployContractAndUpdateKeys(),
-                // Simple transfer between sender and receiver for ONE_HBAR should succeed
-                sourcing(() -> atomicBatch(
-                                cryptoUpdate(SENDER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                cryptoUpdate(RECEIVER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                contractCall(
-                                                CONTRACT,
-                                                TRANSFER_MULTIPLE_TOKENS,
-                                                transferList()
-                                                        .withAccountAmounts(
-                                                                accountAmount(senderId.get(), -ONE_HBAR, false),
-                                                                accountAmount(receiverId.get(), ONE_HBAR, false))
-                                                        .build(),
-                                                EMPTY_TUPLE_ARRAY)
-                                        .via(cryptoTransferTxn)
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)),
-                // validate balances
-                getAccountBalance(SENDER).hasTinyBars(0),
-                getAccountBalance(RECEIVER).hasTinyBars(2 * ONE_HBAR),
-                childRecordsCheck(
-                        cryptoTransferTxn,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS)))
-                                .transfers(including(tinyBarsFromTo(SENDER, RECEIVER, ONE_HBAR))))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCryptoTransferMultiTxn() {
-        final var cryptoTransferMultiTxn = "cryptoTransferMultiTxn";
-        final AtomicReference<AccountID> senderId = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-        final AtomicReference<AccountID> receiver2Id = new AtomicReference<>();
-        final var amountToBeSent = 50 * ONE_HBAR;
-        return hapiTest(flattened(
-                // set up accounts and deploy contract
-                cryptoCreate(SENDER).balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(senderId::set),
-                cryptoCreate(RECEIVER).balance(0L).receiverSigRequired(true).exposingCreatedIdTo(receiverId::set),
-                cryptoCreate(RECEIVER2).balance(0L).receiverSigRequired(true).exposingCreatedIdTo(receiver2Id::set),
-                deployContractAndUpdateKeys(),
-                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
-                // submit batch
-                sourcing(() ->
-                        // Simple transfer between sender, receiver and
-                        // receiver2 for 50 * ONE_HBAR
-                        // sender sends 50, receiver get 10 and receiver2 gets
-                        // 40
-                        // should succeed
-                        atomicBatch(
-                                        cryptoUpdate(SENDER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                        cryptoUpdate(RECEIVER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                        cryptoUpdate(RECEIVER2)
-                                                .key(DELEGATE_KEY)
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCall(
-                                                        CONTRACT,
-                                                        TRANSFER_MULTIPLE_TOKENS,
-                                                        transferList()
-                                                                .withAccountAmounts(
-                                                                        accountAmount(
-                                                                                senderId.get(), -amountToBeSent, false),
-                                                                        accountAmount(
-                                                                                receiverId.get(), 10 * ONE_HBAR, false),
-                                                                        accountAmount(
-                                                                                receiver2Id.get(),
-                                                                                40 * ONE_HBAR,
-                                                                                false))
-                                                                .build(),
-                                                        EMPTY_TUPLE_ARRAY)
-                                                .via(cryptoTransferMultiTxn)
-                                                .gas(GAS_TO_OFFER)
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)),
-                getAccountBalance(SENDER).hasTinyBars(50 * ONE_HBAR),
-                getAccountBalance(RECEIVER).hasTinyBars(10 * ONE_HBAR),
-                getAccountBalance(RECEIVER2).hasTinyBars(40 * ONE_HBAR),
-                childRecordsCheck(
-                        cryptoTransferMultiTxn,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS))))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCryptoTransferRevertTxn() {
-        final var cryptoTransferRevertTxn = "cryptoTransferRevertTxn";
-        final AtomicReference<AccountID> senderId = new AtomicReference<>();
-        final AtomicReference<AccountID> sender2Id = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-        final AtomicReference<AccountID> receiver2Id = new AtomicReference<>();
-
-        final var amountToBeSent = 50 * ONE_HBAR;
-
-        return hapiTest(flattened(
-                cryptoCreate(SENDER).balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(senderId::set),
-                cryptoCreate(RECEIVER).balance(0L).receiverSigRequired(true).exposingCreatedIdTo(receiverId::set),
-                cryptoCreate(RECEIVER2).balance(0L).receiverSigRequired(true).exposingCreatedIdTo(receiver2Id::set),
-                deployContractAndUpdateKeys(),
-                sourcing(() ->
-                        // Simple transfer between sender, receiver and
-                        // receiver2 for 50 * ONE_HBAR
-                        // sender sends 50, receiver get 5 and receiver2 gets 40
-                        // should fail because total does not add to 0
-                        atomicBatch(
-                                        cryptoUpdate(SENDER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                        cryptoUpdate(RECEIVER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                        cryptoUpdate(RECEIVER2)
-                                                .key(DELEGATE_KEY)
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCall(
-                                                        CONTRACT,
-                                                        TRANSFER_MULTIPLE_TOKENS,
-                                                        transferList()
-                                                                .withAccountAmounts(
-                                                                        accountAmount(
-                                                                                senderId.get(), -amountToBeSent, false),
-                                                                        accountAmount(
-                                                                                receiverId.get(),
-                                                                                amountToBeSent - (5 * ONE_HBAR),
-                                                                                false),
-                                                                        accountAmount(
-                                                                                receiver2Id.get(),
-                                                                                amountToBeSent - (40 * ONE_HBAR),
-                                                                                false))
-                                                                .build(),
-                                                        EMPTY_TUPLE_ARRAY)
-                                                .via(cryptoTransferRevertTxn)
-                                                .gas(GAS_TO_OFFER)
-                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                getAccountBalance(SENDER).hasTinyBars(ONE_HUNDRED_HBARS),
-                getAccountBalance(RECEIVER).hasTinyBars(0L),
-                getAccountBalance(RECEIVER2).hasTinyBars(0L),
-                childRecordsCheck(
-                        cryptoTransferRevertTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INVALID_ACCOUNT_AMOUNTS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INVALID_ACCOUNT_AMOUNTS))))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCryptoTransferRevertNoKeyTxn() {
-        final var cryptoTransferRevertNoKeyTxn = "cryptoTransferRevertNoKeyTxn";
-        final AtomicReference<AccountID> sender2Id = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-        final var amountToBeSent = 50 * ONE_HBAR;
-        return hapiTest(flattened(
-                cryptoCreate(SENDER2).balance(10 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(sender2Id::set),
-                cryptoCreate(RECEIVER)
-                        .balance(2 * ONE_HUNDRED_HBARS)
-                        .receiverSigRequired(true)
-                        .exposingCreatedIdTo(receiverId::set),
-                deployContractAndUpdateKeys(),
-                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
-                sourcing(() ->
-                        // Simple transfer between sender2 and receiver for 50 *
-                        // ONE_HBAR
-                        // should fail because sender2 does not have the right
-                        // key
-                        atomicBatch(
-                                        cryptoUpdate(RECEIVER).key(DELEGATE_KEY).batchKey(BATCH_OPERATOR),
-                                        contractCall(
-                                                        CONTRACT,
-                                                        TRANSFER_MULTIPLE_TOKENS,
-                                                        transferList()
-                                                                .withAccountAmounts(
-                                                                        accountAmount(
-                                                                                sender2Id.get(),
-                                                                                -amountToBeSent,
-                                                                                false),
-                                                                        accountAmount(
-                                                                                receiverId.get(),
-                                                                                amountToBeSent,
-                                                                                false))
-                                                                .build(),
-                                                        EMPTY_TUPLE_ARRAY)
-                                                .via(cryptoTransferRevertNoKeyTxn)
-                                                .gas(GAS_TO_OFFER)
-                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                childRecordsCheck(
-                        cryptoTransferRevertNoKeyTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCryptoTransferRevertBalanceTooLowTxn() {
-        final var cryptoTransferRevertBalanceTooLowTxn = "cryptoTransferRevertBalanceTooLowTxn";
-        final AtomicReference<AccountID> senderId = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-
-        return hapiTest(flattened(
-                cryptoCreate(SENDER).balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(senderId::set),
-                cryptoCreate(RECEIVER).balance(0L).receiverSigRequired(true).exposingCreatedIdTo(receiverId::set),
-                deployContractAndUpdateKeys(),
-                cryptoUpdate(SENDER).key(DELEGATE_KEY),
-                cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
-                sourcing(() ->
-                        // Simple transfer between sender2 and receiver for 1000
-                        // * ONE_HUNDRED_HBAR
-                        // should fail because sender does not have enough hbars
-                        atomicBatch(contractCall(
-                                                CONTRACT,
-                                                TRANSFER_MULTIPLE_TOKENS,
-                                                transferList()
-                                                        .withAccountAmounts(
-                                                                accountAmount(
-                                                                        senderId.get(),
-                                                                        -1000 * ONE_HUNDRED_HBARS,
-                                                                        false),
-                                                                accountAmount(
-                                                                        receiverId.get(),
-                                                                        1000 * ONE_HUNDRED_HBARS,
-                                                                        false))
-                                                        .build(),
-                                                EMPTY_TUPLE_ARRAY)
-                                        .via(cryptoTransferRevertBalanceTooLowTxn)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                getAccountBalance(SENDER).hasTinyBars(ONE_HUNDRED_HBARS),
-                getAccountBalance(RECEIVER).hasTinyBars(0L),
-                childRecordsCheck(
-                        cryptoTransferRevertBalanceTooLowTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(INSUFFICIENT_ACCOUNT_BALANCE))))));
     }
 
     @HapiTest

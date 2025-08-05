@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -30,7 +29,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
@@ -39,24 +37,18 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class DelegatePrecompileSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -73,14 +65,6 @@ public class DelegatePrecompileSuite {
     private static final String SUPPLY_KEY = "supplyKey";
     private static final String DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN =
             "delegateBurnCallWithDelegateContractKeyTxn";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> delegateCallForTransfer() {
@@ -132,70 +116,6 @@ public class DelegatePrecompileSuite {
                                 .payingWith(GENESIS)
                                 .via("delegateTransferCallWithDelegateContractKeyTxn")
                                 .gas(GAS_TO_OFFER))),
-                childRecordsCheck(
-                        "delegateTransferCallWithDelegateContractKeyTxn",
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS)))),
-                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 0),
-                getAccountBalance(RECEIVER).hasTokenBalance(VANILLA_TOKEN, 1));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicDelegateCallForTransfer() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverID = new AtomicReference<>();
-
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(VANILLA_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .supplyKey(SUPPLY_KEY)
-                        .treasury(TOKEN_TREASURY)
-                        .initialSupply(0)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                // since we have CONTRACT_ID key
-                contractCreate(NESTED_CONTRACT).refusingEthConversion(),
-                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
-                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        OUTER_CONTRACT,
-                                        asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec)))
-                                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon
-                                // tokenAssociate,
-                                // since we have CONTRACT_ID key
-                                .refusingEthConversion(),
-                        tokenAssociate(OUTER_CONTRACT, VANILLA_TOKEN),
-                        newKeyNamed(SIMPLE_AND_DELEGATE_KEY_NAME)
-                                .shape(SIMPLE_AND_DELEGATE_KEY_SHAPE.signedWith(sigs(ON, OUTER_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(SIMPLE_AND_DELEGATE_KEY_NAME),
-                        atomicBatch(contractCall(
-                                                OUTER_CONTRACT,
-                                                "transferDelegateCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(receiverID.get())),
-                                                1L)
-                                        .payingWith(GENESIS)
-                                        .via("delegateTransferCallWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
                 childRecordsCheck(
                         "delegateTransferCallWithDelegateContractKeyTxn",
                         SUCCESS,

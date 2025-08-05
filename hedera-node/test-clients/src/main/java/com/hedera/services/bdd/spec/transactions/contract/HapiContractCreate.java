@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
@@ -8,8 +9,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.equivAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.solidityIdFrom;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.doGasLookup;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
+import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -70,6 +73,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<Integer> maxAutomaticTokenAssociations = Optional.empty();
     private Optional<ByteString> inlineInitcode = Optional.empty();
     Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
+    Optional<Consumer<Address>> newAddressObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
 
     @Nullable
@@ -77,6 +81,11 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
 
     public HapiContractCreate exposingContractIdTo(Consumer<ContractID> obs) {
         newIdObserver = Optional.of(obs);
+        return this;
+    }
+
+    public HapiContractCreate exposingAddressTo(Consumer<Address> obs) {
+        newAddressObserver = Optional.of(obs);
         return this;
     }
 
@@ -257,6 +266,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         final var newId = lastReceipt.getContractID();
         newNumObserver.ifPresent(obs -> obs.accept(newId.getContractNum()));
         newIdObserver.ifPresent(obs -> obs.accept(newId));
+        newAddressObserver.ifPresent(obs -> obs.accept(asHeadlongAddress(asAddress(newId))));
         if (shouldAlsoRegisterAsAccount) {
             spec.registry().saveAccountId(contract, equivAccount(lastReceipt.getContractID()));
         }

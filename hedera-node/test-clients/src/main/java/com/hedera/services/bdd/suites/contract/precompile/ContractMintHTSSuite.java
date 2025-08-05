@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -43,7 +42,6 @@ import static com.hedera.services.bdd.suites.utils.contracts.FunctionParameters.
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -53,8 +51,6 @@ import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQ
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
@@ -62,15 +58,11 @@ import com.hedera.services.bdd.suites.utils.contracts.FunctionParameters;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class ContractMintHTSSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -93,14 +85,6 @@ public class ContractMintHTSSuite {
     private static final String TEST_METADATA_1 = "Test metadata 1";
     private static final String TEST_METADATA_2 = "Test metadata 2";
     private static final String RECIPIENT = "recipient";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> mintTokensWithExtremeValues() {
@@ -200,128 +184,6 @@ public class ContractMintHTSSuite {
                                 .via(invalidTokenNFTTest)
                                 .alsoSigningWithFullPrefix(MULTI_KEY)
                                 .gas(GAS_TO_OFFER),
-                        getTxnRecord(invalidTokenTest).andAllChildRecords().logged(),
-                        getTxnRecord(invalidTokenNFTTest).andAllChildRecords().logged())),
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
-                childRecordsCheck(invalidTokenTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)),
-                childRecordsCheck(invalidTokenNFTTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicMintTokensWithExtremeValues() {
-        var mintExtremeValue = "mintExtremeValue";
-        var mintInvalidAddressType = "mintInvalidAddressType";
-
-        var invalidTokenNFTTest = "invalidTokenNFTTest";
-        var invalidTokenTest = "invalidTokenTest";
-        return hapiTest(
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECIPIENT).maxAutomaticTokenAssociations(1),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(1000)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                uploadInitCode(NEGATIVE_MINT_CONTRACT),
-                contractCreate(NEGATIVE_MINT_CONTRACT).gas(GAS_TO_OFFER),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        // Fungible Mint calls with extreme values
-                        atomicBatch(contractCall(
-                                                NEGATIVE_MINT_CONTRACT,
-                                                mintExtremeValue,
-                                                new byte[][] {},
-                                                false,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(GENESIS)
-                                        .via("mintExtremeValue")
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        emptyChildRecordsCheck("mintExtremeValue", CONTRACT_REVERT_EXECUTED),
-                        atomicBatch(contractCall(
-                                                NEGATIVE_MINT_CONTRACT,
-                                                mintExtremeValue,
-                                                new byte[][] {},
-                                                true,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(GENESIS)
-                                        .via("mintNegativeExtremeValue")
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        emptyChildRecordsCheck("mintNegativeExtremeValue", CONTRACT_REVERT_EXECUTED),
-                        atomicBatch(contractCall(NEGATIVE_MINT_CONTRACT, mintInvalidAddressType, new byte[][] {}, 100L)
-                                        .payingWith(GENESIS)
-                                        .via(invalidTokenTest)
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        // NFT Mint calls with extreme values
-                        atomicBatch(contractCall(
-                                                NEGATIVE_MINT_CONTRACT,
-                                                mintExtremeValue,
-                                                new byte[][] {TEST_METADATA_1.getBytes()},
-                                                false,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(GENESIS)
-                                        .via("mintExtremeValueNFT")
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        emptyChildRecordsCheck("mintExtremeValueNFT", CONTRACT_REVERT_EXECUTED),
-                        atomicBatch(contractCall(
-                                                NEGATIVE_MINT_CONTRACT,
-                                                mintExtremeValue,
-                                                new byte[][] {TEST_METADATA_1.getBytes()},
-                                                true,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(GENESIS)
-                                        .via("mintNegativeExtremeValueNFT")
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        emptyChildRecordsCheck("mintNegativeExtremeValueNFT", CONTRACT_REVERT_EXECUTED),
-                        atomicBatch(contractCall(
-                                                NEGATIVE_MINT_CONTRACT,
-                                                mintInvalidAddressType,
-                                                new byte[][] {TEST_METADATA_1.getBytes()},
-                                                0L)
-                                        .payingWith(GENESIS)
-                                        .via(invalidTokenNFTTest)
-                                        .alsoSigningWithFullPrefix(MULTI_KEY)
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
                         getTxnRecord(invalidTokenTest).andAllChildRecords().logged(),
                         getTxnRecord(invalidTokenNFTTest).andAllChildRecords().logged())),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),

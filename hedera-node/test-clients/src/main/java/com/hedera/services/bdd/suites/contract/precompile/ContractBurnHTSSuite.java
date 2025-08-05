@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -18,9 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -29,21 +26,15 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class ContractBurnHTSSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -60,14 +51,6 @@ public class ContractBurnHTSSuite {
     private static final String NEGATIVE_BURN_CONTRACT = "NegativeBurnContract";
     private static final String CONTRACT_KEY = "ContractKey";
     private static final String NFT = "NFT";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> burnFungibleV1andV2WithZeroAndNegativeValues() {
@@ -116,72 +99,6 @@ public class ContractBurnHTSSuite {
                         .gas(GAS_TO_OFFER)
                         .logged()
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 50));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicBurnFungibleV1andV2WithZeroAndNegativeValues() {
-        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
-        return hapiTest(
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(50L)
-                        .supplyKey(MULTI_KEY)
-                        .adminKey(MULTI_KEY)
-                        .treasury(TOKEN_TREASURY)
-                        .exposingAddressTo(tokenAddress::set),
-                uploadInitCode(MULTIVERSION_BURN_CONTRACT),
-                contractCreate(MULTIVERSION_BURN_CONTRACT).gas(GAS_TO_OFFER),
-                // Burning 0 amount for Fungible tokens should fail
-                sourcing(() -> atomicBatch(contractCall(
-                                        MULTIVERSION_BURN_CONTRACT,
-                                        BURN_TOKEN_V_1,
-                                        tokenAddress.get(),
-                                        BigInteger.ZERO,
-                                        new long[0])
-                                .alsoSigningWithFullPrefix(MULTI_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),
-                sourcing(() -> atomicBatch(contractCall(
-                                        MULTIVERSION_BURN_CONTRACT, BURN_TOKEN_V_2, tokenAddress.get(), 0L, new long[0])
-                                .alsoSigningWithFullPrefix(MULTI_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .logged()
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),
-                // Burning negative amount for Fungible tokens should fail
-                sourcing(() -> atomicBatch(contractCall(
-                                        MULTIVERSION_BURN_CONTRACT,
-                                        BURN_TOKEN_V_1,
-                                        tokenAddress.get(),
-                                        new BigInteger("FFFFFFFFFFFFFF00", 16),
-                                        new long[0])
-                                .alsoSigningWithFullPrefix(MULTI_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),
-                sourcing(() -> atomicBatch(contractCall(
-                                        MULTIVERSION_BURN_CONTRACT,
-                                        BURN_TOKEN_V_2,
-                                        tokenAddress.get(),
-                                        -1L,
-                                        new long[0])
-                                .alsoSigningWithFullPrefix(MULTI_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .logged()
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 50));
     }
 

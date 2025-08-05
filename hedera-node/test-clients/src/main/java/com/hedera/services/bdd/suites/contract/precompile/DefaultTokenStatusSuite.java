@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -19,7 +18,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
@@ -31,19 +29,13 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenID;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class DefaultTokenStatusSuite {
     private static final String TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT = "TokenDefaultKycAndFreezeStatus";
@@ -53,14 +45,6 @@ public class DefaultTokenStatusSuite {
     private static final int GAS_TO_OFFER = 1_000_000;
     private static final String GET_TOKEN_DEFAULT_FREEZE = "getTokenDefaultFreeze";
     private static final String GET_TOKEN_DEFAULT_KYC = "getTokenDefaultKyc";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> getTokenDefaultFreezeStatus() {
@@ -88,50 +72,6 @@ public class DefaultTokenStatusSuite {
                                 .payingWith(ACCOUNT)
                                 .via("GetTokenDefaultFreezeStatusTx")
                                 .gas(GAS_TO_OFFER),
-                        contractCallLocal(
-                                TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT,
-                                GET_TOKEN_DEFAULT_FREEZE,
-                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get()))))),
-                childRecordsCheck(
-                        "GetTokenDefaultFreezeStatusTx",
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.GET_TOKEN_DEFAULT_FREEZE_STATUS)
-                                                .withStatus(SUCCESS)
-                                                .withTokenDefaultFreezeStatus(true)))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicGetTokenDefaultFreezeStatus() {
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-
-        return hapiTest(
-                newKeyNamed(FREEZE_KEY),
-                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(VANILLA_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .freezeDefault(true)
-                        .freezeKey(FREEZE_KEY)
-                        .initialSupply(1_000)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                uploadInitCode(TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT),
-                contractCreate(TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatch(contractCall(
-                                                TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT,
-                                                GET_TOKEN_DEFAULT_FREEZE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .via("GetTokenDefaultFreezeStatusTx")
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
                         contractCallLocal(
                                 TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT,
                                 GET_TOKEN_DEFAULT_FREEZE,

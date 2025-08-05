@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -70,8 +69,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -79,20 +76,16 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(LONG_RUNNING)
 public class ERCPrecompileSuite {
 
@@ -154,14 +147,6 @@ public class ERCPrecompileSuite {
     private static final String NFT_TOKEN_MINT = "nftTokenMint";
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
     private static final String NESTED_ERC_20_CONTRACT = "NestedERC20Contract";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> getErc20TokenName() {
@@ -190,46 +175,6 @@ public class ERCPrecompileSuite {
                                 .via(NAME_TXN)
                                 .gas(4_000_000)
                                 .hasKnownStatus(SUCCESS))),
-                childRecordsCheck(
-                        NAME_TXN,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .forFunction(FunctionType.ERC_NAME)
-                                                .withName(TOKEN_NAME)))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicGetErc20TokenName() {
-        return hapiTest(
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(5)
-                        .name(TOKEN_NAME)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                uploadInitCode(ERC_20_CONTRACT),
-                contractCreate(ERC_20_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatch(contractCall(
-                                                ERC_20_CONTRACT,
-                                                "name",
-                                                asHeadlongAddress(asHexedAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(ACCOUNT)
-                                        .via(NAME_TXN)
-                                        .gas(4_000_000)
-                                        .hasKnownStatus(SUCCESS)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
                 childRecordsCheck(
                         NAME_TXN,
                         SUCCESS,

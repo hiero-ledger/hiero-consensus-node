@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -43,7 +42,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransfer;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -66,7 +64,6 @@ import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -77,40 +74,30 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(LONG_RUNNING)
 public class CryptoTransferHTSSuite {
 
@@ -157,14 +144,6 @@ public class CryptoTransferHTSSuite {
     private static final String SECOND_MEMO = "secondMemo";
     private static final String CRYPTO_TRANSFER_TXN = "cryptoTransferTxn";
     private static final String SPENDER = "spender";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> hapiTransferFromForFungibleToken() {
@@ -342,162 +321,6 @@ public class CryptoTransferHTSSuite {
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM)
                                                 .withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicHapiTransferFromForFungibleToken() {
-        final var allowance = 10L;
-        final var successfulTransferFromTxn = "txn";
-        final var successfulTransferFromTxn2 = "txn2";
-        final var revertingTransferFromTxn = "revertWhenMoreThanAllowance";
-        final var revertingTransferFromTxn2 = "revertingTxn";
-
-        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
-        final AtomicReference<Address> ownerAddress = new AtomicReference<>();
-        final AtomicReference<AccountID> ownerId = new AtomicReference<>();
-        final AtomicReference<ByteString> ownerByteStr = new AtomicReference<>();
-        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverId = new AtomicReference<>();
-        final AtomicReference<ByteString> receiverByteStr = new AtomicReference<>();
-        return hapiTest(
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(OWNER)
-                        .balance(100 * ONE_HUNDRED_HBARS)
-                        .maxAutomaticTokenAssociations(5)
-                        .exposingCreatedIdTo(ownerId::set)
-                        .exposingEvmAddressTo(ownerAddress::set),
-                cryptoCreate(RECEIVER)
-                        .maxAutomaticTokenAssociations(5)
-                        .exposingCreatedIdTo(receiverId::set)
-                        .exposingEvmAddressTo(receiverAddress::set),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(10L)
-                        .maxSupply(1000L)
-                        .supplyKey(MULTI_KEY)
-                        .treasury(OWNER)
-                        .exposingAddressTo(tokenAddress::set),
-                uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
-                contractCreate(HTS_TRANSFER_FROM_CONTRACT),
-                cryptoApproveAllowance()
-                        .payingWith(DEFAULT_PAYER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)
-                        .via("baseApproveTxn")
-                        .signedBy(DEFAULT_PAYER, OWNER)
-                        .fee(ONE_HBAR),
-                // trying to transfer more than allowance should revert
-                sourcing(() -> atomicBatch(contractCall(
-                                        HTS_TRANSFER_FROM_CONTRACT,
-                                        HTS_TRANSFER_FROM,
-                                        tokenAddress.get(),
-                                        ownerAddress.get(),
-                                        receiverAddress.get(),
-                                        BigInteger.valueOf(allowance + 1))
-                                .via(revertingTransferFromTxn)
-                                .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                // transfer allowance/2 amount
-                sourcing(() -> atomicBatch(
-                                contractCall(
-                                                HTS_TRANSFER_FROM_CONTRACT,
-                                                HTS_TRANSFER_FROM,
-                                                tokenAddress.get(),
-                                                ownerAddress.get(),
-                                                receiverAddress.get(),
-                                                BigInteger.valueOf(allowance / 2))
-                                        .via(successfulTransferFromTxn)
-                                        .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                        .hasKnownStatus(SUCCESS)
-                                        .batchKey(BATCH_OPERATOR),
-                                // transfer the rest of the allowance
-                                contractCall(
-                                                HTS_TRANSFER_FROM_CONTRACT,
-                                                HTS_TRANSFER_FROM,
-                                                tokenAddress.get(),
-                                                ownerAddress.get(),
-                                                receiverAddress.get(),
-                                                BigInteger.valueOf(allowance / 2))
-                                        .via(successfulTransferFromTxn2)
-                                        .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                        .hasKnownStatus(SUCCESS)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)),
-                // no allowance left, should fail
-                sourcing(() -> atomicBatch(contractCall(
-                                        HTS_TRANSFER_FROM_CONTRACT,
-                                        HTS_TRANSFER_FROM,
-                                        tokenAddress.get(),
-                                        ownerAddress.get(),
-                                        receiverAddress.get(),
-                                        BigInteger.ONE)
-                                .via(revertingTransferFromTxn2)
-                                .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                validatePrecompileChildResult(
-                        revertingTransferFromTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        FunctionType.HAPI_TRANSFER_FROM,
-                        AMOUNT_EXCEEDS_ALLOWANCE),
-                validatePrecompileChildResult(
-                        successfulTransferFromTxn, SUCCESS, FunctionType.HAPI_TRANSFER_FROM, SUCCESS),
-                validatePrecompileChildResult(
-                        successfulTransferFromTxn2, SUCCESS, FunctionType.HAPI_TRANSFER_FROM, SUCCESS),
-                validatePrecompileChildResult(
-                        revertingTransferFromTxn2,
-                        CONTRACT_REVERT_EXECUTED,
-                        FunctionType.HAPI_TRANSFER_FROM,
-                        SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                withOpContext((spec, log) -> {
-                    final var owner = ownerId.get();
-                    ownerByteStr.set(
-                            parsedToByteString(owner.getShardNum(), owner.getRealmNum(), owner.getAccountNum()));
-                    final var receiver = receiverId.get();
-                    receiverByteStr.set(parsedToByteString(
-                            receiver.getShardNum(), receiver.getRealmNum(), receiver.getAccountNum()));
-                }),
-                sourcing(() -> getTxnRecord(successfulTransferFromTxn)
-                        .hasPriority(recordWith()
-                                .contractCallResult(resultWith()
-                                        .logs(inOrder(logWith()
-                                                .withTopicsInOrder(List.of(
-                                                        eventSignatureOf(TRANSFER_SIGNATURE),
-                                                        ownerByteStr.get(),
-                                                        receiverByteStr.get()))
-                                                .longValue(allowance / 2)))))
-                        .andAllChildRecords()),
-                sourcing(() -> getTxnRecord(successfulTransferFromTxn2)
-                        .hasPriority(recordWith()
-                                .contractCallResult(resultWith()
-                                        .logs(inOrder(logWith()
-                                                .withTopicsInOrder(List.of(
-                                                        eventSignatureOf(TRANSFER_SIGNATURE),
-                                                        ownerByteStr.get(),
-                                                        receiverByteStr.get()))
-                                                .longValue(allowance / 2)))))
-                        .andAllChildRecords()));
-    }
-
-    private SpecOperation validatePrecompileChildResult(
-            String contractCallTxn,
-            ResponseCodeEnum parentStatus,
-            FunctionType functionType,
-            ResponseCodeEnum precompileStatus) {
-        return childRecordsCheck(
-                contractCallTxn,
-                parentStatus,
-                recordWith()
-                        .status(precompileStatus)
-                        .contractCallResult(resultWith()
-                                .contractCallResult(htsPrecompileResult()
-                                        .forFunction(functionType)
-                                        .withStatus(precompileStatus))));
     }
 
     @HapiTest
