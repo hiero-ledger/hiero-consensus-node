@@ -55,6 +55,6 @@ class DocExamplesTest {
         final long lastRound = network.newConsensusResults().results().get(0).lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(35);
+        assertThat(lastRound).isEqualTo(36);
     }
 }

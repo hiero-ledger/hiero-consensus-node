@@ -251,7 +251,6 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Set up the round
         given(round.iterator()).willReturn(List.of(event).iterator());
@@ -305,7 +304,6 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -366,7 +364,6 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -435,7 +432,6 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -535,7 +531,6 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
