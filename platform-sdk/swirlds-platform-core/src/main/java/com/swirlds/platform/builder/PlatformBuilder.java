@@ -479,7 +479,7 @@ public final class PlatformBuilder {
         }
 
         if (secureRandomSupplier == null) {
-            secureRandomSupplier = () ->{
+            secureRandomSupplier = () -> {
                 try {
                     return SecureRandom.getInstanceStrong();
                 } catch (final NoSuchAlgorithmException e) {

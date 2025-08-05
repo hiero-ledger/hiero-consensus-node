@@ -1182,10 +1182,10 @@ class TipsetEventCreatorTests {
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-            @ParamSource(
-                    param = "random",
-                    fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                    method = "getRandomPrintSeed")
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
     })
     @DisplayName("calculateNewEventCreationTime Test()")
     void coinValueTest(@ParamName("random") final Random random) {
@@ -1200,7 +1200,8 @@ class TipsetEventCreatorTests {
         var event = eventCreator.maybeCreateEvent(); // the self-parent
         assertNotNull(event, "An event should have been created");
         assertTrue(event.getEventCore().coin() > 0, "Coin value should be greater than 0");
-        assertTrue(event.getEventCore().coin() <= networkSize, "The maximum coin value should be equal to the network size");
-
+        assertTrue(
+                event.getEventCore().coin() <= networkSize,
+                "The maximum coin value should be equal to the network size");
     }
 }

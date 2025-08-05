@@ -401,7 +401,7 @@ public class TipsetEventCreator implements EventCreator {
                 eventWindow.newEventBirthRound(),
                 timeCreated,
                 transactionSupplier.getTransactions(),
-                random.nextLong(0, roster.rosterEntries().size())+1);
+                random.nextLong(0, roster.rosterEntries().size()) + 1);
         eventHasher.hashUnsignedEvent(event);
 
         return event;
