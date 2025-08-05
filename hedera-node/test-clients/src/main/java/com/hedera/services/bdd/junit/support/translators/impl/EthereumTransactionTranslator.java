@@ -138,9 +138,11 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                         baseTranslator.addChangedContractNonces(
                                                                 derivedBuilder, remainingStateChanges);
                                                         Bytes initcode = null;
-                                                        boolean needsExternalization = false;
                                                         requireNonNull(finalEthTxData);
-                                                        if (!ethTx.hasCallData()) {
+                                                        if (!ethTx.hasCallData()
+                                                                || ethTx.ethereumData()
+                                                                                .length()
+                                                                        > 0) {
                                                             initcode = Bytes.wrap(finalEthTxData.callData());
                                                         } else {
                                                             final long fileNum = ethTx.callDataOrElse(FileID.DEFAULT)
@@ -152,15 +154,11 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                                 initcode = Bytes.fromHex(hexedInitcode
                                                                         + Bytes.wrap(finalEthTxData.callData())
                                                                                 .toHex());
-                                                                needsExternalization = true;
                                                             }
                                                         }
                                                         if (initcode != null) {
                                                             final var builder = ExecutedInitcode.newBuilder()
                                                                     .contractId(createdId);
-                                                            if (needsExternalization) {
-                                                                builder.explicitInitcode(initcode);
-                                                            }
                                                             baseTranslator.trackInitcode(
                                                                     parts.consensusTimestamp(), builder.build(), true);
                                                         }
