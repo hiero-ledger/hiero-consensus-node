@@ -70,7 +70,7 @@ public class ScheduleCallTest {
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(withOpContext(
-                scheduledCallTest(2_600_000, new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
+                scheduledCallTest(new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
@@ -81,7 +81,6 @@ public class ScheduleCallTest {
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
-                2_800_000,
                 scheduleIdHolder,
                 false,
                 sender.name(),
@@ -98,7 +97,6 @@ public class ScheduleCallTest {
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
-                3_000_000,
                 scheduleIdHolder,
                 true,
                 sender.name(),
@@ -108,7 +106,6 @@ public class ScheduleCallTest {
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallTest(
-            final long gas,
             @NonNull final AtomicReference<String> scheduleIdHolder,
             @NonNull final String functionName,
             @NonNull final Object... parameters) {
@@ -118,8 +115,7 @@ public class ScheduleCallTest {
             allRunFor(
                     spec,
                     contract.call(functionName, parameters)
-                            .gas(gas)
-                            .via(functionName) // TODO add function name to tx name to identify tx
+                            .gas(2_000_000)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
                             .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
                                     .resultThruAbi(
@@ -145,14 +141,13 @@ public class ScheduleCallTest {
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallWithSignTest(
-            final long gas,
             @NonNull final AtomicReference<String> scheduleIdHolder,
             final boolean executedAfterSigning,
             @NonNull final String payer,
             @NonNull final String functionName,
             @NonNull final Object... parameters) {
         return (spec, opLog) -> {
-            scheduledCallTest(gas, scheduleIdHolder, functionName, parameters).assertFor(spec, opLog);
+            scheduledCallTest(scheduleIdHolder, functionName, parameters).assertFor(spec, opLog);
             HapiGetScheduleInfo info = getScheduleInfo(scheduleIdHolder.get())
                     .hasScheduleId(scheduleIdHolder.get())
                     .isNotDeleted();

@@ -67,15 +67,28 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
-        // create TransactionBody
-        final var body = TransactionBody.newBuilder()
-                // create ScheduleCreateTransactionBody
+        return new DispatchForResponseCodeHssCall(
+                attempt, transactionBodyFor(scheduleIdFor(attempt)), DeleteScheduleTranslator::gasRequirement,
+                attempt.keySetFor());
+    }
+
+    /**
+     * Creates a transaction body for:
+     * <br>
+     * - {@code deleteSchedule(address)}
+     * <br>
+     * - {@code proxy deleteSchedule()}
+     *
+     * @param scheduleId the schedule ID
+     * @return the transaction body
+     */
+    @VisibleForTesting
+    public TransactionBody transactionBodyFor(@NonNull final ScheduleID scheduleId) {
+        return TransactionBody.newBuilder()
                 .scheduleDelete(ScheduleDeleteTransactionBody.newBuilder()
-                        .scheduleID(scheduleIdFor(attempt))
+                        .scheduleID(scheduleId)
                         .build())
                 .build();
-        return new DispatchForResponseCodeHssCall(
-                attempt, body, DeleteScheduleTranslator::gasRequirement, attempt.keySetFor());
     }
 
     /**
@@ -100,7 +113,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     }
 
     /**
-     * Calculates the gas requirement for a {@code SCHEDULE_CREATE} call.
+     * Calculates the gas requirement for a {@code SCHEDULE_DELETE} call.
      *
      * @param body                        the transaction body
      * @param systemContractGasCalculator the gas calculator

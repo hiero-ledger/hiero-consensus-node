@@ -7,14 +7,19 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_B
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -58,6 +63,12 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
     @Mock
     private TransactionBody transactionBody;
 
+    @Mock
+    private Schedule schedule;
+
+    @Mock
+    private ScheduleID scheduleID;
+
     private DeleteScheduleTranslator subject;
 
     @BeforeEach
@@ -85,12 +96,45 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         assertEquals(data.present(), subject.identifyMethod(attempt).isPresent());
     }
 
+    @Test
+    void testTransactionBodyFor() {
+        // when:
+        final var body = subject.transactionBodyFor(scheduleID);
+        // then:
+        assertTrue(body.hasScheduleDelete());
+        assertThat(body.scheduleDeleteOrThrow().scheduleID()).isEqualTo(scheduleID);
+    }
+
     private static List<Bytes> deleteScheduleFunctions() {
         return List.of(
                 Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
                         Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))),
                 bytesForRedirectScheduleTxn(
                         DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS));
+    }
+
+    @Test
+    void testScheduleIdFor() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        // when:
+        attempt = createHssCallAttempt(Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
+                Tuple.singleton(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)))), false, configuration, List.of(subject));
+        final var scheduleId = subject.scheduleIdFor(attempt);
+        // then:
+        assertEquals(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS), scheduleId.scheduleNum());
+    }
+
+    @Test
+    void testScheduleIdForProxy() {
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(schedule.scheduleId()).willReturn(scheduleID);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        // when:
+        attempt = createHssCallAttempt(bytesForRedirectScheduleTxn(
+                DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), false, configuration, List.of(subject));
+        final var scheduleId = subject.scheduleIdFor(attempt);
+        // then:
+        assertEquals(scheduleID, scheduleId);
     }
 
     @ParameterizedTest
@@ -104,8 +148,8 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         attempt = createHssCallAttempt(input, false, configuration, List.of(subject));
-        // then:
         final var call = subject.callFrom(attempt);
+        // then:
         assertThat(call).isInstanceOf(DispatchForResponseCodeHssCall.class);
     }
 
