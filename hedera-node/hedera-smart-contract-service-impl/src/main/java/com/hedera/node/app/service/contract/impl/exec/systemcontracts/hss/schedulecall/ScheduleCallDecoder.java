@@ -73,7 +73,7 @@ public class ScheduleCallDecoder {
         final BigInteger expirySecond = call.get(paramIndex++);
         final BigInteger gasLimit = call.get(paramIndex++);
         final BigInteger value = call.get(paramIndex++);
-        final var callData = Bytes.wrap((byte[]) call.get(paramIndex));
+        final byte[] callData = call.get(paramIndex);
 
         // convert parameters
         final var contractId = ConversionUtils.asContractId(
@@ -103,7 +103,7 @@ public class ScheduleCallDecoder {
      * @return the transaction body
      */
     @VisibleForTesting
-    private TransactionBody transactionBodyFor(
+    public TransactionBody transactionBodyFor(
             @NonNull final HssCallAttempt attempt, @NonNull final ScheduleCreateTransactionBody scheduleCreateTrx) {
         return TransactionBody.newBuilder()
                 // passing current TransactionID to HSS via child call for actual schedule creation
@@ -130,7 +130,7 @@ public class ScheduleCallDecoder {
      * @return the 'schedule create' transaction body
      */
     @VisibleForTesting
-    private ScheduleCreateTransactionBody scheduleCreateTransactionBodyFor(
+    public ScheduleCreateTransactionBody scheduleCreateTransactionBodyFor(
             @NonNull final SchedulableTransactionBody scheduleTrx,
             @NonNull final Set<Key> keys,
             @NonNull final BigInteger expirySecond,
@@ -168,11 +168,11 @@ public class ScheduleCallDecoder {
      * @return the 'schedule transaction' body with 'contract call'
      */
     @VisibleForTesting
-    private SchedulableTransactionBody scheduledTransactionBodyFor(
+    public SchedulableTransactionBody scheduledTransactionBodyFor(
             @NonNull final ContractID contractId,
             @NonNull final BigInteger gasLimit,
             @NonNull final BigInteger value,
-            @NonNull Bytes callData) {
+            @NonNull byte[] callData) {
         requireNonNull(contractId);
         requireNonNull(gasLimit);
         requireNonNull(value);
@@ -182,7 +182,7 @@ public class ScheduleCallDecoder {
                         .contractID(contractId)
                         .gas(gasLimit.longValueExact())
                         .amount(value.longValueExact())
-                        .functionParameters(callData))
+                        .functionParameters(Bytes.wrap(callData)))
                 .build();
     }
 }

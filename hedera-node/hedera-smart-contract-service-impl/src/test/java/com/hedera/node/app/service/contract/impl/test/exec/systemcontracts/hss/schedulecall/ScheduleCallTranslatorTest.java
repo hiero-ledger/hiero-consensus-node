@@ -97,7 +97,7 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
 
     public record TestFunction(Bytes input, Object senderParameter, Address senderAddress) {}
 
-    private static List<TestFunction> scheduleCallFunctions() {
+    public static List<TestFunction> scheduleCallFunctions() {
         return Stream.of(
                         // long zero
                         asHeadlongAddress(666),
