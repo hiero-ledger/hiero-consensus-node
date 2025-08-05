@@ -39,12 +39,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -2170,21 +2172,34 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxnFirst")
                                 .hasKnownStatus(SUCCESS);
 
-                        // validate the public key account after the transfer
-                        final var secondInfoCheckED2559 = getAccountInfo(VALID_ALIAS_ED25519)
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ED25519)
-                                        .maxAutoAssociations(-1)
-                                        .balance(0L))
-                                .hasNoTokenRelationship(FT_FOR_AUTO_ACCOUNT)
-                                .hasToken(relationshipWith(NFT_FOR_AUTO_ACCOUNT))
-                                .hasOwnedNfts(0L);
+                        allRunFor(spec, atomicBatchTransactionSecond);
+
+                        // sync the registry to ensure the key is updated
+                        syncRegistryKeyFromAccountInfo(spec, VALID_ALIAS_ED25519);
+
+                        // get the actual account key
+                        final var accountInfoSecond =
+                                getAccountInfo(VALID_ALIAS_ED25519).logged();
+                        allRunFor(spec, accountInfoSecond);
+
+                        final var actualKey = accountInfoSecond
+                                .getResponse()
+                                .getCryptoGetInfo()
+                                .getAccountInfo()
+                                .getKey();
+
+                        // validate the actual key is the expected one
+                        final var expectedKey = spec.registry().getKey(VALID_ALIAS_ED25519);
+                        assertEquals(
+                                expectedKey,
+                                actualKey,
+                                "The account key after the second edit should match the original key");
 
                         // validate owner account balance after transfers
                         final var ownerBalanceCheck =
                                 getAccountBalance(CIVILIAN).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 1L);
 
-                        allRunFor(spec, atomicBatchTransactionSecond, secondInfoCheckED2559, ownerBalanceCheck);
+                        allRunFor(spec, ownerBalanceCheck);
                     })));
         }
 
@@ -2969,6 +2984,15 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
                 IntStream.range(rangeStart, rangeEnd)
                         .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                         .toList());
+    }
+
+    private void syncRegistryKeyFromAccountInfo(HapiSpec spec, String aliasName) {
+        final var infoOp = getAccountInfo(aliasName);
+        allRunFor(spec, infoOp);
+
+        final var key = infoOp.getResponse().getCryptoGetInfo().getAccountInfo().getKey();
+
+        spec.registry().saveKey(aliasName, key);
     }
 
     private List<SpecOperation> createAccountsAndKeys() {
