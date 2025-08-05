@@ -253,7 +253,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             return virtualMaps.stream()
                     .map(virtualMap -> {
                         final long start = System.currentTimeMillis();
-                        final VirtualMapMetadata virtualMapMetadata = virtualMap.getState();
+                        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
                         final String label = virtualMapMetadata.getLabel();
                         final VirtualMap curMap = virtualMap.copy();
 

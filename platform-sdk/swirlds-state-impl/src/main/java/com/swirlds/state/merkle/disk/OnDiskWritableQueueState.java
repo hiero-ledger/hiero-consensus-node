@@ -2,14 +2,14 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapValue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForQueue;
+import static com.swirlds.state.merkle.StateUtils.getStateValue;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.QueueState;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -54,10 +54,10 @@ public class OnDiskWritableQueueState<E> extends WritableQueueStateBase<E> {
             state = new QueueState(1, 1);
         }
 
-        final Bytes keyBytes = getVirtualMapKeyForQueue(serviceName, stateKey, state.tail());
-        final VirtualMapValue virtualMapValue = getVirtualMapValue(serviceName, stateKey, element);
+        final Bytes keyBytes = getStateKeyForQueue(serviceName, stateKey, state.tail());
+        final StateValue stateValue = getStateValue(serviceName, stateKey, element);
 
-        virtualMap.put(keyBytes, virtualMapValue, VirtualMapValue.PROTOBUF);
+        virtualMap.put(keyBytes, stateValue, StateValue.PROTOBUF);
         // increment tail and update state
         onDiskQueueHelper.updateState(new QueueState(state.head(), state.tail() + 1));
 
@@ -70,12 +70,11 @@ public class OnDiskWritableQueueState<E> extends WritableQueueStateBase<E> {
     protected void removeFromDataSource() {
         final QueueState state = requireNonNull(onDiskQueueHelper.getState());
         if (!OnDiskQueueHelper.isEmpty(state)) {
-            final VirtualMapValue virtualMapValue = virtualMap.remove(
-                    getVirtualMapKeyForQueue(serviceName, stateKey, state.head()), VirtualMapValue.PROTOBUF);
+            final StateValue stateValue =
+                    virtualMap.remove(getStateKeyForQueue(serviceName, stateKey, state.head()), StateValue.PROTOBUF);
             // increment head and update state
             onDiskQueueHelper.updateState(new QueueState(state.head() + 1, state.tail()));
-            final var removedValue =
-                    virtualMapValue != null ? virtualMapValue.value().as() : null;
+            final var removedValue = stateValue != null ? stateValue.value().as() : null;
             // Log to transaction state log, what was removed
             logQueueRemove(computeLabel(serviceName, stateKey), removedValue);
         } else {

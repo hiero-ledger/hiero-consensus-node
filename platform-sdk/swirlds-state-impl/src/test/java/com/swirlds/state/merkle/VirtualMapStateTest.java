@@ -454,6 +454,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
             writableStates.getQueue(STEAM_STATE_KEY).add(ART);
             ((CommittableWritableStates) writableStates).commit();
 
+            // hash the state
+            virtualMapState.getHash();
+
             // Then we can check the content of getInfoJson
             final String infoJson = virtualMapState.getInfoJson();
             assertThat(infoJson)
@@ -461,9 +464,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                             + "{\"First-Service.STEAM\":{\"head\":1,\"path\":14,\"tail\":3}},"
                             + "\"VirtualMapMetadata\":{\"firstLeafPath\":8,\"lastLeafPath\":16},"
                             + "\"Singletons\":"
-                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"value\":\""
-                            + GHANA
-                            + "\"}}}");
+                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"mnemonic\":\"author-pyramid-maze-thing\"}}}");
         }
 
         private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {

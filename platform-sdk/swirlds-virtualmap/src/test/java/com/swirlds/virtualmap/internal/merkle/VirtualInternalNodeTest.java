@@ -140,8 +140,8 @@ class VirtualInternalNodeTest extends VirtualTestBase {
     @DisplayName("Getting a child that is on disk")
     void getValidChildOnDisk() throws IOException {
         final VirtualMap map = createMap();
-        map.getState().setLastLeafPath(12);
-        map.getState().setFirstLeafPath(6);
+        map.getMetadata().setLastLeafPath(12);
+        map.getMetadata().setFirstLeafPath(6);
 
         final List<VirtualLeafBytes> leaves = List.of(
                 new VirtualLeafBytes<>(6, D_KEY, DATE, TestValueCodec.INSTANCE),
