@@ -40,7 +40,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
     public static final SystemContractMethod DELETE_SCHEDULE = SystemContractMethod.declare(
                     "deleteSchedule(address)", ReturnTypes.INT_64)
             .withCategories(Category.SCHEDULE);
-    private static final int SCHEDULE_ID_INDEX = 0;
+    private static final int SCHEDULE_ADDRESS_INDEX = 0;
 
     public static final SystemContractMethod DELETE_SCHEDULE_PROXY = SystemContractMethod.declare(
                     "deleteSchedule()", ReturnTypes.INT_64)
@@ -105,7 +105,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
         requireNonNull(attempt);
         if (attempt.isSelector(DELETE_SCHEDULE)) {
             final var call = DELETE_SCHEDULE.decodeCall(attempt.inputBytes());
-            final Address scheduleAddress = call.get(SCHEDULE_ID_INDEX);
+            final Address scheduleAddress = call.get(SCHEDULE_ADDRESS_INDEX);
             final var number = ConversionUtils.numberOfLongZero(explicitFromHeadlong(scheduleAddress));
             return attempt.nativeOperations().entityIdFactory().newScheduleId(number);
         } else if (attempt.isSelector(DELETE_SCHEDULE_PROXY)) {
