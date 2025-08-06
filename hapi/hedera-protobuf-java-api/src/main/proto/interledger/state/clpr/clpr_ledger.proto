@@ -27,30 +27,30 @@ option java_multiple_files = true;
  * The ledger id is used as a key in the state key-value store.
  */
 message ClprLedgerId {
-  /**
-   * The ledger id as a byte array.
-   */
-  bytes ledger_id = 1;
+    /**
+     * The ledger id as a byte array.
+     */
+    bytes ledger_id = 1;
 }
 
 /**
  * A CLPR Ledger Configuration.
  */
 message ClprLedgerConfiguration {
-  /**
-   * The ledger id.
-   */
-  ClprLedgerId ledger_id = 1;
+    /**
+     * The ledger id.
+     */
+    ClprLedgerId ledger_id = 1;
 
-  /**
-   * The consensus timestamp for when the configuration became valid.
-   */
-  proto.Timestamp timestamp = 2;
+    /**
+     * The consensus timestamp for when the configuration became valid.
+     */
+    proto.Timestamp timestamp = 2;
 
-  /*
-   * The list of CLPR Endpoints for the ledger
-   */
-  repeated ClprEndpoint endpoints = 3;
+    /*
+     * The list of CLPR Endpoints for the ledger
+     */
+    repeated ClprEndpoint endpoints = 3;
 }
 
 /**
@@ -60,12 +60,12 @@ message ClprLedgerConfiguration {
  * The signing certificate MUST be present. </br>
  */
 message ClprEndpoint {
-  /**
-   * A CLPR network endpoint.
-   */
-  proto.ServiceEndpoint endpoint = 1;
-  /**
-   * The signing certificate for the endpoint.
-   */
-  bytes signing_certificate = 2;
+    /**
+     * A CLPR network endpoint.
+     */
+    proto.ServiceEndpoint endpoint = 1;
+    /**
+     * The signing certificate for the endpoint.
+     */
+    bytes signing_certificate = 2;
 }
