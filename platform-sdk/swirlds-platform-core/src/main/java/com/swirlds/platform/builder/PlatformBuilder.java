@@ -122,7 +122,7 @@ public final class PlatformBuilder {
     /**
      * The supplier of cryptographically secure random number generators.
      */
-    private Supplier<Random> secureRandomSupplier;
+    private Supplier<SecureRandom> secureRandomSupplier;
     /**
      * The platform context for this platform.
      */
@@ -363,7 +363,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withSecureRandomSupplier(@NonNull final Supplier<Random> secureRandomSupplier) {
+    public PlatformBuilder withSecureRandomSupplier(@NonNull final Supplier<SecureRandom> secureRandomSupplier) {
         throwIfAlreadyUsed();
         this.secureRandomSupplier = Objects.requireNonNull(secureRandomSupplier);
         return this;

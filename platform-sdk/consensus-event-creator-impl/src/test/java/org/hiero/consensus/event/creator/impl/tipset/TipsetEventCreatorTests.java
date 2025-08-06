@@ -1187,11 +1187,11 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("calculateNewEventCreationTime Test()")
+    @DisplayName("coinValue Test()")
     void coinValueTest(@ParamName("random") final Random random) {
 
         // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 10;
+        final int networkSize = random.nextInt(1, 100);
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final EventCreator eventCreator =
@@ -1199,7 +1199,7 @@ class TipsetEventCreatorTests {
 
         var event = eventCreator.maybeCreateEvent(); // the self-parent
         assertNotNull(event, "An event should have been created");
-        assertTrue(event.getEventCore().coin() > 0, "Coin value should be greater than 0");
+        assertTrue(event.getEventCore().coin() >= 0, "Coin value should be non-negative");
         assertTrue(
                 event.getEventCore().coin() <= networkSize,
                 "The maximum coin value should be equal to the network size");

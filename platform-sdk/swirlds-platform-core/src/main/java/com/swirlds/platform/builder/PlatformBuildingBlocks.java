@@ -24,6 +24,7 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -102,7 +103,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull Supplier<Random> secureRandomSupplier,
+        @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull TransactionPoolNexus transactionPoolNexus,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
