@@ -9,11 +9,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeConsensusResults}
@@ -76,6 +78,18 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
                 .toList();
         return new MultipleNodeConsensusResultsImpl(newResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull MultipleNodeConsensusResults suppressingNodes(@NotNull final List<Node> nodes) {
+        final List<NodeId> nodeIdToSuppress = nodes.stream().map(Node::selfId).toList();
+        final List<SingleNodeConsensusResult> filtered = results.stream()
+                .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
+                .toList();
+        return new MultipleNodeConsensusResultsImpl(filtered);
     }
 
     /**
