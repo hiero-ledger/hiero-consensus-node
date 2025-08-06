@@ -464,7 +464,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                             + "{\"First-Service.STEAM\":{\"head\":1,\"path\":14,\"tail\":3}},"
                             + "\"VirtualMapMetadata\":{\"firstLeafPath\":8,\"lastLeafPath\":16},"
                             + "\"Singletons\":"
-                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"mnemonic\":\"letter-tank-snow-hip\"}}}");
+                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"mnemonic\":\"author-pyramid-maze-thing\"}}}");
         }
 
         private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {

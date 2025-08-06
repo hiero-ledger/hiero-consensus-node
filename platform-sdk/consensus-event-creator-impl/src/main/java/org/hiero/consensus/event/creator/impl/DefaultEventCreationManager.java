@@ -88,7 +88,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
-        futureEventBuffer = new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND);
+        futureEventBuffer =
+                new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND, "eventCreator");
 
         phase = new PhaseTimerBuilder<>(metrics, time, "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()

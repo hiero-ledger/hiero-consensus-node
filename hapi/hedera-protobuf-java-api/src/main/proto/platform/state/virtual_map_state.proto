@@ -18,6 +18,7 @@ option java_multiple_files = true;
 
 import "services/timestamp.proto";
 import "services/basic_types.proto";
+import "services/hook_types.proto";
 import "services/exchange_rate.proto";
 import "services/auxiliary/hints/crs_publication.proto";
 import "services/auxiliary/tss/tss_message.proto";
@@ -33,6 +34,7 @@ import "services/state/congestion/congestion_level_starts.proto";
 import "services/state/consensus/topic.proto";
 import "services/state/contract/bytecode.proto";
 import "services/state/contract/storage_slot.proto";
+import "services/state/contract/evm_hook_state.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/state/file/file.proto";
 import "services/state/hints/hints_types.proto";
@@ -55,20 +57,20 @@ import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
 
 /**
- * This message defines the Virtual Leaf.
+ * This message defines the State Item.
  */
-message VirtualLeaf {
+message StateItem {
   /**
-   * Virtual Key.<br/>
+   * State Key.<br/>
    * The key used to identify and locate this virtual map entry.
    */
-  VirtualMapKey key = 2;
+  StateKey key = 2;
 
   /**
-   * Virtual Value.<br/>
+   * State Value.<br/>
    * The actual data content stored for this virtual map entry.
    */
-  VirtualMapValue value = 3;
+  StateValue value = 3;
 
 }
 
@@ -100,7 +102,7 @@ message QueueState {
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.
  */
-message VirtualMapKey {
+message StateKey {
   oneof key {
     SingletonType singleton = 1;
 
@@ -251,6 +253,16 @@ message VirtualMapKey {
      */    
     com.hedera.hapi.platform.state.NodeId HintsService_I_CRS_PUBLICATIONS = 49;
 
+    /**
+     * A state identifier for EVM hook states.
+     */
+    proto.HookId ContractService_I_EVM_HOOK_STATES = 51;
+
+    /**
+     * A state identifier for lambda storage.
+     */
+    com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -315,7 +327,7 @@ message VirtualMapKey {
  * Note that `_I_` plays a role of a reliable separator between the service name
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.<br/>
- * ID ranges for VirtualMapValue types:
+ * ID ranges for StateValue types:
  * <ol>
  *   <li>0–7999: Core state entries. Reserved for all platform states
  *       (accounts, tokens, schedules, consensus topics, etc.).</li>
@@ -326,7 +338,7 @@ message VirtualMapKey {
  *       contents, etc.).</li>
  * </ol>
  */
-message VirtualMapValue {
+message StateValue {
   oneof value{
     /**
      * A state identifier for the next entity Identifier.
@@ -573,6 +585,16 @@ message VirtualMapValue {
      * A state identifier for the node rewards. Singleton state.
      */
     proto.NodeRewards TokenService_I_NODE_REWARDS = 50;
+
+    /**
+     * A state identifier for EVM hook states.
+     */
+    com.hedera.hapi.node.state.hooks.EvmHookState ContractService_I_EVM_HOOK_STATES = 51;
+
+    /**
+     * A state identifier for lambda storage.
+     */
+    proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
      * Metadata of the round receipts queue.

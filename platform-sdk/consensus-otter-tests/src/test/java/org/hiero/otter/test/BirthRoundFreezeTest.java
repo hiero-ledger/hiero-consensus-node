@@ -30,10 +30,9 @@ public class BirthRoundFreezeTest {
      * </pre>
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
-    void testFreezeInBirthRoundMode(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testFreezeInBirthRoundMode(@NonNull final TestEnvironment env) {
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

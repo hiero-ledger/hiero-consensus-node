@@ -152,7 +152,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void killImmediately() throws InterruptedException {
+    public void killImmediately() {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
@@ -334,11 +334,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
-    private void doShutdownNode() throws InterruptedException {
+    private void doShutdownNode() {
         if (lifeCycle == RUNNING) {
             markerFileObserver.stopObserving();
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            platform.destroy();
+            try {
+                platform.destroy();
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
+            }
             platformStatus = null;
             platform = null;
             platformWiring = null;
@@ -465,7 +469,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
          * {@inheritDoc}
          */
         @Override
-        public void killImmediately() throws InterruptedException {
+        public void killImmediately() {
             TurtleNode.this.killImmediately();
         }
 
