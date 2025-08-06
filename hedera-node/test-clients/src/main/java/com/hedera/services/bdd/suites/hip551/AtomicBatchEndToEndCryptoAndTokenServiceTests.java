@@ -153,7 +153,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                     createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
                     createNFTWithAdminKey(NFT_FOR_END_TO_END, OWNER, supplyKey),
-                    MintNFT(NFT_FOR_END_TO_END, 0, 10),
+                    mintNFT(NFT_FOR_END_TO_END, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -836,7 +836,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
                 .supplyKey(supplyKey);
     }
 
-    private HapiTokenMint MintNFT(String tokenName, int rangeStart, int rangeEnd) {
+    private HapiTokenMint mintNFT(String tokenName, int rangeStart, int rangeEnd) {
         return mintToken(
                 tokenName,
                 IntStream.range(rangeStart, rangeEnd)
