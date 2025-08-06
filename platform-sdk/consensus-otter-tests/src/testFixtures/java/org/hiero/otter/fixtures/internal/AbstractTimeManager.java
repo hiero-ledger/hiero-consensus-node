@@ -40,15 +40,14 @@ public abstract class AbstractTimeManager implements TimeManager {
      * Advance the time by the specified duration.
      *
      * @param duration the duration to advance the time by
-     * @throws InterruptedException if the thread is interrupted while advancing time
      */
-    protected abstract void advanceTime(@NonNull final Duration duration) throws InterruptedException;
+    protected abstract void advanceTime(@NonNull final Duration duration);
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void waitFor(@NonNull final Duration waitTime) throws InterruptedException {
+    public void waitFor(@NonNull final Duration waitTime) {
         log.info("Waiting for {}...", waitTime);
 
         waitForCondition(() -> false, waitTime);
@@ -58,8 +57,7 @@ public abstract class AbstractTimeManager implements TimeManager {
      * {@inheritDoc}
      */
     @Override
-    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime)
-            throws InterruptedException {
+    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
         log.debug("Waiting up to {} for condition to become true...", waitTime);
 
         final Instant start = now();

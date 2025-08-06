@@ -11,10 +11,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
@@ -27,7 +29,7 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
@@ -74,6 +76,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         this.selfId = ProtobufConverter.toPbj(request.getSelfId());
+        DockerLogConfigBuilder.configure(Path.of(""), selfId);
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
     }
@@ -131,8 +134,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             nodeManager.registerMarkerFileListener(
                     markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
 
-            InMemoryAppender.subscribe(log -> {
-                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
                 return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
             });
 

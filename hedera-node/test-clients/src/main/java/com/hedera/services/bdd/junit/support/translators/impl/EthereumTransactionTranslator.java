@@ -13,8 +13,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -124,6 +126,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             Bytes.wrap(finalEthTxData.callData()));
                                                 }
                                                 if (parts.status() == SUCCESS) {
+                                                    final var createdId = txCreateResult.contractIdOrThrow();
                                                     if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                                         // If all sidecars are disabled and there were no logs for a
                                                         // top-level creation,
@@ -144,8 +147,32 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                                 derivedBuilder, remainingStateChanges);
                                                         baseTranslator.addChangedContractNonces(
                                                                 derivedBuilder, remainingStateChanges);
+                                                        Bytes initcode = null;
+                                                        requireNonNull(finalEthTxData);
+                                                        if (!ethTx.hasCallData()
+                                                                || ethTx.ethereumData()
+                                                                                .length()
+                                                                        > 0) {
+                                                            initcode = Bytes.wrap(finalEthTxData.callData());
+                                                        } else {
+                                                            final long fileNum = ethTx.callDataOrElse(FileID.DEFAULT)
+                                                                    .fileNum();
+                                                            if (baseTranslator.knowsFileContents(fileNum)) {
+                                                                initcode = baseTranslator.getFileContents(fileNum);
+                                                                final var hexedInitcode =
+                                                                        new String(removeIfAnyLeading0x(initcode));
+                                                                initcode = Bytes.fromHex(hexedInitcode
+                                                                        + Bytes.wrap(finalEthTxData.callData())
+                                                                                .toHex());
+                                                            }
+                                                        }
+                                                        if (initcode != null) {
+                                                            final var builder = ExecutedInitcode.newBuilder()
+                                                                    .contractId(createdId);
+                                                            baseTranslator.trackInitcode(
+                                                                    parts.consensusTimestamp(), builder.build(), true);
+                                                        }
                                                     }
-                                                    final var createdId = txCreateResult.contractIdOrThrow();
                                                     baseTranslator.addCreatedEvmAddressTo(
                                                             derivedBuilder, createdId, remainingStateChanges);
                                                 }

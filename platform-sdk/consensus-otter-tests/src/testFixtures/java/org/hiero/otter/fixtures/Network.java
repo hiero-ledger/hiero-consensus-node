@@ -50,10 +50,8 @@ public interface Network {
      * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}. It will wait for a environment-specific timeout
      * before throwing an exception if the nodes do not reach the {@code ACTIVE} state. The default can be overridden by
      * calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while starting the network
      */
-    void start() throws InterruptedException;
+    void start();
 
     /**
      * Add an instrumented node to the network.
@@ -94,10 +92,8 @@ public interface Network {
      *
      * <p>It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void freeze() throws InterruptedException;
+    void freeze();
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
@@ -106,10 +102,8 @@ public interface Network {
      *
      * <p>The method will wait for an environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void shutdown() throws InterruptedException;
+    void shutdown();
 
     /**
      * Allows to override the default timeout for network operations.

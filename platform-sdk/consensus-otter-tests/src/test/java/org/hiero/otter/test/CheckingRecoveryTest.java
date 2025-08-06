@@ -30,10 +30,9 @@ public class CheckingRecoveryTest {
      * status after a period of synthetic bottlenecking.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest(requires = Capability.BACK_PRESSURE)
-    void testCheckingRecovery(final TestEnvironment env) throws InterruptedException {
+    void testCheckingRecovery(final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.EntityType.FILE;
 import static com.hedera.node.app.hapi.utils.EntityType.NODE;
@@ -119,7 +120,7 @@ public class BaseTranslator {
     private final Set<TokenAssociation> knownAssociations = new HashSet<>();
     private final Map<PendingAirdropId, PendingAirdropValue> pendingAirdrops = new HashMap<>();
     private final Map<Long, Bytes> userFileContents = new HashMap<>();
-    private final Map<Timestamp, ExecutedInitcode> initcodes = new HashMap<>();
+    private final Map<Timestamp, BackfillInitcode> initcodes = new HashMap<>();
 
     /**
      * These fields are used to translate a single "unit" of block items connected to a {@link TransactionID}.
@@ -131,6 +132,8 @@ public class BaseTranslator {
     private final Map<TokenID, List<Long>> highestPutSerialNos = new HashMap<>();
     private final Map<EntityType, List<Long>> nextCreatedNums = new EnumMap<>(EntityType.class);
     private final Set<ScheduleID> purgedScheduleIds = new HashSet<>();
+
+    private record BackfillInitcode(ExecutedInitcode initcode, boolean isEthTx) {}
 
     /**
      * Defines how a translator specifies details of a translated transaction record.
@@ -188,13 +191,15 @@ public class BaseTranslator {
 
     /**
      * Tracks the initcode for a contract creation at the given time.
+     *
      * @param now the consensus timestamp of the transaction
      * @param initcode the initcode
+     * @param isEthTx whether the creation is from an Ethereum transaction
      */
-    public void trackInitcode(@NonNull final Timestamp now, @NonNull final ExecutedInitcode initcode) {
+    public void trackInitcode(@NonNull final Timestamp now, @NonNull final ExecutedInitcode initcode, boolean isEthTx) {
         requireNonNull(now);
         requireNonNull(initcode);
-        initcodes.put(now, initcode);
+        initcodes.put(now, new BackfillInitcode(initcode, isEthTx));
     }
 
     /**
@@ -552,7 +557,7 @@ public class BaseTranslator {
     }
 
     private List<TransactionSidecarRecord> recoveredSidecars(
-            @NonNull final Timestamp now,
+            @NonNull Timestamp now,
             @NonNull final List<TraceData> tracesHere,
             @NonNull final List<TraceData> followingUnitTraces,
             @NonNull final List<StateChange> remainingStateChanges,
@@ -619,7 +624,7 @@ public class BaseTranslator {
                                     throw new IllegalStateException("No written value found for write to " + slotKey
                                             + " in " + remainingStateChanges);
                                 }
-                                value = sansLeadingZeros(valueFromState);
+                                value = ConversionUtils.minimalRepresentationOf(valueFromState);
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else {
@@ -642,9 +647,18 @@ public class BaseTranslator {
                         .build());
             }
             if (evmTraceData.hasExecutedInitcode() || initcodes.containsKey(now)) {
-                final var executedInitcode = evmTraceData.hasExecutedInitcode()
-                        ? evmTraceData.executedInitcodeOrThrow()
-                        : initcodes.get(now);
+                boolean isEthTx = false;
+                final ExecutedInitcode executedInitcode;
+                if (evmTraceData.hasExecutedInitcode()) {
+                    executedInitcode = evmTraceData.executedInitcodeOrThrow();
+                } else {
+                    final var backfillInitcode = initcodes.get(now);
+                    executedInitcode = backfillInitcode.initcode();
+                    isEthTx = backfillInitcode.isEthTx();
+                }
+                if (isEthTx) {
+                    now = asTimestamp(asInstant(now).plusNanos(1));
+                }
                 if (!executedInitcode.hasContractId()) {
                     sidecars.add(TransactionSidecarRecord.newBuilder()
                             .consensusTimestamp(now)
@@ -715,7 +729,7 @@ public class BaseTranslator {
                     slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
                 }
                 if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
-                    writtenKeys.add(sansLeadingZeros(slotKey.key()));
+                    writtenKeys.add(ConversionUtils.minimalRepresentationOf(slotKey.key()));
                 }
             }
             return writtenKeys;
@@ -801,23 +815,6 @@ public class BaseTranslator {
                 .data(log.data())
                 .topic(log.topics().stream().map(ConversionUtils::leftPad32).toList())
                 .build();
-    }
-
-    private static Bytes sansLeadingZeros(@NonNull final Bytes bytes) {
-        int i = 0;
-        int n = (int) bytes.length();
-        while (i < n && bytes.getByte(i) == 0) {
-            i++;
-        }
-        if (i == n) {
-            return Bytes.EMPTY;
-        } else if (i == 0) {
-            return bytes;
-        } else {
-            final var stripped = new byte[n - i];
-            bytes.getBytes(i, stripped, 0, n - i);
-            return Bytes.wrap(stripped);
-        }
     }
 
     /**

@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractVirtualMapKeyValueStateId;
+import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,8 +12,8 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.platform.state.VirtualMapKey;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -79,18 +79,18 @@ public class TokenRelationsIntegrity {
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = extractVirtualMapKeyValueStateId(keyBytes);
-            final int readValueStateId = extractVirtualMapKeyValueStateId(valueBytes);
+            final int readKeyStateId = extractStateKeyValueStateId(keyBytes);
+            final int readValueStateId = extractStateKeyValueStateId(valueBytes);
             if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
                 try {
-                    final VirtualMapKey parse = VirtualMapKey.PROTOBUF.parse(keyBytes);
+                    final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
 
-                    final EntityIDPair entityIDPair = parse.key().as();
+                    final EntityIDPair entityIDPair = stateKey.key().as();
                     final AccountID accountId1 = entityIDPair.accountId();
                     final TokenID tokenId1 = entityIDPair.tokenId();
 
-                    final VirtualMapValue virtualMapValue = VirtualMapValue.PROTOBUF.parse(valueBytes);
-                    final TokenRelation tokenRelation = virtualMapValue.value().as();
+                    final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    final TokenRelation tokenRelation = stateValue.value().as();
                     final AccountID accountId2 = tokenRelation.accountId();
                     final TokenID tokenId2 = tokenRelation.tokenId();
 

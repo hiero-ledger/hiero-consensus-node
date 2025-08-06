@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.hooks;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.hooks.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.hooks">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+
+/**
+ * Dispatches a hook action to an appropriate service.
+ */
+message HookDispatchTransactionBody {
+  oneof action {
+    /**
+     * The id of the hook to delete.
+     */
+    proto.HookId hook_id_to_delete = 1;
+
+    /**
+     * Creation details for a new hook.
+     */
+    HookCreation creation = 2;
+
+    /**
+     * Execution details of an existing hook.
+     */
+    HookExecution execution = 3;
+  }
+}
+
+/**
+ * Details the execution of a hook.
+ */
+message HookExecution {
+  /**
+   * The id of the hook's entity.
+   */
+  proto.HookEntityId hook_entity_id = 1;
+
+  /**
+   * The details of the call, including which hook id to call.
+   */
+  proto.HookCall call = 2;
+}
+

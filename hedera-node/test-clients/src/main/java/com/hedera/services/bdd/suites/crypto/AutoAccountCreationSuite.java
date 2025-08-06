@@ -110,48 +110,48 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class AutoAccountCreationSuite {
 
-    private static final long INITIAL_BALANCE = 1000L;
+    public static final long INITIAL_BALANCE = 1000L;
     private static final ByteString ALIAS_CONTENT = ByteString.copyFromUtf8(
             "a479462fba67674b5a41acfb16cb6828626b61d3f389fa611005a45754130e5c749073c0b1b791596430f4a54649cc8a3f6d28147dd4099070a5c3c4811d1771");
     private static final Key VALID_ED_25519_KEY =
             Key.newBuilder().setEd25519(ALIAS_CONTENT).build();
-    private static final ByteString VALID_25519_ALIAS = VALID_ED_25519_KEY.toByteString();
-    private static final String AUTO_MEMO = "";
+    public static final ByteString VALID_25519_ALIAS = VALID_ED_25519_KEY.toByteString();
+    public static final String AUTO_MEMO = "";
     public static final String LAZY_MEMO = "";
     public static final String VALID_ALIAS = "validAlias";
     private static final String PAYER = "payer";
-    private static final String TRANSFER_TXN = "transferTxn";
-    private static final String ALIAS = "alias";
-    private static final String PAYER_1 = "payer1";
-    private static final String ALIAS_2 = "alias2";
+    public static final String TRANSFER_TXN = "transferTxn";
+    public static final String ALIAS = "alias";
+    public static final String PAYER_1 = "payer1";
+    public static final String ALIAS_2 = "alias2";
     private static final String PAYER_4 = "payer4";
     private static final String TRANSFER_TXN_2 = "transferTxn2";
     private static final String TRANSFER_ALIAS = "transferAlias";
     public static final String A_TOKEN = "tokenA";
-    private static final String B_TOKEN = "tokenB";
+    public static final String B_TOKEN = "tokenB";
     public static final String NFT_INFINITE_SUPPLY_TOKEN = "nftA";
-    private static final String NFT_FINITE_SUPPLY_TOKEN = "nftB";
+    public static final String NFT_FINITE_SUPPLY_TOKEN = "nftB";
     private static final String MULTI_KEY = "multi";
     public static final String PARTY = "party";
     private static final String COUNTERPARTY = "counterparty";
 
-    private static final String CIVILIAN = "somebody";
+    public static final String CIVILIAN = "somebody";
     public static final String TOKEN_A_CREATE = "tokenACreateTxn";
 
-    private static final String TOKEN_B_CREATE = "tokenBCreateTxn";
+    public static final String TOKEN_B_CREATE = "tokenBCreateTxn";
     public static final String NFT_CREATE = "nftCreateTxn";
     private static final String SPONSOR = "autoCreateSponsor";
     public static final String LAZY_CREATE_SPONSOR = "lazyCreateSponsor";
 
-    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    private static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    private static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
-    private static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
+    public static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    public static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    public static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
+    public static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
 
     public static final String CRYPTO_TRANSFER_RECEIVER = "cryptoTransferReceiver";
     public static final String TRUE = "true";
     public static final String FALSE = "false";
-    private static final String HBAR_XFER = "hbarXfer";
+    public static final String HBAR_XFER = "hbarXfer";
     private static final String NFT_XFER = "nftXfer";
     private static final String FT_XFER = "ftXfer";
 
@@ -806,7 +806,7 @@ public class AutoAccountCreationSuite {
                                 LAZY_CREATE_SPONSOR, ByteString.copyFrom(targetAddress.get()), ONE_HUNDRED_HBARS))
                         .signedBy(DEFAULT_PAYER, LAZY_CREATE_SPONSOR)
                         .via(secondTransferTxn)),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged());
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).isHollow());
     }
 
     @HapiTest
@@ -1143,7 +1143,7 @@ public class AutoAccountCreationSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    static void assertAliasBalanceAndFeeInChildRecord(
+    public static void assertAliasBalanceAndFeeInChildRecord(
             final TransactionRecord parent,
             final TransactionRecord child,
             final AccountID sponsor,

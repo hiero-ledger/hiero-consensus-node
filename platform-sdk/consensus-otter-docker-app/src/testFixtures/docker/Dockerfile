@@ -1,7 +1,5 @@
 FROM eclipse-temurin:21
-RUN mkdir /opt/DockerApp && \
-    mkdir /opt/DockerApp/apps && \
-    mkdir /opt/DockerApp/lib
+RUN mkdir -p /opt/DockerApp/apps /opt/DockerApp/lib
 COPY apps/* /opt/DockerApp/apps/
 COPY lib/* /opt/DockerApp/lib/
 EXPOSE 8080
