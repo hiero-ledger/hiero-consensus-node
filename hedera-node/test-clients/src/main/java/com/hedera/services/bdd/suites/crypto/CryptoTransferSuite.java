@@ -196,8 +196,8 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> insufficientBalanceForCustomFeeFails() {
         final var operatorKey = "operatorKey";
-        final var accountId1Key = "accountId1Key";
-        final var accountId2Key = "accountId2Key";
+        final var accountId1Key = "accountId1Keys";
+        final var accountId2Key = "accountId2Keys";
         final var operator = "operator";
         final var accountId1 = "accountId1";
         final var accountId2 = "accountId2";
