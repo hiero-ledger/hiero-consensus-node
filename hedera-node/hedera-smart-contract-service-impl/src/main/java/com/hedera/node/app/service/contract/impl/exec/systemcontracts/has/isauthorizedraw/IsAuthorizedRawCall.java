@@ -10,7 +10,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
-import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.fixEcSignaturesInMap;
+import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.stripRecoveryIdFromEcdsaSignatures;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -25,9 +25,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
+
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -153,18 +152,16 @@ public class IsAuthorizedRawCall extends AbstractCall {
     public boolean validateEcSignature(final Account account) {
         requireNonNull(account, "account");
 
-        // Call the ECRECOVER precompile directly (meaning, not by executing EVM bytecode, just by
-        // using the class provided by Besu).
-        if (formatEcrecoverInput(messageHash, signature).isEmpty()) return false;
+        if (account.key().ecdsaSecp256k1() == null) return false;
 
         var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
-                        .pubKeyPrefix(account.key().ecdsaSecp256k1OrThrow())
+                        .pubKeyPrefix(account.key().ecdsaSecp256k1())
                         .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(signature))
                         .build())
                 .build();
 
-        signatureMap = fixEcSignaturesInMap(signatureMap);
+        signatureMap = stripRecoveryIdFromEcdsaSignatures(signatureMap);
         return signatureVerifier.verifySignature(
                 account.key(),
                 com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash),
@@ -197,67 +194,6 @@ public class IsAuthorizedRawCall extends AbstractCall {
     @NonNull
     ByteBuffer encodedAuthorizationOutput(final boolean authorized) {
         return IsAuthorizedRawTranslator.IS_AUTHORIZED_RAW.getOutputs().encode(Tuple.singleton(authorized));
-    }
-
-    /** Format our message hash and signature for input to the ECRECOVER precompile */
-    @NonNull
-    public Optional<byte[]> formatEcrecoverInput(@NonNull final byte[] messageHash, @NonNull final byte[] signature) {
-        requireNonNull(messageHash, "messageHash");
-        requireNonNull(signature, "signature");
-
-        // Signature:
-        //   [ 0;  31]  r
-        //   [32;  63]  s
-        //   [64;  64+]  v (but possibly 0..1 instead of 27..28)
-
-        // From evm.codes, input to ECRECOVER:
-        //   [ 0;  31]  hash
-        //   [32;  63]  v == recovery identifier ∈ {27,28}
-        //   [64;  95]  r == x-value ∈ (0, secp256k1n);
-        //   [96; 127]  s ∈ (0; sep256k1n ÷ 2 + 1)
-
-        //   From Ethereum yellow paper (for reference only):
-        //   secp256k1n = 2²⁵⁶ − 2³² − 977
-
-        if (messageHash.length != 32 || signature.length <= 64) return Optional.empty();
-        final var ov = reverseV(signature);
-        if (ov.isEmpty()) return Optional.empty();
-
-        final byte[] result = new byte[128];
-        System.arraycopy(messageHash, 0, result, 0, 32); // hash
-        result[63] = ov.get(); //                           v
-        System.arraycopy(signature, 0, result, 64, 32); //  r
-        System.arraycopy(signature, 32, result, 96, 32); // s
-
-        return Optional.of(result);
-    }
-
-    private static final Map<BigInteger, Byte> knownVs = Map.of(
-            BigInteger.ZERO,
-            (byte) 27,
-            BigInteger.ONE,
-            (byte) 28,
-            BigInteger.valueOf(27),
-            (byte) 27,
-            BigInteger.valueOf(28),
-            (byte) 28);
-
-    private static final BigInteger BIG_35 = BigInteger.valueOf(35);
-
-    /** Make sure v ∈ {27, 28} - but after EIP-155 it might come in with a chain id ... */
-    @NonNull
-    public Optional<Byte> reverseV(final byte[] signature) {
-        requireNonNull(signature);
-        if (signature.length <= 64) throw new IllegalArgumentException("Signature is too short");
-
-        final var v = new BigInteger(1, signature, 64, signature.length - 64);
-
-        if (knownVs.containsKey(v)) return Optional.of(knownVs.get(v));
-        if (BIG_35.compareTo(v) > 0) return Optional.empty(); // invalid
-
-        // v = {0,1} + (chainid * 2) + 35 thus parity is the opposite of the low order bit
-        final var parity = !v.testBit(0);
-        return Optional.of((byte) (parity ? 28 : 27));
     }
 
     public boolean isValidAccount(final long accountNum, @NonNull final SignatureType signatureType) {

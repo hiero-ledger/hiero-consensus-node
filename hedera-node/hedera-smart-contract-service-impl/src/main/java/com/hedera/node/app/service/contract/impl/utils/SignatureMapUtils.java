@@ -89,7 +89,7 @@ public class SignatureMapUtils {
      * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
      * @return Signature map with only 64 byte EC signatures (and all else unchanged)
      */
-    public static @NonNull SignatureMap fixEcSignaturesInMap(@NonNull final SignatureMap sigMap) {
+    public static @NonNull SignatureMap stripRecoveryIdFromEcdsaSignatures(@NonNull final SignatureMap sigMap) {
         final List<SignaturePair> newPairs = new ArrayList<>();
         for (var spair : sigMap.sigPair()) {
             if (spair.hasEcdsaSecp256k1()) {

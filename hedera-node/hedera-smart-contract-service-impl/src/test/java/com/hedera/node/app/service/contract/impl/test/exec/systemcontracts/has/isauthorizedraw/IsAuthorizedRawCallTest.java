@@ -114,59 +114,6 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         assertTrue(result);
     }
 
-    @ParameterizedTest
-    @CsvSource({
-        "0,27",
-        "1,28",
-        "27,27",
-        "28,28",
-        "45,27",
-        "46,28",
-        "1000,28",
-        "1001,27",
-        "10000000,28",
-        "10000003,27",
-        "18,"
-    })
-    void reverseVTest(final long fromV, final Byte expectedV) {
-        subject = getSubject(APPROVED_HEADLONG_ADDRESS);
-
-        final var r = asBytes(fromV);
-        final var ecSig = new byte[64 + r.length];
-        System.arraycopy(r, 0, ecSig, 64, r.length);
-        final var v = subject.reverseV(ecSig);
-        if (expectedV == null) assertTrue(v.isEmpty());
-        else assertEquals(expectedV, v.get());
-    }
-
-    @Test
-    void formatEcrecoverInputHandlesInvalidInput() {
-        subject = getSubject(mock(Address.class));
-
-        assertFalse(subject.formatEcrecoverInput(new byte[31], new byte[65]).isPresent());
-        assertFalse(subject.formatEcrecoverInput(new byte[33], new byte[65]).isPresent());
-
-        assertFalse(subject.formatEcrecoverInput(new byte[32], new byte[63]).isPresent());
-        assertFalse(subject.formatEcrecoverInput(new byte[32], new byte[64]).isPresent());
-
-        assertTrue(subject.formatEcrecoverInput(new byte[32], new byte[65]).isPresent());
-    }
-
-    @Test
-    void reverseVHandlesValidAndInvalidValues() {
-        subject = getSubject(mock(Address.class));
-
-        final var sig = new byte[65];
-        sig[64] = 27;
-        assertEquals((byte) 27, subject.reverseV(sig).orElseThrow());
-
-        sig[64] = 28;
-        assertEquals((byte) 28, subject.reverseV(sig).orElseThrow());
-
-        sig[64] = 30;
-        assertTrue(subject.reverseV(sig).isEmpty());
-    }
-
     @Test
     void validateEdSignatureSucceedsForValidSignature() {
         final var account = mock(Account.class);

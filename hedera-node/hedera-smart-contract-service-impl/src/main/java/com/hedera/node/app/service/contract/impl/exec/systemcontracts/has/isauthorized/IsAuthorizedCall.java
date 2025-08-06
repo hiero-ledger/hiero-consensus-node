@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
-import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.fixEcSignaturesInMap;
+import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.stripRecoveryIdFromEcdsaSignatures;
 import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static java.util.Objects.requireNonNull;
 
@@ -73,7 +73,7 @@ public class IsAuthorizedCall extends AbstractCall {
         } catch (@NonNull final ParseException | NullPointerException ex) {
             return bail.apply(INVALID_TRANSACTION_BODY);
         }
-        sigMap = fixEcSignaturesInMap(sigMap);
+        sigMap = stripRecoveryIdFromEcdsaSignatures(sigMap);
 
         final var keyCounts = signatureVerifier.countSimpleKeys(key);
         final long gasRequirement = keyCounts.numEcdsaKeys() * customGasCalculator.getEcrecPrecompiledContractGasCost()

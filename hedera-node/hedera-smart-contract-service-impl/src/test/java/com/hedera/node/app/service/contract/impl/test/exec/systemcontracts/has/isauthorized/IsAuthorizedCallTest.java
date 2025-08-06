@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.message;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
-import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.fixEcSignaturesInMap;
+import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.stripRecoveryIdFromEcdsaSignatures;
 import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -159,7 +159,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void fixSignaturesButNothingToFix() {
         final var sigMapIn = getSignatureMapWith(3, 0, 2, 4);
         getSubject(APPROVED_HEADLONG_ADDRESS, encodeSignatureMap(sigMapIn));
-        final var sigMapOut = fixEcSignaturesInMap(sigMapIn);
+        final var sigMapOut = stripRecoveryIdFromEcdsaSignatures(sigMapIn);
         assertThat(sigMapOut.sigPair())
                 .containsExactlyInAnyOrder(sigMapIn.sigPair().toArray(new SignaturePair[0]));
     }
@@ -168,7 +168,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void fixSignaturesWithSomeToFix() {
         final var sigMapIn = getSignatureMapWith(2, 2, 2, 2);
         final var subject = getSubject(APPROVED_HEADLONG_ADDRESS, encodeSignatureMap(sigMapIn));
-        final var sigMapOut = fixEcSignaturesInMap(sigMapIn);
+        final var sigMapOut = stripRecoveryIdFromEcdsaSignatures(sigMapIn);
 
         final var pairsIn = new HashSet<>(sigMapIn.sigPair());
         final var pairsOut = new HashSet<>(sigMapOut.sigPair());
