@@ -3,7 +3,10 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -23,6 +26,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -71,6 +75,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         final var transferTokensToAssociatedAccount = cryptoTransfer(
                         moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                 .payingWith(OWNER)
+                .via("transferTxn")
                 .batchKey(BATCH_OPERATOR)
                 .hasKnownStatus(SUCCESS);
 
@@ -79,7 +84,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                 + RECEIVER_ASSOCIATED_FIRST + " in atomic batch transaction";
         final var submitMessageToTopic = submitMessageTo(TEST_TOPIC)
                 .message(messageContent)
-                .via("innerTxn")
+                .via("submitMessageTxn")
                 .payingWith(OWNER)
                 .batchKey(BATCH_OPERATOR)
                 .hasKnownStatus(SUCCESS);
@@ -107,6 +112,159 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                 getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
     }
 
+    @HapiTest
+    @DisplayName("Mint NFT with Metadata And Submit Message to Topic with the NFT Metadata Success in Atomic Batch")
+    public Stream<DynamicTest> mintNFTWithMetadataAndSubmitMessageToTopicWithTheNFTMetadataSuccessInBatch() {
+
+        final var nftMetadata = "ipfs://test-nft-uri-1";
+        final var metadataBytes = nftMetadata.getBytes();
+        final var messageContent = "Minted NFT with metadata: " + nftMetadata;
+
+        // mint NFT inner transaction
+        final var mintNftInnerTxn = mintToken(NFT_FOR_END_TO_END, List.of(ByteStringUtils.wrapUnsafely(metadataBytes)))
+                .payingWith(OWNER)
+                .via("mintTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        // send message to topic with the transfer details inner transaction
+        final var submitMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContent)
+                .via("submitMessageTxn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(flattened(
+                // create keys, tokens and accounts
+                createAccountsAndKeys(),
+                createNFTWithAdminKey(NFT_FOR_END_TO_END, OWNER, supplyKey),
+
+                // create topic with submit key
+                createTopic(TEST_TOPIC).submitKeyName(submitKey),
+
+                // perform the atomic batch transaction
+                atomicBatch(mintNftInnerTxn, submitMessageToTopic)
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                // validate NFT metadata
+                getTokenNftInfo(NFT_FOR_END_TO_END, 1L).hasMetadata(ByteString.copyFrom(metadataBytes)),
+                // Confirm one message is submitted to the topic
+                getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
+    }
+
+    @HapiTest
+    @DisplayName("Submit Messages to Topic for FT and NFT and Create and Mint the Tokens Success in Atomic Batch")
+    public Stream<DynamicTest> submitMessageToTopicForFT_And_NFTCreateAndMintTokensSuccessInBatch() {
+
+        final var nftMetadata = "ipfs://test-nft-uri-1";
+        final var metadataBytes = nftMetadata.getBytes();
+        final var messageContentNFT = "Minted NFT " + NFT_FOR_END_TO_END + " with metadata: " + nftMetadata;
+        final var messageContentFT = "Created FT " + FT_FOR_END_TO_END + " with initial supply of 100";
+
+        // mint NFT inner transaction
+        final var mintNftInnerTxn = mintToken(NFT_FOR_END_TO_END, List.of(ByteStringUtils.wrapUnsafely(metadataBytes)))
+                .payingWith(OWNER)
+                .via("mintNftTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        final var createFungibleTokenInnerTxn = createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey)
+                .payingWith(OWNER)
+                .via("createFungibleTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        // send message to topic with the transfer details inner transaction
+        final var submitFirstMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContentNFT)
+                .message(messageContentFT)
+                .via("submitMessageNFT_Txn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        final var submitSecondMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContentFT)
+                .via("submitMessageFT_Txn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(flattened(
+                // create keys, tokens and accounts
+                createAccountsAndKeys(),
+                createNFTWithAdminKey(NFT_FOR_END_TO_END, OWNER, supplyKey),
+
+                // create topic with submit key
+                createTopic(TEST_TOPIC).submitKeyName(submitKey),
+
+                // perform the atomic batch transaction
+                atomicBatch(
+                                mintNftInnerTxn,
+                                createFungibleTokenInnerTxn,
+                                submitFirstMessageToTopic,
+                                submitSecondMessageToTopic)
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                // validate NFT metadata
+                getTokenNftInfo(NFT_FOR_END_TO_END, 1L).hasMetadata(ByteString.copyFrom(metadataBytes)),
+                // validate treasury balances
+                getAccountBalance(OWNER)
+                        .hasTokenBalance(NFT_FOR_END_TO_END, 1L)
+                        .hasTokenBalance(FT_FOR_END_TO_END, 100L),
+                // Confirm two messages are submitted to the topic
+                getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(2)));
+    }
+
+    @HapiTest
+    @DisplayName("Token Associate And Submit Message to Topic with the Association Details Success in Atomic Batch")
+    public Stream<DynamicTest> tokenAssociateAndSubmitMessageToTopicWithTheAssociationDetailsSuccessInBatch() {
+
+        // token associate inner transaction
+        final var tokensAssociateToAccount = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END)
+                .payingWith(OWNER)
+                .via("associateTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        // send message to topic with the transfer details inner transaction
+        final var messageContent =
+                "Account " + RECEIVER_ASSOCIATED_FIRST + " associated with token " + FT_FOR_END_TO_END;
+        final var submitMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContent)
+                .via("submitMessageTxn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(flattened(
+                // create keys, tokens and accounts
+                createAccountsAndKeys(),
+                createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
+
+                // create topic with submit key
+                createTopic(TEST_TOPIC).submitKeyName(submitKey),
+
+                // perform the atomic batch transaction
+                atomicBatch(tokensAssociateToAccount, submitMessageToTopic)
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                // validate user is associated with the token
+                getAccountInfo(RECEIVER_ASSOCIATED_FIRST).hasToken(relationshipWith(FT_FOR_END_TO_END)),
+                // Confirm one message is submitted to the topic
+                getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
+    }
+
     private HapiTokenCreate createFungibleTokenWithAdminKey(
             String tokenName, long supply, String treasury, String adminKey) {
         return tokenCreate(tokenName)
@@ -124,7 +282,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                 .supplyKey(supplyKey);
     }
 
-    private HapiTokenMint MintNFT(String tokenName, int rangeStart, int rangeEnd) {
+    private HapiTokenMint mintNFT(String tokenName, int rangeStart, int rangeEnd) {
         return mintToken(
                 tokenName,
                 IntStream.range(rangeStart, rangeEnd)
