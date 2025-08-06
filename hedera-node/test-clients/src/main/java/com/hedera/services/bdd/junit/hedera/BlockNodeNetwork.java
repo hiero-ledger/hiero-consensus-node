@@ -37,7 +37,7 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
-    public static final int BLOCK_NODE_LOCAL_PORT = 8080;
+    public static final int BLOCK_NODE_LOCAL_PORT = 40840;
 
     private BlockNodeSimulatorController blockNodeSimulatorController;
 

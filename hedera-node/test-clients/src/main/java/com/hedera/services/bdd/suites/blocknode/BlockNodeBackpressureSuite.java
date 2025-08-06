@@ -6,11 +6,11 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -51,19 +51,14 @@ public class BlockNodeBackpressureSuite {
                         })
             })
     final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
-        final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
                 blockNodeSimulator(0).shutDownImmediately(),
-                doingContextual(spec -> time.set(Instant.now())),
-                // The node should not stop handling transactions even if the buffer is full
-                // We should see log messages about blocks being evicted
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                waitUntilNextBlocks(30),
+                assertHgcaaLogDoesNotContain(
                         byNodeId(0),
-                        time::get,
-                        Duration.of(20, SECONDS),
-                        Duration.of(45, SECONDS),
-                        "Block buffer is full and backpressure is disabled; evicting lowest block number")));
+                        "Block buffer is saturated; backpressure is being enabled",
+                        Duration.ofSeconds(15)));
     }
 
     @HapiTest
@@ -87,8 +82,6 @@ public class BlockNodeBackpressureSuite {
                 waitUntilNextBlocks(5),
                 blockNodeSimulator(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
-                // The node should not stop handling transactions even if the buffer is full
-                // We should see log messages about blocks being evicted
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -121,8 +114,6 @@ public class BlockNodeBackpressureSuite {
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 blockNodeSimulator(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
-                // The node should not stop handling transactions even if the buffer is full
-                // We should see log messages about blocks being evicted
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
