@@ -18,9 +18,8 @@ public interface TimeManager {
      * Wait for a specified duration.
      *
      * @param waitTime the duration to wait
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void waitFor(@NonNull Duration waitTime) throws InterruptedException;
+    void waitFor(@NonNull Duration waitTime);
 
     /**
      * Wait for a condition to become {@code true} within a specified time.
@@ -28,10 +27,8 @@ public interface TimeManager {
      * @param condition the condition to wait for, which should return {@code true} when the condition is met
      * @param waitTime the maximum duration to wait for the condition to become true
      * @return {@code true} if the condition became true within the specified time, {@code false} otherwise
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime)
-            throws InterruptedException;
+    boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime);
 
     /**
      * Returns the current time.
