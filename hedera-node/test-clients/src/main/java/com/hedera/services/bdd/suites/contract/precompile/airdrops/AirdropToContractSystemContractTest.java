@@ -37,7 +37,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATION;
@@ -81,7 +80,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -98,8 +96,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class AirdropToContractSystemContractTest {
 
-    private static final String BATCH_OPERATOR = "batchOperator";
-
     @Contract(contract = "Airdrop", maxAutoAssociations = -1, creationGas = 3_000_000)
     static SpecContract airdropContract;
 
@@ -109,12 +105,6 @@ public class AirdropToContractSystemContractTest {
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(sender.authorizeContract(airdropContract));
-
-        lifecycle.doAdhoc(
-                sender.authorizeContract(airdropContract), sender.transferHBarsTo(airdropContract, 5_000_000_000L));
-
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @Nested
@@ -133,23 +123,6 @@ public class AirdropToContractSystemContractTest {
                     token.treasury().transferUnitsTo(sender, 1000L, token),
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiverContract, 10L)
-                            .gas(1500000),
-                    receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
-        }
-
-        @HapiTest
-        @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
-        public Stream<DynamicTest> atomicAirdropToContract(
-                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                        SpecContract receiverContract,
-                @FungibleToken(initialSupply = 1000L) SpecFungibleToken token) {
-            return hapiTest(
-                    receiverContract.call("associateTokenToThisContract", token).gas(1_000_000L),
-                    sender.associateTokens(token),
-                    token.treasury().transferUnitsTo(sender, 1000L, token),
-                    airdropContract
-                            .call("tokenAirdrop", token, sender, receiverContract, 10L)
-                            .wrappedInBatchOperation(BATCH_OPERATOR)
                             .gas(1500000),
                     receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
         }

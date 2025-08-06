@@ -4,10 +4,8 @@ package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC904;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -23,7 +21,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +31,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class HRCTokenCancelTest {
-
-    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Account(name = "sender", tinybarBalance = 100_000_000_000L)
     static SpecAccount sender;
@@ -55,9 +50,6 @@ public class HRCTokenCancelTest {
                 sender.associateTokens(token, nft),
                 token.treasury().transferUnitsTo(sender, 10L, token),
                 nft.treasury().transferNFTsTo(sender, nft, 1L));
-
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
@@ -68,18 +60,6 @@ public class HRCTokenCancelTest {
                 tokenAirdrop(moving(10L, token.name()).between(sender.name(), receiver.name()))
                         .payingWith(sender.name()),
                 token.call(HRC904, "cancelAirdropFT", receiver).with(call -> call.payingWith(sender.name())));
-    }
-
-    @HapiTest
-    @DisplayName("Can cancel atomic airdrop of fungible token")
-    public Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken() {
-        return hapiTest(
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                tokenAirdrop(moving(10L, token.name()).between(sender.name(), receiver.name()))
-                        .payingWith(sender.name()),
-                token.call(HRC904, "cancelAirdropFT", receiver)
-                        .wrappedInBatchOperation(BATCH_OPERATOR)
-                        .with(call -> call.payingWith(sender.name())));
     }
 
     @HapiTest
