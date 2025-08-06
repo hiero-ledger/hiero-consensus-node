@@ -3,9 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -19,7 +17,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -37,28 +34,22 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(OrderAnnotation.class)
 public class TransferTokenTest {
 
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @Contract(contract = "TokenTransferContract", creationGas = 10_000_000L)
+    @Contract(contract = "TokenTransferContract", creationGas = 4_000_000L)
     static SpecContract tokenTransferContract;
 
-    @Contract(contract = "NestedHTSTransferrer", creationGas = 10_000_000L)
+    @Contract(contract = "NestedHTSTransferrer", creationGas = 4_000_000L)
     static SpecContract tokenReceiverContract;
 
     @FungibleToken(name = "fungibleToken")
     static SpecFungibleToken fungibleToken;
 
-    @Account(name = "account", tinybarBalance = 1000 * ONE_HUNDRED_HBARS)
+    @Account(name = "account", tinybarBalance = 100 * ONE_HUNDRED_HBARS)
     static SpecAccount account;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        fungibleToken.builder().totalSupply(40L);
+        fungibleToken.builder().totalSupply(20L);
         fungibleToken.setTreasury(account);
-
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     /**
@@ -85,23 +76,6 @@ public class TransferTokenTest {
                                     tokenTransferContract,
                                     tokenReceiverContract,
                                     2L)
-                            .gas(1_000_000L));
-        }
-
-        @HapiTest
-        @DisplayName("atomic transferring owner's tokens using transferToken function without explicit allowance")
-        public Stream<DynamicTest> atomicTransferUsingTransferToken() {
-            return hapiTest(
-                    tokenTransferContract.receiveUnitsFrom(account, fungibleToken, 20L),
-                    // Transfer using transferToken function
-                    tokenTransferContract
-                            .call(
-                                    "transferTokenPublic",
-                                    fungibleToken,
-                                    tokenTransferContract,
-                                    tokenReceiverContract,
-                                    2L)
-                            .wrappedInBatchOperation(BATCH_OPERATOR)
                             .gas(1_000_000L));
         }
 

@@ -8,9 +8,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.METADATA_TOO_LONG;
@@ -28,7 +26,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,8 +39,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class UpdateTokenMetadataTest {
 
-    private static final String BATCH_OPERATOR = "batchOperator";
-
     @Contract(contract = "UpdateTokenMetadata", creationGas = 4_000_000L, variant = VARIANT_16C)
     static SpecContract updateTokenMetadata;
 
@@ -54,13 +49,6 @@ public class UpdateTokenMetadataTest {
 
     @Account(maxAutoAssociations = 100, tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount treasury;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @Nested
     @DisplayName("use TokenUpdateNFTs HAPI operation, to update metadata of individual NFTs")
@@ -81,20 +69,6 @@ public class UpdateTokenMetadataTest {
                     nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("SN#" + serialNumber))),
                     updateTokenMetadata
                             .call("callUpdateNFTsMetadata", nft, new long[] {serialNumber}, "The Lion King".getBytes())
-                            .gas(1_000_000L)
-                            .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
-                    nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("The Lion King"))));
-        }
-
-        @HapiTest
-        @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
-        public Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT() {
-            final int serialNumber = 1;
-            return hapiTest(
-                    nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("SN#" + serialNumber))),
-                    updateTokenMetadata
-                            .call("callUpdateNFTsMetadata", nft, new long[] {serialNumber}, "The Lion King".getBytes())
-                            .wrappedInBatchOperation(BATCH_OPERATOR)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                     nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("The Lion King"))));

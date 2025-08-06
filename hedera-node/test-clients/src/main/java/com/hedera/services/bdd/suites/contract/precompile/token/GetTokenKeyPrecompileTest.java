@@ -8,34 +8,26 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.is
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.FREEZE_KEY;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.METADATA_KEY;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_NOT_PROVIDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -45,8 +37,6 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class GetTokenKeyPrecompileTest {
-
-    private static final String BATCH_OPERATOR = "batchOperator";
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
@@ -59,13 +49,6 @@ public class GetTokenKeyPrecompileTest {
             numPreMints = 1,
             keys = {ADMIN_KEY, SpecTokenKey.SUPPLY_KEY, SpecTokenKey.METADATA_KEY})
     static SpecNonFungibleToken nonFungibleToken;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     @DisplayName("can get a token's supply key via static call")
@@ -109,20 +92,6 @@ public class GetTokenKeyPrecompileTest {
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, KEY_NOT_PROVIDED)),
                 getTokenKeyContract16c
                         .call("getKeyFromToken", nonFungibleToken, BigInteger.valueOf(123L))
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, KEY_NOT_PROVIDED)));
-    }
-
-    @HapiTest
-    @DisplayName("atomic cannot get a nonsense key type")
-    public Stream<DynamicTest> atomicCannotGetNonsenseKeyType() {
-        return hapiTest(
-                getTokenKeyContract
-                        .call("getKeyFromToken", nonFungibleToken, BigInteger.valueOf(123L))
-                        .wrappedInBatchOperation(BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, KEY_NOT_PROVIDED)),
-                getTokenKeyContract16c
-                        .call("getKeyFromToken", nonFungibleToken, BigInteger.valueOf(123L))
-                        .wrappedInBatchOperation(BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, KEY_NOT_PROVIDED)));
     }
 

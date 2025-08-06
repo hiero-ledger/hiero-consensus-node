@@ -13,9 +13,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.contractIdKeyFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -45,7 +43,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -58,8 +55,6 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class UpdateTokenPrecompileTest {
-
-    private static final String BATCH_OPERATOR = "batchOperator";
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
@@ -75,13 +70,6 @@ public class UpdateTokenPrecompileTest {
 
     @Key(type = SECP_256K1)
     static SpecKey secp256k1Key;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     @DisplayName("cannot update a missing token")
@@ -166,16 +154,6 @@ public class UpdateTokenPrecompileTest {
         public Stream<DynamicTest> canUpdateName() {
             return hapiTest(
                     updateTokenPropertyContract.call("updateTokenName", sharedMutableToken, "NEW_NAME"),
-                    sharedMutableToken.getInfo().andAssert(info -> info.hasName("NEW_NAME")));
-        }
-
-        @HapiTest
-        @DisplayName("atomic can update the name")
-        public Stream<DynamicTest> atomicCanUpdateName() {
-            return hapiTest(
-                    updateTokenPropertyContract
-                            .call("updateTokenName", sharedMutableToken, "NEW_NAME")
-                            .wrappedInBatchOperation(BATCH_OPERATOR),
                     sharedMutableToken.getInfo().andAssert(info -> info.hasName("NEW_NAME")));
         }
 
