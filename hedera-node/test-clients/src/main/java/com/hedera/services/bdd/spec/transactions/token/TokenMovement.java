@@ -84,14 +84,19 @@ public class TokenMovement {
         expectedDecimals = -1;
     }
 
-    TokenMovement(String token, ByteString evmAddressSender, long amount, long[] serialNums, String receiver) {
+    TokenMovement(
+            @NonNull String token,
+            @NonNull ByteString evmAddressSender,
+            long amount,
+            @Nullable long[] serialNums,
+            @NonNull String receiver) {
         this.token = token;
         this.amount = amount;
         this.serialNums = serialNums;
 
         this.sender = Optional.empty();
-        this.receiver = Optional.ofNullable(receiver);
-        this.evmAddressSender = Optional.ofNullable(evmAddressSender);
+        this.receiver = Optional.of(receiver);
+        this.evmAddressSender = Optional.of(evmAddressSender);
         this.evmAddressReceiver = Optional.empty();
 
         receivers = Optional.empty();
