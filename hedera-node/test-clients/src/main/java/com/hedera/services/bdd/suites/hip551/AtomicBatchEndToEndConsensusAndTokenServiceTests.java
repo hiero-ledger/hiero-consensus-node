@@ -68,8 +68,10 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     }
 
     @HapiTest
-    @DisplayName("Token Transfer And Submit Message to Topic with the Transfer Details Success in Atomic Batch")
-    public Stream<DynamicTest> tokenTransferAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
+    @DisplayName(
+            "Token Transfer From Treasury to Receiver and Submit Message to Topic with the Transfer Details Success "
+                    + "in Atomic Batch")
+    public Stream<DynamicTest> tokenTransferFromTreasuryAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
 
         // token transfer inner transaction
         final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -113,7 +115,66 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     }
 
     @HapiTest
-    @DisplayName("Mint NFT with Metadata And Submit Message to Topic with the NFT Metadata Success in Atomic Batch")
+    @DisplayName("Token Transfer From Account to Receiver and Submit Message to Topic with the Transfer "
+            + "Details Success in Atomic Batch")
+    public Stream<DynamicTest>
+            tokenTransferFromAccountToReceiverAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
+
+        // token transfers inner transactions
+        final var transferTokensToFromOwnerToAssociatedAccount = cryptoTransfer(
+                        moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                .payingWith(OWNER)
+                .via("transferTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        final var transferTokensFromFirstToSecondAssociatedAccount = cryptoTransfer(
+                        moving(1, FT_FOR_END_TO_END).between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND))
+                .payingWith(RECEIVER_ASSOCIATED_FIRST)
+                .via("transferTxn2")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        // send message to topic with the transfer details inner transaction
+        final var messageContent = "Transfer of 10 tokens " + FT_FOR_END_TO_END + " from " + RECEIVER_ASSOCIATED_FIRST
+                + " to " + RECEIVER_ASSOCIATED_FIRST + " in atomic batch transaction";
+        final var submitMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContent)
+                .via("submitMessageTxn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(flattened(
+                // create keys, tokens and accounts
+                createAccountsAndKeys(),
+                createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
+                tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
+                tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_END_TO_END),
+
+                // create topic with submit key
+                createTopic(TEST_TOPIC).submitKeyName(submitKey),
+
+                // perform the atomic batch transaction
+                atomicBatch(
+                                transferTokensToFromOwnerToAssociatedAccount,
+                                transferTokensFromFirstToSecondAssociatedAccount,
+                                submitMessageToTopic)
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                // validate account balances and token info
+                getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 9L),
+                getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_END_TO_END, 1L),
+                getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 0L),
+                // Confirm one message is submitted to the topic
+                getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
+    }
+
+    @HapiTest
+    @DisplayName("Mint NFT with Metadata and Submit Message to Topic with the NFT Metadata Success in Atomic Batch")
     public Stream<DynamicTest> mintNFTWithMetadataAndSubmitMessageToTopicWithTheNFTMetadataSuccessInBatch() {
 
         final var nftMetadata = "ipfs://test-nft-uri-1";
@@ -224,7 +285,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     }
 
     @HapiTest
-    @DisplayName("Token Associate And Submit Message to Topic with the Association Details Success in Atomic Batch")
+    @DisplayName("Token Associate and Submit Message to Topic with the Association Details Success in Atomic Batch")
     public Stream<DynamicTest> tokenAssociateAndSubmitMessageToTopicWithTheAssociationDetailsSuccessInBatch() {
 
         // token associate inner transaction
@@ -261,6 +322,52 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
                 // validate user is associated with the token
                 getAccountInfo(RECEIVER_ASSOCIATED_FIRST).hasToken(relationshipWith(FT_FOR_END_TO_END)),
+                // Confirm one message is submitted to the topic
+                getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
+    }
+
+    @HapiTest
+    @DisplayName(
+            "Grans KYS to Account and Submit Message to Topic with the Transfer Details Success " + "in Atomic Batch")
+    public Stream<DynamicTest> grantKYCToAccountAndSubmitMessageToTopicWithTheKYCDetailsSuccessInBatch() {
+
+        // token transfer inner transaction
+        final var transferTokensToAssociatedAccount = cryptoTransfer(
+                        moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                .payingWith(OWNER)
+                .via("transferTxn")
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        // send message to topic with the transfer details inner transaction
+        final var messageContent = "Transfer of 10 tokens " + FT_FOR_END_TO_END + " from " + OWNER + " to "
+                + RECEIVER_ASSOCIATED_FIRST + " in atomic batch transaction";
+        final var submitMessageToTopic = submitMessageTo(TEST_TOPIC)
+                .message(messageContent)
+                .via("submitMessageTxn")
+                .payingWith(OWNER)
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(flattened(
+                // create keys, tokens and accounts
+                createAccountsAndKeys(),
+                createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
+                tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
+
+                // create topic with submit key
+                createTopic(TEST_TOPIC).submitKeyName(submitKey),
+
+                // perform the atomic batch transaction
+                atomicBatch(transferTokensToAssociatedAccount, submitMessageToTopic)
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                // validate account balances and token info
+                getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L),
+                getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 0L),
                 // Confirm one message is submitted to the topic
                 getTopicInfo(TEST_TOPIC).hasSubmitKey(submitKey).hasSeqNo(1)));
     }
