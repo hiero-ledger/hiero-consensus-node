@@ -13,6 +13,8 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.ANY;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
@@ -29,20 +31,27 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilOp.flatten;
-import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountsWithECKeysAllDifferentWays;
+import static com.hedera.services.bdd.spec.utilops.UtilStateChange.ecAccountsValidator;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.AUTO_CREATION_KEY_NAME_FN;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -63,6 +72,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -70,16 +80,21 @@ import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.UtilStateChange.ECKind;
+import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
@@ -139,44 +154,159 @@ public class CryptoUpdateSuite {
 
     private static final UnaryOperator<String> ROTATION_TXN = account -> account + "KeyRotation";
 
-    /**
-     * Creates four accounts with ECDSA keys, the first having a long-zero EVM address and the other three having
-     * arbitrary EVM addresses created via,
-     * <ol>
-     *     <li>Legacy HIP-32 auto-account creation via transfer to a key alias.</li>
-     *     <li>Hollow account creation via transfer to an EVM address.</li>
-     *     <li>Explicit HIP-583 specification of the EVM address on creation.</li>
-     * </ol>
-     * Then asserts that each of them have the expected EVM addresses in the {@link HapiGetAccountInfo} query both
-     * before and after key rotation; and that the record stream does not imply anything different.
-     */
+    /*
+      Test that long-zero EVM address has the expected value before and after
+      key rotation, and that hte record stream does not imply anything different.
+    */
     @HapiTest
-    final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddress() {
-        final var accountsToHaveKeysRotated =
-                ECKind.defaultAccountNames().values().stream().sorted().toList();
-        final var allTxnIds = Stream.concat(
-                        accountsToHaveKeysRotated.stream(),
-                        accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
-                .toArray(String[]::new);
+    final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForLongZero() {
+        final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        accountsToCreate.put(ECKind.LONG_ZERO, ECKind.LONG_ZERO.name());
+        final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
+        final Map<ECKind, Address> evmAddresses = new HashMap<>(); // Collect addresses of created accounts here
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
+
+                // Validate (after all ops executed) that the keeys were rotated
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        visibleNonSyntheticItems(keyRotationsValidator(accountsToHaveKeysRotated), allTxnIds),
+                        visibleNonSyntheticItems(
+                                keyRotationsValidator(accountsToHaveKeysRotated),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
+
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                createEthereumAccountsWithECKeysAllDifferentWays(),
+
+                // Validate (after all ops executed) that our accounts did get created
+                recordStreamMustIncludePassFrom(
+                        visibleNonSyntheticItems(
+                                ecAccountsValidator(evmAddresses, accountsToCreate),
+                                accountsToHaveKeysRotated.toArray(new String[0])),
+                        Duration.ofSeconds(15)),
+
+                // Create the account with a long-zero EVM address
+                cryptoCreate(accountsToCreate.get(ECKind.LONG_ZERO))
+                        .via(accountsToCreate.get(ECKind.LONG_ZERO))
+                        .keyShape(SECP256K1_ON)
+                        .exposingEvmAddressTo(address -> evmAddresses.put(ECKind.LONG_ZERO, address)),
+
+                // Save all EVM addresses
+                saveAllEvmAddresses(evmAddresses, accountsToCreate),
+                rotateKeys(accountsToHaveKeysRotated),
+
                 // --- ROTATE KEYS ---
-                blockingOrder(IntStream.range(0, accountsToHaveKeysRotated.size())
-                        .mapToObj(i -> {
-                            final var newKey = "replKey" + i;
-                            final var targetAccount = accountsToHaveKeysRotated.get(i);
-                            return blockingOrder(
-                                    newKeyNamed(newKey).shape(KeyShape.SECP256K1),
-                                    cryptoUpdate(targetAccount).key(newKey).via(ROTATION_TXN.apply(targetAccount)));
-                        })
-                        .toArray(SpecOperation[]::new)),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
+    }
+
+    /*
+      Test that auto and hollow EVM address has the expected value before and after
+      key rotation, and that hte record stream does not imply anything different.
+    */
+    @HapiTest
+    final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
+        final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        accountsToCreate.put(ECKind.AUTO, ECKind.AUTO.name().toLowerCase());
+        accountsToCreate.put(ECKind.HOLLOW, ECKind.HOLLOW.name().toLowerCase());
+        final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
+        final Map<ECKind, Address> evmAddresses = new HashMap<>();
+        return hapiTest(flatten(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
+
+                // Validate (after all ops executed) that the keeys were rotated
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        visibleNonSyntheticItems(
+                                keyRotationsValidator(accountsToHaveKeysRotated),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
+                        Duration.ofSeconds(15)),
+
+                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
+                // first couple of creations, so wait for a new record file boundary
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+
+                // Validate (after all ops executed) that our accounts did get created
+                recordStreamMustIncludePassFrom(
+                        visibleNonSyntheticItems(
+                                ecAccountsValidator(evmAddresses, accountsToCreate),
+                                accountsToHaveKeysRotated.toArray(new String[0])),
+                        Duration.ofSeconds(15)),
+
+                // Auto-create an account with an ECDSA key alias
+                createHip32Auto(1, KeyShape.SECP256K1, i -> accountsToCreate.get(ECKind.AUTO)),
+                withAddressOfKey(accountsToCreate.get(ECKind.AUTO), evmAddress -> {
+                    evmAddresses.put(ECKind.AUTO, evmAddress);
+                    return withOpContext((spec, opLog) -> spec.registry()
+                            .saveTxnId(
+                                    accountsToCreate.get(ECKind.AUTO),
+                                    spec.registry().getTxnId("hip32" + AUTO_CREATION_KEY_NAME_FN.apply(0))));
+                }),
+
+                // Create a hollow account and complete it
+                createHollow(
+                        1,
+                        i -> accountsToCreate.get(ECKind.HOLLOW),
+                        evmAddress -> cryptoTransfer(tinyBarsFromTo(GENESIS, evmAddress, ONE_HUNDRED_HBARS))),
+                withAddressOfKey(accountsToCreate.get(ECKind.HOLLOW), evmAddress -> {
+                    evmAddresses.put(ECKind.HOLLOW, evmAddress);
+                    return withOpContext((spec, opLog) -> {
+                        spec.registry()
+                                .saveTxnId(
+                                        accountsToCreate.get(ECKind.HOLLOW),
+                                        spec.registry()
+                                                .getTxnId(accountsToCreate.get(ECKind.AUTO)
+                                                        + "Create" /*from UtilVerbs.createHollow*/ + evmAddress));
+                    });
+                }),
+                cryptoTransfer(tinyBarsFromTo(accountsToCreate.get(ECKind.HOLLOW), FUNDING, 1))
+                        .payingWith(accountsToCreate.get(ECKind.HOLLOW))
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(accountsToCreate.get(ECKind.HOLLOW))),
+                saveAllEvmAddresses(evmAddresses, accountsToCreate),
+                rotateKeys(accountsToHaveKeysRotated),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
+    }
+
+    /*
+    Test that explicit alias EVM address has the expected value before and after
+    key rotation, and that hte record stream does not imply anything different.
+     */
+    @HapiTest
+    final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
+        final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        accountsToCreate.put(ECKind.EXPLICIT_ALIAS, ECKind.EXPLICIT_ALIAS.name());
+        final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
+        final Map<ECKind, Address> evmAddresses = new HashMap<>(); // Collect addresses of created accounts here
+        return hapiTest(flatten(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
+
+                // Validate (after all ops executed) that the keeys were rotated
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        visibleNonSyntheticItems(
+                                keyRotationsValidator(accountsToHaveKeysRotated),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
+                        Duration.ofSeconds(15)),
+
+                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
+                // first couple of creations, so wait for a new record file boundary
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+
+                // Validate (after all ops executed) that our accounts did get created
+                recordStreamMustIncludePassFrom(
+                        visibleNonSyntheticItems(
+                                ecAccountsValidator(evmAddresses, accountsToCreate),
+                                accountsToHaveKeysRotated.toArray(new String[0])),
+                        Duration.ofSeconds(15)),
+
+                // Create an account with an explicit EVM address
+                newKeyNamed(accountsToCreate.get(ECKind.EXPLICIT_ALIAS)).shape(KeyShape.SECP256K1),
+                withAddressOfKey(accountsToCreate.get(ECKind.EXPLICIT_ALIAS), evmAddress -> {
+                    evmAddresses.put(ECKind.EXPLICIT_ALIAS, evmAddress);
+                    return cryptoCreate(accountsToCreate.get(ECKind.EXPLICIT_ALIAS))
+                            .key(accountsToCreate.get(ECKind.EXPLICIT_ALIAS))
+                            .evmAddress(evmAddress)
+                            .via(accountsToCreate.get(ECKind.EXPLICIT_ALIAS));
+                }),
+                saveAllEvmAddresses(evmAddresses, accountsToCreate),
+                rotateKeys(accountsToHaveKeysRotated),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
     }
 
@@ -193,6 +323,38 @@ public class CryptoUpdateSuite {
                 assertEquals(0, updateEntry.txnRecord().getEvmAddress().size(), "for txnId " + txnId);
             }
         };
+    }
+
+    private InBlockingOrder rotateKeys(List<String> accountsToHaveKeysRotated) {
+        return blockingOrder(IntStream.range(0, accountsToHaveKeysRotated.size())
+                .mapToObj(i -> {
+                    final var newKey = "replKey" + i;
+                    final var targetAccount = accountsToHaveKeysRotated.get(i);
+                    return blockingOrder(
+                            newKeyNamed(newKey).shape(KeyShape.SECP256K1),
+                            cryptoUpdate(targetAccount).key(newKey).via(ROTATION_TXN.apply(targetAccount)));
+                })
+                .toArray(SpecOperation[]::new));
+    }
+
+    private CustomSpecAssert saveAllEvmAddresses(
+            Map<ECKind, Address> evmAddresses, Map<ECKind, String> accountsToCreate) {
+        return withOpContext((spec, opLog) -> {
+            for (final var e : evmAddresses.entrySet()) {
+                spec.registry()
+                        .saveEVMAddress(
+                                accountsToCreate.get(e.getKey()),
+                                e.getValue().value().toString(16));
+            }
+        });
+    }
+
+    private String[] rotateAndCalculateAllTxnIds(List<String> accountsToHaveKeysRotated) {
+        final var allTxnIds = Stream.concat(
+                        accountsToHaveKeysRotated.stream(),
+                        accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
+                .toArray(String[]::new);
+        return allTxnIds;
     }
 
     @HapiTest

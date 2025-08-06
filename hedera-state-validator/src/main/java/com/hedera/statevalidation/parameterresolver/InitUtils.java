@@ -2,9 +2,7 @@
 package com.hedera.statevalidation.parameterresolver;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.statevalidation.Constants.VM_LABEL;
 import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
-import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -86,9 +84,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.StateConfig;
@@ -96,12 +91,8 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.InstantSource;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -157,23 +148,6 @@ public class InitUtils {
 
     public static Configuration getConfiguration() {
         return CONFIGURATION;
-    }
-
-    /**
-     * This method initializes the virtual map and its data source
-     *
-     * @return the virtual map and its data source
-     */
-    static VirtualMapAndDataSourceRecord initVirtualMapRecord() {
-        final Path stateDirPath = Paths.get(STATE_DIR);
-        final MerkleDb merkleDb = MerkleDb.getInstance(stateDirPath, CONFIGURATION);
-        Map<String, MerkleDbTableConfig> tableConfigByNames = merkleDb.getTableConfigs();
-        MerkleDbTableConfig tableConfig = tableConfigByNames.get(VM_LABEL);
-
-        final var dataSourceBuilder = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
-        final var virtualMap = new VirtualMap(VM_LABEL, dataSourceBuilder, CONFIGURATION);
-
-        return new VirtualMapAndDataSourceRecord(VM_LABEL, (MerkleDbDataSource) virtualMap.getDataSource(), virtualMap);
     }
 
     /**

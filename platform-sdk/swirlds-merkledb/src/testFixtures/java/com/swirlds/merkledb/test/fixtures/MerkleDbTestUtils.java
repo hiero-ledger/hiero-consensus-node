@@ -51,10 +51,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashBuilder;
 
+@ConstructableIgnored
 @SuppressWarnings("unused")
 public class MerkleDbTestUtils {
 

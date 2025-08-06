@@ -160,7 +160,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnNext_acknowledgement_notStreaming() {
-        final PublishStreamResponse response = createBlockAckResponse(10L, false);
+        final PublishStreamResponse response = createBlockAckResponse(10L);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
         when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
@@ -178,7 +178,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnNext_acknowledgement_olderThanCurrentStreamingAndProducing() {
-        final PublishStreamResponse response = createBlockAckResponse(8L, false);
+        final PublishStreamResponse response = createBlockAckResponse(8L);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
@@ -199,7 +199,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_acknowledgement_newerThanCurrentProducing() {
         // I don't think this scenario is possible... we should never stream a block that is newer than the block
         // currently being produced.
-        final PublishStreamResponse response = createBlockAckResponse(11L, false);
+        final PublishStreamResponse response = createBlockAckResponse(11L);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
         when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
@@ -218,7 +218,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnNext_acknowledgement_newerThanCurrentStreaming() {
-        final PublishStreamResponse response = createBlockAckResponse(11L, false);
+        final PublishStreamResponse response = createBlockAckResponse(11L);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(stateManager.getLastBlockNumberProduced()).thenReturn(12L);
@@ -285,7 +285,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @ParameterizedTest
     @EnumSource(
             value = EndOfStream.Code.class,
-            names = {"INTERNAL_ERROR", "PERSISTENCE_FAILED"})
+            names = {"ERROR", "PERSISTENCE_FAILED"})
     void testOnNext_endOfStream_blockNodeInternalError(final EndOfStream.Code responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
@@ -305,7 +305,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @ParameterizedTest
     @EnumSource(
             value = EndOfStream.Code.class,
-            names = {"TIMEOUT", "DUPLICATE_BLOCK", "BAD_BLOCK_PROOF"})
+            names = {"TIMEOUT", "DUPLICATE_BLOCK", "BAD_BLOCK_PROOF", "INVALID_REQUEST"})
     void testOnNext_endOfStream_clientFailures(final EndOfStream.Code responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);

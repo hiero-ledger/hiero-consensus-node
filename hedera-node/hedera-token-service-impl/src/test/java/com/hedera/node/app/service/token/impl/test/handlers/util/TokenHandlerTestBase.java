@@ -6,17 +6,14 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TO
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.B_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.C_COMPLEX_KEY;
-import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
@@ -246,43 +243,5 @@ public class TokenHandlerTestBase {
                 .accountsKycGrantedByDefault(true)
                 .customFees(List.of(customFee))
                 .build();
-    }
-
-    protected Account newPayerAccount() {
-        return new Account(
-                AccountID.newBuilder().accountNum(2L).build(),
-                null,
-                payerKey,
-                1_234_567L,
-                10_000,
-                "testAccount",
-                false,
-                1_234L,
-                1_234_568L,
-                UNSET_STAKED_ID,
-                true,
-                true,
-                TokenID.newBuilder().tokenNum(3L).build(),
-                NftID.newBuilder().tokenId(TokenID.newBuilder().tokenNum(2L)).build(),
-                1,
-                2,
-                10,
-                1,
-                3,
-                false,
-                2,
-                0,
-                1000L,
-                AccountID.newBuilder().accountNum(2L).build(),
-                72000,
-                0,
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                2,
-                false,
-                null,
-                null,
-                0);
     }
 }
