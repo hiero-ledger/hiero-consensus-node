@@ -718,7 +718,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
 
-        // the action stage is at 50%, so open+close 7 blocks but don't ack them to get above the threshold
+        // The buffer will become fully saturated after 10 blocks
         for (int i = 1; i <= 10; ++i) {
             blockBufferService.openBlock(i);
             blockBufferService.closeBlock(i);
