@@ -44,15 +44,17 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -70,6 +72,7 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class NodeRewardManagerTest {
+
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -104,6 +107,9 @@ class NodeRewardManagerTest {
 
     @BeforeEach
     void setUp() {
+        // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
+        // we create another instance of MerkleDB.
+        MerkleDb.resetDefaultInstancePath();
         writableStates = mock(
                 WritableStates.class,
                 withSettings().extraInterfaces(CommittableWritableStates.class).strictness(Strictness.LENIENT));
@@ -144,6 +150,41 @@ class NodeRewardManagerTest {
 
         assertEquals(1, nodeRewardManager.getRoundsThisStakingPeriod());
         assertFalse(nodeRewardManager.getMissedJudgeCounts().isEmpty());
+
+        nodeRewardManager.resetNodeRewards();
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertTrue(nodeRewardManager.getMissedJudgeCounts().isEmpty());
+    }
+
+    @Test
+    void testUpdateJudgesOnEndRoundSetsNewNodeInActiveRosterMissedJudgesToCurrentTotalRoundsInStakingPeriod() {
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
+
+        for (int i = 0; i < 9; i++) {
+            nodeRewardManager.updateJudgesOnEndRound(state);
+        }
+
+        // Add nodeId 2 to the active roster after 9 rounds
+        final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
+                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
+                .build();
+        rosters.put(
+                ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
+                Roster.newBuilder()
+                        .rosterEntries(List.of(
+                                RosterEntry.newBuilder().nodeId(0L).build(),
+                                RosterEntry.newBuilder().nodeId(1L).build(),
+                                RosterEntry.newBuilder().nodeId(2L).build()))
+                        .build());
+        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
+
+        nodeRewardManager.updateJudgesOnEndRound(state);
+
+        // Now nodeId 2 should have missed judges equal to the current rounds in staking period
+        assertEquals(10, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(1L));
+        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(2L));
 
         nodeRewardManager.resetNodeRewards();
         assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
@@ -199,7 +240,8 @@ class NodeRewardManagerTest {
             NodeRewards nodeRewards,
             final PlatformState platformState,
             final NetworkStakingRewards networkStakingRewards) {
-        nodeRewardsState = new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
+        nodeRewardsState = new FunctionWritableSingletonState<>(
+                TokenService.NAME, NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
         nodeRewardsRef.set(nodeRewards);
         rosterStateRef.set(RosterState.newBuilder()
                 .roundRosterPairs(RoundRosterPair.newBuilder()
@@ -233,28 +275,34 @@ class NodeRewardManagerTest {
         given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
         given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .willReturn(new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
         given(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
-                .willReturn(
-                        new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        RosterService.NAME, ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
         given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()));
+                .willReturn(new FunctionReadableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                                .build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
+                .willReturn(new FunctionReadableSingletonState<>(
+                        EntityIdService.NAME,
                         ENTITY_COUNTS_KEY,
                         () -> EntityCounts.newBuilder().numNodes(1).build()));
-        final var networkRewardState = new WritableSingletonStateBase<>(
-                STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get, networkStakingRewardsRef::set);
-        final var readableNetworkRewardState =
-                new ReadableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get);
+        final var networkRewardState = new FunctionWritableSingletonState<>(
+                TokenService.NAME,
+                STAKING_NETWORK_REWARDS_KEY,
+                networkStakingRewardsRef::get,
+                networkStakingRewardsRef::set);
+        final var readableNetworkRewardState = new FunctionReadableSingletonState<>(
+                TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get);
         given(readableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
                 .willReturn(networkRewardState);
         given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
                 .willReturn(networkRewardState);
         //        given(readableNetworkRewardState.get()).willReturn(networkStakingRewardsRef.get());
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        WritableRosterStore.ROSTER_KEY)
+                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
                 .build();
         rosters.put(
                 ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
@@ -264,7 +312,7 @@ class NodeRewardManagerTest {
                                 RosterEntry.newBuilder().nodeId(1L).build()))
                         .build());
         lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
-        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_KEY)
+        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_KEY)
                 .value(asAccount(0, 0, 801), Account.DEFAULT)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);

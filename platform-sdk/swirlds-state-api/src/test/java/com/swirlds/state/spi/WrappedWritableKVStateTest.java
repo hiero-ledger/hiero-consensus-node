@@ -3,6 +3,7 @@ package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.HashMap;
@@ -15,15 +16,15 @@ import org.mockito.Mockito;
  * This test verifies the behavior of {@link WrappedWritableKVState}.
  */
 class WrappedWritableKVStateTest extends StateTestBase {
-    private WritableKVStateBase<String, String> delegate;
-    private WrappedWritableKVState<String, String> state;
+    private WritableKVStateBase<ProtoBytes, ProtoBytes> delegate;
+    private WrappedWritableKVState<ProtoBytes, ProtoBytes> state;
 
     @BeforeEach
     public void setUp() {
-        final var map = new HashMap<String, String>();
+        final var map = new HashMap<ProtoBytes, ProtoBytes>();
         map.put(A_KEY, APPLE);
         map.put(B_KEY, BANANA);
-        this.delegate = new MapWritableKVState<>(FRUIT_STATE_KEY, map);
+        this.delegate = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, map);
         this.state = Mockito.spy(new WrappedWritableKVState<>(delegate));
     }
 

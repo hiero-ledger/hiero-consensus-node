@@ -20,7 +20,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
-import static com.hedera.services.bdd.junit.support.validators.block.ChildHashUtils.hashesByName;
+import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -277,9 +277,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade());
-        this.state = hedera.newStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
+        this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
@@ -358,9 +358,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     applyStateChanges(item.stateChangesOrThrow());
                 } else if (item.hasEventHeader()) {
                     eventNodeId = item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
-                } else if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                } else if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
                         final var op = parts.body().hintsPartialSignatureOrThrow();
                         final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
@@ -412,26 +411,27 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         assertEntityCountsMatch(entityCounts);
 
+        // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
+        state.copy();
         CRYPTO.digestTreeSync(state.getRoot());
         final var rootHash = requireNonNull(state.getHash()).getBytes();
+
         if (!expectedRootHash.equals(rootHash)) {
-            final var expectedHashes = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
-            if (expectedHashes == null) {
-                throw new AssertionError("No expected hashes found in " + pathToNode0SwirldsLog);
+            final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
+            if (expectedRootMnemonic == null) {
+                throw new AssertionError("No expected root mnemonic found in " + pathToNode0SwirldsLog);
             }
-            final var actualHashes = hashesFor(state.getRoot());
+            final var actualRootMnemonic = rootMnemonicFor(state.getRoot());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
-            expectedHashes.forEach((stateName, expectedHash) -> {
-                final var actualHash = actualHashes.get(stateName);
-                if (!expectedHash.equals(actualHash)) {
-                    errorMsg.append("\n    * ")
-                            .append(stateName)
-                            .append(" - expected ")
-                            .append(expectedHash)
-                            .append(", was ")
-                            .append(actualHash);
-                }
-            });
+
+            if (!expectedRootMnemonic.equals(actualRootMnemonic)) {
+                errorMsg.append("\n    * ")
+                        .append("root mnemonic ")
+                        .append(" - expected ")
+                        .append(expectedRootMnemonic)
+                        .append(", was ")
+                        .append(actualRootMnemonic);
+            }
             Assertions.fail(errorMsg.toString());
         }
     }
@@ -501,7 +501,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         switch (item.item().kind()) {
             case EVENT_HEADER, ROUND_HEADER ->
                 consensusHeaderHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case EVENT_TRANSACTION ->
+            case SIGNED_TRANSACTION ->
                 inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
             case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER ->
                 outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
@@ -571,15 +571,22 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
     }
 
-    private Map<String, String> hashesFor(@NonNull final MerkleNode state) {
+    private String rootMnemonicFor(@NonNull final MerkleNode state) {
         final var sb = new StringBuilder();
         new MerkleTreeVisualizer(state).setDepth(VISUALIZATION_HASH_DEPTH).render(sb);
         logger.info("Replayed hashes:\n{}", sb);
-        return hashesByName(sb.toString());
+        return extractRootMnemonic(sb.toString());
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
-        for (final var stateChange : stateChanges.stateChanges()) {
+        String lastService = null;
+        CommittableWritableStates lastWritableStates = null;
+
+        final int n = stateChanges.stateChanges().size();
+
+        for (int i = 0; i < n; i++) {
+            final var stateChange = stateChanges.stateChanges().get(i);
+
             final var stateName = stateNameOf(stateChange.stateId(), shard, realm);
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
@@ -643,6 +650,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                     stateChangesSummary.countQueuePop(serviceName, stateKey);
                 }
             }
+            if ((lastService != null && !lastService.equals(serviceName))) {
+                lastWritableStates.commit();
+            }
+            if (i == n - 1) {
+                ((CommittableWritableStates) writableStates).commit();
+            }
+            lastService = serviceName;
+            lastWritableStates = (CommittableWritableStates) writableStates;
         }
     }
 
@@ -808,29 +823,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                 && NUMBER_PATTERN.matcher(path.getFileName().toString()).matches();
     }
 
-    private static @Nullable Map<String, String> getMaybeLastHashMnemonics(final Path path) {
-        StringBuilder sb = null;
-        boolean sawAllChildHashes = false;
+    private static @Nullable String getMaybeLastHashMnemonics(final Path path) {
+        String rootMnemonicLine = null;
         try {
             final var lines = Files.readAllLines(path);
             for (final var line : lines) {
                 if (line.startsWith("(root)")) {
-                    sb = new StringBuilder();
-                    sawAllChildHashes = false;
-                } else if (sb != null) {
-                    final var childStateMatcher = CHILD_STATE_PATTERN.matcher(line);
-                    sawAllChildHashes |= !childStateMatcher.matches();
-                    if (!sawAllChildHashes) {
-                        sb.append(line).append('\n');
-                    }
+                    rootMnemonicLine = line;
+                    break;
                 }
             }
         } catch (IOException e) {
-            logger.error("Could not read hashes from {}", path, e);
+            logger.error("Could not read root mnemonic from {}", path, e);
             return null;
         }
-        logger.info("Read hashes:\n{}", sb);
-        return sb == null ? null : hashesByName(sb.toString());
+        logger.info("Read root mnemonic:\n{}", rootMnemonicLine);
+        return rootMnemonicLine == null ? null : extractRootMnemonic(rootMnemonicLine);
     }
 
     private static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {
@@ -890,6 +898,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             case PREPROCESSING_VOTE_ID_KEY -> mapChangeKey.preprocessingVoteIdKeyOrThrow();
             case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
+            case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
+            case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
         };
     }
 
@@ -924,6 +934,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case HISTORY_PROOF_VOTE_VALUE -> mapChangeValue.historyProofVoteValue();
             case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
             case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
+            case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
         };
     }
 

@@ -31,7 +31,12 @@ public class AccountVirtualMapValueSerializer implements ValueSerializer<Account
 
     @Override
     public int getSerializedSize() {
-        return AccountVirtualMapValue.getSizeInBytes();
+        return VARIABLE_DATA_SIZE;
+    }
+
+    @Override
+    public int getSerializedSize(@NonNull AccountVirtualMapValue value) {
+        return value.getSizeInBytes();
     }
 
     @Override

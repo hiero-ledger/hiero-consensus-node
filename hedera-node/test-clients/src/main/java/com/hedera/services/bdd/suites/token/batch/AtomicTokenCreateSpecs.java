@@ -286,7 +286,7 @@ public class AtomicTokenCreateSpecs {
                 atomicBatch(tokenCreate(PRIMARY)
                                 .autoRenewAccount(AUTO_RENEW)
                                 .autoRenewPeriod(Long.MAX_VALUE)
-                                .hasPrecheck(INVALID_RENEWAL_PERIOD)
+                                .hasKnownStatus(INVALID_RENEWAL_PERIOD)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -543,7 +543,7 @@ public class AtomicTokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesExpiry() {
         return hapiTest(atomicBatch(tokenCreate(PRIMARY)
                         .expiry(1000)
-                        .hasPrecheck(INVALID_EXPIRATION_TIME)
+                        .hasKnownStatus(INVALID_EXPIRATION_TIME)
                         .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR)
                 .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -563,7 +563,7 @@ public class AtomicTokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesMemo() {
         return hapiTest(atomicBatch(tokenCreate(PRIMARY)
                         .entityMemo("N\u0000!!!")
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                         .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR)
                 .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -988,13 +988,13 @@ public class AtomicTokenCreateSpecs {
                     return specOps(
                             atomicBatch(tokenCreate("tooLong")
                                             .name(TxnUtils.nAscii(maxLen + 1))
-                                            .hasPrecheck(TOKEN_NAME_TOO_LONG)
+                                            .hasKnownStatus(TOKEN_NAME_TOO_LONG)
                                             .batchKey(BATCH_OPERATOR))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED),
                             atomicBatch(tokenCreate("tooLongAgain")
                                             .name(nCurrencySymbols(maxLen / 3 + 1))
-                                            .hasPrecheck(TOKEN_NAME_TOO_LONG)
+                                            .hasKnownStatus(TOKEN_NAME_TOO_LONG)
                                             .batchKey(BATCH_OPERATOR))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -1012,13 +1012,13 @@ public class AtomicTokenCreateSpecs {
                     return specOps(
                             atomicBatch(tokenCreate("tooLong")
                                             .symbol(TxnUtils.nAscii(maxLen + 1))
-                                            .hasPrecheck(TOKEN_SYMBOL_TOO_LONG)
+                                            .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG)
                                             .batchKey(BATCH_OPERATOR))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED),
                             atomicBatch(tokenCreate("tooLongAgain")
                                             .symbol(nCurrencySymbols(maxLen / 3 + 1))
-                                            .hasPrecheck(TOKEN_SYMBOL_TOO_LONG)
+                                            .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG)
                                             .batchKey(BATCH_OPERATOR))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -1326,7 +1326,7 @@ public class AtomicTokenCreateSpecs {
                                 .treasury(TOKEN_TREASURY)
                                 .autoRenewAccount("autoRenewAccount")
                                 .autoRenewPeriod(-1)
-                                .hasPrecheck(INVALID_RENEWAL_PERIOD)
+                                .hasKnownStatus(INVALID_RENEWAL_PERIOD)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

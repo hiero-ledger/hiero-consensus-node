@@ -6,6 +6,9 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -22,11 +25,15 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -134,7 +141,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             final var diffOutput = roleFreeDiff.buildDiffOutput(roleFreeDiffs);
             final var errorMsg = new StringBuilder()
                     .append(diffOutput.size())
-                    .append(" differences found between role-based and role-free records");
+                    .append(" differences found between generated and translated records");
             diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
             Assertions.fail(errorMsg.toString());
         }
@@ -143,14 +150,45 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .flatMap(recordWithSidecars ->
                         recordWithSidecars.sidecarFiles().stream().flatMap(f -> f.getSidecarRecordsList().stream()))
                 .toList();
-        final List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
+        List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
                 .flatMap(r -> r.transactionSidecarRecords().stream())
                 .map(r -> pbjToProto(
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))
                 .toList();
+        final Set<Timestamp> times = new HashSet<>();
+        final Set<Timestamp> duplicates = new HashSet<>();
+        for (final var sidecar : actualSidecars) {
+            if (sidecar.hasBytecode()) {
+                final var consensusTimestamp = sidecar.getConsensusTimestamp();
+                if (!times.add(consensusTimestamp)) {
+                    duplicates.add(consensusTimestamp);
+                }
+            }
+        }
+        if (!duplicates.isEmpty()) {
+            actualSidecars = actualSidecars.stream()
+                    .filter(sidecar -> !sidecar.hasBytecode() || !duplicates.remove(sidecar.getConsensusTimestamp()))
+                    .toList();
+        }
         if (expectedSidecars.size() != actualSidecars.size()) {
-            Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "
-                    + actualSidecars.size());
+            final var expectedMap = byTime(expectedSidecars);
+            final var actualMap = byTime(actualSidecars);
+            expectedMap.entrySet().forEach(entry -> {
+                final var consensusTimestamp = entry.getKey();
+                if (!actualMap.containsKey(consensusTimestamp)) {
+                    logger.error(
+                            "Expected sidecar {} missing for timestamp",
+                            readableBytecodesFrom(expectedMap.get(consensusTimestamp)));
+                } else if (!entry.getValue().equals(actualMap.get(consensusTimestamp))) {
+                    logger.error(
+                            "Mismatch in sidecar for timestamp {}: expected {}, found {}",
+                            consensusTimestamp,
+                            readableBytecodesFrom(entry.getValue()),
+                            readableBytecodesFrom(actualMap.get(consensusTimestamp)));
+                }
+            });
+            Assertions.fail("Mismatch in number of sidecars - expected " + typeHistogramOf(expectedSidecars)
+                    + ", found " + typeHistogramOf(actualSidecars));
         } else {
             for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
                 final var expected = expectedSidecars.get(i);
@@ -160,6 +198,34 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                             "Mismatch in sidecar at index " + i + ": expected\n" + expected + "\n, found " + actual);
                 }
             }
+        }
+    }
+
+    private Map<Timestamp, List<TransactionSidecarRecord>> byTime(
+            @NonNull final List<TransactionSidecarRecord> sidecars) {
+        requireNonNull(sidecars);
+        return sidecars.stream().collect(groupingBy(TransactionSidecarRecord::getConsensusTimestamp, toList()));
+    }
+
+    private String typeHistogramOf(List<TransactionSidecarRecord> r) {
+        return r.stream()
+                .collect(groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()))
+                .toString();
+    }
+
+    private String readableBytecodesFrom(@NonNull final List<TransactionSidecarRecord> sidecars) {
+        return sidecars.stream().map(this::readableBytecodeFrom).toList().toString();
+    }
+
+    private String readableBytecodeFrom(@NonNull final TransactionSidecarRecord sidecar) {
+        if (sidecar.hasBytecode()) {
+            final var at = sidecar.getConsensusTimestamp();
+            return "@ " + at.getSeconds() + "." + at.getNanos() + " for #"
+                    + sidecar.getBytecode().getContractId().getContractNum() + " (has initcode? "
+                    + !sidecar.getBytecode().getInitcode().isEmpty() + ") " + " (has runtime bytecode? "
+                    + !sidecar.getBytecode().getRuntimeBytecode().isEmpty();
+        } else {
+            return "<N/A>";
         }
     }
 

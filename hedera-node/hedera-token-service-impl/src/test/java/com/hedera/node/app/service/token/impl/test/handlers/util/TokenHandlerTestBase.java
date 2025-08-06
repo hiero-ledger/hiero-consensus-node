@@ -2,26 +2,25 @@
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.B_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.C_COMPLEX_KEY;
-import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -57,7 +56,6 @@ public class TokenHandlerTestBase {
     protected static final long REALM =
             configuration.getConfigData(HederaConfig.class).realm();
     protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
-    protected static final String TOKENS = "TOKENS";
     protected static final Key payerKey = A_COMPLEX_KEY;
     protected final Key adminKey = A_COMPLEX_KEY;
     protected final Key pauseKey = B_COMPLEX_KEY;
@@ -134,8 +132,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenOnlyInReadable() {
         readableTokenState = readableTokenState();
         writableTokenState = emptyWritableTokenState();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -144,8 +142,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenInWritable() {
         readableTokenState = readableTokenState();
         writableTokenState = writableTokenStateWithOneKey();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -153,19 +151,20 @@ public class TokenHandlerTestBase {
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS).build();
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+                .build();
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> writableTokenStateWithOneKey() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS)
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(tokenId, token)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TokenID, Token> readableTokenState() {
-        return MapReadableKVState.<TokenID, Token>builder(TOKENS)
+        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(tokenId, token)
                 .build();
     }
@@ -244,43 +243,5 @@ public class TokenHandlerTestBase {
                 .accountsKycGrantedByDefault(true)
                 .customFees(List.of(customFee))
                 .build();
-    }
-
-    protected Account newPayerAccount() {
-        return new Account(
-                AccountID.newBuilder().accountNum(2L).build(),
-                null,
-                payerKey,
-                1_234_567L,
-                10_000,
-                "testAccount",
-                false,
-                1_234L,
-                1_234_568L,
-                UNSET_STAKED_ID,
-                true,
-                true,
-                TokenID.newBuilder().tokenNum(3L).build(),
-                NftID.newBuilder().tokenId(TokenID.newBuilder().tokenNum(2L)).build(),
-                1,
-                2,
-                10,
-                1,
-                3,
-                false,
-                2,
-                0,
-                1000L,
-                AccountID.newBuilder().accountNum(2L).build(),
-                72000,
-                0,
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                2,
-                false,
-                null,
-                null,
-                0);
     }
 }

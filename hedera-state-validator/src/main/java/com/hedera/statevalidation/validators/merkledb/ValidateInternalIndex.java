@@ -11,13 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
-import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
-import com.hedera.statevalidation.reporting.Report;
-import com.hedera.statevalidation.reporting.SlackReportGenerator;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
@@ -28,33 +26,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 /**
  * This tests validates the index for internal nodes of a virtual map.
  * It verifies that all the index pointers are pointing to valid data entries containing hashes.
  */
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class})
 @Tag("internal")
 public class ValidateInternalIndex {
 
     private static final Logger log = LogManager.getLogger(ValidateInternalIndex.class);
 
-    @ParameterizedTest
-    @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord<VirtualKey, VirtualValue> record, Report report) {
-        var dataSource = record.dataSource();
-        if (record.dataSource().getFirstLeafPath() == -1) {
-            log.info("Skipping the validation for {} as the map is empty", record.name());
+    @Test
+    public void validateIndex(DeserializedSignedState deserializedState) {
+        final MerkleNodeState merkleNodeState =
+                deserializedState.reservedSignedState().get().getState();
+        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+        assertNotNull(virtualMap);
+        MerkleDbDataSource dataSource = (MerkleDbDataSource) virtualMap.getDataSource();
+
+        if (dataSource.getFirstLeafPath() == -1) {
+            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
             return;
         }
 
         final long inMemoryHashThreshold;
-        var lastLeafPath = record.dataSource().getLastLeafPath();
-        var internalNodesIndex = record.dataSource().getPathToDiskLocationInternalNodes();
+        var lastLeafPath = dataSource.getLastLeafPath();
+        var internalNodesIndex = dataSource.getPathToDiskLocationInternalNodes();
         var internalStore = new MemoryIndexDiskKeyValueStoreW<>(dataSource.getHashStoreDisk());
         var dfc = internalStore.getFileCollection();
         var pathToHashRam = dataSource.getHashStoreRam();
@@ -71,7 +72,7 @@ public class ValidateInternalIndex {
                 assertEquals(0, internalNodesIndex.size(), "The size of the index should be 0");
                 log.info(
                         "Skipping test for {} as the in memory hash threshold is greater than the last leaf path, so the index is not used",
-                        record.name());
+                        virtualMap.getLabel());
                 return;
             }
             LongConsumer inMemoryIndexProcessor = path -> {

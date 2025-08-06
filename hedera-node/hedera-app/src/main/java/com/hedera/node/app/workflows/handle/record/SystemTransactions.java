@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -55,7 +54,6 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -63,6 +61,7 @@ import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
+import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -142,6 +141,7 @@ public class SystemTransactions {
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
     private final StartupNetworks startupNetworks;
+    private final StakePeriodChanges stakePeriodChanges;
 
     private int nextDispatchNonce = 1;
 
@@ -161,7 +161,8 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final StakePeriodChanges stakePeriodChanges) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -178,6 +179,7 @@ public class SystemTransactions {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.recordCache = requireNonNull(recordCache);
         this.startupNetworks = requireNonNull(startupNetworks);
+        this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
     }
 
     /**
@@ -197,8 +199,12 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(state);
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
-        final var systemContext =
-                newSystemContext(now, state, dispatch -> onSuccess.get().accept(dispatch), true);
+        final var systemContext = newSystemContext(
+                now,
+                state,
+                dispatch -> onSuccess.get().accept(dispatch),
+                UseReservedConsensusTimes.YES,
+                TriggerStakePeriodSideEffects.NO);
 
         final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
@@ -332,19 +338,19 @@ public class SystemTransactions {
 
     /**
      * Sets up post-upgrade state for the system.
-     *
-     * @param dispatch the post-upgrade transaction dispatch
+     * @param now the current time
+     * @param state the state to set up
      */
-    public void doPostUpgradeSetup(@NonNull final Dispatch dispatch) {
-        final var systemContext = systemContextFor(dispatch);
-        final var config = dispatch.config();
+    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
+        final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
-            dispatch.stack().commitFullStack();
         }
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
@@ -372,11 +378,7 @@ public class SystemTransactions {
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in)));
-        autoSysFileUpdates.forEach(update -> {
-            if (update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
-                dispatch.stack().commitFullStack();
-            }
-        });
+        autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(
                 (ctx, nodeAdminKeys) -> nodeAdminKeys.forEach(
                         (nodeId, key) -> ctx.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
@@ -385,9 +387,7 @@ public class SystemTransactions {
                                 .build()))),
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
-        if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
-            dispatch.stack().commitFullStack();
-        }
+        autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
     }
 
     /**
@@ -417,7 +417,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -479,16 +480,21 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
-                    .map(NodeMetadata::rosterEntry)
+                    .filter(NodeMetadata::hasRosterEntry)
+                    .map(NodeMetadata::rosterEntryOrThrow)
                     .map(RosterEntry::nodeId)
                     .toList();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
+                if (node == null) {
+                    continue;
+                }
                 final var currentNode = nodeStore.get(node.nodeId());
                 if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
@@ -602,7 +608,7 @@ public class SystemTransactions {
      *
      * @param firstEventTime the timestamp of the first event in the current round
      */
-    public Instant restartSystemChangesTimeAt(@NonNull final Instant firstEventTime) {
+    public Instant firstReservedSystemTimeFor(@NonNull final Instant firstEventTime) {
         requireNonNull(firstEventTime);
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -620,13 +626,33 @@ public class SystemTransactions {
                                 : 0);
     }
 
+    /**
+     * Whether a context for system transactions should use reserved prior consensus times, or pick up from
+     * the time given to the transaction context factory.
+     */
+    private enum UseReservedConsensusTimes {
+        YES,
+        NO
+    }
+
+    /**
+     * Whether the dispatches in a context for system transactions should trigger stake period boundary
+     * side effects.
+     */
+    private enum TriggerStakePeriodSideEffects {
+        YES,
+        NO
+    }
+
     private SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isRestart) {
+            @NonNull final UseReservedConsensusTimes useReservedConsensusTimes,
+            @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
         final var config = configProvider.getConfiguration();
-        final var firstConsTime = isRestart ? restartSystemChangesTimeAt(now) : now;
+        final var firstConsTime =
+                useReservedConsensusTimes == UseReservedConsensusTimes.YES ? firstReservedSystemTimeFor(now) : now;
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
                 config.getConfigData(AccountsConfig.class).systemAdmin());
@@ -647,7 +673,7 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0);
+                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
             }
 
             @Override
@@ -667,17 +693,27 @@ public class SystemTransactions {
             @Override
             public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
                 requireNonNull(body);
-                dispatch(body, entityNum);
+                dispatch(body, entityNum, triggerStakePeriodSideEffects);
             }
 
-            private void dispatch(final @NonNull TransactionBody body, final long entityNum) {
+            private void dispatch(
+                    @NonNull final TransactionBody body,
+                    final long entityNum,
+                    @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
                 // System dispatches never have child transactions, so one nano is enough to separate them
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
                 }
-                final var handleOutput =
-                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess);
+                final var handleOutput = executeSystem(
+                        state,
+                        now,
+                        creatorInfo,
+                        systemAdminId,
+                        body,
+                        entityNum,
+                        onSuccess,
+                        triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES);
                 if (streamMode != BLOCKS) {
                     final var records =
                             ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
@@ -725,6 +761,7 @@ public class SystemTransactions {
      * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
      * @param onSuccess the action to take after the transaction is successfully dispatched
+     * @param applyStakePeriodSideEffects the flag indicating if this is a genesis transaction
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -734,16 +771,13 @@ public class SystemTransactions {
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             final long nextEntityNum,
-            @NonNull final Consumer<Dispatch> onSuccess) {
+            @NonNull final Consumer<Dispatch> onSuccess,
+            final boolean applyStakePeriodSideEffects) {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
-        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
-        if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
-        }
+        stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
             long prevEntityNum;
             if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
@@ -802,77 +836,6 @@ public class SystemTransactions {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
-    }
-
-    private SystemContext systemContextFor(@NonNull final Dispatch dispatch) {
-        final var config = dispatch.config();
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        final var firstUserNum = config.getConfigData(HederaConfig.class).firstUserEntity();
-        final var systemAdminId = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(config.getConfigData(AccountsConfig.class).systemAdmin())
-                .build();
-        return new SystemContext() {
-            @Override
-            public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
-                requireNonNull(body);
-                if (entityNum >= firstUserNum) {
-                    throw new IllegalArgumentException("Cannot create user entity in a system context");
-                }
-                final var controlledNum = dispatch.stack()
-                        .getWritableStates(EntityIdService.NAME)
-                        .<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY);
-                controlledNum.put(new EntityNumber(entityNum - 1));
-                final var recordBuilder = dispatch.handleContext()
-                        .dispatch(independentDispatch(systemAdminId, body, StreamBuilder.class));
-                if (!SUCCESSES.contains(recordBuilder.status())) {
-                    log.error(
-                            "Failed to dispatch system create transaction {} for entity {} - {}",
-                            body,
-                            entityNum,
-                            recordBuilder.status());
-                }
-                controlledNum.put(new EntityNumber(firstUserNum - 1));
-                dispatch.stack().commitFullStack();
-            }
-
-            @Override
-            public void dispatchAdmin(@NonNull final Consumer<TransactionBody.Builder> spec) {
-                requireNonNull(spec);
-                final var bodyBuilder = TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder()
-                                .accountID(systemAdminId)
-                                .transactionValidStart(asTimestamp(now()))
-                                .nonce(nextDispatchNonce++)
-                                .build());
-                spec.accept(bodyBuilder);
-                final var body = bodyBuilder.build();
-                final var streamBuilder = dispatch.handleContext()
-                        .dispatch(independentDispatch(systemAdminId, body, StreamBuilder.class));
-                if (!SUCCESSES.contains(streamBuilder.status())) {
-                    log.error("Failed to dispatch update transaction {} for - {}", body, streamBuilder.status());
-                }
-            }
-
-            @NonNull
-            @Override
-            public Configuration configuration() {
-                return dispatch.config();
-            }
-
-            @NonNull
-            @Override
-            public NetworkInfo networkInfo() {
-                return dispatch.handleContext().networkInfo();
-            }
-
-            @NonNull
-            @Override
-            public Instant now() {
-                return dispatch.consensusNow();
-            }
-        };
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

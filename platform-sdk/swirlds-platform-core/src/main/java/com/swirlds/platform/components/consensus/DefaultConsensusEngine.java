@@ -59,9 +59,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param roster          the current roster
-     * @param selfId          the ID of the node
-     * @param freezeChecker   checks if the consensus time has reached the freeze period
+     * @param roster the current roster
+     * @param selfId the ID of the node
+     * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
@@ -72,9 +72,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
-        linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer =
-                new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
+        linker = new ConsensusLinker(platformContext);
+        futureEventBuffer = new FutureEventBuffer(
+                platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)

@@ -3,7 +3,7 @@
 Gossip is the process of exchanging events with other peers. There are currently two protocols implemented:
 
 - [Sync](syncing/sync-protocol.md)
-- [Out-of-Order-Gossip](OOG/OOG-protocol.md)
+- [RPC Sync](rpc/rpc-gossip.md)
 
 Other docs related to gossip:
 

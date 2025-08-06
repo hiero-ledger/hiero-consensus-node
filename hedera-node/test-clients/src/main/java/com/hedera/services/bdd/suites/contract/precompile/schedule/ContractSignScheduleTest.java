@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.precompile.schedule;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -21,6 +22,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -46,6 +48,7 @@ import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.utils.Signing;
@@ -213,7 +216,9 @@ public class ContractSignScheduleTest {
                                     String.valueOf(scheduleID_E.get().getScheduleNum()),
                                     getABIFor(FUNCTION, SIGN_SCHEDULE, IHRC755))
                             .payingWith(SENDER)
+                            .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                             .gas(1_000_000),
+                    sleepForSeconds(1),
                     getScheduleInfo(SCHEDULE_E).isExecuted());
         }
 

@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,12 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.HashBuilder;
 import org.junit.jupiter.params.provider.Arguments;
 
 public class VirtualHasherTestBase extends VirtualTestBase {
+
     /**
      * Helper method for computing a list of {@link Arguments} of length {@code num}, each of which contains
      * a random list of dirty leave paths between {@code firstLeafPath} and {@code lastLeafPath}.
@@ -58,21 +59,20 @@ public class VirtualHasherTestBase extends VirtualTestBase {
         return args;
     }
 
-    protected static Hash hashTree(final TestDataSource ds) {
-        final HashBuilder hashBuilder = new HashBuilder(DigestType.SHA_384);
+    protected static Hash hashTree(final TestDataSource ds) throws NoSuchAlgorithmException {
+        final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
         final VirtualHashRecord root = ds.getInternal(Path.ROOT_PATH);
         assert root != null;
-        return hashSubTree(ds, hashBuilder, root).hash();
+        return hashSubTree(ds, md, root).hash();
     }
 
-    protected static List<VirtualLeafRecord<TestKey, TestValue>> invalidateNodes(
-            final TestDataSource ds, final Stream<Long> dirtyPaths) {
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves = new ArrayList<>();
+    protected static List<VirtualLeafBytes> invalidateNodes(final TestDataSource ds, final Stream<Long> dirtyPaths) {
+        final List<VirtualLeafBytes> leaves = new ArrayList<>();
         dirtyPaths.forEach(i -> {
-            final VirtualLeafRecord<TestKey, TestValue> rec = ds.getLeaf(i);
+            final VirtualLeafBytes rec = ds.getLeaf(i);
             assert rec != null;
             leaves.add(rec);
-            long path = rec.getPath();
+            long path = rec.path();
             while (path >= 0) {
                 final VirtualHashRecord internal = ds.getInternal(path);
                 assert internal != null;
@@ -87,35 +87,35 @@ public class VirtualHasherTestBase extends VirtualTestBase {
     }
 
     protected static VirtualHashRecord hashSubTree(
-            final TestDataSource ds, final HashBuilder hashBuilder, final VirtualHashRecord internalNode) {
+            final TestDataSource ds, final MessageDigest md, final VirtualHashRecord internalNode) {
         final long leftChildPath = Path.getLeftChildPath(internalNode.path());
         VirtualHashRecord leftChild = ds.getInternal(leftChildPath);
         assert leftChild != null;
         final Hash leftHash;
         if (leftChildPath < ds.firstLeafPath) {
-            leftChild = hashSubTree(ds, hashBuilder, leftChild);
+            leftChild = hashSubTree(ds, md, leftChild);
         }
         leftHash = leftChild.hash();
 
         final long rightChildPath = Path.getRightChildPath(internalNode.path());
         VirtualHashRecord rightChild = ds.getInternal(rightChildPath);
-        Hash rightHash = Cryptography.NULL_HASH;
+        Hash rightHash = null;
         if (rightChild != null) {
             if (rightChildPath < ds.firstLeafPath) {
-                rightChild = hashSubTree(ds, hashBuilder, rightChild);
+                rightChild = hashSubTree(ds, md, rightChild);
             }
             rightHash = rightChild.hash();
         }
 
-        hashBuilder.reset();
-        hashBuilder.update(internalNode.path() == ROOT_PATH ? VirtualRootNode.CLASS_ID : VirtualInternalNode.CLASS_ID);
-        hashBuilder.update(
-                internalNode.path() == ROOT_PATH
-                        ? VirtualRootNode.ClassVersion.CURRENT_VERSION
-                        : VirtualInternalNode.SERIALIZATION_VERSION);
-        hashBuilder.update(leftHash);
-        hashBuilder.update(rightHash);
-        VirtualHashRecord record = new VirtualHashRecord(internalNode.path(), hashBuilder.build());
+        // This has to match VirtualHasher
+        md.reset();
+        md.update((byte) 0x02);
+        leftHash.getBytes().writeTo(md);
+        if (rightHash != null) {
+            rightHash.getBytes().writeTo(md);
+        }
+        final Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        VirtualHashRecord record = new VirtualHashRecord(internalNode.path(), hash);
         ds.setInternal(record);
         return record;
     }
@@ -137,18 +137,14 @@ public class VirtualHasherTestBase extends VirtualTestBase {
             return getInternal(path).hash();
         }
 
-        void storeHash(final long path, final Hash hash) {
-            setInternal(new VirtualHashRecord(path, hash));
-        }
-
-        VirtualLeafRecord<TestKey, TestValue> getLeaf(final long path) {
+        VirtualLeafBytes<TestValue> getLeaf(final long path) {
             if (path < firstLeafPath || path > lastLeafPath) {
                 return null;
             }
 
-            final TestKey key = new TestKey(path);
+            final Bytes key = TestKey.longToKey(path);
             final TestValue value = new TestValue("Value: " + path);
-            return new VirtualLeafRecord<>(path, key, value);
+            return new VirtualLeafBytes<>(path, key, value, TestValueCodec.INSTANCE);
         }
 
         VirtualHashRecord getInternal(final long path) {
@@ -161,8 +157,9 @@ public class VirtualHasherTestBase extends VirtualTestBase {
                 if (path < firstLeafPath) {
                     hash = Cryptography.NULL_HASH;
                 } else {
-                    final VirtualLeafRecord<TestKey, TestValue> leaf = getLeaf(path);
-                    hash = CRYPTO.digestSync(leaf);
+                    final VirtualLeafBytes<TestValue> leaf = getLeaf(path);
+                    assert leaf != null;
+                    hash = hash(leaf);
                 }
                 rec = new VirtualHashRecord(path, hash);
             }

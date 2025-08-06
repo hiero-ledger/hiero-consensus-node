@@ -12,7 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -23,9 +23,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
@@ -68,7 +68,7 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
         refreshWritableStores();
         givenStoresAndConfig(handleContext);
         subject = new TokenMintHandler(new TokenSupplyChangeOpsValidator());
-        recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+        recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
     }
 
     @Test
@@ -270,8 +270,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
                 .tokenMint(builder.build())
                 .build();
 
-        final var txn = Transaction.newBuilder().body(txnBody).build();
-        recordBuilder.transaction(txn);
+        final var txn = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                .build();
+        recordBuilder.signedTx(txn);
 
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));

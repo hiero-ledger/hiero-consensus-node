@@ -305,7 +305,7 @@ public class AtomicProtectedFilesUpdateSuite {
                 atomicBatch(fileUpdate(specialFile)
                                 .contents(newContents)
                                 .payingWith("unauthorizedAccount")
-                                .hasPrecheck(AUTHORIZATION_FAILED)
+                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

@@ -6,6 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -18,13 +19,12 @@ import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -34,10 +34,11 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,13 +47,14 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
- * Manages the lifecycle and operations of a consensus node within a container-based network.
- * This class initializes the platform, handles configuration, and provides methods for interacting
- * with the consensus process, including submitting transactions and listening for consensus rounds.
+ * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
+ * platform, handles configuration, and provides methods for interacting with the consensus process, including
+ * submitting transactions and listening for consensus rounds.
  */
 public class ConsensusNodeManager {
     private static final Logger LOGGER = LogManager.getLogger(ConsensusNodeManager.class);
@@ -63,40 +65,39 @@ public class ConsensusNodeManager {
     private final Platform platform;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
+    private final ContainerMarkerFileObserver markerFileObserver;
 
     /**
-     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters.
-     * This constructor initializes the platform, sets up all necessary parts for the consensus node.
+     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
+     * initializes the platform, sets up all necessary parts for the consensus node.
      *
-     * @param selfId               the unique identifier for this node, must not be {@code null}
-     * @param version              the semantic version of the application, must not be {@code null}
-     * @param genesisRoster        the initial roster of nodes in the network, must not be {@code null}
-     * @param keysAndCerts         the keys and certificates for this node, must not be {@code null}
+     * @param selfId the unique identifier for this node, must not be {@code null}
+     * @param version the semantic version of the application, must not be {@code null}
+     * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
+     * @param keysAndCerts the keys and certificates for this node, must not be {@code null}
      * @param overriddenProperties optional properties to override in the configuration, may be {@code null}
+     * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
      */
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
-            @Nullable final Map<String, String> overriddenProperties) {
+            @NonNull final Map<String, String> overriddenProperties,
+            @NonNull final Executor backgroundExecutor) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
-        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
-        if (overriddenProperties != null) {
-            overriddenProperties.forEach(configurationBuilder::withValue);
-        }
-        final Configuration platformConfig = configurationBuilder.getOrCreateConfig();
+        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final Configuration platformConfig = createConfiguration(overriddenProperties);
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -104,9 +105,7 @@ public class ConsensusNodeManager {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
-
-        final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -114,12 +113,13 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldSelfId,
+                legacySelfId,
                 platformStateFacade,
-                platformContext);
+                platformContext,
+                OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
 
         final MerkleNodeState state = initialState.get().getState();
@@ -130,11 +130,12 @@ public class ConsensusNodeManager {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        consensusStateEventHandler,
-                        oldSelfId,
+                        OtterApp.INSTANCE,
+                        legacySelfId,
                         selfId.toString(),
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        (vm) -> state)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -154,22 +155,30 @@ public class ConsensusNodeManager {
 
         platform.getNotificationEngine()
                 .register(PlatformStatusChangeListener.class, newStatus -> status.set(newStatus.getNewStatus()));
+
+        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
+        markerFileObserver =
+                markerFilesDir == null ? null : new ContainerMarkerFileObserver(backgroundExecutor, markerFilesDir);
     }
 
     /**
-     * Starts the consensus node application. This method triggers the underlying platform
-     * to begin processing consensus rounds and other operations.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start
+     * receiving transactions.
      */
     public void start() {
         platform.start();
     }
 
     /**
-     * Shuts down the consensus node application. Once destroyed, the application cannot be restarted.
+     * Shuts down the consensus node.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
     public void destroy() throws InterruptedException {
+        if (markerFileObserver != null) {
+            markerFileObserver.destroy();
+        }
         platform.destroy();
     }
 
@@ -208,5 +217,29 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
+    }
+
+    /**
+     * Register a listener for marker file updates. This listener will be notified when new marker files are created
+     *
+     * @param listener the consumer that will receive updates when marker files are created, must not be {@code null}
+     */
+    public void registerMarkerFileListener(@NonNull final MarkerFileListener listener) {
+        if (markerFileObserver != null) {
+            markerFileObserver.addListener(listener);
+        }
+    }
+
+    /**
+     * Updates the synthetic bottleneck duration engages on the handle thread. Setting this value to zero disables the
+     * bottleneck.
+     *
+     * @param millisToSleepPerRound the number of milliseconds to sleep per round, must be non-negative
+     */
+    public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
+        if (millisToSleepPerRound < 0) {
+            throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
+        }
+        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

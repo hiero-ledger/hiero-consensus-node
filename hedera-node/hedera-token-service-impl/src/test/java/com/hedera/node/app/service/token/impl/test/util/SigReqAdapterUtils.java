@@ -80,6 +80,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -298,7 +299,7 @@ public class SigReqAdapterUtils {
                         .deleted(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
-        return new MapWritableKVState<>("TOKENS", destination);
+        return new MapWritableKVState<>(TokenService.NAME, TOKENS_KEY, destination);
     }
 
     /**
@@ -339,7 +340,7 @@ public class SigReqAdapterUtils {
                         .balance(30)
                         .build());
 
-        final var wrappedState = new MapWritableKVState<>(TOKEN_RELS_KEY, destination);
+        final var wrappedState = new MapWritableKVState<>(TokenService.NAME, TOKEN_RELS_KEY, destination);
         return new WritableTokenRelationStore(
                 mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(WritableEntityCounters.class));
     }
@@ -437,7 +438,7 @@ public class SigReqAdapterUtils {
         destination.put(
                 toPbj(FROM_OVERLAP_PAYER),
                 toPbjAccount(FROM_OVERLAP_PAYER.getAccountNum(), FROM_OVERLAP_PAYER_KT.asPbjKey(), DEFAULT_BALANCE));
-        return new MapWritableKVState<>(ACCOUNTS_KEY, destination);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, destination);
     }
 
     private static Account toPbjAccount(final long number, final Key key, long balance) {
@@ -491,6 +492,9 @@ public class SigReqAdapterUtils {
                 false,
                 null,
                 null,
-                0);
+                0,
+                0L,
+                0L,
+                0L);
     }
 }

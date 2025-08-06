@@ -18,9 +18,8 @@ public interface TimeManager {
      * Wait for a specified duration.
      *
      * @param waitTime the duration to wait
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void waitFor(@NonNull Duration waitTime) throws InterruptedException;
+    void waitFor(@NonNull Duration waitTime);
 
     /**
      * Wait for a condition to become {@code true} within a specified time.

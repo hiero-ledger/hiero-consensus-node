@@ -140,6 +140,7 @@ public interface HandleWorkflowModule {
                 contractHandlers.get().contractSystemDeleteHandler(),
                 contractHandlers.get().contractSystemUndeleteHandler(),
                 contractHandlers.get().ethereumTransactionHandler(),
+                contractHandlers.get().lambdaSStoreHandler(),
                 tokenHandlers.cryptoCreateHandler(),
                 tokenHandlers.cryptoUpdateHandler(),
                 tokenHandlers.cryptoTransferHandler(),
