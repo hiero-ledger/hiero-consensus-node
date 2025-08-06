@@ -18,6 +18,7 @@ option java_multiple_files = true;
 
 import "services/timestamp.proto";
 import "services/basic_types.proto";
+import "services/hook_types.proto";
 import "services/exchange_rate.proto";
 import "services/auxiliary/hints/crs_publication.proto";
 import "services/auxiliary/tss/tss_message.proto";
@@ -33,6 +34,7 @@ import "services/state/congestion/congestion_level_starts.proto";
 import "services/state/consensus/topic.proto";
 import "services/state/contract/bytecode.proto";
 import "services/state/contract/storage_slot.proto";
+import "services/state/contract/evm_hook_state.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/state/file/file.proto";
 import "services/state/hints/hints_types.proto";
@@ -250,6 +252,16 @@ message StateKey {
      * A state identifier for the CRS publications. 
      */    
     com.hedera.hapi.platform.state.NodeId HintsService_I_CRS_PUBLICATIONS = 49;
+
+    /**
+     * A state identifier for EVM hook states.
+     */
+    proto.HookId ContractService_I_EVM_HOOK_STATES = 51;
+
+    /**
+     * A state identifier for lambda storage.
+     */
+    com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
 
     // Queue states
     /**
@@ -573,6 +585,16 @@ message StateValue {
      * A state identifier for the node rewards. Singleton state.
      */
     proto.NodeRewards TokenService_I_NODE_REWARDS = 50;
+
+    /**
+     * A state identifier for EVM hook states.
+     */
+    com.hedera.hapi.node.state.hooks.EvmHookState ContractService_I_EVM_HOOK_STATES = 51;
+
+    /**
+     * A state identifier for lambda storage.
+     */
+    proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
      * Metadata of the round receipts queue.

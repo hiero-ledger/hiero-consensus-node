@@ -10,7 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Random;
+import org.hiero.base.constructable.ConstructableIgnored;
 
+@ConstructableIgnored
 public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
 
     public static final ExampleVariableValueCodec CODEC = new ExampleVariableValueCodec();

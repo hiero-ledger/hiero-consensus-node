@@ -242,6 +242,8 @@ public final class StateUtils {
                         switch (stateKey) {
                             case "BYTECODE" -> STATE_ID_CONTRACT_BYTECODE.protoOrdinal();
                             case "STORAGE" -> STATE_ID_CONTRACT_STORAGE.protoOrdinal();
+                            case "EVM_HOOK_STATES" -> STATE_ID_EVM_HOOK_STATES.protoOrdinal();
+                            case "LAMBDA_STORAGE" -> STATE_ID_LAMBDA_STORAGE.protoOrdinal();
                             default -> UNKNOWN_STATE_ID;
                         };
                     case "EntityIdService" ->

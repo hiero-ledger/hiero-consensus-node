@@ -22,10 +22,7 @@ This example demonstrates a simple test that checks if consensus is reached and 
         // 4. Wait 30 seconds while the network is running
         timeManager.waitFor(Duration.ofSeconds(30));
 
-        // 5. Verify consensus was reached and advanced past round 2
-        assertThat(network.getConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
-
-        // 6. Check for no error-level log messages
+        // 5. Check for no error-level log messages
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
     }
 ```
@@ -68,13 +65,10 @@ platform-sdk/consensus-otter-tests/
 
 ## 📚 Documentation
 
-|                           Guide                           |          Description          |
-|-----------------------------------------------------------|-------------------------------|
-| [🏁 Getting Started](docs/getting-started.md)             | Setup and your first test     |
-| [🏛️ Architecture](docs/architecture.md)                  | Framework design overview     |
-| [✍️ Writing Tests](docs/writing-tests.md)                 | Test development guide        |
-| [✅ Assertions API](docs/assertions-api.md)                | Validation capabilities       |
-| [⚙️ Configuration](docs/configuration.md)                 | Environment and node settings |
-| [🐢 Turtle Environment](docs/turtle-environment.md)       | Simulated testing guide       |
-| [🐳 Container Environment](docs/container-environment.md) | Docker-based testing          |
-| [🔧 Troubleshooting](docs/troubleshooting.md)             | Common issues and debugging   |
+|                           Guide                           |        Description        |
+|-----------------------------------------------------------|---------------------------|
+| [🏁 Getting Started](docs/getting-started.md)             | Setup and your first test |
+| [🏛️ Architecture](docs/architecture.md)                  | Framework design overview |
+| [✍️ Writing Tests](docs/writing-tests.md)                 | Test development guide    |
+| [🐢 Turtle Environment](docs/turtle-environment.md)       | Simulated testing guide   |
+| [🐳 Container Environment](docs/container-environment.md) | Docker-based testing      |

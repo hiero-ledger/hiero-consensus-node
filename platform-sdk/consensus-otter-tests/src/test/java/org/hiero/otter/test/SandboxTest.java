@@ -38,11 +38,10 @@ public class SandboxTest {
      * Example of a migrated JRS test.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
     @Disabled("Sandbox test, not meant to be run")
-    void testConsistencyNDReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testConsistencyNDReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -77,11 +76,10 @@ public class SandboxTest {
      * Example of a migrated {@code ConsensusTest}.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
     @Disabled("Sandbox test, not meant to be run")
-    void testBranching(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testBranching(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -104,11 +102,10 @@ public class SandboxTest {
      * A catch-all test to try out the API.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @Disabled("Sandbox test, not meant to be run")
     @OtterTest
-    void testApi(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testApi(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
