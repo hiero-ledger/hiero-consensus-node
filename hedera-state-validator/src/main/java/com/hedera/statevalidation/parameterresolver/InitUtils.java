@@ -2,9 +2,7 @@
 package com.hedera.statevalidation.parameterresolver;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.statevalidation.parameterresolver.StateResolver.readVersion;
 import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
-import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -44,8 +42,6 @@ import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
-import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
-import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
@@ -88,9 +84,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.StateConfig;
@@ -98,43 +91,16 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.InstantSource;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.config.CryptoConfig;
 
 public class InitUtils {
-
-    private static final Logger log = LogManager.getLogger(InitUtils.class);
-
-    /**
-     * The excluded tables were renamed (see https://github.com/hashgraph/hedera-services/pull/16775). However, their metadata
-     * still remains till the next version. This confuses the validator as it expects these tables to exist while they don't.
-     * Hence, we exclude them manually.
-     */
-    private static final Set<String> TABLES_TO_EXCLUDE = Set.of(
-            "ScheduleService.SCHEDULES_BY_EQUALITY",
-            "ScheduleService.SCHEDULES_BY_EXPIRY_SEC",
-            "HintsService.PREPROCESSING_VOTES",
-            "HintsService.HINTS_KEY_SETS",
-            "HintsService.CRS_PUBLICATIONS");
 
     public static Configuration CONFIGURATION;
 
@@ -185,74 +151,6 @@ public class InitUtils {
     }
 
     /**
-     * This method initializes all the virtual maps and their data sources
-     *
-     * @param servicesRegistry the services registry required to build VMs
-     * @return the list of virtual maps and their data sources
-     */
-    static List<VirtualMapAndDataSourceRecord<?, ?>> initVirtualMapRecords(ServicesRegistryImpl servicesRegistry) {
-        final Path stateDirPath = Paths.get(STATE_DIR);
-
-        final MerkleDb merkleDb = MerkleDb.getInstance(stateDirPath, CONFIGURATION);
-        Map<String, MerkleDbTableConfig> tableConfigByNames = merkleDb.getTableConfigs();
-        final var virtualMaps = new ArrayList<VirtualMapAndDataSourceRecord<?, ?>>();
-
-        servicesRegistry.registrations().forEach((registration) -> {
-            try {
-                var service = registration.service();
-                var serviceName = service.getServiceName();
-                log.debug("Registering schemas for service {}", serviceName);
-                var registry =
-                        new MerkleSchemaRegistry(
-                                ConstructableRegistry.getInstance(),
-                                serviceName,
-                                CONFIGURATION,
-                                new SchemaApplications()) {
-                            @SuppressWarnings({"rawtypes", "unchecked"})
-                            @Override
-                            public SchemaRegistry register(Schema schema) {
-                                schema.statesToCreate().forEach((def) -> {
-                                    if (!def.onDisk()) {
-                                        return;
-                                    }
-                                    final var md = new StateMetadata<>(serviceName, schema, def);
-                                    final var label = StateMetadata.computeLabel(serviceName, def.stateKey());
-                                    if (TABLES_TO_EXCLUDE.contains(label)) {
-                                        return;
-                                    }
-                                    MerkleDbTableConfig tableConfig = tableConfigByNames.get(label);
-                                    final var keySerializer = new OnDiskKeySerializer<>(
-                                            md.onDiskKeySerializerClassId(),
-                                            md.onDiskKeyClassId(),
-                                            md.stateDefinition().keyCodec());
-                                    final var valueSerializer = new OnDiskValueSerializer<>(
-                                            md.onDiskValueSerializerClassId(),
-                                            md.onDiskValueClassId(),
-                                            md.stateDefinition().valueCodec());
-                                    final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
-                                    final var vm =
-                                            new VirtualMap(label, keySerializer, valueSerializer, ds, CONFIGURATION);
-                                    virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
-                                            label,
-                                            (MerkleDbDataSource) vm.getDataSource(),
-                                            vm,
-                                            keySerializer,
-                                            valueSerializer));
-                                });
-                                return null;
-                            }
-                        };
-
-                service.registerSchemas(registry);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        return virtualMaps;
-    }
-
-    /**
      * This method initializes all the services in the registry and by proxy it initilizes all the underlying deserializers
      * to read the state files
      *
@@ -279,7 +177,6 @@ public class InitUtils {
                         configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
-        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> readVersion());
 
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
         Set.of(
@@ -329,26 +226,20 @@ public class InitUtils {
      * This method initializes the State API
      */
     static void initServiceMigrator(State state, Configuration configuration, ServicesRegistry servicesRegistry) {
-        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var serviceMigrator = new OrderedServiceMigrator();
         final var platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        final var deserializedVersion = platformFacade.creationSoftwareVersionOf(state);
-        final var version = getNodeStartupVersion(bootstrapConfigProvider.getConfiguration());
+        final var version = platformFacade.creationSoftwareVersionOf(state);
+        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);
         serviceMigrator.doMigrations(
                 (MerkleNodeState) state,
                 servicesRegistry,
-                deserializedVersion,
+                version,
                 version,
                 configuration,
                 configuration,
-                new NoOpMetrics(),
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
                 new ConfigProviderImpl(),
                 platformFacade);
-    }
-
-    private static SemanticVersion getNodeStartupVersion(final Configuration config) {
-        return readVersion();
     }
 }

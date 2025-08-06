@@ -17,11 +17,6 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
-      solo-version:
-        required: true
-        default: "latest_tested_solo-charts0.59"
-        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
-        type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
@@ -90,7 +85,7 @@ jobs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -132,7 +127,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
@@ -151,7 +146,7 @@ jobs:
     if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -164,7 +159,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -193,7 +188,7 @@ jobs:
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -207,11 +202,10 @@ jobs:
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ inputs.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
-          COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
+          COMMIT=$(git rev-list -n 1 "${{ inputs.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an')
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
@@ -244,7 +238,7 @@ jobs:
       inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -369,7 +363,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

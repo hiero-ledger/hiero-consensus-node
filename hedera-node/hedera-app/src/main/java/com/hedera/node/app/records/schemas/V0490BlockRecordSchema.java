@@ -49,11 +49,10 @@ public class V0490BlockRecordSchema extends Schema {
      * */
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var isGenesis = ctx.previousVersion() == null;
-        if (isGenesis) {
+        if (ctx.isGenesis()) {
             final var blocksState = ctx.newStates().getSingleton(BLOCK_INFO_STATE_KEY);
             // Note there is by convention no post-upgrade work to do if starting from genesis
-            final var blocks = new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH);
+            final var blocks = new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH);
             blocksState.put(blocks);
             final var runningHashState = ctx.newStates().getSingleton(RUNNING_HASHES_STATE_KEY);
             final var runningHashes =

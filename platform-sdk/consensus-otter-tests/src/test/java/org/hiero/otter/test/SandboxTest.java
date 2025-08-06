@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
-import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -39,11 +38,10 @@ public class SandboxTest {
      * Example of a migrated JRS test.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
     @Disabled("Sandbox test, not meant to be run")
-    void testConsistencyNDReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testConsistencyNDReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -68,7 +66,7 @@ public class SandboxTest {
         timeManager.waitFor(TWO_MINUTES);
 
         // Validations
-        assertThat(network.getLogResults()
+        assertThat(network.newLogResults()
                         .suppressingLogMarker(SOCKET_EXCEPTIONS)
                         .suppressingLogMarker(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .haveNoMessagesWithLevelHigherThan(Level.INFO);
@@ -78,11 +76,10 @@ public class SandboxTest {
      * Example of a migrated {@code ConsensusTest}.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @OtterTest
     @Disabled("Sandbox test, not meant to be run")
-    void testBranching(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testBranching(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -105,22 +102,21 @@ public class SandboxTest {
      * A catch-all test to try out the API.
      *
      * @param env the test environment for this test
-     * @throws InterruptedException if an operation times out
      */
     @Disabled("Sandbox test, not meant to be run")
     @OtterTest
-    void testApi(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testApi(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
         network.addNodes(4);
-        assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.getLogResults())
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newLogResults())
                 .haveNoMessageWithMarkers(STARTUP)
                 .haveNoMessageWithLevelHigherThan(Level.INFO)
                 .haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.getPlatformStatusResults())
+        assertContinuouslyThat(network.newPlatformStatusResults())
                 .doNotEnterAnyStatusesOf(CHECKING)
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING);
         network.start();
@@ -129,18 +125,16 @@ public class SandboxTest {
         timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
-        final MultipleNodeLogResults logResults = network.getLogResults()
+        final MultipleNodeLogResults logResults = network.newLogResults()
                 .suppressingNode(network.getNodes().getFirst())
                 .suppressingLogMarker(STARTUP);
         assertThat(logResults).haveNoMessagesWithLevelHigherThan(Level.WARN);
 
-        assertThat(network.getPlatformStatusResults())
+        assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.getPcesResults()).haveAllBirthRoundsEqualTo(1);
+        assertThat(network.newPcesResults()).haveAllBirthRoundsEqualTo(1);
 
-        assertThat(network.getConsensusResults())
-                .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(Percentage.withPercentage(1));
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
     }
 }

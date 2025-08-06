@@ -42,7 +42,6 @@ public class CryptoUpdateTranslator implements BlockTransactionPartsTranslator {
                                         .valueOrThrow()
                                         .accountValueOrThrow();
                                 if (matches(targetId, account)) {
-                                    iter.remove();
                                     receiptBuilder.accountID(account.accountIdOrThrow());
                                     return;
                                 }

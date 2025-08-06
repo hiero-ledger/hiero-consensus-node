@@ -9,6 +9,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
@@ -41,7 +42,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer;
 
     /**
-     * Materics for sync related numbers
+     * Metrics for sync related numbers
      */
     private final SyncMetrics syncMetrics;
     /**
@@ -95,6 +96,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     private int incomingEventsCounter = 0;
 
+    private final SyncGuard syncGuard;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -118,7 +121,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Time time,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Consumer<PlatformEvent> eventHandler) {
+            @NonNull final Consumer<PlatformEvent> eventHandler,
+            @NonNull final SyncGuard syncGuard) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -128,6 +132,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.time = Objects.requireNonNull(time);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.eventHandler = Objects.requireNonNull(eventHandler);
+        this.syncGuard = syncGuard;
     }
 
     /**
@@ -135,7 +140,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * last synchronization, remote side has not fallen behind etc
      *
      * @param systemHealthy health of the system
-     * @return true if we should continue dispatching messages, false if system is unhealthy and we are in proper place
+     * @return true if we should continue dispatching messages, false if system is unhealthy, and we are in proper place
      * to break rpc conversation
      */
     // dispatch thread
@@ -162,7 +167,17 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         if (state.mySyncData == null) {
             if (systemHealthy) {
-                // WE ARE DOING INTERESTING THING HERE!
+                if (state.remoteSyncData == null) {
+                    if (!syncGuard.isSyncAllowed(peerId)) {
+                        this.syncMetrics.doNotSyncFairSelector();
+                        return true;
+                    }
+                } else {
+                    // if remote side is starting sync with us, we want to do that, but still mark it as recently synced
+                    syncGuard.onForcedSync(peerId);
+                }
+                // we have received remote sync request, so we want to reply, or sync selector told us it is our
+                // time to initiate sync
                 sendSyncData();
             }
             return systemHealthy;
@@ -224,7 +239,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     @Override
     public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
         // this is one of two important parts of the code to keep outside critical section - receiving events
-        final long start = System.nanoTime();
+        final long start = time.nanoTime();
         incomingEventsCounter += gossipEvents.size();
         gossipEvents.forEach(this::handleIncomingSyncEvent);
         this.syncMetrics.eventsReceived(start, gossipEvents.size());
@@ -305,6 +320,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     }
 
     private void sendSyncData() {
+        syncMetrics.syncStarted();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_WINDOWS);
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
         state.myTips = sharedShadowgraphSynchronizer.getTips();
@@ -349,9 +365,13 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         incomingEventsCounter = 0;
         outgoingEventsCounter = 0;
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.IDLE);
+        syncMetrics.syncFinished();
     }
 
     private void clearInternalState() {
+        if (state.mySyncData != null) {
+            syncGuard.onSyncCompleted(peerId);
+        }
         state.clear(time.now());
     }
 

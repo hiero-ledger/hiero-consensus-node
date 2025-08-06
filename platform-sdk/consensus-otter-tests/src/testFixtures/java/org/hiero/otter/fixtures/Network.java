@@ -9,14 +9,17 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 
 /**
  * Interface representing a network of nodes.
  *
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
+@SuppressWarnings("unused")
 public interface Network {
 
     /**
@@ -89,10 +92,8 @@ public interface Network {
      *
      * <p>It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void freeze() throws InterruptedException;
+    void freeze();
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
@@ -101,10 +102,8 @@ public interface Network {
      *
      * <p>The method will wait for an environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void shutdown() throws InterruptedException;
+    void shutdown();
 
     /**
      * Allows to override the default timeout for network operations.
@@ -137,42 +136,59 @@ public interface Network {
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of all nodes that are currently in the network.
+     * Creates a new result with all the consensus rounds of all nodes that are currently in the network.
      *
      * @return the consensus rounds of the filtered nodes
      */
     @NonNull
-    MultipleNodeConsensusResults getConsensusResults();
+    MultipleNodeConsensusResults newConsensusResults();
 
     /**
-     * Gets the log results of all nodes that are currently in the network.
+     * Creates a new result with all the log results of all nodes that are currently in the network.
      *
      * @return the log results of the nodes
      */
     @NonNull
-    MultipleNodeLogResults getLogResults();
+    MultipleNodeLogResults newLogResults();
 
     /**
-     * Gets the status progression results of all nodes that are currently in the network.
+     * Creates a new result with all the status progression results of all nodes that are currently in the network.
      *
      * @return the status progression results of the nodes
      */
     @NonNull
-    MultipleNodePlatformStatusResults getPlatformStatusResults();
+    MultipleNodePlatformStatusResults newPlatformStatusResults();
 
     /**
-     * Gets the results related to PCES files of all nodes that are currently in the network.
+     * Creates a new result with all the PCES file results of all nodes that are currently in the network.
      *
      * @return the PCES files created by the nodes
      */
     @NonNull
-    MultipleNodePcesResults getPcesResults();
+    MultipleNodePcesResults newPcesResults();
+
+    /**
+     * Creates a new result with all node reconnect results of all nodes that are currently in the network.
+     *
+     * @return the results of node reconnects
+     */
+    @NonNull
+    MultipleNodeReconnectResults newReconnectResults();
+
+    /**
+     * Creates a new result with all marker file results of all nodes that are currently in the network.
+     *
+     * @return the marker file results of the nodes
+     */
+    @NonNull
+    MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
      * its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
+     * @return {@code true} if the node is behind by node weight, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
@@ -183,6 +199,7 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @param fraction the fraction of peers to consider for the behind check
+     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);

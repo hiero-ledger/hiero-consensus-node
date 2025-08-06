@@ -5,9 +5,7 @@ import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfte
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.benchmark.BenchmarkKey;
 import com.swirlds.benchmark.BenchmarkMetrics;
-import com.swirlds.benchmark.BenchmarkValue;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -33,7 +31,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class MerkleBenchmarkUtils {
 
-    public static MerkleInternal createTreeForMaps(final List<VirtualMap<BenchmarkKey, BenchmarkValue>> maps) {
+    public static MerkleInternal createTreeForMaps(final List<VirtualMap> maps) {
         final BenchmarkMerkleInternal tree = new BenchmarkMerkleInternal("root");
         initializeTreeAfterCopy(tree);
         for (int i = 0; i < maps.size(); i++) {

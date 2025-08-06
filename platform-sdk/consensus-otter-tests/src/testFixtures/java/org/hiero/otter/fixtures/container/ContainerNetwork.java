@@ -55,6 +55,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private final Network network = Network.newNetwork();
     private final RegularTimeManager timeManager;
+    private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final List<ContainerNode> nodes = new ArrayList<>();
     private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
@@ -63,15 +64,18 @@ public class ContainerNetwork extends AbstractNetwork {
     /**
      * Constructor for {@link ContainerNetwork}.
      *
-     * @param timeManager          the time manager to use
+     * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
+     * @param rootOutputDirectory the root output directory for the network
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
-            @NonNull final ContainerTransactionGenerator transactionGenerator) {
+            @NonNull final ContainerTransactionGenerator transactionGenerator,
+            @NonNull final Path rootOutputDirectory) {
         super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
     }
@@ -111,7 +115,6 @@ public class ContainerNetwork extends AbstractNetwork {
     public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
-        final List<ContainerNode> newNodes = new ArrayList<>();
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
@@ -138,15 +141,22 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        for (final NodeId selfId : sortedNodeIds) {
-            final ContainerNode node =
-                    new ContainerNode(selfId, roster, keysAndCerts.get(selfId), network, dockerImage);
-            newNodes.add(node);
-        }
+        final List<ContainerNode> newNodes = sortedNodeIds.stream()
+                .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
+                .toList();
         nodes.addAll(newNodes);
+
         transactionGenerator.setNodesSupplier(() -> publicNodes);
 
-        return Collections.unmodifiableList(newNodes);
+        return newNodes.stream().map(Node.class::cast).toList();
+    }
+
+    private ContainerNode createContainerNode(
+            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts keysAndCerts) {
+        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        final ContainerNode node = new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+        timeManager.addTimeTickReceiver(node);
+        return node;
     }
 
     @NonNull

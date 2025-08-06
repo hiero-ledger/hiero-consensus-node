@@ -8,14 +8,18 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
 import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
+import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.ParameterProvider;
@@ -38,6 +42,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
@@ -45,8 +50,12 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -57,6 +66,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.CesEvent;
@@ -118,6 +128,12 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         setupConstructableRegistry();
+        try {
+            setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
+            registerVirtualMapConstructables(platformContext.getConfiguration());
+        } catch (ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
 
         final PathsConfig defaultPathsConfig = ConfigurationBuilder.create()
                 .withConfigDataType(PathsConfig.class)
@@ -137,9 +153,16 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
-        try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile, platformStateFacade, platformContext)
-                .reservedSignedState()) {
+        final SwirldMain<?> hederaApp = createHederaApp(platformContext, platformStateFacade, appMain);
+
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+                signedStateFile,
+                EventRecoveryWorkflow::createrNewMerkleNodeState,
+                platformStateFacade,
+                platformContext);
+        try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
+            updateStateHash(hederaApp, deserializedSignedState);
+
             logger.info(
                     STARTUP.getMarker(),
                     "State from round {} loaded.",
@@ -157,7 +180,7 @@ public final class EventRecoveryWorkflow {
             final RecoveredState recoveredState = reapplyTransactions(
                     platformContext,
                     initialState.getAndReserve("recoverState()"),
-                    appMain,
+                    hederaApp,
                     roundIterator,
                     finalRound,
                     selfId,
@@ -204,6 +227,44 @@ public final class EventRecoveryWorkflow {
             mutableStateCopy.release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
+        }
+    }
+
+    private static void updateStateHash(SwirldMain<?> hederaApp, DeserializedSignedState deserializedSignedState) {
+        try {
+            Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
+            setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static SwirldMain<?> createHederaApp(
+            PlatformContext platformContext, PlatformStateFacade platformStateFacade, SwirldMain<?> appMain) {
+        final SwirldMain<?> hederaApp;
+        Method newHederaMethod;
+        try {
+            newHederaMethod = appMain.getClass()
+                    .getDeclaredMethod("newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
+            hederaApp = (SwirldMain<?>) newHederaMethod.invoke(
+                    null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return hederaApp;
+    }
+
+    private static MerkleNodeState createrNewMerkleNodeState(VirtualMap virtualMap) {
+        try {
+            Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
+            Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
+            return (MerkleNodeState) constructor.newInstance(virtualMap);
+        } catch (ClassNotFoundException
+                | NoSuchMethodException
+                | InvocationTargetException
+                | InstantiationException
+                | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -259,7 +320,7 @@ public final class EventRecoveryWorkflow {
      * Apply transactions on top of a state to produce a new state
      *
      * @param platformContext the platform context
-     * @param initialState    the starting signed state
+     * @param initialSignedState    the starting signed state
      * @param appMain         the {@link SwirldMain} for the app. Ignored if null.
      * @param roundIterator   an iterator that walks over transactions
      * @param finalRound      the last round to apply to the state (inclusive), will stop earlier if the event stream
@@ -272,7 +333,7 @@ public final class EventRecoveryWorkflow {
     @NonNull
     public static RecoveredState reapplyTransactions(
             @NonNull final PlatformContext platformContext,
-            @NonNull final ReservedSignedState initialState,
+            @NonNull final ReservedSignedState initialSignedState,
             @NonNull final SwirldMain appMain,
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
@@ -282,33 +343,33 @@ public final class EventRecoveryWorkflow {
             throws IOException {
 
         Objects.requireNonNull(platformContext, "platformContext must not be null");
-        Objects.requireNonNull(initialState, "initialState must not be null");
+        Objects.requireNonNull(initialSignedState, "initialSignedState must not be null");
         Objects.requireNonNull(appMain, "appMain must not be null");
         Objects.requireNonNull(roundIterator, "roundIterator must not be null");
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         final Configuration configuration = platformContext.getConfiguration();
 
-        initialState.get().getState().throwIfImmutable("initial state must be mutable");
+        MerkleNodeState initialState = initialSignedState.get().getState();
+        initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
 
         final RecoveryPlatform platform =
-                new RecoveryPlatform(configuration, initialState.get(), selfId, loadSigningKeys);
+                new RecoveryPlatform(configuration, initialSignedState.get(), selfId, loadSigningKeys);
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
-        SemanticVersion softwareVersion =
-                platformStateFacade.creationSoftwareVersionOf(initialState.get().getState());
-        initialState.get().init(platformContext);
+        SemanticVersion softwareVersion = platformStateFacade.creationSoftwareVersionOf(initialState);
+        initialSignedState.get().init(platformContext);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
         consensusStateEventHandler.onStateInitialized(
-                initialState.get().getState(), platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
+                initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
         appMain.init(platform, platform.getSelfId());
 
-        ReservedSignedState signedState = initialState;
+        ReservedSignedState signedState = initialSignedState;
 
         // Apply events to the state
         ConsensusEvent lastEvent = null;

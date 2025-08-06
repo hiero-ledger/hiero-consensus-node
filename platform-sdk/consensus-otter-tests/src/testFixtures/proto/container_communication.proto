@@ -156,6 +156,12 @@ message ProtoConsensusRounds {
   repeated ProtoConsensusRound rounds = 1;
 }
 
+// Notification of a new marker file.
+message MarkerFileAdded {
+  // names of the marker files that were created.
+  repeated string marker_file_name = 1;
+}
+
 // Wrapper for different types of event messages.
 message EventMessage {
   // Oneof field to represent different event types.
@@ -166,21 +172,27 @@ message EventMessage {
     LogEntry log_entry = 2;
     // Consensus rounds event.
     ProtoConsensusRounds consensus_rounds = 3;
+    // Marker file event.
+    MarkerFileAdded marker_file_added = 4;
   }
+}
+
+// Request to initialize the container.
+message InitRequest {
+  // ID of the node.
+  com.hedera.hapi.platform.state.NodeId self_id = 1;
 }
 
 // Request to start the remote platform.
 message StartRequest {
-  // ID of the node starting the platform.
-  com.hedera.hapi.platform.state.NodeId self_id = 1;
   // Semantic version of the platform.
-  .proto.SemanticVersion version = 2;
+  .proto.SemanticVersion version = 1;
   // Roster of nodes participating in the platform.
-  com.hedera.hapi.node.state.roster.Roster roster = 3;
+  com.hedera.hapi.node.state.roster.Roster roster = 2;
   // Cryptographic keys and certificates for the platform.
-  ProtoKeysAndCerts keys_and_certs = 4;
+  ProtoKeysAndCerts keys_and_certs = 3;
   // Properties overridden for the platform.
-  map<string, string> overridden_properties = 5;
+  map<string, string> overridden_properties = 4;
 }
 
 // Wrapper for a transaction submission request.
@@ -189,22 +201,28 @@ message TransactionRequest {
   bytes payload = 1;
 }
 
+// Response to a transaction submission request.
 message TransactionRequestAnswer {
   // indicator if the platform accepted the transaction
   bool result = 1;
 }
 
+// Request to kill the application immediately.
 message KillImmediatelyRequest {
   google.protobuf.Empty ignore = 1;
 }
 
+// Request to set the synthetic bottleneck.
 message SyntheticBottleneckRequest {
   // The number of milliseconds to sleep per round on the handle thread
-  int64 sleep_millis_per_round = 1;
+  uint64 sleep_millis_per_round = 1;
 }
 
 // Service definition for controlling tests.
 service TestControl {
+  // RPC to initialize the container with the node ID.
+  rpc Init(InitRequest) returns (google.protobuf.Empty);
+
   // RPC to start the platform and stream event messages.
   rpc Start(StartRequest) returns (stream EventMessage);
 

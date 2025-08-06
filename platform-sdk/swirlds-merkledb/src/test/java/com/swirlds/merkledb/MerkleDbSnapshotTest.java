@@ -4,10 +4,12 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -21,19 +23,15 @@ import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
+import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
+import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,11 +59,6 @@ class MerkleDbSnapshotTest {
     private static final int ROUND_CHANGES = 1000;
 
     private static final Random RANDOM = new Random(123);
-
-    private static final KeySerializer<ExampleLongKeyFixedSize> keySerializer =
-            new ExampleLongKeyFixedSize.Serializer();
-    private static final ValueSerializer<ExampleFixedSizeVirtualValue> valueSerializer =
-            new ExampleFixedSizeVirtualValueSerializer();
 
     @BeforeAll
     static void setup() throws Exception {
@@ -104,11 +97,10 @@ class MerkleDbSnapshotTest {
 
     private void verify(final MerkleInternal stateRoot) {
         for (int i = 0; i < MAPS_COUNT; i++) {
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm = stateRoot.getChild(i);
-            final VirtualMapState state = vm.getLeft();
-            final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root = vm.getRight();
+            final VirtualMap vm = stateRoot.getChild(i);
+            final VirtualMapMetadata state = vm.getMetadata();
             for (int path = 0; path <= state.getLastLeafPath(); path++) {
-                final Hash hash = root.getRecords().findHash(path);
+                final Hash hash = vm.getRecords().findHash(path);
                 Assertions.assertNotNull(hash);
             }
         }
@@ -120,8 +112,7 @@ class MerkleDbSnapshotTest {
         final MerkleDbTableConfig tableConfig = fixedConfig();
         final MerkleDbDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
         for (int i = 0; i < MAPS_COUNT; i++) {
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm =
-                    new VirtualMap<>("vm" + i, keySerializer, valueSerializer, dsBuilder, CONFIGURATION);
+            final VirtualMap vm = new VirtualMap("vm" + i, dsBuilder, CONFIGURATION);
             registerMetrics(vm);
             initialRoot.setChild(i, vm);
         }
@@ -135,13 +126,12 @@ class MerkleDbSnapshotTest {
         for (int j = 0; j < ITERATIONS; j++) {
             final MerkleInternal newStateRoot = stateRoot.copy();
             for (int i = 0; i < MAPS_COUNT; i++) {
-                final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm = newStateRoot.getChild(i);
-                final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root = vm.getRight();
-                root.enableFlush();
+                final VirtualMap vm = newStateRoot.getChild(i);
+                vm.enableFlush();
                 for (int k = 0; k < ROUND_CHANGES; k++) {
-                    final ExampleLongKeyFixedSize key = new ExampleLongKeyFixedSize(keyId++);
-                    final ExampleFixedSizeVirtualValue value = new ExampleFixedSizeVirtualValue(RANDOM.nextInt());
-                    vm.put(key, value);
+                    final Bytes key = ExampleLongKey.longToKey(keyId++);
+                    final ExampleFixedValue value = new ExampleFixedValue(RANDOM.nextInt());
+                    vm.put(key, value, ExampleFixedValue.CODEC);
                 }
             }
             if (j == ITERATIONS / 2) {
@@ -158,7 +148,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -175,8 +165,7 @@ class MerkleDbSnapshotTest {
         final MerkleDbTableConfig tableConfig = fixedConfig();
         final MerkleDbDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
         for (int i = 0; i < MAPS_COUNT; i++) {
-            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm =
-                    new VirtualMap<>("vm" + i, keySerializer, valueSerializer, dsBuilder, CONFIGURATION);
+            final VirtualMap vm = new VirtualMap("vm" + i, dsBuilder, CONFIGURATION);
             initialRoot.setChild(i, vm);
         }
 
@@ -189,16 +178,12 @@ class MerkleDbSnapshotTest {
                     for (int j = 0; j < ITERATIONS; j++) {
                         final MerkleInternal newStateRoot = stateRoot.copy();
                         for (int i = 0; i < MAPS_COUNT; i++) {
-                            final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm =
-                                    newStateRoot.getChild(i);
-                            final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root =
-                                    vm.getRight();
-                            root.enableFlush();
+                            final VirtualMap vm = newStateRoot.getChild(i);
+                            vm.enableFlush();
                             for (int k = 0; k < ROUND_CHANGES; k++) {
-                                final ExampleLongKeyFixedSize key = new ExampleLongKeyFixedSize(keyId++);
-                                final ExampleFixedSizeVirtualValue value =
-                                        new ExampleFixedSizeVirtualValue(RANDOM.nextInt());
-                                vm.put(key, value);
+                                final Bytes key = ExampleLongKey.longToKey(keyId++);
+                                final ExampleFixedValue value = new ExampleFixedValue(RANDOM.nextInt());
+                                vm.put(key, value, ExampleFixedValue.CODEC);
                             }
                         }
                         if (j == ITERATIONS / 2) {
@@ -213,7 +198,8 @@ class MerkleDbSnapshotTest {
                 })
                 .start();
 
-        startSnapshotLatch.await();
+        startSnapshotLatch.await(10, TimeUnit.SECONDS);
+        assertEquals(0, startSnapshotLatch.getCount());
         assertEventuallyTrue(() -> lastRoot.get() != null, Duration.ofSeconds(10), "lastRoot is null");
 
         TestMerkleCryptoFactory.getInstance().digestTreeSync(rootToSnapshot.get());
@@ -227,7 +213,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -239,8 +225,8 @@ class MerkleDbSnapshotTest {
 
     private static void closeDataSources(MerkleInternal initialRoot) throws IOException, InterruptedException {
         for (int i = 0; i < MAPS_COUNT; i++) {
-            final VirtualMap<?, ?> vm = initialRoot.getChild(i);
-            ((VirtualRootNode<?, ?>) vm.getRight()).getPipeline().awaitTermination(8, TimeUnit.SECONDS);
+            final VirtualMap vm = initialRoot.getChild(i);
+            vm.getPipeline().awaitTermination(8, TimeUnit.SECONDS);
             vm.getDataSource().close();
         }
     }
@@ -273,9 +259,9 @@ class MerkleDbSnapshotTest {
         }
     }
 
-    private static void registerMetrics(VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm) {
-        final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
-        MetricsConfig metricsConfig = CONFIGURATION.getConfigData(MetricsConfig.class);
+    private static void registerMetrics(VirtualMap vm) {
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
         Metrics metrics = new DefaultPlatformMetrics(

@@ -695,7 +695,8 @@ public class AtomicIsAuthorizedTest {
                                                     signedBytes)
                                             .via(recordName)
                                             .gas(testCase.gasAmount())
-                                            .batchKey(BATCH_OPERATOR))
+                                            .batchKey(BATCH_OPERATOR)
+                                            .hasKnownStatusFrom(SUCCESS, INSUFFICIENT_GAS))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatusFrom(SUCCESS, INNER_TRANSACTION_FAILED);
                             allRunFor(spec, call);
@@ -774,7 +775,8 @@ public class AtomicIsAuthorizedTest {
                                                     signedBytes)
                                             .via(recordName)
                                             .gas(testCase.gasAmount())
-                                            .batchKey(BATCH_OPERATOR))
+                                            .batchKey(BATCH_OPERATOR)
+                                            .hasKnownStatusFrom(SUCCESS, CONTRACT_REVERT_EXECUTED))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatusFrom(SUCCESS, INNER_TRANSACTION_FAILED);
                             allRunFor(spec, call);

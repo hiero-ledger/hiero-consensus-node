@@ -11,12 +11,18 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import org.hiero.base.utility.CommonUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,16 +38,25 @@ class WritablePlatformStateStoreTest {
     private WritablePlatformStateStore store;
 
     private Randotron randotron;
+    private VirtualMap virtualMap;
 
     @BeforeEach
     void setUp() {
         randotron = Randotron.create();
-        SingletonNode<PlatformState> platformSingleton =
-                new SingletonNode<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, 0, PlatformState.PROTOBUF, null);
-        platformSingleton.setValue(toPbjPlatformState(randomPlatformState(randotron)));
+
+        final String virtualMapLabel =
+                "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
+        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
+        final Bytes key = StateUtils.getStateKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY);
+        final StateValue value = StateUtils.getStateValue(
+                PlatformStateService.NAME, PLATFORM_STATE_KEY, toPbjPlatformState(randomPlatformState(randotron)));
+
+        virtualMap.put(key, value, StateValue.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
+                .thenReturn(
+                        new OnDiskWritableSingletonState<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 
@@ -115,5 +130,11 @@ class WritablePlatformStateStoreTest {
         final var lastFrozenTime = Instant.now();
         store.setLastFrozenTime(lastFrozenTime);
         assertEquals(lastFrozenTime, store.getLastFrozenTime());
+    }
+
+    @AfterEach
+    void tearDown() {
+        virtualMap.release();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }
