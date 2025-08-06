@@ -907,7 +907,7 @@ public class AtomicBatchApproveAllowanceTest {
     }
 
     /**
-     * Tests that the order of serials in approveForAllNftAllowance doesn't meter inside a batch transaction.
+     * Tests that the order of serials in approveForAllNftAllowance doesn't matter inside a batch transaction.
      * @return hapi test
      */
     @HapiTest
