@@ -128,7 +128,7 @@ public class BlockBufferService {
         this.grpcStreamingEnabled = blockStreamConfig.writerMode() != BlockStreamWriterMode.FILE;
         this.backpressureEnabled = (blockStreamConfig.streamMode() == StreamMode.BLOCKS && grpcStreamingEnabled);
 
-        // Only start the pruning thread if backpressure is enabled and gRPC streaming is enabled
+        // Only start the pruning thread if gRPC streaming is enabled
         if (grpcStreamingEnabled) {
             scheduleNextPruning();
         }
