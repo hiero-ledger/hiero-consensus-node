@@ -6,8 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -31,14 +30,7 @@ import java.math.BigInteger;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.*;
 
 /**
  * Tests success scenarios of the HRC-1215 functions when enabled
@@ -46,7 +38,6 @@ import org.junit.jupiter.api.TestMethodOrder;
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
-@TestMethodOrder(OrderAnnotation.class)
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class ScheduleCallTest {
@@ -71,7 +62,7 @@ public class ScheduleCallTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
-    @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(withOpContext(
@@ -82,7 +73,7 @@ public class ScheduleCallTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
-    @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
@@ -98,7 +89,7 @@ public class ScheduleCallTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
-    @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)")
+    @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(

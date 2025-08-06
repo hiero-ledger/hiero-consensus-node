@@ -5,8 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -23,11 +22,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.*;
 
 /**
  * Tests success scenarios of the HRC-1215 functions when enabled
@@ -35,6 +30,7 @@ import org.junit.jupiter.api.Tag;
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
@@ -53,7 +49,7 @@ public class HasScheduleCapacityTest {
     }
 
     @HapiTest
-    @DisplayName("call hasScheduleCapacity(uint256,uint256)")
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success")
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
@@ -71,7 +67,7 @@ public class HasScheduleCapacityTest {
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
-    @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule")
+    @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
@@ -92,4 +88,12 @@ public class HasScheduleCapacityTest {
                             .isDeleted());
         }));
     }
+
+    //    @Order(Integer.MAX_VALUE - 1)
+    //    @LeakyHapiTest
+    //    final Stream<DynamicTest> streamsAreValid() {
+    //        return hapiTest(
+    //                sleepForBlockPeriod(),
+    //                validateStreams());
+    //    }
 }
