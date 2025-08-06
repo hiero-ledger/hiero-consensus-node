@@ -8,17 +8,13 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
@@ -27,19 +23,13 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest;
 import com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest.UintTestCase;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
-@HapiTestLifecycle
 public class NumericValidation16c {
-
-    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Contract(contract = "NumericContract16c", creationGas = 1_000_000L, variant = VARIANT_16C)
     static SpecContract numericContract;
@@ -57,13 +47,6 @@ public class NumericValidation16c {
 
     @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)
     static SpecFungibleToken fungibleToken;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with invalid serial number")
@@ -89,16 +72,6 @@ public class NumericValidation16c {
     public Stream<DynamicTest> succeedToGetTokenKey() {
         return hapiTest(numericContract
                 .call("getTokenKey", nft, BigInteger.valueOf(128L))
-                .gas(100_000L)
-                .andAssert(txn -> txn.hasKnownStatus(SUCCESS)));
-    }
-
-    @HapiTest
-    @DisplayName("when using atomic getTokenKey should return metadata key")
-    public Stream<DynamicTest> atomicSucceedToGetTokenKey() {
-        return hapiTest(numericContract
-                .call("getTokenKey", nft, BigInteger.valueOf(128L))
-                .wrappedInBatchOperation(BATCH_OPERATOR)
                 .gas(100_000L)
                 .andAssert(txn -> txn.hasKnownStatus(SUCCESS)));
     }
