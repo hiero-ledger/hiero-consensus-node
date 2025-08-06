@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountB
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -36,7 +35,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -49,7 +47,6 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZ
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -61,30 +58,24 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class LazyCreateThroughPrecompileSuite {
 
@@ -124,14 +115,6 @@ public class LazyCreateThroughPrecompileSuite {
     private static final String RECIPIENT = "recipient";
     private static final String NOT_ENOUGH_GAS_TXN = "NOT_ENOUGH_GAS_TXN";
     private static final String ECDSA_KEY = "abcdECDSAkey";
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
     final Stream<DynamicTest> resourceLimitExceededRevertsAllRecords() {
@@ -174,62 +157,6 @@ public class LazyCreateThroughPrecompileSuite {
                             .gas(GAS_TO_OFFER)
                             .alsoSigningWithFullPrefix(CIVILIAN)
                             .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED);
-                    allRunFor(spec, callOp);
-                }),
-                childRecordsCheck(
-                        creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
-    }
-
-    @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
-    final Stream<DynamicTest> atomicResourceLimitExceededRevertsAllRecords() {
-        final var n = 6; // + 2 for the nint and approve allowance in the batch
-        final var nft = "nft";
-        final var nftKey = NFT_KEY;
-        final var creationAttempt = CREATION_ATTEMPT;
-        final AtomicLong civilianId = new AtomicLong();
-        final AtomicReference<String> nftMirrorAddr = new AtomicReference<>();
-
-        return hapiTest(
-                overriding("consensus.handle.maxFollowingRecords", "" + (n - 1)),
-                newKeyNamed(nftKey),
-                uploadInitCode(AUTO_CREATION_MODES),
-                contractCreate(AUTO_CREATION_MODES),
-                cryptoCreate(CIVILIAN).keyShape(ED25519).exposingCreatedIdTo(id -> civilianId.set(id.getAccountNum())),
-                tokenCreate(nft)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .supplyKey(nftKey)
-                        .initialSupply(0)
-                        .treasury(CIVILIAN)
-                        .exposingCreatedIdTo(idLit -> nftMirrorAddr.set(asHexedSolidityAddress(asToken(idLit)))),
-                withOpContext((spec, log) -> {
-                    final var callOp = atomicBatch(
-                                    mintToken(
-                                                    nft,
-                                                    IntStream.range(0, n)
-                                                            .mapToObj(i -> ByteString.copyFromUtf8(ONE_TIME + i))
-                                                            .toList())
-                                            .batchKey(BATCH_OPERATOR),
-                                    cryptoApproveAllowance()
-                                            .payingWith(CIVILIAN)
-                                            .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of())
-                                            .batchKey(BATCH_OPERATOR),
-                                    contractCall(
-                                                    AUTO_CREATION_MODES,
-                                                    "createSeveralDirectly",
-                                                    headlongFromHexed(nftMirrorAddr.get()),
-                                                    nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
-                                                    nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
-                                                    LongStream.iterate(1L, l -> l + 1)
-                                                            .limit(n)
-                                                            .toArray())
-                                            .via(creationAttempt)
-                                            .gas(GAS_TO_OFFER
-                                                    + 500_000L) // todo check if we charge more gas inside atomic batch
-                                            .alsoSigningWithFullPrefix(CIVILIAN)
-                                            .hasKnownStatusFrom(CONTRACT_REVERT_EXECUTED)
-                                            .batchKey(BATCH_OPERATOR))
-                            .payingWith(BATCH_OPERATOR)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
                     allRunFor(spec, callOp);
                 }),
                 childRecordsCheck(

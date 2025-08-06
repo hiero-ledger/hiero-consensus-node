@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -31,7 +30,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
@@ -39,7 +37,6 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DOES_NOT_OWN_WIPED_NFT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
@@ -47,26 +44,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class WipeTokenAccountPrecompileSuite {
     public static final String WIPE_CONTRACT = "WipeTokenAccount";
@@ -81,15 +69,6 @@ public class WipeTokenAccountPrecompileSuite {
 
     public static final String THRESHOLD_KEY = "ThreshKey";
     private static final KeyShape THRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
-
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
 
     @HapiTest
     final Stream<DynamicTest> wipeFungibleTokenScenarios() {
@@ -207,118 +186,6 @@ public class WipeTokenAccountPrecompileSuite {
                                         .gasUsed(15284L))),
                 getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
                 getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicWipeFungibleTokenScenarios() {
-        final AtomicReference<Address> accountAddress = new AtomicReference<>();
-        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
-        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
-
-        return hapiTest(
-                newKeyNamed(WIPE_KEY),
-                cryptoCreate(ADMIN_ACCOUNT),
-                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(SECOND_ACCOUNT).exposingEvmAddressTo(secondAccountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(VANILLA_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .wipeKey(WIPE_KEY)
-                        .adminKey(WIPE_KEY)
-                        .initialSupply(1_000)
-                        .exposingAddressTo(vanillaTokenAddress::set),
-                uploadInitCode(WIPE_CONTRACT),
-                contractCreate(WIPE_CONTRACT),
-                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
-                cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatch(contractCall(
-                                                WIPE_CONTRACT,
-                                                WIPE_FUNGIBLE_TOKEN,
-                                                vanillaTokenAddress.get(),
-                                                accountAddress.get(),
-                                                10L)
-                                        .signedBy(GENESIS, ADMIN_ACCOUNT)
-                                        .via("accountDoesNotOwnWipeKeyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, WIPE_CONTRACT))),
-                        tokenUpdate(VANILLA_TOKEN).wipeKey(THRESHOLD_KEY).signedByPayerAnd(WIPE_KEY),
-                        cryptoUpdate(ADMIN_ACCOUNT).key(THRESHOLD_KEY),
-                        atomicBatch(contractCall(
-                                                WIPE_CONTRACT,
-                                                WIPE_FUNGIBLE_TOKEN,
-                                                vanillaTokenAddress.get(),
-                                                accountAddress.get(),
-                                                1_000L)
-                                        .signedBy(GENESIS, ADMIN_ACCOUNT)
-                                        .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
-                                        .via("amountLargerThanBalanceTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatch(contractCall(
-                                                WIPE_CONTRACT,
-                                                WIPE_FUNGIBLE_TOKEN,
-                                                vanillaTokenAddress.get(),
-                                                secondAccountAddress.get(),
-                                                10L)
-                                        .signedBy(GENESIS, ADMIN_ACCOUNT)
-                                        .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
-                                        .via("accountDoesNotOwnTokensTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatch(contractCall(
-                                                WIPE_CONTRACT,
-                                                WIPE_FUNGIBLE_TOKEN,
-                                                vanillaTokenAddress.get(),
-                                                accountAddress.get(),
-                                                10L)
-                                        .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
-                                        .via("wipeFungibleTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR),
-                        atomicBatch(contractCall(
-                                                WIPE_CONTRACT,
-                                                WIPE_FUNGIBLE_TOKEN,
-                                                vanillaTokenAddress.get(),
-                                                accountAddress.get(),
-                                                0L)
-                                        .signedBy(GENESIS, ADMIN_ACCOUNT)
-                                        .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
-                                        .via("wipeFungibleTxnWithZeroAmount")
-                                        .gas(GAS_TO_OFFER)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                validatePrecompileStatus("accountDoesNotOwnWipeKeyTxn", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
-                validatePrecompileStatus("amountLargerThanBalanceTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
-                validatePrecompileStatus("accountDoesNotOwnTokensTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
-                validatePrecompileStatus("wipeFungibleTxnWithZeroAmount", SUCCESS, SUCCESS),
-                getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
-                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
-    }
-
-    private SpecOperation validatePrecompileStatus(
-            String contractCallTxn, ResponseCodeEnum parentStatus, ResponseCodeEnum precompileStatus) {
-        return childRecordsCheck(
-                contractCallTxn,
-                parentStatus,
-                recordWith()
-                        .status(precompileStatus)
-                        .contractCallResult(resultWith()
-                                .contractCallResult(htsPrecompileResult().withStatus(precompileStatus))));
     }
 
     @HapiTest

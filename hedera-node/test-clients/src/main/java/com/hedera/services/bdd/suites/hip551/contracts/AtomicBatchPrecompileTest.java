@@ -3,12 +3,18 @@ package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.anyResult;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.redirectCallResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractLogAsserts.logWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -22,10 +28,12 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -33,18 +41,32 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHbarFeeInSchedule;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingNFT;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -53,19 +75,28 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.headlongFromHexed;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hedera.services.bdd.suites.contract.Utils.nCopiesOfSender;
+import static com.hedera.services.bdd.suites.contract.Utils.nNonMirrorAddressFrom;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.RECEIVER_2;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_TOKEN_PUBLIC;
 import static com.hedera.services.bdd.suites.contract.precompile.ERCPrecompileSuite.TRANSFER_SIGNATURE;
+import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.KNOWABLE_TOKEN;
+import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -74,19 +105,28 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.INFINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -94,32 +134,67 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
+import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.CustomFee;
+import com.hederahashgraph.api.proto.java.Duration;
+import com.hederahashgraph.api.proto.java.FixedFee;
+import com.hederahashgraph.api.proto.java.Fraction;
+import com.hederahashgraph.api.proto.java.FractionalFee;
+import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ScheduleID;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
+import com.hederahashgraph.api.proto.java.TokenInfo;
+import com.hederahashgraph.api.proto.java.TokenKycStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 
@@ -167,8 +242,22 @@ public class AtomicBatchPrecompileTest {
     private static final String TOKEN_FREEZE_FUNC = "tokenFreeze";
     private static final String TOKEN_UNFREEZE_FUNC = "tokenUnfreeze";
     private static final String GRANT_REVOKE_KYC_CONTRACT = "GrantRevokeKyc";
-    public static final String TOKEN_GRANT_KYC = "tokenGrantKyc";
-    public static final String TOKEN_REVOKE_KYC = "tokenRevokeKyc";
+    private static final String TOKEN_GRANT_KYC = "tokenGrantKyc";
+    private static final String TOKEN_REVOKE_KYC = "tokenRevokeKyc";
+    private static final String HRC = "HRC";
+    private static final String ASSOCIATE = "associate";
+    private static final String DISSOCIATE = "dissociate";
+    private static final String AUTO_CREATION_MODES = "AutoCreationModes";
+    private static final String PAUSE_UNPAUSE_CONTRACT = "PauseUnpauseTokenAccount";
+    private static final String PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME = "pauseTokenAccount";
+    private static final String THE_PRNG_CONTRACT = "PrngSystemContract";
+    private static final String GET_SEED = "getPseudorandomSeed";
+    private static final String REDIRECT_TEST_CONTRACT = "RedirectTestContract";
+    private static final String MINIMAL_CREATIONS_CONTRACT = "MinimalTokenCreations";
+    private static final String TOKEN_INFO_CONTRACT = "TokenInfoContract";
+    private static final String GET_INFORMATION_FOR_TOKEN = "getInformationForToken";
+    private static final String WIPE_CONTRACT = "WipeTokenAccount";
+    private static final String WIPE_FUNGIBLE_TOKEN = "wipeFungibleToken";
 
     // keys
     private static final String MULTI_KEY = "multiKey";
@@ -181,6 +270,9 @@ public class AtomicBatchPrecompileTest {
     private static final String FREEZE_KEY = "freezeKey";
     private static final String KYC_KEY = "kycKey";
     private static final String NON_KYC_KEY = "nonKycKey";
+    private static final String WIPE_KEY = "wipeKey";
+    private static final String FEE_SCHEDULE_KEY = "feeScheduleKey";
+    private static final String PAUSE_KEY = "pauseKey";
 
     // accounts
     private static final String OWNER = "owner";
@@ -194,16 +286,26 @@ public class AtomicBatchPrecompileTest {
     private static final String ACCOUNT = "account";
     private static final String ACCOUNT_2 = "account2";
     private static final String ACCOUNT_TO_ASSOCIATE = "accountToAssociate";
+    private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
+    private static final String HTS_COLLECTOR = "htsCollector";
 
     // tokens
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
+    private static final String SYMBOL = "T";
+    private static final int MAX_SUPPLY = 1000;
+    private static final int NUMERATOR = 1;
+    private static final int DENOMINATOR = 2;
+    private static final int MINIMUM_TO_COLLECT = 5;
+    private static final int MAXIMUM_TO_COLLECT = 400;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled", "true",
+                "atomicBatch.maxNumberOfTransactions", "50",
+                "contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         // upload contracts init code
@@ -212,6 +314,7 @@ public class AtomicBatchPrecompileTest {
                 DIRECT_ERC_CALLEE,
                 THE_GRACEFULLY_FAILING_CONTRACT,
                 ATOMIC_CRYPTO_TRANSFER_CONTRACT,
+                HTS_TRANSFER_FROM_CONTRACT,
                 MULTIVERSION_BURN_CONTRACT,
                 BURN_TOKEN,
                 NEGATIVE_MINT_CONTRACT,
@@ -224,7 +327,15 @@ public class AtomicBatchPrecompileTest {
                 NEGATIVE_DISSOCIATIONS_CONTRACT,
                 ERC_20_CONTRACT,
                 FREEZE_CONTRACT,
-                GRANT_REVOKE_KYC_CONTRACT));
+                GRANT_REVOKE_KYC_CONTRACT,
+                HRC,
+                AUTO_CREATION_MODES,
+                PAUSE_UNPAUSE_CONTRACT,
+                THE_PRNG_CONTRACT,
+                REDIRECT_TEST_CONTRACT,
+                MINIMAL_CREATIONS_CONTRACT,
+                TOKEN_INFO_CONTRACT,
+                WIPE_CONTRACT));
     }
 
     /**
@@ -1189,7 +1300,6 @@ public class AtomicBatchPrecompileTest {
                         .supplyKey(MULTI_KEY)
                         .treasury(OWNER)
                         .exposingAddressTo(tokenAddress::set),
-                uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
                 contractCreate(HTS_TRANSFER_FROM_CONTRACT),
                 cryptoApproveAllowance()
                         .payingWith(DEFAULT_PAYER)
@@ -1799,7 +1909,6 @@ public class AtomicBatchPrecompileTest {
 
             return hapiTest(
                     cryptoCreate(ACCOUNT_2).exposingEvmAddressTo(secondAccountAddress::set),
-                    uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
                     contractCreate(GRANT_REVOKE_KYC_CONTRACT),
                     withOpContext((spec, log) -> allRunFor(
                             spec,
@@ -1835,6 +1944,884 @@ public class AtomicBatchPrecompileTest {
                             .contractCallResult(resultWith()
                                     .contractCallResult(htsPrecompileResult().withStatus(precompileStatus))));
         }
+    }
+
+    /**
+     * HRCPrecompileSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicHrcCanDissociateFromDeletedToken() {
+        final AtomicReference<String> nonfungibleTokenNum = new AtomicReference<>();
+        final var associateTxn = "associateTxn";
+        final var dissociateTxn = "dissociateTxn";
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .name(TOKEN_NAME)
+                        .symbol(TOKEN_SYMBOL)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(nonfungibleTokenNum::set),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("PRICELESS")))
+                        .payingWith(ACCOUNT)
+                        .via("mintTxn"),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
+                    var nonfungibleTokenAddress = asHexedSolidityAddress(asToken(nonfungibleTokenNum.get()));
+                    allRunFor(
+                            spec,
+                            // Associate non-fungible token
+                            atomicBatchDefaultOperator(contractCallWithFunctionAbi(
+                                            nonfungibleTokenAddress,
+                                            getABIFor(Utils.FunctionType.FUNCTION, ASSOCIATE, HRC))
+                                    .payingWith(ACCOUNT)
+                                    .gas(1_000_000)
+                                    .via(associateTxn)),
+                            cryptoTransfer(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN, 1)
+                                    .between(TOKEN_TREASURY, ACCOUNT)),
+                            tokenDelete(NON_FUNGIBLE_TOKEN).via("deleteTxn"),
+                            // Dissociate non-fungible token
+                            contractCallWithFunctionAbi(
+                                            nonfungibleTokenAddress,
+                                            getABIFor(Utils.FunctionType.FUNCTION, DISSOCIATE, HRC))
+                                    .payingWith(ACCOUNT)
+                                    .gas(1_000_000)
+                                    .via(dissociateTxn));
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
+                        spec,
+                        childRecordsCheck(
+                                associateTxn,
+                                SUCCESS,
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith()
+                                                .contractCallResult(
+                                                        htsPrecompileResult().withStatus(SUCCESS)))),
+                        childRecordsCheck(
+                                dissociateTxn,
+                                SUCCESS,
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith()
+                                                .contractCallResult(
+                                                        htsPrecompileResult().withStatus(SUCCESS)))))));
+    }
+
+    /**
+     * IsAssociatedSystemContractTest
+     */
+    @Nested
+    class IsAssociatedSystemContractTest {
+
+        @FungibleToken(name = "fungibleToken")
+        static SpecFungibleToken fungibleToken;
+
+        @NonFungibleToken(name = "nonFungibleToken")
+        static SpecNonFungibleToken nonFungibleToken;
+
+        @Account(name = "senderAccount", tinybarBalance = ONE_HUNDRED_HBARS)
+        static SpecAccount senderAccount;
+
+        @FungibleToken(name = "fungibleToken2")
+        static SpecFungibleToken fungibleToken2;
+
+        @NonFungibleToken(name = "nonFungibleToken2")
+        static SpecNonFungibleToken nonFungibleToken2;
+
+        @HapiTest
+        @DisplayName("returns true for EOA msg.sender exactly when associated")
+        public Stream<DynamicTest> atomicReturnsTrueIffEoaMsgSenderIsAssociated() {
+            return hapiTest(
+                    assertAtomicEoaGetsResultForBothTokens(false),
+                    senderAccount.associateTokens(fungibleToken2, nonFungibleToken2),
+                    assertAtomicEoaGetsResultForBothTokens(true),
+                    senderAccount.dissociateTokens(fungibleToken2, nonFungibleToken2),
+                    assertAtomicEoaGetsResultForBothTokens(false));
+        }
+
+        private SpecOperation assertAtomicEoaGetsResultForBothTokens(final boolean isAssociated) {
+            return blockingOrder(
+                    fungibleToken
+                            .call(TokenRedirectContract.HRC, "isAssociated")
+                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
+                            .payingWith(senderAccount)
+                            .andAssert(txn -> txn.hasResults(
+                                    anyResult(),
+                                    redirectCallResult(TokenRedirectContract.HRC, "isAssociated", isAssociated))),
+                    nonFungibleToken
+                            .call(TokenRedirectContract.HRC, "isAssociated")
+                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
+                            .payingWith(senderAccount)
+                            .andAssert(txn -> txn.hasResults(
+                                    anyResult(),
+                                    redirectCallResult(TokenRedirectContract.HRC, "isAssociated", isAssociated))));
+        }
+    }
+
+    /**
+     * LazyCreateThroughPrecompileSuite
+     */
+    @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
+    final Stream<DynamicTest> atomicResourceLimitExceededRevertsAllRecords() {
+        final var n = 6; // + 2 for the mint and approve allowance in the batch
+        final var nft = "nft";
+        final var nftKey = ADMIN_KEY;
+        final var creationAttempt = "CREATION_ATTEMPT";
+        final AtomicLong civilianId = new AtomicLong();
+        final AtomicReference<String> nftMirrorAddr = new AtomicReference<>();
+
+        return hapiTest(
+                overriding("consensus.handle.maxFollowingRecords", "" + (n - 1)),
+                newKeyNamed(nftKey),
+                contractCreate(AUTO_CREATION_MODES),
+                cryptoCreate(CIVILIAN).keyShape(ED25519).exposingCreatedIdTo(id -> civilianId.set(id.getAccountNum())),
+                tokenCreate(nft)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(nftKey)
+                        .initialSupply(0)
+                        .treasury(CIVILIAN)
+                        .exposingCreatedIdTo(
+                                idLit -> nftMirrorAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(idLit)))),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        atomicBatchDefaultOperator(
+                                        mintToken(
+                                                nft,
+                                                IntStream.range(0, n)
+                                                        .mapToObj(i -> ByteString.copyFromUtf8("ONE_TIME" + i))
+                                                        .toList()),
+                                        cryptoApproveAllowance()
+                                                .payingWith(CIVILIAN)
+                                                .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
+                                        contractCall(
+                                                        AUTO_CREATION_MODES,
+                                                        "createSeveralDirectly",
+                                                        headlongFromHexed(nftMirrorAddr.get()),
+                                                        nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
+                                                        nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
+                                                        LongStream.iterate(1L, l -> l + 1)
+                                                                .limit(n)
+                                                                .toArray())
+                                                .via(creationAttempt)
+                                                .gas(GAS_TO_OFFER)
+                                                .alsoSigningWithFullPrefix(CIVILIAN)
+                                                .hasKnownStatusFrom(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                childRecordsCheck(
+                        creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
+    }
+
+    /**
+     * MiscTokenTest
+     */
+    @Nested
+    class MiscTokenTest {
+
+        @Contract(contract = "InternalCall", creationGas = 1_000_000L)
+        static SpecContract internalCall;
+
+        @FungibleToken(name = "fungibleToken")
+        static SpecFungibleToken fungibleToken;
+
+        @HapiTest
+        @DisplayName("cannot transfer value to HTS")
+        public Stream<DynamicTest> atomicCannotTransferValueToHts() {
+            return hapiTest(internalCall
+                    .call("isATokenWithCall", fungibleToken)
+                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
+                    .sending(100L)
+                    .andAssert(txn -> txn.hasKnownStatus(INVALID_CONTRACT_ID)));
+        }
+    }
+
+    /**
+     * PauseUnpauseTokenAccountPrecompileSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicPauseFungibleToken() {
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
+        final var contractKey = "contractKey";
+        final var wrongPauseKeyTxn = "pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn";
+        final var tokenDeletedTxn = "pauseFungibleAccountIsDeletedFailingTxn";
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(vanillaTokenAddress::set),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatchDefaultOperator(contractCall(
+                                                PAUSE_UNPAUSE_CONTRACT,
+                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                vanillaTokenAddress.get())
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .via(wrongPauseKeyTxn)
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        newKeyNamed(contractKey).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, PAUSE_UNPAUSE_CONTRACT))),
+                        atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN).pauseKey(contractKey).signedByPayerAnd(MULTI_KEY),
+                                cryptoUpdate(ACCOUNT).key(contractKey),
+                                contractCall(
+                                                PAUSE_UNPAUSE_CONTRACT,
+                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                vanillaTokenAddress.get())
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .gas(GAS_TO_OFFER)),
+                        getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Paused),
+                        atomicBatchDefaultOperator(
+                                        tokenUnpause(VANILLA_TOKEN),
+                                        tokenDelete(VANILLA_TOKEN),
+                                        contractCall(
+                                                        PAUSE_UNPAUSE_CONTRACT,
+                                                        PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                        vanillaTokenAddress.get())
+                                                .signedBy(GENESIS, ACCOUNT)
+                                                .alsoSigningWithFullPrefix(ACCOUNT)
+                                                .via(tokenDeletedTxn)
+                                                .gas(GAS_TO_OFFER)
+                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                validatedHtsPrecompileResult(
+                        wrongPauseKeyTxn, CONTRACT_REVERT_EXECUTED, INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE),
+                validatedHtsPrecompileResult(tokenDeletedTxn, CONTRACT_REVERT_EXECUTED, TOKEN_WAS_DELETED));
+    }
+
+    /**
+     * PrngPrecompileSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicMultipleCallsHaveIndependentResults() {
+        final var prng = THE_PRNG_CONTRACT;
+        final var gasToOffer = 400_000;
+        final var numCalls = 5;
+        final List<String> prngSeeds = new ArrayList<>();
+        return hapiTest(
+                contractCreate(prng),
+                withOpContext((spec, opLog) -> {
+                    for (int i = 0; i < numCalls; i++) {
+                        final var txn = "call" + i;
+                        final var call = atomicBatchDefaultOperator(
+                                contractCall(prng, GET_SEED).gas(gasToOffer).via(txn));
+                        final var lookup = getTxnRecord(txn).andAllChildRecords();
+                        allRunFor(spec, call, lookup);
+                        final var response = lookup.getResponseRecord();
+                        final var rawResult = response.getContractCallResult()
+                                .getContractCallResult()
+                                .toByteArray();
+                        // Since this contract returns the result of the Prng system
+                        // contract, its call result
+                        // should be identical to the result of the system contract
+                        // in the child record
+                        for (final var child : lookup.getChildRecords()) {
+                            if (child.hasContractCallResult()) {
+                                assertArrayEquals(
+                                        rawResult,
+                                        child.getContractCallResult()
+                                                .getContractCallResult()
+                                                .toByteArray());
+                            }
+                        }
+                        prngSeeds.add(CommonUtils.hex(rawResult));
+                    }
+                    opLog.info("Got prng seeds  : {}", prngSeeds);
+                    assertEquals(
+                            prngSeeds.size(),
+                            new HashSet<>(prngSeeds).size(),
+                            "An N-3 running hash was repeated, which is" + " inconceivable");
+                }),
+                // It's possible to call these contracts in a static context with no issues
+                contractCallLocal(prng, GET_SEED).gas(gasToOffer));
+    }
+
+    /**
+     * RedirectPrecompileSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicBalanceOf() {
+        final var totalSupply = 50;
+        final var transactionName = "balanceOfTxn";
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(totalSupply)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                contractCreate(REDIRECT_TEST_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatchDefaultOperator(contractCall(
+                                        REDIRECT_TEST_CONTRACT,
+                                        "getBalanceOf",
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getAccountID(TOKEN_TREASURY))))
+                                .payingWith(ACCOUNT)
+                                .via(transactionName)
+                                .hasKnownStatus(SUCCESS)
+                                .gas(1_000_000)))),
+                childRecordsCheck(
+                        transactionName,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.ERC_BALANCE)
+                                                .withBalance(totalSupply))
+                                        .gasUsed(2607L))));
+    }
+
+    /**
+     * SigningResSuite
+     */
+    @LeakyHapiTest(overrides = {"contracts.keys.legacyActivations"})
+    final Stream<DynamicTest> atomicAutoRenewAccountCanUseLegacySigActivationIfConfigured() {
+        final var autoRenew = "autoRenew";
+        final AtomicReference<Address> autoRenewMirrorAddr = new AtomicReference<>();
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
+        final var origKey = KeyShape.threshOf(1, ED25519, CONTRACT);
+        final AtomicReference<TokenID> createdToken = new AtomicReference<>();
+        final var firstCreateTxn = "firstCreateTxn";
+        final var secondCreateTxn = "secondCreateTxn";
+
+        return hapiTest(
+                cryptoCreate(CIVILIAN).balance(10L * ONE_HUNDRED_HBARS),
+                contractCreate(MINIMAL_CREATIONS_CONTRACT)
+                        .exposingContractIdTo(contractId::set)
+                        .gas(5_000_000L)
+                        .refusingEthConversion(),
+                cryptoCreate(autoRenew)
+                        .keyShape(origKey.signedWith(sigs(ON, MINIMAL_CREATIONS_CONTRACT)))
+                        .exposingCreatedIdTo(id -> autoRenewMirrorAddr.set(idAsHeadlongAddress(id))),
+                // Fails without the auto-renew account's full-prefix signature
+                sourcing(() -> contractCall(
+                                MINIMAL_CREATIONS_CONTRACT,
+                                "makeRenewableTokenIndirectly",
+                                autoRenewMirrorAddr.get(),
+                                THREE_MONTHS_IN_SECONDS)
+                        .via(firstCreateTxn)
+                        .gas(10L * GAS_TO_OFFER)
+                        .sending(DEFAULT_AMOUNT_TO_SEND)
+                        .payingWith(CIVILIAN)
+                        .refusingEthConversion()
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                getTxnRecord(firstCreateTxn).andAllChildRecords().logged(),
+                withOpContext((spec, opLog) -> {
+                    final var registry = spec.registry();
+                    final var autoRenewNum = registry.getAccountID(autoRenew).getAccountNum();
+                    final var parentContractNum =
+                            registry.getContractId(MINIMAL_CREATIONS_CONTRACT).getContractNum();
+                    final var overrideValue = autoRenewNum + "by[" + parentContractNum + "]";
+                    final var propertyUpdate = overriding("contracts.keys.legacyActivations", overrideValue);
+                    CustomSpecAssert.allRunFor(spec, propertyUpdate);
+                }),
+                // Succeeds now because the called contract received legacy activation privilege
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                MINIMAL_CREATIONS_CONTRACT,
+                                "makeRenewableTokenIndirectly",
+                                autoRenewMirrorAddr.get(),
+                                THREE_MONTHS_IN_SECONDS)
+                        .via(secondCreateTxn)
+                        .gas(10L * GAS_TO_OFFER)
+                        .sending(DEFAULT_AMOUNT_TO_SEND)
+                        .payingWith(CIVILIAN)
+                        .refusingEthConversion())),
+                getTxnRecord(secondCreateTxn)
+                        .andAllChildRecords()
+                        .exposingTokenCreationsTo(creations -> createdToken.set(creations.getFirst())),
+                childRecordsCheck(
+                        firstCreateTxn,
+                        CONTRACT_REVERT_EXECUTED,
+                        TransactionRecordAsserts.recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                sourcing(() -> getTokenInfo(asTokenString(createdToken.get())).hasAutoRenewAccount(autoRenew)));
+    }
+
+    /**
+     * TokenExpiryInfoSuite
+     */
+    @Nested
+    class TokenExpiryInfoSuite {
+        private static final Address ZERO_ADDRESS = HapiParserUtil.asHeadlongAddress(new byte[20]);
+        public static final long MONTH_IN_SECONDS = 7_000_000L;
+
+        @Contract(contract = "TokenExpiryContract", creationGas = 1_000_000L)
+        static SpecContract tokenExpiryContract;
+
+        @Account
+        static SpecAccount newAutoRenewAccount;
+
+        @HapiTest
+        @DisplayName("atomic cannot update a missing token's expiry info")
+        final Stream<DynamicTest> atomicCannotUpdateMissingToken() {
+            return hapiTest(
+                    // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                    // address, and an auto-renew period---and tries to update the token at that address with the given
+                    // metadata; when expiry second is zero like here, it is ignored
+                    tokenExpiryContract
+                            .call("updateExpiryInfoForToken", ZERO_ADDRESS, 0L, newAutoRenewAccount, MONTH_IN_SECONDS)
+                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
+                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
+        }
+    }
+
+    /**
+     * TokenInfoHTSSuite
+     */
+    @Nested
+    class TokenInfoHTSSuite {
+        @HapiTest
+        final Stream<DynamicTest> atomicHappyPathGetTokenInfo() {
+            final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
+            final var tokenInfoTxn = "tokenInfoTxn";
+            return hapiTest(
+                    cryptoCreate(TOKEN_TREASURY).balance(0L),
+                    cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                    cryptoCreate(HTS_COLLECTOR),
+                    newKeyNamed(ADMIN_KEY),
+                    newKeyNamed(FREEZE_KEY),
+                    newKeyNamed(KYC_KEY),
+                    newKeyNamed(SUPPLY_KEY),
+                    newKeyNamed(WIPE_KEY),
+                    newKeyNamed(FEE_SCHEDULE_KEY),
+                    newKeyNamed(PAUSE_KEY),
+                    newKeyNamed(TokenKeyType.METADATA_KEY.name()),
+                    contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .supplyType(TokenSupplyType.FINITE)
+                            .entityMemo(MEMO)
+                            .symbol(SYMBOL)
+                            .name(FUNGIBLE_TOKEN)
+                            .treasury(TOKEN_TREASURY)
+                            .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                            .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                            .maxSupply(MAX_SUPPLY)
+                            .initialSupply(500L)
+                            .adminKey(ADMIN_KEY)
+                            .freezeKey(FREEZE_KEY)
+                            .kycKey(KYC_KEY)
+                            .supplyKey(SUPPLY_KEY)
+                            .wipeKey(WIPE_KEY)
+                            .feeScheduleKey(FEE_SCHEDULE_KEY)
+                            .pauseKey(PAUSE_KEY)
+                            .metadataKey(TokenKeyType.METADATA_KEY.name())
+                            .metaData("metadata")
+                            .withCustom(fixedHbarFee(500L, HTS_COLLECTOR))
+                            // Include a fractional fee with no minimum to collect
+                            .withCustom(
+                                    fractionalFee(NUMERATOR, DENOMINATOR * 2L, 0, OptionalLong.empty(), TOKEN_TREASURY))
+                            .withCustom(fractionalFee(
+                                    NUMERATOR,
+                                    DENOMINATOR,
+                                    MINIMUM_TO_COLLECT,
+                                    OptionalLong.of(MAXIMUM_TO_COLLECT),
+                                    TOKEN_TREASURY)),
+                    withOpContext((spec, opLog) -> allRunFor(
+                            spec,
+                            atomicBatchDefaultOperator(contractCall(
+                                            TOKEN_INFO_CONTRACT,
+                                            GET_INFORMATION_FOR_TOKEN,
+                                            HapiParserUtil.asHeadlongAddress(
+                                                    asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))))
+                                    .via(tokenInfoTxn)
+                                    .gas(1_000_000L)),
+                            contractCallLocal(
+                                    TOKEN_INFO_CONTRACT,
+                                    GET_INFORMATION_FOR_TOKEN,
+                                    HapiParserUtil.asHeadlongAddress(
+                                            asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN)))))),
+                    exposeTargetLedgerIdTo(targetLedgerId::set),
+                    withOpContext((spec, opLog) -> {
+                        final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN);
+                        allRunFor(spec, getTokenInfoQuery);
+                        final var expirySecond = getTokenInfoQuery
+                                .getResponse()
+                                .getTokenGetInfo()
+                                .getTokenInfo()
+                                .getExpiry()
+                                .getSeconds();
+
+                        allRunFor(
+                                spec,
+                                childRecordsCheck(
+                                        tokenInfoTxn,
+                                        SUCCESS,
+                                        recordWith()
+                                                .status(SUCCESS)
+                                                .contractCallResult(resultWith()
+                                                        .contractCallResult(htsPrecompileResult()
+                                                                .forFunction(
+                                                                        ParsingConstants.FunctionType
+                                                                                .HAPI_GET_TOKEN_INFO)
+                                                                .withStatus(SUCCESS)
+                                                                .withTokenInfo(
+                                                                        buildBaseTokenInfo(
+                                                                                        spec,
+                                                                                        FUNGIBLE_TOKEN,
+                                                                                        SYMBOL,
+                                                                                        MEMO,
+                                                                                        spec.registry()
+                                                                                                .getAccountID(
+                                                                                                        TOKEN_TREASURY),
+                                                                                        spec.registry()
+                                                                                                .getKey(ADMIN_KEY),
+                                                                                        expirySecond,
+                                                                                        targetLedgerId.get(),
+                                                                                        TokenKycStatus.Revoked)
+                                                                                .build())))));
+                    }));
+        }
+
+        private static TokenInfo.Builder buildBaseTokenInfo(
+                final HapiSpec spec,
+                final String tokenName,
+                final String symbol,
+                final String memo,
+                final AccountID treasury,
+                final Key adminKey,
+                final long expirySecond,
+                ByteString ledgerId,
+                final TokenKycStatus kycDefault) {
+
+            final var autoRenewAccount = spec.registry().getAccountID(AUTO_RENEW_ACCOUNT);
+            final var customFees = getExpectedCustomFees(spec);
+
+            return TokenInfo.newBuilder()
+                    .setLedgerId(ledgerId)
+                    .setSupplyTypeValue(TokenSupplyType.FINITE_VALUE)
+                    .setExpiry(Timestamp.newBuilder().setSeconds(expirySecond))
+                    .setAutoRenewAccount(autoRenewAccount)
+                    .setAutoRenewPeriod(Duration.newBuilder()
+                            .setSeconds(THREE_MONTHS_IN_SECONDS)
+                            .build())
+                    .setSymbol(symbol)
+                    .setName(tokenName)
+                    .setMemo(memo)
+                    .setTreasury(treasury)
+                    .setTotalSupply(500L)
+                    .setMaxSupply(MAX_SUPPLY)
+                    .addAllCustomFees(customFees)
+                    .setAdminKey(adminKey)
+                    .setKycKey(spec.registry().getKey(KYC_KEY))
+                    .setFreezeKey(spec.registry().getKey(FREEZE_KEY))
+                    .setWipeKey(spec.registry().getKey(WIPE_KEY))
+                    .setSupplyKey(spec.registry().getKey(SUPPLY_KEY))
+                    .setFeeScheduleKey(spec.registry().getKey(FEE_SCHEDULE_KEY))
+                    .setPauseKey(spec.registry().getKey(PAUSE_KEY))
+                    .setDefaultKycStatus(kycDefault);
+        }
+
+        private static ArrayList<CustomFee> getExpectedCustomFees(final HapiSpec spec) {
+            final var fixedFee = FixedFee.newBuilder().setAmount(500L).build();
+            final var customFixedFee = CustomFee.newBuilder()
+                    .setFixedFee(fixedFee)
+                    .setFeeCollectorAccountId(spec.registry().getAccountID(HTS_COLLECTOR))
+                    .build();
+
+            final var firstFraction = Fraction.newBuilder()
+                    .setNumerator(NUMERATOR)
+                    .setDenominator(DENOMINATOR * 2L)
+                    .build();
+            final var firstFractionalFee = FractionalFee.newBuilder()
+                    .setFractionalAmount(firstFraction)
+                    .build();
+            final var firstCustomFractionalFee = CustomFee.newBuilder()
+                    .setFractionalFee(firstFractionalFee)
+                    .setFeeCollectorAccountId(spec.registry().getAccountID(TOKEN_TREASURY))
+                    .build();
+
+            final var fraction = Fraction.newBuilder()
+                    .setNumerator(NUMERATOR)
+                    .setDenominator(DENOMINATOR)
+                    .build();
+            final var fractionalFee = FractionalFee.newBuilder()
+                    .setFractionalAmount(fraction)
+                    .setMinimumAmount(MINIMUM_TO_COLLECT)
+                    .setMaximumAmount(MAXIMUM_TO_COLLECT)
+                    .build();
+            final var customFractionalFee = CustomFee.newBuilder()
+                    .setFractionalFee(fractionalFee)
+                    .setFeeCollectorAccountId(spec.registry().getAccountID(TOKEN_TREASURY))
+                    .build();
+
+            final var customFees = new ArrayList<CustomFee>();
+            customFees.add(customFixedFee);
+            customFees.add(firstCustomFractionalFee);
+            customFees.add(customFractionalFee);
+            return customFees;
+        }
+    }
+
+    /**
+     * TokenRejectSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicTokenRejectWorksAndAvoidsCustomFees() {
+        final var ALT_TOKEN_TREASURY = "altTokenTreasury";
+        final var FUNGIBLE_TOKEN_B = "fungibleTokenB";
+        final var NON_FUNGIBLE_TOKEN = "nonFungibleTokenA";
+        final long TOTAL_SUPPLY = 1_000;
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(HTS_COLLECTOR).balance(0L).maxAutomaticTokenAssociations(5),
+                cryptoCreate(ACCOUNT).maxAutomaticTokenAssociations(5),
+                cryptoCreate(ACCOUNT_2).balance(0L).maxAutomaticTokenAssociations(1),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ALT_TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHbarFee(ONE_MILLION_HBARS, HTS_COLLECTOR))
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(HTS_COLLECTOR, FUNGIBLE_TOKEN),
+                tokenCreate(FUNGIBLE_TOKEN_B)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHtsFee(1000L, FUNGIBLE_TOKEN, HTS_COLLECTOR))
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .initialSupply(0)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHbarFee(ONE_MILLION_HBARS, HTS_COLLECTOR))
+                        .treasury(ALT_TOKEN_TREASURY)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("fire"), copyFromUtf8("goat"))),
+                tokenAssociate(ACCOUNT, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_B, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(
+                        moving(250L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ACCOUNT),
+                        moving(10L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ACCOUNT_2),
+                        moving(250L, FUNGIBLE_TOKEN_B).between(TOKEN_TREASURY, ACCOUNT),
+                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(ALT_TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatchDefaultOperator(
+                                // Try rejecting NON_FUNGIBLE_TOKEN_A with FIXED hBar custom fee
+                                tokenReject(ACCOUNT, rejectingNFT(NON_FUNGIBLE_TOKEN, 1L)),
+                                // Try rejecting FUNGIBLE_TOKEN_A with FIXED hBar custom fee
+                                tokenReject(rejectingToken(FUNGIBLE_TOKEN)).payingWith(ACCOUNT),
+                                // Try rejecting FUNGIBLE_TOKEN_B with FIXED hts custom fee
+                                tokenReject(ACCOUNT, rejectingToken(FUNGIBLE_TOKEN_B))),
+
+                        // Transaction fails because payer does not have hBars
+                        atomicBatchDefaultOperator(tokenReject(ACCOUNT_2, rejectingToken(FUNGIBLE_TOKEN_B))
+                                        .payingWith(ACCOUNT_2))
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE))),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L)
+                        .hasAccountID(ALT_TOKEN_TREASURY)
+                        .hasNoSpender(),
+                getAccountBalance(TOKEN_TREASURY).logged().hasTokenBalance(FUNGIBLE_TOKEN, 990L),
+                getAccountBalance(TOKEN_TREASURY).logged().hasTokenBalance(FUNGIBLE_TOKEN_B, 1000L),
+                // Verify that fee collector account has no tokens and no hBars
+                getAccountBalance(HTS_COLLECTOR)
+                        .hasTinyBars(0)
+                        .hasTokenBalance(FUNGIBLE_TOKEN, 0L)
+                        .hasTokenBalance(FUNGIBLE_TOKEN_B, 0L));
+    }
+
+    /**
+     * UnknownFunctionSelectorTest
+     */
+    @Nested
+    class UnknownFunctionSelectorTest {
+
+        @Account(tinybarBalance = ONE_HUNDRED_HBARS)
+        static SpecAccount account;
+
+        @Account()
+        static SpecAccount receiver;
+
+        @Contract(contract = "UnknownFunctionSelectorContract", creationGas = 1_500_000)
+        static SpecContract contract;
+
+        @HapiTest
+        final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector() {
+
+            final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
+            final String schedule = "testSchedule";
+            return hapiTest(
+                    account.getInfo(),
+                    receiver.getInfo(),
+                    scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(account.name(), receiver.name(), 1)))
+                            .exposingCreatedIdTo(scheduleID::set),
+                    withOpContext((spec, opLog) -> allRunFor(
+                            spec,
+                            contract.call(
+                                            "callScheduleServiceWithFakeSelector",
+                                            mirrorAddrWith(
+                                                    spec, scheduleID.get().getScheduleNum()))
+                                    .payingWith(account)
+                                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
+                                    .gas(1_000_000)
+                                    .via("txn"))),
+                    withOpContext((spec, opLog) -> {
+                        final var txn = getTxnRecord("txn");
+                        allRunFor(spec, txn);
+
+                        final var res = Bytes32.wrap(Arrays.copyOfRange(
+                                txn.getResponseRecord()
+                                        .getContractCallResult()
+                                        .getContractCallResult()
+                                        .toByteArray(),
+                                32,
+                                64));
+                        assertEquals(Bytes32.ZERO, res);
+                    }));
+        }
+    }
+
+    /**
+     * UpdateTokenFeeScheduleTest
+     */
+    @Nested
+    class UpdateTokenFeeScheduleTest {
+
+        @Contract(contract = "UpdateTokenFeeSchedules", creationGas = 4_000_000L)
+        static SpecContract updateTokenFeeSchedules;
+
+        @FungibleToken(
+                name = "fungibleToken",
+                keys = {SpecTokenKey.ADMIN_KEY, SpecTokenKey.FEE_SCHEDULE_KEY})
+        static SpecFungibleToken fungibleToken;
+
+        @Account(name = "feeCollector", tinybarBalance = ONE_HUNDRED_HBARS)
+        static SpecAccount feeCollector;
+
+        @HapiTest
+        @DisplayName("fungible token with fixed ℏ fee")
+        public Stream<DynamicTest> atomicUpdateFungibleTokenWithHbarFixedFee() {
+
+            return hapiTest(
+                    fungibleToken
+                            .authorizeContracts(updateTokenFeeSchedules)
+                            .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
+                    updateTokenFeeSchedules
+                            .call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector)
+                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
+                    fungibleToken
+                            .getInfo()
+                            .andAssert(info -> info.hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))));
+        }
+    }
+
+    /**
+     * WipeTokenAccountPrecompileSuite
+     */
+    @HapiTest
+    final Stream<DynamicTest> atomicWipeFungibleTokenScenarios() {
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
+        final var admin = "admin";
+        final var contractKey = "contractKey";
+        return hapiTest(
+                newKeyNamed(WIPE_KEY),
+                cryptoCreate(admin),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(ACCOUNT_2).exposingEvmAddressTo(secondAccountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .wipeKey(WIPE_KEY)
+                        .adminKey(WIPE_KEY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(vanillaTokenAddress::set),
+                contractCreate(WIPE_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(ACCOUNT_2, VANILLA_TOKEN),
+                cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatchDefaultOperator(contractCall(
+                                                WIPE_CONTRACT,
+                                                WIPE_FUNGIBLE_TOKEN,
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
+                                                10L)
+                                        .signedBy(GENESIS, admin)
+                                        .via("accountDoesNotOwnWipeKeyTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        newKeyNamed(contractKey).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, WIPE_CONTRACT))),
+                        tokenUpdate(VANILLA_TOKEN).wipeKey(contractKey).signedByPayerAnd(WIPE_KEY),
+                        cryptoUpdate(admin).key(contractKey),
+                        atomicBatchDefaultOperator(contractCall(
+                                                WIPE_CONTRACT,
+                                                WIPE_FUNGIBLE_TOKEN,
+                                                vanillaTokenAddress.get(),
+                                                accountAddress.get(),
+                                                1_000L)
+                                        .signedBy(GENESIS, admin)
+                                        .alsoSigningWithFullPrefix(admin)
+                                        .via("amountLargerThanBalanceTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractCall(
+                                                WIPE_CONTRACT,
+                                                WIPE_FUNGIBLE_TOKEN,
+                                                vanillaTokenAddress.get(),
+                                                secondAccountAddress.get(),
+                                                10L)
+                                        .signedBy(GENESIS, admin)
+                                        .alsoSigningWithFullPrefix(admin)
+                                        .via("accountDoesNotOwnTokensTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractCall(
+                                        WIPE_CONTRACT,
+                                        WIPE_FUNGIBLE_TOKEN,
+                                        vanillaTokenAddress.get(),
+                                        accountAddress.get(),
+                                        10L)
+                                .alsoSigningWithFullPrefix(admin)
+                                .via("wipeFungibleTxn")
+                                .gas(GAS_TO_OFFER)),
+                        atomicBatchDefaultOperator(contractCall(
+                                        WIPE_CONTRACT,
+                                        WIPE_FUNGIBLE_TOKEN,
+                                        vanillaTokenAddress.get(),
+                                        accountAddress.get(),
+                                        0L)
+                                .signedBy(GENESIS, admin)
+                                .alsoSigningWithFullPrefix(admin)
+                                .via("wipeFungibleTxnWithZeroAmount")
+                                .gas(GAS_TO_OFFER)))),
+                validatedHtsPrecompileResult(
+                        "accountDoesNotOwnWipeKeyTxn", CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
+                validatedHtsPrecompileResult(
+                        "amountLargerThanBalanceTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
+                validatedHtsPrecompileResult(
+                        "accountDoesNotOwnTokensTxn", CONTRACT_REVERT_EXECUTED, INVALID_WIPING_AMOUNT),
+                validatedHtsPrecompileResult("wipeFungibleTxnWithZeroAmount", SUCCESS, SUCCESS),
+                getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
+                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
     }
 
     // Helper methods

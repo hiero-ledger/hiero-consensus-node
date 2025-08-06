@@ -4,16 +4,13 @@ package com.hedera.services.bdd.suites.contract.precompile;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,9 +23,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ScheduleID;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
@@ -51,15 +46,6 @@ public class UnknownFunctionSelectorTest {
         lifecycle.doAdhoc(contract.getInfo(), account.getInfo());
     }
 
-    private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
-
     @HapiTest
     final Stream<DynamicTest> callScheduleServiceWithUnknownSelector(@Account final SpecAccount receiver) {
 
@@ -79,43 +65,6 @@ public class UnknownFunctionSelectorTest {
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000)
                                 .via("txn"))),
-                withOpContext((spec, opLog) -> {
-                    final var txn = getTxnRecord("txn");
-                    allRunFor(spec, txn);
-
-                    final var res = Bytes32.wrap(Arrays.copyOfRange(
-                            txn.getResponseRecord()
-                                    .getContractCallResult()
-                                    .getContractCallResult()
-                                    .toByteArray(),
-                            32,
-                            64));
-                    assertEquals(Bytes32.ZERO, res);
-                }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector(@Account final SpecAccount receiver) {
-
-        final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
-        final String schedule = "testSchedule";
-        return hapiTest(
-                receiver.getInfo(),
-                scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(account.name(), receiver.name(), 1)))
-                        .exposingCreatedIdTo(scheduleID::set),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatch(contractCall(
-                                                contract.name(),
-                                                "callScheduleServiceWithFakeSelector",
-                                                mirrorAddrWith(
-                                                        spec, scheduleID.get().getScheduleNum()))
-                                        .payingWith(account.name())
-                                        .hasKnownStatus(SUCCESS)
-                                        .gas(1_000_000)
-                                        .via("txn")
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
                 withOpContext((spec, opLog) -> {
                     final var txn = getTxnRecord("txn");
                     allRunFor(spec, txn);
