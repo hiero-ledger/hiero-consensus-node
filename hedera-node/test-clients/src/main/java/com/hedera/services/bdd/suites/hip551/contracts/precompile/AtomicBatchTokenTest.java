@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -149,5 +150,43 @@ public class AtomicBatchTokenTest {
                         .call("updateTokenName", sharedMutableToken, "NEW_NAME")
                         .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
                 sharedMutableToken.getInfo().andAssert(info -> info.hasName("NEW_NAME")));
+    }
+
+    /**
+     * NumericValidationTest
+     */
+    @HapiTest
+    @DisplayName("Atomic FT redirect proxy approve(address,uint256)")
+    public Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken(
+            @Contract(contract = "NumericContract", creationGas = 8_000_000L) final SpecContract numericContract,
+            @FungibleToken(
+                            name = "NumericValidationTestFT",
+                            initialSupply = 1_000L,
+                            maxSupply = 1_200L,
+                            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY, WIPE_KEY})
+                    final SpecFungibleToken fungibleToken,
+            @Contract(contract = "NumericContractComplex", creationGas = 8_000_000L)
+                    final SpecContract numericContractComplex) {
+        return hapiTest(
+                // Authorizations + additional keys
+                fungibleToken
+                        .authorizeContracts(numericContract, numericContractComplex)
+                        .alsoAuthorizing(
+                                TokenKeyType.SUPPLY_KEY,
+                                TokenKeyType.PAUSE_KEY,
+                                TokenKeyType.METADATA_KEY,
+                                TokenKeyType.WIPE_KEY),
+                // Associations
+                numericContract.associateTokens(fungibleToken),
+                numericContract
+                        .call("approveRedirect", fungibleToken, numericContractComplex, MAX_LONG_PLUS_1_BIG_INT)
+                        .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, SUCCESS, INNER_TRANSACTION_FAILED)
+                        .gas(1_000_000L)
+                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                numericContract
+                        .call("approveRedirect", fungibleToken, numericContractComplex, BigInteger.ZERO)
+                        .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, SUCCESS, INNER_TRANSACTION_FAILED)
+                        .gas(1_000_000L)
+                        .andAssert(txn -> txn.hasKnownStatus(SUCCESS)));
     }
 }
