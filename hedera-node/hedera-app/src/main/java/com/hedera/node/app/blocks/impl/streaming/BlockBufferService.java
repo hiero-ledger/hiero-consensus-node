@@ -8,6 +8,8 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
@@ -22,7 +24,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
@@ -42,6 +43,7 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
+    public static final int DEFAULT_BUFFER_SIZE = 150;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
@@ -93,10 +95,11 @@ public class BlockBufferService {
      * Metrics API for block stream-specific metrics.
      */
     private final BlockStreamMetrics blockStreamMetrics;
-    /**
-     * Flag that indicates if streaming to block nodes is enabled. This flag is set once upon startup and cannot change.
-     */
-    private final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
+
+    private final boolean grpcStreamingEnabled;
+    private final boolean backpressureEnabled;
+    private final long idealMaxBufferSize;
+
     /**
      * The timestamp of the most recent attempt at proactive buffer recovery.
      */
@@ -122,22 +125,18 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        isStreamingEnabled.set(streamToBlockNodesEnabled());
+        BlockStreamConfig blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        this.grpcStreamingEnabled = blockStreamConfig.writerMode() != BlockStreamWriterMode.FILE;
+        this.backpressureEnabled = (blockStreamConfig.streamMode() == StreamMode.BLOCKS && grpcStreamingEnabled);
+        Duration ttl = blockBufferTtl();
+        Duration blockPeriod = blockPeriod();
+        this.idealMaxBufferSize =
+                blockPeriod.isZero() || blockPeriod.isNegative() ? DEFAULT_BUFFER_SIZE : ttl.dividedBy(blockPeriod);
 
-        // Only start the pruning thread if we're streaming to block nodes
-        if (isStreamingEnabled.get()) {
+        // Only start the pruning thread if backpressure is enabled and gRPC streaming is enabled
+        if (backpressureEnabled) {
             scheduleNextPruning();
         }
-    }
-
-    /**
-     * @return true if streaming to block nodes is enabled, else false
-     */
-    private boolean streamToBlockNodesEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamToBlockNodes();
     }
 
     /**
@@ -224,7 +223,7 @@ public class BlockBufferService {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!isStreamingEnabled.get()) {
+        if (!grpcStreamingEnabled) {
             return;
         }
 
@@ -232,14 +231,20 @@ public class BlockBufferService {
             throw new IllegalArgumentException("Block number must be non-negative");
         }
 
-        final long lastAcked = highestAckedBlockNumber.get();
-        if (blockNumber <= lastAcked) {
-            logger.error(
-                    "Attempted to open block {}, but a later block (lastAcked={}) has already been acknowledged",
-                    blockNumber,
-                    lastAcked);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but a later block (lastAcked="
-                    + lastAcked + ") has already been acknowledged");
+        if (!backpressureEnabled) {
+            // Evict the lowest block number if the buffer is full
+            if (blockBuffer.size() >= idealMaxBufferSize) {
+                final Long lowestBlockNumber =
+                        blockBuffer.keySet().stream().min(Long::compareTo).orElse(null);
+                if (lowestBlockNumber != null) {
+                    blockBuffer.remove(lowestBlockNumber);
+                    earliestBlockNumber.getAndUpdate(current -> current + 1);
+                    logger.debug(
+                            "Block buffer is full and backpressure is disabled; evicting lowest block number {} to make space for block {}",
+                            lowestBlockNumber,
+                            blockNumber);
+                }
+            }
         }
 
         final BlockState existingBlock = blockBuffer.get(blockNumber);
@@ -268,7 +273,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
-        if (!isStreamingEnabled.get()) {
+        if (!grpcStreamingEnabled) {
             return;
         }
         requireNonNull(blockItem, "blockItem must not be null");
@@ -285,7 +290,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!isStreamingEnabled.get()) {
+        if (!grpcStreamingEnabled) {
             return;
         }
 
@@ -324,7 +329,7 @@ public class BlockBufferService {
      * @param blockNumber the block number to mark acknowledged up to and including
      */
     public void setLatestAcknowledgedBlock(final long blockNumber) {
-        if (!isStreamingEnabled.get()) {
+        if (!grpcStreamingEnabled) {
             return;
         }
 
@@ -373,7 +378,7 @@ public class BlockBufferService {
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
-        if (!isStreamingEnabled.get()) {
+        if (!grpcStreamingEnabled) {
             return;
         }
 
@@ -414,7 +419,7 @@ public class BlockBufferService {
          */
         final Duration blockPeriod = blockPeriod();
         final long idealMaxBufferSize =
-                blockPeriod.isZero() || blockPeriod.isNegative() ? 150 : ttl.dividedBy(blockPeriod);
+                blockPeriod.isZero() || blockPeriod.isNegative() ? DEFAULT_BUFFER_SIZE : ttl.dividedBy(blockPeriod);
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
@@ -508,7 +513,7 @@ public class BlockBufferService {
      * continues to be saturated.
      */
     private void checkBuffer() {
-        if (!streamToBlockNodesEnabled()) {
+        if (!backpressureEnabled) {
             return;
         }
 
@@ -696,7 +701,7 @@ public class BlockBufferService {
     }
 
     private void scheduleNextPruning() {
-        if (!streamToBlockNodesEnabled()) {
+        if (!backpressureEnabled) {
             return;
         }
 

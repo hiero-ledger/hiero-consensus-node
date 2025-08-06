@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -22,10 +23,12 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.PruneResult;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -39,7 +42,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -55,7 +57,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle execSvcHandle;
     private static final VarHandle blockBufferHandle;
-    private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle backPressureFutureRefHandle;
     private static final VarHandle highestAckedBlockNumberHandle;
     private static final VarHandle lastPruningResultHandle;
@@ -68,8 +69,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
             execSvcHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "isStreamingEnabled", AtomicBoolean.class);
             backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
             highestAckedBlockNumberHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
@@ -90,6 +89,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Mock
     private ConfigProvider configProvider;
+
+    @Mock
+    private VersionedConfiguration versionedConfiguration;
+
+    @Mock
+    private BlockStreamConfig blockStreamConfig;
+
+    @Mock
+    private BlockBufferConfig blockBufferConfig;
 
     @Mock
     private BlockNodeConnectionManager connectionManager;
@@ -327,19 +335,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_blockAfterAcked() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
-        final AtomicLong highestAckedBlockNumber = highestAckedBlockNumber(blockBufferService);
-        highestAckedBlockNumber.set(10);
-
-        assertThatThrownBy(() -> blockBufferService.openBlock(8))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage(
-                        "Attempted to open block 8, but a later block (lastAcked=10) has already been acknowledged");
-    }
-
-    @Test
     void testOpenBlock_existingBlock_proofNotSent() {
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
@@ -384,6 +379,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.blockItemBatchSize", 3)
                 .withValue("blockStream.buffer.blockTtl", blockTtl)
@@ -578,6 +574,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.blockTtl", blockTtl)
                 .withValue("blockStream.buffer.pruneInterval", pruneInterval)
                 .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
+                .withValue("blockStream.streamMode", StreamMode.BLOCKS)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -691,12 +688,38 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_streamingDisabled() {
+    void testBlockBufferNoBackpressureWhenStreamModeNotBlocksAndStreaming() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE_AND_GRPC);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(6));
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
+        blockBufferService.setBlockNodeConnectionManager(mock(BlockNodeConnectionManager.class));
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
-        isStreamingEnabled.set(false);
+        blockBufferService.openBlock(1L);
+        blockBufferService.openBlock(2L);
+        blockBufferService.openBlock(3L);
+        blockBufferService.openBlock(4L);
+
+        assertThat(buffer).hasSize(3); // 3 blocks in buffer, 1 should be evicted
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(2L);
+    }
+
+    @Test
+    void testOpenBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(5));
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         blockBufferService.openBlock(10L);
 
@@ -708,11 +731,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testAddItem_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(5));
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         final BlockItem item = BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(10L).build())
@@ -728,10 +755,14 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCloseBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(5));
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         blockBufferService.closeBlock(10L);
 
@@ -741,10 +772,14 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSetLatestAcknowledgedBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(5));
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         blockBufferService.setLatestAcknowledgedBlock(10L);
 
@@ -754,12 +789,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testEnsureNewBlocksPermitted_streamingDisabled() throws InterruptedException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockStreamConfig.blockPeriod()).thenReturn(Duration.ofSeconds(2));
+        when(blockBufferConfig.blockTtl()).thenReturn(Duration.ofSeconds(5));
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
                 backpressureCompletableFutureRef(blockBufferService);
 
-        isStreamingEnabled.set(false);
         backPressureFutureRef.set(new CompletableFuture<>());
 
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -1051,6 +1091,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
                 .withValue("blockStream.buffer.pruneInterval", Duration.ZERO)
@@ -1114,6 +1155,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
                 .withValue("blockStream.buffer.pruneInterval", Duration.ZERO)
@@ -1163,10 +1205,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     private AtomicLong highestAckedBlockNumber(final BlockBufferService bufferService) {
         return (AtomicLong) highestAckedBlockNumberHandle.get(bufferService);
-    }
-
-    private AtomicBoolean isStreamingEnabled(final BlockBufferService bufferService) {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(bufferService);
     }
 
     private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef(
