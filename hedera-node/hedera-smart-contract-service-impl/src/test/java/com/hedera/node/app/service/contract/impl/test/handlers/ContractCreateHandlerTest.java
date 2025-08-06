@@ -69,7 +69,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private TransactionComponent component;
 
     @Mock
-    private HandleContext handleContext;
+    private HandleContext context;
 
     @Mock
     private HederaOperations hederaOperations;
@@ -115,10 +115,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
@@ -132,29 +131,27 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                Bytes.EMPTY);
+                Bytes.EMPTY,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
         given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
         given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
         given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
-        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(
@@ -165,9 +162,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 HALT_RESULT.asEvmTxResultOf(null, null),
+                null,
                 null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
@@ -176,8 +172,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
         given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
         given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
-        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(streamBuilder);
-        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }
 
     @Test

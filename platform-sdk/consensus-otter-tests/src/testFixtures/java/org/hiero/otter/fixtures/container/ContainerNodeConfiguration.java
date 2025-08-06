@@ -12,28 +12,21 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
  */
-public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
+public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
 
     /**
      * Constructor for the {@link ContainerNodeConfiguration} class.
      *
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
-     * @param outputDirectory the directory where the node output will be stored
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected ContainerNodeConfiguration self() {
-        return this;
-    }
-
-    /**
      * Returns the overridden properties for this node configuration.
+     *
+     * @return an unmodifiable map of overridden properties
      */
     @NonNull
     public Map<String, String> overriddenProperties() {

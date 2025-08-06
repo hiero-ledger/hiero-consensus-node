@@ -124,21 +124,21 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Sets the last consensus time at which a user transaction was last handled.
      *
-     * @param lastHandleTime the last consensus time at which a user transaction was handled
+     * @param lastTopLevelTime the last consensus time at which a user transaction was handled
      */
-    void setLastHandleTime(@NonNull Instant lastHandleTime);
+    void setLastTopLevelTime(@NonNull Instant lastTopLevelTime);
 
     /**
      * Returns the consensus time at which a user transaction was last handled.
      */
     @NonNull
-    Instant lastHandleTime();
+    Instant lastTopLevelConsensusTime();
 
     /**
      * Returns the timestamp of the last execution processed by the block stream.
      */
     @NonNull
-    Instant lastExecutionTime();
+    Instant lastUsedConsensusTime();
 
     /**
      * Updates both the internal state of the block stream manager and the durable state of the network

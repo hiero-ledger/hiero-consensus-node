@@ -8,14 +8,13 @@ import java.util.List;
 
 @ConfigData("stats")
 public record StatsConfig(
-        @ConfigProperty(defaultValue = "<GAS>,ThroughputLimits,CreationLimits") @NodeProperty
+        @ConfigProperty(defaultValue = "<GAS>,ThroughputLimits,CreationLimits,<OPS_DURATION>") @NodeProperty
                 List<String> consThrottlesToSample,
         @ConfigProperty(
                         defaultValue =
                                 "<GAS>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
                 @NodeProperty
                 List<String> hapiThrottlesToSample,
-        @ConfigProperty(defaultValue = "<OPS_DURATION>") @NodeProperty List<String> opsDurationThrottlesToSample,
         @ConfigProperty(defaultValue = "0") @NodeProperty int executionTimesToTrack,
         @ConfigProperty(value = "entityUtils.gaugeUpdateIntervalMs", defaultValue = "3000") @NodeProperty
                 long entityUtilsGaugeUpdateIntervalMs,

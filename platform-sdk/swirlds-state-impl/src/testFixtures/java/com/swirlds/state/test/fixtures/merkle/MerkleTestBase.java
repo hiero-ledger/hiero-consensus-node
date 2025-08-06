@@ -3,15 +3,17 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.hedera.hapi.platform.state.SingletonType.ENTITYIDSERVICE_I_ENTITY_ID;
 import static com.hedera.hapi.platform.state.SingletonType.TOKENSERVICE_I_STAKING_NETWORK_REWARDS;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.FILESERVICE_I_UPGRADE_DATA_150;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULES_BY_EQUALITY;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SINGLETON;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.TOKENSERVICE_I_ALIASES;
+import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.FILESERVICE_I_UPGRADE_DATA_150;
+import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULES_BY_EQUALITY;
+import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.SINGLETON;
+import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.TOKENSERVICE_I_ALIASES;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getStateValue;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -19,7 +21,8 @@ import static org.mockito.Mockito.mockStatic;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.SingletonType;
-import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -57,6 +60,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -138,7 +142,7 @@ public class MerkleTestBase extends StateTestBase {
 
     // The "FRUIT" Map is part of FIRST_SERVICE
     protected String fruitLabel;
-    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, String>> fruitMerkleMap;
+    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> fruitMerkleMap;
 
     // An alternative "FRUIT" Map that is also part of FIRST_SERVICE, but based on VirtualMap
     protected String fruitVirtualLabel;
@@ -146,19 +150,19 @@ public class MerkleTestBase extends StateTestBase {
 
     // The "ANIMAL" map is part of FIRST_SERVICE
     protected String animalLabel;
-    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, String>> animalMerkleMap;
+    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> animalMerkleMap;
 
     // The "SPACE" map is part of SECOND_SERVICE and uses the long-based keys
     protected String spaceLabel;
-    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, Long>> spaceMerkleMap;
+    protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> spaceMerkleMap;
 
     // The "STEAM" queue is part of FIRST_SERVICE
     protected String steamLabel;
-    protected QueueNode<String> steamQueue;
+    protected QueueNode<ProtoBytes> steamQueue;
 
     // The "COUNTRY" singleton is part of FIRST_SERVICE
     protected String countryLabel;
-    protected SingletonNode<String> countrySingleton;
+    protected SingletonNode<ProtoBytes> countrySingleton;
 
     /**
      * This static mock instance will override calls to the static methods in StateUtils
@@ -179,10 +183,15 @@ public class MerkleTestBase extends StateTestBase {
      */
     @BeforeAll
     static void init() {
+        // Static flag to bypass stateIdFor mock during calls from other mocked methods below
+        AtomicBoolean bypassStateIdFor = new AtomicBoolean(false);
         stateUtilsMock = mockStatic(StateUtils.class, CALLS_REAL_METHODS);
         stateUtilsMock
                 .when(() -> StateUtils.stateIdFor(anyString(), anyString()))
                 .thenAnswer(invocation -> {
+                    if (bypassStateIdFor.get()) {
+                        return invocation.callRealMethod();
+                    }
                     try {
                         // First, try calling the real method.
                         return invocation.callRealMethod();
@@ -209,34 +218,81 @@ public class MerkleTestBase extends StateTestBase {
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForKv(anyString(), anyString(), anyString()))
+                .when(() -> StateUtils.getStateKeyForKv(anyString(), anyString(), any()))
                 .thenAnswer(invocation -> {
                     try {
+                        bypassStateIdFor.set(true);
                         // First, try calling the real method.
                         return invocation.callRealMethod();
                     } catch (Exception e) {
                         // The real method couldn't find a valid mapping.
                         final String serviceName = invocation.getArgument(0);
                         final String stateKey = invocation.getArgument(1);
-                        final String keyObject = invocation.getArgument(2);
+                        final ProtoBytes keyObject = invocation.getArgument(2);
 
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (FRUIT_SERVICE_NAME.equals(serviceName) || FRUIT_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForKv(TOKENSERVICE_I_ALIASES, keyObject);
+                            return createStateKeyForKv(TOKENSERVICE_I_ALIASES, keyObject);
                         } else if (ANIMAL_SERVICE_NAME.equals(serviceName) || ANIMAL_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForKv(SCHEDULESERVICE_I_SCHEDULES_BY_EQUALITY, keyObject);
+                            return createStateKeyForKv(SCHEDULESERVICE_I_SCHEDULES_BY_EQUALITY, keyObject);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;
                         }
+                    } finally {
+                        bypassStateIdFor.set(false);
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForQueue(anyString(), anyString(), anyLong()))
+                .when(() -> StateUtils.getStateValue(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    try {
+                        bypassStateIdFor.set(true);
+                        // First, try calling the real method.
+                        return invocation.callRealMethod();
+                    } catch (Exception e) {
+                        // The real method couldn't find a valid mapping.
+                        final String serviceName = invocation.getArgument(0);
+                        final String stateKey = invocation.getArgument(1);
+                        final ProtoBytes valueObject = invocation.getArgument(2);
+
+                        // We have to map "made up" states to existing ones to keep the compatibility with the protocol
+                        // The following states are chosen because they have generic `ProtoBytes` as their value type
+                        if (FRUIT_SERVICE_NAME.equals(serviceName) || FRUIT_STATE_KEY.equals(stateKey)) {
+                            return createStateValue(
+                                    StateValue.ValueOneOfType.FREEZESERVICE_I_UPGRADE_FILE_HASH, valueObject);
+                        } else if (ANIMAL_SERVICE_NAME.equals(serviceName) || ANIMAL_STATE_KEY.equals(stateKey)) {
+                            return createStateValue(StateValue.ValueOneOfType.HISTORYSERVICE_I_LEDGER_ID, valueObject);
+                        } else if (SPACE_SERVICE_NAME.equals(serviceName) || SPACE_STATE_KEY.equals(stateKey)) {
+                            return createStateValue(
+                                    com.hedera.hapi.platform.state.StateValue.ValueOneOfType
+                                            .FILESERVICE_I_UPGRADE_DATA_150,
+                                    valueObject);
+                        } else if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
+                            return createStateValue(
+                                    com.hedera.hapi.platform.state.StateValue.ValueOneOfType
+                                            .FILESERVICE_I_UPGRADE_DATA_151,
+                                    valueObject);
+                        } else if (COUNTRY_SERVICE_NAME.equals(serviceName) || COUNTRY_STATE_KEY.equals(stateKey)) {
+                            return createStateValue(
+                                    com.hedera.hapi.platform.state.StateValue.ValueOneOfType
+                                            .FILESERVICE_I_UPGRADE_DATA_152,
+                                    valueObject);
+                        } else {
+                            // Neither the real method nor any test mappings applied.
+                            return 65000;
+                        }
+                    } finally {
+                        bypassStateIdFor.set(false);
+                    }
+                });
+        stateUtilsMock
+                .when(() -> StateUtils.getStateKeyForQueue(anyString(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     try {
                         // First, try calling the real method.
+                        bypassStateIdFor.set(true);
                         return invocation.callRealMethod();
                     } catch (Exception e) {
                         // The real method couldn't find a valid mapping.
@@ -247,17 +303,20 @@ public class MerkleTestBase extends StateTestBase {
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForQueue(FILESERVICE_I_UPGRADE_DATA_150, keyObject);
+                            return createStateKeyForQueue(FILESERVICE_I_UPGRADE_DATA_150, keyObject);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;
                         }
+                    } finally {
+                        bypassStateIdFor.set(false);
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForSingleton(anyString(), anyString()))
+                .when(() -> StateUtils.getStateKeyForSingleton(anyString(), anyString()))
                 .thenAnswer(invocation -> {
                     try {
+                        bypassStateIdFor.set(true);
                         // First, try calling the real method.
                         return invocation.callRealMethod();
                     } catch (Exception e) {
@@ -268,30 +327,35 @@ public class MerkleTestBase extends StateTestBase {
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (SPACE_SERVICE_NAME.equals(serviceName) || SPACE_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(ENTITYIDSERVICE_I_ENTITY_ID);
+                            return createStateKeyForSingleton(ENTITYIDSERVICE_I_ENTITY_ID);
                         } else if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(SingletonType.FILESERVICE_I_UPGRADE_DATA_150);
+                            return createStateKeyForSingleton(SingletonType.FILESERVICE_I_UPGRADE_DATA_150);
                         } else if (COUNTRY_SERVICE_NAME.equals(serviceName) || COUNTRY_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(TOKENSERVICE_I_STAKING_NETWORK_REWARDS);
+                            return createStateKeyForSingleton(TOKENSERVICE_I_STAKING_NETWORK_REWARDS);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;
                         }
+                    } finally {
+                        bypassStateIdFor.set(false);
                     }
                 });
     }
 
-    private static Bytes createVirtualMapKeyForKv(VirtualMapKey.KeyOneOfType type, String keyObject) {
-        return VirtualMapKey.PROTOBUF.toBytes(
-                new VirtualMapKey(new OneOf<>(type, new ProtoBytes(Bytes.wrap(keyObject)))));
+    private static Bytes createStateKeyForKv(StateKey.KeyOneOfType type, ProtoBytes keyObject) {
+        return StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(type, keyObject)));
     }
 
-    private static Bytes createVirtualMapKeyForSingleton(SingletonType type) {
-        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(SINGLETON, type)));
+    private static Bytes createStateKeyForSingleton(SingletonType type) {
+        return StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(SINGLETON, type)));
     }
 
-    private static Bytes createVirtualMapKeyForQueue(VirtualMapKey.KeyOneOfType type, Long index) {
-        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(type, index)));
+    private static Bytes createStateKeyForQueue(StateKey.KeyOneOfType type, Long index) {
+        return StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(type, index)));
+    }
+
+    private static StateValue createStateValue(StateValue.ValueOneOfType type, ProtoBytes valueObject) {
+        return new StateValue(new OneOf<>(type, valueObject));
     }
 
     /** Sets up the "Fruit" merkle map, label, and metadata. */
@@ -336,7 +400,7 @@ public class MerkleTestBase extends StateTestBase {
                 FIRST_SERVICE,
                 COUNTRY_STATE_KEY,
                 computeClassId(FIRST_SERVICE, COUNTRY_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                STRING_CODEC,
+                ProtoBytes.PROTOBUF,
                 AUSTRALIA);
     }
 
@@ -347,7 +411,7 @@ public class MerkleTestBase extends StateTestBase {
                 STEAM_STATE_KEY,
                 computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX),
                 computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                STRING_CODEC);
+                ProtoBytes.PROTOBUF);
     }
 
     /** Sets up the {@link #registry}, ready to be used for serialization tests */
@@ -395,31 +459,30 @@ public class MerkleTestBase extends StateTestBase {
 
     /** A convenience method for adding a k/v pair to a merkle map */
     protected void addKvState(
-            MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, String>> map,
+            MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> map,
             long inMemoryValueClassId,
             Codec<ProtoBytes> keyCodec,
-            Codec<String> valueCodec,
+            Codec<ProtoBytes> valueCodec,
             ProtoBytes key,
-            String value) {
+            ProtoBytes value) {
         final var k = new InMemoryKey<>(key);
         map.put(k, new InMemoryValue<>(inMemoryValueClassId, keyCodec, valueCodec, k, value));
     }
 
     /** A convenience method for adding a singleton state to a virtual map */
-    protected void addSingletonState(
-            VirtualMap map, String serviceName, String stateKey, Codec<String> valueCodec, String value) {
-        map.put(getVirtualMapKeyForSingleton(serviceName, stateKey), value, valueCodec);
+    protected void addSingletonState(VirtualMap map, String serviceName, String stateKey, ProtoBytes value) {
+        map.put(
+                getStateKeyForSingleton(serviceName, stateKey),
+                getStateValue(serviceName, stateKey, value),
+                StateValue.PROTOBUF);
     }
 
     /** A convenience method for adding a k/v state to a virtual map */
-    protected void addKvState(
-            VirtualMap map,
-            String serviceName,
-            String stateKey,
-            Codec<String> valueCodec,
-            ProtoBytes key,
-            String value) {
-        map.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
+    protected void addKvState(VirtualMap map, String serviceName, String stateKey, ProtoBytes key, ProtoBytes value) {
+        map.put(
+                getStateKeyForKv(serviceName, stateKey, key),
+                getStateValue(serviceName, stateKey, value),
+                StateValue.PROTOBUF);
     }
 
     /** A convenience method used to serialize a merkle tree */

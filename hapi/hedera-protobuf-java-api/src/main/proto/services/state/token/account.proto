@@ -465,6 +465,22 @@ message Account {
      * identified by `head_pending_airdrop_id`.
      */
     uint64 number_pending_airdrops = 35;
+
+    /**
+     * The number of hooks currently in use on this account.
+     */
+    uint64 number_hooks_in_use = 36;
+
+    /**
+     * If the account has more than zero hooks in use, the id of the first hook in its
+     * doubly-linked list of hooks.
+     */
+    int64 first_hook_id = 37;
+
+    /**
+     * The number of storage slots in use by this account's lambdas.
+     */
+    uint64 number_lambda_storage_slots = 38;
 }
 
 /**

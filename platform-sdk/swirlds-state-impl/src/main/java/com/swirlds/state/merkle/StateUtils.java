@@ -4,10 +4,13 @@ package com.swirlds.state.merkle;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.*;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 
+import com.hedera.hapi.platform.state.QueueState;
 import com.hedera.hapi.platform.state.SingletonType;
-import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
@@ -239,6 +242,8 @@ public final class StateUtils {
                         switch (stateKey) {
                             case "BYTECODE" -> STATE_ID_CONTRACT_BYTECODE.protoOrdinal();
                             case "STORAGE" -> STATE_ID_CONTRACT_STORAGE.protoOrdinal();
+                            case "EVM_HOOK_STATES" -> STATE_ID_EVM_HOOK_STATES.protoOrdinal();
+                            case "LAMBDA_STORAGE" -> STATE_ID_LAMBDA_STORAGE.protoOrdinal();
                             default -> UNKNOWN_STATE_ID;
                         };
                     case "EntityIdService" ->
@@ -422,85 +427,128 @@ public final class StateUtils {
     }
 
     /**
-     * Creates an instance of {@link VirtualMapKey} for a singleton state, serializes into a {@link Bytes} object
+     * Creates an instance of {@link StateKey} for a singleton state, serializes into a {@link Bytes} object
      * and returns it.
      * The result is cached to avoid repeated allocations.
      *
      * @param serviceName the service name
      * @param stateKey    the state key
-     * @return a {@link VirtualMapKey} for the singleton serialized into {@link Bytes} object
+     * @return a {@link StateKey} for the singleton serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static Bytes getVirtualMapKeyForSingleton(
-            @NonNull final String serviceName, @NonNull final String stateKey) {
+    public static Bytes getStateKeyForSingleton(@NonNull final String serviceName, @NonNull final String stateKey) {
         final int stateId = getValidatedStateId(serviceName, stateKey);
         Bytes key = VIRTUAL_MAP_KEY_CACHE[stateId];
         if (key == null) {
-            key = VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(
-                    new OneOf<>(VirtualMapKey.KeyOneOfType.SINGLETON, SingletonType.fromProtobufOrdinal(stateId))));
+            key = StateKey.PROTOBUF.toBytes(new StateKey(
+                    new OneOf<>(StateKey.KeyOneOfType.SINGLETON, SingletonType.fromProtobufOrdinal(stateId))));
             VIRTUAL_MAP_KEY_CACHE[stateId] = key;
         }
         return key;
     }
 
     /**
-     * Creates an instance of {@link VirtualMapKey} for a queue element, serializes into a {@link Bytes} object
+     * Creates an instance of {@link StateKey} for a queue element, serializes into a {@link Bytes} object
      * and returns it.
      *
      * @param serviceName the service name
      * @param stateKey    the state key
      * @param index       the queue element index
-     * @return a {@link VirtualMapKey} for a queue element serialized into {@link Bytes} object
+     * @return a {@link StateKey} for a queue element serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static Bytes getVirtualMapKeyForQueue(
+    public static Bytes getStateKeyForQueue(
             @NonNull final String serviceName, @NonNull final String stateKey, final long index) {
-        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
-                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), index)));
+        return StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(
+                StateKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), index)));
     }
 
     /**
-     * Creates an instance of {@link VirtualMapKey} for a k/v state, serializes into a {@link Bytes} object
+     * Creates an instance of {@link StateKey} for a k/v state, serializes into a {@link Bytes} object
      * and returns it.
      *
      * @param <K>         the type of the key
      * @param serviceName the service name
      * @param stateKey    the state key
      * @param key         the key object
-     * @return a {@link VirtualMapKey} for a k/v state, serialized into {@link Bytes} object
+     * @return a {@link StateKey} for a k/v state, serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static <K> Bytes getVirtualMapKeyForKv(
+    public static <K> Bytes getStateKeyForKv(
             @NonNull final String serviceName, @NonNull final String stateKey, final K key) {
-        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
-                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), key)));
+        return StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(
+                StateKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), key)));
     }
 
     /**
-     * Creates Protocol Buffer encoded byte array for a VirtualMapKey field.
+     * Creates an instance of {@link StateValue} which is stored in a state.
+     *
+     * @param <V>         the type of the value
+     * @param serviceName the service name
+     * @param stateKey    the state key
+     * @param value       the value object
+     * @return a {@link StateValue} for a {@link com.swirlds.virtualmap.VirtualMap}
+     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
+     */
+    public static <V> StateValue getStateValue(
+            @NonNull final String serviceName, @NonNull final String stateKey, final V value) {
+        return new StateValue(new OneOf<>(
+                StateValue.ValueOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), value));
+    }
+
+    /**
+     * Creates an instance of {@link StateValue} for a {@link com.hedera.hapi.platform.state.QueueState} which is stored in a state.
+     *
+     * @param queueState the value object
+     * @return a {@link StateValue} for {@link com.hedera.hapi.platform.state.QueueState} in a {@link com.swirlds.virtualmap.VirtualMap}
+     */
+    public static StateValue getQueueStateValue(@NonNull final QueueState queueState) {
+        return new StateValue(new OneOf<>(StateValue.ValueOneOfType.QUEUE_STATE, queueState));
+    }
+
+    /**
+     * Creates Protocol Buffer encoded byte array for either a {@link StateKey} or a {@link StateValue} field.
      * Follows protobuf encoding format: tag (field number + wire type), length, and value.
      *
      * @param serviceName       the service name
      * @param stateKey          the state key
-     * @param keyObjectBytes    the serialized key object
+     * @param objectBytes       the serialized key or value object
      * @return Properly encoded Protocol Buffer byte array
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static byte[] createVirtualMapKeyBytesForKV(
-            @NonNull final String serviceName, @NonNull final String stateKey, byte[] keyObjectBytes) {
+    public static Bytes getStateKeyValueBytes(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Bytes objectBytes) {
         final int stateId = getValidatedStateId(serviceName, stateKey);
         // This matches the Protocol Buffer tag format: (field_number << TAG_TYPE_BITS) | wire_type
         int tag = (stateId << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+        int length = Math.toIntExact(objectBytes.length());
 
-        ByteBuffer byteBuffer = ByteBuffer.allocate(sizeOfVarInt32(tag)
-                + sizeOfVarInt32(keyObjectBytes.length) /* length */
-                + keyObjectBytes.length /* key bytes */);
+        ByteBuffer byteBuffer =
+                ByteBuffer.allocate(sizeOfVarInt32(tag) + sizeOfVarInt32(length) /* length */ + length /* key bytes */);
         BufferedData bufferedData = BufferedData.wrap(byteBuffer);
 
         bufferedData.writeVarInt(tag, false);
-        bufferedData.writeVarInt(keyObjectBytes.length, false);
-        bufferedData.writeBytes(keyObjectBytes);
+        bufferedData.writeVarInt(length, false);
+        bufferedData.writeBytes(objectBytes);
 
-        return byteBuffer.array();
+        return Bytes.wrap(byteBuffer.array());
+    }
+
+    /**
+     * Extracts the state ID from a serialized {@link StateKey} or {@link StateValue}.
+     * <p>
+     * This method reads the next protobuf field number (the one-of field number) from the key's or value's
+     * sequential data, which corresponds to the embedded state ID.
+     * </p>
+     *
+     * @param objectBytes the serialized {@link StateKey} or {@link StateValue} bytes
+     * @return the extracted state ID
+     * @throws NullPointerException if {@code objectBytes} is null
+     */
+    public static int extractStateKeyValueStateId(@NonNull final Bytes objectBytes) {
+        Objects.requireNonNull(objectBytes, "objectBytes must not be null");
+        // Rely on the fact that StateKey and StateValue has a single OneOf field,
+        // so the next field number is the state ID.
+        return readNextFieldNumber(objectBytes.toReadableSequentialData());
     }
 }

@@ -11,6 +11,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.ProtocolStringList;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -27,9 +28,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.time.Instant;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -50,13 +51,14 @@ import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -67,7 +69,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 /**
  * Implementation of {@link Node} for a container environment.
  */
-public class ContainerNode extends AbstractNode implements Node {
+public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -83,7 +85,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
+    private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -93,6 +95,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
+     * @param outputDirectory the directory where the node's output will be stored
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -102,6 +105,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
         super(selfId, getWeight(roster, selfId));
+
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -115,7 +119,6 @@ public class ContainerNode extends AbstractNode implements Node {
                 .savedStateDirectory()
                 .toString();
 
-        //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
@@ -144,7 +147,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void killImmediately() throws InterruptedException {
+    public void killImmediately() {
         defaultAsyncAction.killImmediately();
     }
 
@@ -202,7 +205,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public NodeConfiguration<?> configuration() {
+    public NodeConfiguration configuration() {
         return nodeConfiguration;
     }
 
@@ -212,7 +215,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodeConsensusResult newConsensusResult() {
-        return resultsCollector.getConsensusResult();
+        return resultsCollector.newConsensusResult();
     }
 
     /**
@@ -221,7 +224,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(selfId, Set.of());
+        return resultsCollector.newLogResult();
     }
 
     /**
@@ -230,7 +233,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodePlatformStatusResult newPlatformStatusResult() {
-        return resultsCollector.getStatusProgression();
+        return resultsCollector.newStatusProgression();
     }
 
     /**
@@ -262,19 +265,33 @@ public class ContainerNode extends AbstractNode implements Node {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeMarkerFileResult newMarkerFileResult() {
+        return new SingleNodeMarkerFileResultImpl(resultsCollector);
+    }
+
+    /**
      * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    // ignoring the Empty answer from destroyContainer
-    void destroy() throws IOException {
-        // copy logs from container to the local filesystem
-        final Path logPath = Path.of("build", "container", "node-" + selfId.id());
-        Files.createDirectories(logPath);
-        Files.deleteIfExists(logPath.resolve("swirlds.log"));
-        container.copyFileFromContainer("logs/swirlds.log", logPath + "/swirlds.log");
-        Files.deleteIfExists(logPath.resolve("swirlds-hashstream.log"));
-        container.copyFileFromContainer("logs/swirlds-hashstream.log", logPath + "/swirlds-hashstream.log");
+    void destroy() {
+        try {
+            // copy logs from container to the local filesystem
+            final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+            Files.createDirectories(logPath.resolve("swirlds-hashstream"));
+
+            container.copyFileFromContainer(
+                    "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+            container.copyFileFromContainer(
+                    "output/swirlds-hashstream/swirlds-hashstream.log",
+                    logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy logs from container", e);
+        }
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
@@ -284,6 +301,26 @@ public class ContainerNode extends AbstractNode implements Node {
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    @Override
+    public void tick(@NonNull final Instant now) {
+        EventMessage event;
+        while ((event = receivedEvents.poll()) != null) {
+            switch (event.getEventCase()) {
+                case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
+                case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
+                case CONSENSUS_ROUNDS ->
+                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                case MARKER_FILE_ADDED -> {
+                    final ProtocolStringList markerFiles =
+                            event.getMarkerFileAdded().getMarkerFileNameList();
+                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    resultsCollector.addMarkerFiles(markerFiles);
+                }
+                default -> log.warn("Received unexpected event: {}", event);
+            }
+        }
     }
 
     /**
@@ -323,17 +360,7 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    switch (value.getEventCase()) {
-                        case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
-                        default -> {
-                            final String message = String.format(
-                                    "Received unknown message type from node %s: %s", selfId, value.getEventCase());
-                            throw new RuntimeException(message);
-                        }
-                    }
+                    receivedEvents.add(value);
                 }
 
                 @Override

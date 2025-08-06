@@ -14,11 +14,6 @@ on:
         required: true
         type: string
         default: ""
-      solo-version:
-        description: "Solo Version"
-        required: true
-        type: string
-        default: ""
       nlg-accounts:
         required: true
         default: "100000"
@@ -93,8 +88,6 @@ jobs:
 
       - name: Validate Input Parameters
         run: |
-          echo "Soloversion"
-          echo ${{ inputs.solo-version }}
           echo "Run HCN Version"
           echo ${{ inputs.ref }}
           echo "GS Root Dir"
@@ -113,39 +106,40 @@ jobs:
           echo ${{ github.workspace }}
 
       - name: Generate Google Storage URL for Publishing
-        id: gs_dir_url
+        id: gs-dir-url
         run: |
           GS_DIR_URL="${{ inputs.gs-root-dir }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
-          echo "Calculated gs_dir_url: ${GS_DIR_URL}"
+          echo "Calculated gs-dir-url: ${GS_DIR_URL}"
           echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate HTTPS URL for Publishing
-        id: gs_https_url
+        id: gs-https-url
         run: |
           GS_HTTPS_URL="${{ inputs.gs-root-https }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
-          echo "Calculated gs_https_url: ${GS_HTTPS_URL}"
+          echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
           echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate the GCP URLs Are Set
         run: |
           echo "GS DIR URL"
-          echo "${{ steps.gs_dir_url.outputs.url }}"
+          echo "${{ steps.gs-dir-url.outputs.url }}"
           echo "GS HTTPS URL"
-          echo "${{ steps.gs_https_url.outputs.url }}"
+          echo "${{ steps.gs-https-url.outputs.url }}"
 
       - name: Set namespace
+        id: set-namespace
         run: |
           set +x
           set +e
 
           #trim run-hcn-version
-          echo "run-hcn-version=`echo ${{ inputs.ref }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
+          echo "run-hcn-version=`echo ${{ inputs.ref }} | awk '{print $1}'`" >> "${GITHUB_OUTPUT}"
           n=`echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
 
       - name: Print parameters
         run: |
-          echo "namespace=${{ env.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}/version_run.txt"
+          echo "namespace=${{ steps.set-namespace.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}/version_run.txt"
 
       - name: HeliSwap sleep
         if: ${{ inputs.nlg-test == 'HeliSwapLoadTest' }}
@@ -221,7 +215,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ inputs.nlg-accounts }}" / 1000`
           NLG_c=32
@@ -246,11 +240,11 @@ jobs:
           esac
 
           echo \
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
@@ -282,9 +276,9 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
@@ -292,7 +286,7 @@ jobs:
           max_counter=340 #max_counter=330 mins of max test time + 10 min waiting time
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -303,13 +297,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -323,10 +317,10 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
-          cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
@@ -370,8 +364,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs_dir_url.outputs.url }}"
-          echo Done: see results in "${{ steps.gs_https_url.outputs.url }}"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs-dir-url.outputs.url }}"
+          echo Done: see results in "${{ steps.gs-https-url.outputs.url }}"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"

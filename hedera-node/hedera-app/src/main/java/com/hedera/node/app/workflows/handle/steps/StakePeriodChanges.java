@@ -87,12 +87,11 @@ public class StakePeriodChanges {
      */
     public void advanceTimeTo(@NonNull final ParentTxn parentTxn, final boolean includeStakePeriodSideEffects) {
         if (includeStakePeriodSideEffects) {
+            final var lastTopLevelTime = streamMode == RECORDS
+                    ? blockRecordManager.consTimeOfLastHandledTxn()
+                    : blockStreamManager.lastTopLevelConsensusTime();
             try {
-                processSideEffects(
-                        parentTxn.stack(),
-                        parentTxn.tokenContextImpl(),
-                        streamMode,
-                        blockStreamManager.lastHandleTime());
+                processSideEffects(parentTxn.stack(), parentTxn.tokenContextImpl(), streamMode, lastTopLevelTime);
             } catch (final Exception e) {
                 // We don't propagate a failure here to avoid a catastrophic scenario
                 // where we are "stuck" trying to process node stake updates and never
@@ -100,10 +99,11 @@ public class StakePeriodChanges {
                 logger.error("Failed to process stake period changes", e);
             }
         }
-        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
+        if (streamMode != RECORDS) {
+            blockStreamManager.setLastTopLevelTime(parentTxn.consensusNow());
+        }
         if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
+            blockRecordManager.setLastTopLevelTime(parentTxn.consensusNow(), parentTxn.state());
         }
     }
 

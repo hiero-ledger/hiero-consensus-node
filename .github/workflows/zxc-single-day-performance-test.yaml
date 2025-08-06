@@ -14,11 +14,10 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
-      # TODO: Update solo-version when we move to CN to use solo tagged versions instead of helm charts.
       solo-version:
         required: true
-        default: "latest_tested_solo-charts0.59"
-        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
+        default: "v0.41.0"
+        description: "Solo Version:"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
@@ -78,18 +77,10 @@ jobs:
     name: Start
     runs-on: hiero-citr-linux-large
     env:
-      run_namespace: ${{ inputs.test-asset }}
-      RUN_HCN_VERSION: ${{ inputs.ref }}
-      run_soloversion: ${{ inputs.solo-version }}
-      run_NLG_Accounts: ${{ inputs.nlg-accounts }}
-      run_NLG_Time: ${{ inputs.nlg-time }}
-      run_AddAppProps: ${{ inputs.add-app-props }}
-      run_AddSettings: ${{ inputs.add-settings }}
-      crypto-bench-merkle-db-java-args: ${{ inputs.crypto-bench-merkle-db-java-args }}
-      crypto-bench-merkle-db-test-params: ${{ inputs.crypto-bench-merkle-db-test-params }}
       run_NLG_Test: NftTransferLoadTest
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
+      run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -100,13 +91,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
-
-      - name: Checkout solo Repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: hiero-ledger/solo
-          path: solo
-          ref: ${{ env.run_soloversion }}
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -187,56 +171,43 @@ jobs:
         run: |
           set +x
           set +e
-          #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          # trim the input ref
+          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Print parameters
         run: |
-          echo "inputs.test-asset=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ env.RUN_HCN_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.solo-version=${{ env.run_soloversion }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.nlg-accounts=${{ env.run_NLG_Accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.nlg-time=${{ env.run_NLG_Time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.add-app-props=${{ env.run_AddAppProps }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.add-settings=${{ env.run_AddSettings }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.test-asset=${{ steps.set-namespace.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ steps.set-namespace.outputs.run-hcn-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.add-app-props=${{ inputs.add-app-props }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.add-settings=${{ inputs.add-settings }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-test=${{ env.run_NLG_Test }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Set hederahash sha value
         run: |
-          hederahash=`git rev-parse HEAD`
+          hederahash="$(git rev-parse HEAD)"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
         run: ./gradlew clean assemble
 
-      - name: Build Solo
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Install Solo
         run: |
-          set +x
-          set +e
-          curdir=`pwd`
-          echo "${curdir}"
-          ls
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-          export NVM_DIR="${HOME}/.nvm"
-          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
-          nvm install v22.9.0
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version }}"
 
-          nvm use v22.9.0
-          export PATH="${HOME}/:${PATH}"
-
-          #solo script
-          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node ${curdir}/solo/dist/solo.js \$*" >> "${HOME}"/solo
-          chmod a+rx "${HOME}"/solo
-
-          cd solo
-          npm ci
-          cd ..
+          # verify the installation
+          solo --version
 
       - name: Deploy with Solo
         env:
@@ -244,27 +215,28 @@ jobs:
         run: |
           set +x
           set +e
-          export NVM_DIR="${HOME}/.nvm"
-          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
-          export PATH="${HOME}/:${PATH}"
-          curdir=`pwd`
+          curdir="$(pwd)"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
           if [ ${?} -eq 0 ]
           then
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
           fi
 
-          cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
+          # Create the solo directory
+          mkdir -p "${{ github.workspace }}"/solo && cd "${{ github.workspace}}"/solo
 
-          # Remove Taskfile.yml
-          rm -f Taskfile.yml
           # Generate the Taskfile.yml file inline
-          # Skip the copy step for Taskfile.examples.yml for now
-          # cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.examples.yml Taskfile.examples.yml
           cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
 
-          # Remove init-containers-values7.yaml
-          rm -f init-containers-values7.yaml
+          # Generate the Taskfile.citr.yml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.citr.yml Taskfile.citr.yml
+
+          # Generate the log4j2.xml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/log4j2.xml log4j2.xml
+
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
           # Generate the init-containers-values7.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
@@ -273,7 +245,7 @@ jobs:
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
@@ -283,13 +255,9 @@ jobs:
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
-          # Remove application.properties
-          rm -f application.properties
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
-          # Remove settings.txt
-          rm -f settings.txt
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
@@ -308,16 +276,6 @@ jobs:
           fi
           export NODE_COPY_CONCURRENT=1
 
-          #task clean
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
-          if [ ${?} -eq 0 ]
-          then
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
-          fi
-
-          task build
-          task init
           task
           task_code=${?}
           task solo:node:logs
@@ -335,7 +293,7 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
           cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
           exit "${task_code}"
 
       - name: Move to Github Workspace
@@ -347,20 +305,16 @@ jobs:
         run: |
           set +x
           set +e
-          cd ${{ github.workspace }}/solo/examples/performance-tuning/latitude
+          cd ${{ github.workspace }}/solo
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
-          # Remove nlg-values.yaml
-          rm -f nlg-values.yaml
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-          # Remove merkledb-values.yaml
-          rm -f merkledb-values.yaml
           # Generate the merkledb-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
 
@@ -371,7 +325,7 @@ jobs:
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-perf-test"
@@ -380,7 +334,7 @@ jobs:
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
-          NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-perf-test"
@@ -393,11 +347,11 @@ jobs:
         run: |
           set +x
           set +e
-          cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
+          cd "${{ github.workspace }}"/solo
           helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
@@ -433,12 +387,12 @@ jobs:
         run: |
           set +x
           set +e
-          cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
+          cd "${{ github.workspace }}"/solo
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
           helm install --set name=merkle --set appName=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
 
@@ -454,22 +408,22 @@ jobs:
           set +x
           set +e
 
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
+          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
+          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -515,12 +469,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -531,9 +485,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -596,8 +550,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/create_accounts"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/create_accounts"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
@@ -607,12 +561,12 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
+          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -624,11 +578,11 @@ jobs:
           echo \
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ env.run_NLG_Time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ env.run_NLG_Time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
@@ -636,9 +590,7 @@ jobs:
     needs:
       - performance-tests-start
     env:
-      run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
-      run_soloversion: ${{ inputs.solo-version }}
       run_NLG_Accounts: ${{ inputs.nlg-accounts }}
       run_NLG_Time: ${{ inputs.nlg-time }}
 
@@ -653,19 +605,9 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Set namespace
-        run: |
-          set +x
-          set +e
-
-          #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
-
       - name: Print parameters
         run: |
-          echo "namespace=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -764,12 +706,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -780,9 +722,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -829,9 +771,7 @@ jobs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
     env:
-      run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
-      run_soloversion: ${{ inputs.solo-version }}
       run_NLG_Accounts: ${{ inputs.nlg-accounts }}
       run_NLG_Time: ${{ inputs.nlg-time }}
       run_NLG_Test: NftTransferLoadTest
@@ -850,19 +790,9 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Set namespace
-        run: |
-          set +x
-          set +e
-
-          #trim RUN_HCN_VERSION
-          echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
-
       - name: Print parameters
         run: |
-          echo "namespace=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -956,12 +886,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
@@ -972,9 +902,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time="$(date +%s)"
+           counter="$(expr "${current_time}" - "${start_time}")"
+           counter="$(expr "${counter}" \/ 60)"
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
@@ -1044,8 +974,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
@@ -1055,7 +985,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
@@ -1064,7 +994,7 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          result=`grep 'CryptoBenchMerkleDb.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}'`
+          result="$(grep 'CryptoBenchMerkleDb.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}')"
           echo "value=${result}" >> $GITHUB_OUTPUT
           echo "value=${result}"
 
@@ -1092,8 +1022,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
@@ -1105,7 +1035,6 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HCSLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1120,7 +1049,6 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "CryptoTransferLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1135,7 +1063,6 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HeliSwapLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1150,7 +1077,6 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "SmartContractLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1228,6 +1154,7 @@ jobs:
             HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} \n\
             SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }}"
           #last line is 6, it does not need comma block separator
+          # use back-ticks for proper substitution in the json report
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
 

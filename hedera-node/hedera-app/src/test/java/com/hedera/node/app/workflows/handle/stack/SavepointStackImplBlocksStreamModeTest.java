@@ -49,7 +49,7 @@ class SavepointStackImplBlocksStreamModeTest {
 
         subject.commitTransaction(streamBuilder);
 
-        verify(immediateStateChangeListener).reset();
+        verify(immediateStateChangeListener).reset(null);
         verify(streamBuilder).stateChanges(mockChanges);
     }
 

@@ -23,6 +23,9 @@ import "google/protobuf/wrappers.proto";
 
 /**
  * Context of an internal call in an EVM transaction that is not otherwise externalized.<br/>
+ * This message does not say anything about whether an EVM transaction is itself a logical
+ * transaction in a Hiero transactional unit. It simply provides context on an internal
+ * message call within an EVM transaction.
  */
 message InternalCallContext {
     /**

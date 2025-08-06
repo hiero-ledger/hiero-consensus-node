@@ -7,13 +7,17 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.createVirtualMapKeyBytesForKV;
 import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getQueueStateValue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForQueue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyValueBytes;
+import static com.swirlds.state.merkle.StateUtils.getStateValue;
 import static com.swirlds.state.merkle.VirtualMapState.VM_LABEL;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.QueueState;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
@@ -45,8 +49,6 @@ import com.swirlds.state.merkle.memory.InMemoryWritableKVState;
 import com.swirlds.state.merkle.queue.BackedReadableQueueState;
 import com.swirlds.state.merkle.queue.BackedWritableQueueState;
 import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.queue.QueueState;
-import com.swirlds.state.merkle.queue.QueueStateCodec;
 import com.swirlds.state.merkle.singleton.BackedReadableSingletonState;
 import com.swirlds.state.merkle.singleton.BackedWritableSingletonState;
 import com.swirlds.state.merkle.singleton.SingletonNode;
@@ -1067,10 +1069,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     logger.info(STARTUP.getMarker(), "\nMigrating {}...", singletonStateLabel);
                     long migrationStartTime = System.currentTimeMillis();
 
-                    final var codec = originalStore.getCodec();
                     final var value =
                             Objects.requireNonNull(originalStore.getValue(), "Null value is not expected here");
-                    virtualMap.put(getVirtualMapKeyForSingleton(serviceName, stateKey), value, codec);
+
+                    final Bytes key = getStateKeyForSingleton(serviceName, stateKey);
+                    final StateValue stateValue = getStateValue(serviceName, stateKey, value);
+                    virtualMap.put(key, stateValue, StateValue.PROTOBUF);
 
                     long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
                     logger.info(
@@ -1108,7 +1112,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     private static void validateSingletonStateMigrated(VirtualMap virtualMap, String serviceName, String stateKey) {
-        assert virtualMap.containsKey(getVirtualMapKeyForSingleton(serviceName, stateKey));
+        assert virtualMap.containsKey(getStateKeyForSingleton(serviceName, stateKey));
     }
 
     private void migrateQueueStates(
@@ -1140,7 +1144,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     long tail = 1;
 
                     for (ValueLeaf leaf : originalStore) {
-                        final var codec = leaf.getCodec();
                         final var value = Objects.requireNonNull(leaf.getValue(), "Null value is not expected here");
 
                         VirtualMap currentMap = virtualMapRef.get();
@@ -1150,16 +1153,19 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        virtualMapRef.get().put(getVirtualMapKeyForQueue(serviceName, stateKey, tail++), value, codec);
+
+                        final Bytes key = getStateKeyForQueue(serviceName, stateKey, tail++);
+                        final StateValue stateValue = getStateValue(serviceName, stateKey, value);
+                        virtualMapRef.get().put(key, stateValue, StateValue.PROTOBUF);
                     }
 
                     final var queueState = new QueueState(head, tail);
                     virtualMapRef
                             .get()
                             .put(
-                                    getVirtualMapKeyForSingleton(serviceName, stateKey),
-                                    queueState,
-                                    QueueStateCodec.INSTANCE);
+                                    getStateKeyForSingleton(serviceName, stateKey),
+                                    getQueueStateValue(queueState),
+                                    StateValue.PROTOBUF);
 
                     long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
                     logger.info(
@@ -1203,11 +1209,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private static void validateQueueStateMigrated(
             VirtualMap virtualMap, String serviceName, String stateKey, long head, long tail) {
         // Validate Queue State object
-        assert virtualMap.containsKey(getVirtualMapKeyForSingleton(serviceName, stateKey));
+        assert virtualMap.containsKey(getStateKeyForSingleton(serviceName, stateKey));
 
         // Validate Queue State values
         for (long i = head; i < tail; i++) {
-            assert virtualMap.containsKey(getVirtualMapKeyForQueue(serviceName, stateKey, i));
+            assert virtualMap.containsKey(getStateKeyForQueue(serviceName, stateKey, i));
         }
     }
 
@@ -1238,9 +1244,9 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
-                                serviceName, stateKey, pair.key().toByteArray()));
-                        virtualMapRef.get().putBytes(keyBytes, pair.value());
+                        final Bytes keyBytes = getStateKeyValueBytes(serviceName, stateKey, pair.key());
+                        final Bytes valueBytes = getStateKeyValueBytes(serviceName, stateKey, pair.value());
+                        virtualMapRef.get().putBytes(keyBytes, valueBytes);
                     };
 
                     try {
@@ -1304,8 +1310,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         while (merkleNodeMerkleIterator.hasNext()) {
             MerkleNode next = merkleNodeMerkleIterator.next();
             if (next instanceof VirtualLeafNode virtualLeafNode) {
-                final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
-                        serviceName, stateKey, virtualLeafNode.getKey().toByteArray()));
+                final var keyBytes = getStateKeyValueBytes(serviceName, stateKey, virtualLeafNode.getKey());
                 assert virtualMap.containsKey(keyBytes);
             }
         }

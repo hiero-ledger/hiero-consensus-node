@@ -9,6 +9,7 @@ import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -34,10 +35,8 @@ public interface Node {
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
      * Start a synthetic bottleneck on the node.
@@ -105,7 +104,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration<?> configuration();
+    NodeConfiguration configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -160,6 +159,7 @@ public interface Node {
     /**
      * Checks if the node's {@link PlatformStatus} is {@code status}.
      *
+     * @param status the status to check against
      * @return {@code true} if the node is in the supplied status, {@code false} otherwise
      */
     default boolean isInStatus(@NonNull final PlatformStatus status) {
@@ -229,4 +229,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeReconnectResult newReconnectResult();
+
+    /**
+     * Creates a new result with all marker file result of the node.
+     *
+     * @return the marker file result of the node
+     */
+    @NonNull
+    SingleNodeMarkerFileResult newMarkerFileResult();
 }

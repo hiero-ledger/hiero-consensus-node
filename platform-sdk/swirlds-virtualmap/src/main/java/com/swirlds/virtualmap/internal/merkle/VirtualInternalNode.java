@@ -15,10 +15,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -130,7 +127,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
     }
 
     private VirtualNode getChild(final long childPath) {
-        if (childPath < map.getState().getFirstLeafPath()) {
+        if (childPath < map.getMetadata().getFirstLeafPath()) {
             return getInternalNode(childPath);
         } else {
             return getLeafNode(childPath);
@@ -146,19 +143,31 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
      * @return The node. Only returns null if INVALID_PATH was the path.
      */
     private VirtualInternalNode getInternalNode(final long path) {
-        assert path != INVALID_PATH : "Cannot happen. Path will be a child of virtual record path every time.";
+        return getInternalNode(map, path);
+    }
 
-        assert path < map.getState().getFirstLeafPath();
-        Hash hash = map.getCache().lookupHashByPath(path);
-        if (hash == null) {
-            try {
-                hash = map.getDataSource().loadHash(path);
-            } catch (final IOException ex) {
-                throw new UncheckedIOException("Failed to read a internal record from the data source", ex);
-            }
+    /**
+     * Returns an internal node for the given virtual path in the specified virtual map. If
+     * the path is outside map's internal node range, {@code null} is returned.
+     *
+     * @param map Virtual map
+     * @param path Virtual path
+     * @return Virtual internal node
+     */
+    public static VirtualInternalNode getInternalNode(final VirtualMap map, final long path) {
+        assert path != INVALID_PATH;
+
+        // If the path is not a valid internal path then return null
+        if (path >= map.getMetadata().getFirstLeafPath()) {
+            return null;
         }
 
-        final VirtualHashRecord rec = new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
+        final Hash hash = map.getRecords().findHash(path);
+        // Only fully hashed virtual maps should be possible to iterate as merkle trees. In
+        // this case, the hash above would never be null. However, some tests iterate over
+        // virtual maps before they are hashed, and even before they become immutable. This
+        // may result in null hashes
+        final VirtualHashRecord rec = new VirtualHashRecord(path, hash);
         return new VirtualInternalNode(map, rec);
     }
 
@@ -171,42 +180,36 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
      * 		a RuntimeException is thrown.
      */
     private VirtualLeafNode getLeafNode(final long path) {
-        // If the code was properly written, this will always hold true.
+        return getLeafNode(map, path);
+    }
+
+    /**
+     * Returns a leaf node for the given virtual path in the specified virtual map. If
+     * the path is outside map's leaf path range, {@code null} is returned.
+     *
+     * @param map Virtual map
+     * @param path Virtual path
+     * @return Virtual leaf node
+     */
+    public static VirtualLeafNode getLeafNode(final VirtualMap map, final long path) {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
 
         // If the path is not a valid leaf path then return null
-        if (path < map.getState().getFirstLeafPath() || path > map.getState().getLastLeafPath()) {
+        if ((path < map.getMetadata().getFirstLeafPath())
+                || (path > map.getMetadata().getLastLeafPath())) {
             return null;
         }
 
-        // Check the cache first
-        VirtualLeafBytes rec = map.getCache().lookupLeafByPath(path);
-
-        // On cache miss, check the data source. It *has* to be there.
+        final Hash hash = map.getRecords().findHash(path);
+        // Only fully hashed virtual maps should be possible to iterate as merkle trees. In
+        // this case, the hash above would never be null. However, some tests iterate over
+        // virtual maps before they are hashed, and even before they become immutable. This
+        // may result in null hashes
+        final VirtualLeafBytes<?> rec = map.getRecords().findLeafRecord(path);
         if (rec == null) {
-            try {
-                rec = map.getDataSource().loadLeafRecord(path);
-                // This should absolutely be impossible. We already checked to make sure the path falls
-                // within the firstLeafPath and lastLeafPath, and we already failed to find the leaf
-                // in the cache. It **MUST** be on disk, or we have a broken system.
-                if (rec == null) {
-                    throw new IllegalStateException("Attempted to read from disk but couldn't find the leaf");
-                }
-            } catch (final IOException ex) {
-                throw new RuntimeException("Failed to read a leaf record from the data source", ex);
-            }
+            throw new IllegalStateException("Failed to find leaf node data: " + path);
         }
-
-        Hash hash = map.getCache().lookupHashByPath(path);
-        if (hash == null) {
-            try {
-                hash = map.getDataSource().loadHash(path);
-            } catch (final IOException ex) {
-                throw new UncheckedIOException("Failed to read a hash from the data source", ex);
-            }
-        }
-
         return new VirtualLeafNode(rec, hash);
     }
 

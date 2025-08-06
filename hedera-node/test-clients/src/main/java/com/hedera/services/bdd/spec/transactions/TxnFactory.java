@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import com.hedera.hapi.node.hooks.legacy.LambdaSStoreTransactionBody;
 import com.hedera.hapi.platform.event.legacy.StateSignatureTransaction;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
@@ -461,6 +462,10 @@ public class TxnFactory {
     }
 
     public Consumer<AtomicBatchTransactionBody.Builder> defaultDefAtomicBatchTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<LambdaSStoreTransactionBody.Builder> defaultDefLambdaSStoreTransactionBody() {
         return builder -> {};
     }
 

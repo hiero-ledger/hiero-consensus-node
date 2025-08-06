@@ -74,13 +74,15 @@ public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements 
             case TOPIC -> newEntityCounts.numTopics(entityCounts.numTopics() + delta);
             case FILE -> newEntityCounts.numFiles(entityCounts.numFiles() + delta);
             case CONTRACT_BYTECODE -> newEntityCounts.numContractBytecodes(entityCounts.numContractBytecodes() + delta);
-            case CONTRACT_STORAGE -> newEntityCounts.numContractStorageSlots(
-                    entityCounts.numContractStorageSlots() + delta);
+            case CONTRACT_STORAGE ->
+                newEntityCounts.numContractStorageSlots(entityCounts.numContractStorageSlots() + delta);
             case NFT -> newEntityCounts.numNfts(entityCounts.numNfts() + delta);
             case SCHEDULE -> newEntityCounts.numSchedules(entityCounts.numSchedules() + delta);
             case AIRDROP -> newEntityCounts.numAirdrops(entityCounts.numAirdrops() + delta);
             case NODE -> newEntityCounts.numNodes(entityCounts.numNodes() + delta);
             case STAKING_INFO -> newEntityCounts.numStakingInfos(entityCounts.numStakingInfos() + delta);
+            case HOOK -> newEntityCounts.numHooks(entityCounts.numHooks() + delta);
+            case LAMBDA_STORAGE -> newEntityCounts.numLambdaStorageSlots(entityCounts.numLambdaStorageSlots() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }

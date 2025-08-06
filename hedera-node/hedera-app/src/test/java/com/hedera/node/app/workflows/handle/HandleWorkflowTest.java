@@ -216,7 +216,7 @@ class HandleWorkflowTest {
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
-                .commitRoundReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
+                .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test
@@ -226,7 +226,7 @@ class HandleWorkflowTest {
 
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
+        given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
@@ -276,7 +276,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -330,7 +330,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -390,7 +390,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -459,7 +459,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -502,7 +502,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,

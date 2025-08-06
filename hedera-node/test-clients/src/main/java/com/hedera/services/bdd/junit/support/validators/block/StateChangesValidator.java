@@ -358,9 +358,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     applyStateChanges(item.stateChangesOrThrow());
                 } else if (item.hasEventHeader()) {
                     eventNodeId = item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
-                } else if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                } else if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
                         final var op = parts.body().hintsPartialSignatureOrThrow();
                         final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
@@ -502,7 +501,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         switch (item.item().kind()) {
             case EVENT_HEADER, ROUND_HEADER ->
                 consensusHeaderHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case EVENT_TRANSACTION ->
+            case SIGNED_TRANSACTION ->
                 inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
             case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER ->
                 outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
@@ -899,6 +898,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             case PREPROCESSING_VOTE_ID_KEY -> mapChangeKey.preprocessingVoteIdKeyOrThrow();
             case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
+            case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
+            case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
         };
     }
 
@@ -933,6 +934,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case HISTORY_PROOF_VOTE_VALUE -> mapChangeValue.historyProofVoteValue();
             case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
             case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
+            case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
         };
     }
 

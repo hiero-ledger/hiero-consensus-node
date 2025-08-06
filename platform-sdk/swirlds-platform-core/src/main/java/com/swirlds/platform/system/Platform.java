@@ -103,6 +103,8 @@ public interface Platform {
 
     /**
      * Destroy this platform and release all resources. Once this method is called, the platform cannot be used again.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
     void destroy() throws InterruptedException;
 }
