@@ -5,8 +5,19 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.Clique;
+import org.hiero.otter.fixtures.network.Connection;
+import org.hiero.otter.fixtures.network.GeoMeshTopology;
+import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopology;
+import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
@@ -23,25 +34,38 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 public interface Network {
 
     /**
-     * Add regular nodes to the network.
+     * Adds a single node to the network.
      *
-     * @param count the number of nodes to add
-     * @return a list of the added nodes
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     *
+     * @return the created node
      */
     @NonNull
-    default List<Node> addNodes(final int count) {
-        return addNodes(count, WeightGenerators.GAUSSIAN);
+    default Node addNode() {
+        return topology().addNode();
     }
 
     /**
-     * Add regular nodes to the network with specific weights.
+     * Adds multiple nodes to the network.
      *
-     * @param count - the number of nodes to add
-     * @param weightGenerator - the generator to use for the weights of the nodes
-     * @return a list of the added nodes
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on current topology.
+     *
+     * @param count the number of nodes to add
+     * @return list of created nodes
      */
     @NonNull
-    List<Node> addNodes(int count, WeightGenerator weightGenerator);
+    default List<Node> addNodes(final int count) {
+        return topology().addNodes(count);
+    }
+
+    /**
+     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes.
+     *
+     * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
+     *
+     * @param weightGenerator the weight generator to use
+     */
+    void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
 
     /**
      * Start the network with the currently configured setup.
@@ -54,15 +78,38 @@ public interface Network {
     void start();
 
     /**
-     * Add an instrumented node to the network.
+     * Returns the {@link Topology} of the network.
      *
-     * <p>This method is used to add a node that has additional instrumentation for testing purposes.
-     * For example, it can exhibit malicious or erroneous behavior.
-     *
-     * @return the added instrumented node
+     * @return the topology of the network
      */
     @NonNull
-    InstrumentedNode addInstrumentedNode();
+    Topology topology();
+
+    /**
+     * Sets the {@link Topology} of the network.
+     *
+     * <p>This method replaces the current topology with the specified one. It is recommended to call this method before
+     * adding any nodes to ensure that the nodes are included in the new topology.
+     *
+     * @param topology the new topology to set for the network
+     */
+    void setTopology(@NonNull Topology topology);
+
+    /**
+     * Creates a new {@link MeshTopology} for the network.
+     *
+     * @return a new instance of {@link MeshTopology} representing the mesh topology
+     */
+    @NonNull
+    MeshTopology createMeshTopology();
+
+    /**
+     * Creates a new {@link GeoMeshTopology} for the network.
+     *
+     * @return a new instance of {@link GeoMeshTopology} representing the geographic mesh topology
+     */
+    @NonNull
+    GeoMeshTopology createGeoMeshTopology();
 
     /**
      * Get the list of nodes in the network.
@@ -74,7 +121,182 @@ public interface Network {
      * @return a list of nodes in the network
      */
     @NonNull
-    List<Node> getNodes();
+    default List<Node> getNodes() {
+        return topology().getNodes();
+    }
+
+    /**
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
+     * other but are disconnected from all nodes outside the partition.
+     *
+     * @param partition the nodes to include in the partition
+     * @return the created Partition object
+     */
+    @NonNull
+    Partition createPartition(@NonNull Collection<Node> partition);
+
+    /**
+     * Removes a partition and restores connectivity for its nodes. Only restores changes that were made by creating the
+     * partition.
+     *
+     * @param partition the partition to remove
+     */
+    void removePartition(@NonNull Partition partition);
+
+    /**
+     * Gets all currently active partitions.
+     *
+     * @return set of all active partitions
+     */
+    @NonNull
+    Set<Partition> getPartitions();
+
+    /**
+     * Gets the partition containing the specified node.
+     *
+     * @param node the node to search for
+     * @return the partition containing the node, or {@code null} if not in any partition
+     */
+    @Nullable
+    Partition getPartitionContaining(@NonNull Node node);
+
+    /**
+     * Creates a clique with throttled external connections. Nodes within the clique have full connectivity, while
+     * connections to external nodes are limited by the specified bandwidth.
+     *
+     * @param clique the nodes to include in the clique
+     * @param externalBandwidth the bandwidth limit for external connections
+     * @return the created ThrottledClique object
+     */
+    @NonNull
+    default Clique createClique(@NonNull final Collection<Node> clique, @NonNull final BandwidthLimit externalBandwidth) {
+        return createClique(clique, null, externalBandwidth);
+    }
+
+    /**
+     * Creates a clique with increased latency to external connections. Nodes within the clique have normal
+     * connectivity, while connections to external nodes have additional latency.
+     *
+     * @param clique the nodes to include in the clique
+     * @param externalLatencyRange the latency range for external connections
+     * @return the created SlowClique object
+     */
+    @NonNull
+    default Clique createClique(@NonNull final Collection<Node> clique, @NonNull final LatencyRange externalLatencyRange) {
+        return createClique(clique, externalLatencyRange, null);
+    }
+
+    /**
+     * Creates a clique with increased latency and throttled bandwidth to external connections. Nodes within the clique
+     * have normal connectivity, while connections to external nodes have additional latency and bandwidth limits.
+     *
+     * @param clique the nodes to include in the clique
+     * @param externalLatencyRange the latency range for external connections, can be {@code null} if the current value
+     * is desired
+     * @param externalBandwidth the bandwidth limit for external connections, can be {@code null} if the current value
+     * is desired
+     * @return the created SlowClique object
+     */
+    @NonNull
+    Clique createClique(@NonNull Collection<Node> clique, @Nullable final LatencyRange externalLatencyRange,
+            @Nullable final BandwidthLimit externalBandwidth);
+
+    /**
+     * Removes a clique and restores normal connectivity for its nodes. Only restores changes that were made by creating
+     * the clique.
+     *
+     * @param clique the clique to remove
+     */
+    void removeClique(@NonNull Clique clique);
+
+    /**
+     * Gets all currently active cliques.
+     *
+     * @return set of all active cliques
+     */
+    @NonNull
+    Set<Clique> getCliques();
+
+    /**
+     * Gets the clique containing the specified node.
+     *
+     * @param node the node to search for
+     * @return the clique containing the node, or null if not in any clique
+     */
+    @Nullable
+    Clique getCliqueContaining(@NonNull Node node);
+
+    /**
+     * Returns a connection between two nodes in the network.
+     *
+     * @param node1 the first node
+     * @param node2 the second node
+     * @return the connection between the two nodes
+     */
+    @NonNull
+    Connection connection(@NonNull Node node1, @NonNull Node node2);
+
+    /**
+     * Isolates a node from the network. Disconnects all connections to and from this node.
+     *
+     * @param node the node to isolate
+     */
+    void isolate(@NonNull Node node);
+
+    /**
+     * Rejoins a node with the network. Restores connections that were active before isolation.
+     *
+     * @param node the node to rejoin
+     */
+    void rejoin(@NonNull Node node);
+
+    /**
+     * Checks if a node is currently isolated from the network, either by calling {@link #isolate(Node)} for the
+     * {@code node} or by calling {@link Connection#disconnect()} for each connection of the {@code node}.
+     *
+     * @param node the node to check
+     * @return true if the node is isolated, false otherwise
+     */
+    boolean isIsolated(@NonNull Node node);
+
+    /**
+     * Sets the latency range for all connections from this node.
+     *
+     * <p>This method sets the latency for all connections from the specified node to the given latency range. If a
+     * connection already has a custom latency set, it will be overridden by this method.
+     *
+     * @param node the node for which to set the latency
+     * @param latencyRange the latency range to apply to all connections
+     */
+    void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
+
+    /**
+     * Restores the default latency for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove custom latencies
+     */
+    void restoreLatencyForAllConnections(@NonNull Node node);
+
+    /**
+     * Sets the bandwidth limit for all connections from this node.
+     *
+     * @param node the node for which to set the bandwidth limit
+     * @param bandwidthLimit the bandwidth limit to apply to all connections
+     */
+    void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+
+    /**
+     * Restores the default bandwidth limit for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove bandwidth limits
+     */
+    void restoreBandwidthLimitsForAllConnections(@NonNull Node node);
+
+    /**
+     * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
+     * connection settings.
+     */
+    void restoreConnectivity();
 
     /**
      * Gets the total weight of the network. Always positive.
