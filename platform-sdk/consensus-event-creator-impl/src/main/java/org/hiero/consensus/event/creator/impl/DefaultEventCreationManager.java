@@ -65,11 +65,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
     /**
      * Constructor.
      *
-     * @param configuration        provides the configuration for the event creator
-     * @param metrics              provides the metrics for the event creator
-     * @param time                 provides the time source for the event creator
+     * @param configuration provides the configuration for the event creator
+     * @param metrics provides the metrics for the event creator
+     * @param time provides the time source for the event creator
      * @param transactionPoolNexus provides transactions to be added to new events
-     * @param creator              creates events
+     * @param creator creates events
      */
     public DefaultEventCreationManager(
             @NonNull final Configuration configuration,
@@ -88,7 +88,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
-        futureEventBuffer = new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND);
+        futureEventBuffer =
+                new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND, "eventCreator");
 
         phase = new PhaseTimerBuilder<>(metrics, time, "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()

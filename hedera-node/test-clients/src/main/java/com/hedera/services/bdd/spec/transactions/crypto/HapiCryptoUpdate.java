@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.crypto;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
@@ -13,6 +14,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoUpdateMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
@@ -28,6 +30,7 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +62,9 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
     private Optional<Long> newStakedNodeId = Optional.empty();
     private Optional<Boolean> isDeclinedReward = Optional.empty();
 
+    private List<Long> hookIdsToDelete = List.of();
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
+
     private ReferenceType referenceType = ReferenceType.REGISTRY_NAME;
 
     public HapiCryptoUpdate(String account) {
@@ -78,6 +84,22 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
 
     public HapiCryptoUpdate withYahcliLogging() {
         logUpdateDetailsToSysout = true;
+        return this;
+    }
+
+    public HapiCryptoUpdate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
+        return this;
+    }
+
+    public HapiCryptoUpdate removingHook(final long hookId) {
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.add(hookId);
         return this;
     }
 
@@ -226,6 +248,11 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                                 builder.setStakedNodeId(newStakedNodeId.get());
                             }
                             isDeclinedReward.ifPresent(b -> builder.setDeclineReward(BoolValue.of(b)));
+                            hookIdsToDelete.forEach(builder::addHookIdsToDelete);
+                            hookFactories.forEach(factory -> builder.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         if (logUpdateDetailsToSysout) {
             System.out.println("\n---- Raw update ----\n");

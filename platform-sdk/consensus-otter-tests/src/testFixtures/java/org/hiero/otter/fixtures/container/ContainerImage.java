@@ -27,6 +27,8 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
      * @param dockerImage the Docker image to run
      * @param network the Docker network to attach the container to
      * @param selfId the selfId for the node
+     * @param outputDirectory the local directory to bind to the container's saved state directory
+     * @param savedStateDirectory the name of the directory in the container where saved state will be stored
      */
     public ContainerImage(
             @NonNull final ImageFromDockerfile dockerImage,

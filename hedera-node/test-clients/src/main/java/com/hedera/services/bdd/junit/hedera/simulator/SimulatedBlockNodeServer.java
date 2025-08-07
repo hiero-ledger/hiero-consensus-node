@@ -666,9 +666,6 @@ public class SimulatedBlockNodeServer {
 
         final PublishStreamResponse.BlockAcknowledgement ack = PublishStreamResponse.BlockAcknowledgement.newBuilder()
                 .setBlockNumber(blockNumber)
-                .setBlockNumber(
-                        lastVerifiedBlockNumber.get()) // TODO: why is the block number set twice? which is correct?
-                .setBlockAlreadyExists(blockAlreadyExists) // Set based on the parameter
                 .build();
         final PublishStreamResponse response =
                 PublishStreamResponse.newBuilder().setAcknowledgement(ack).build();

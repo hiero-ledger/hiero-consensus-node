@@ -11,6 +11,9 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
+import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
+import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
@@ -44,7 +47,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Set;
+import java.util.Objects;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -58,9 +61,9 @@ import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
@@ -126,7 +129,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         super(selfId, roster);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, this.selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             this.randotron = requireNonNull(randotron);
             this.time = requireNonNull(time);
@@ -147,9 +150,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void killImmediately() throws InterruptedException {
+    public void killImmediately() {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             doShutdownNode();
 
@@ -184,7 +187,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void start() {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             throwIfIn(RUNNING, "Node has already been started.");
             throwIfIn(DESTROYED, "Node has already been destroyed.");
@@ -211,7 +214,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -240,7 +243,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeConsensusResult newConsensusResult() {
-        return resultsCollector.getConsensusResult();
+        return resultsCollector.newConsensusResult();
     }
 
     /**
@@ -249,7 +252,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     @Override
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(selfId, Set.of());
+        return resultsCollector.newLogResult();
     }
 
     /**
@@ -258,7 +261,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePlatformStatusResult newPlatformStatusResult() {
-        return resultsCollector.getStatusProgression();
+        return resultsCollector.newStatusProgression();
     }
 
     /**
@@ -297,7 +300,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         if (lifeCycle == RUNNING) {
             assert model != null; // model must be initialized if lifeCycle is STARTED
             try {
-                ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+                ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
                 model.tick();
             } finally {
                 ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -315,7 +318,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     void destroy() throws InterruptedException {
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             resultsCollector.destroy();
             doShutdownNode();
@@ -328,11 +331,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
-    private void doShutdownNode() throws InterruptedException {
+    private void doShutdownNode() {
         if (lifeCycle == RUNNING) {
             markerFileObserver.stopObserving();
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            platform.destroy();
+            try {
+                platform.destroy();
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
+            }
             platformStatus = null;
             platform = null;
             platformWiring = null;
@@ -430,6 +437,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .getStatusStateMachineOutputWire()
                 .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            if (Objects.equals(logEntry.nodeId(), selfId)) {
+                resultsCollector.addLogEntry(logEntry);
+            }
+            return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+        });
+
         platform = platformComponentBuilder.build();
         platformStatus = PlatformStatus.STARTING_UP;
         platform.start();
@@ -451,7 +465,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
          * {@inheritDoc}
          */
         @Override
-        public void killImmediately() throws InterruptedException {
+        public void killImmediately() {
             TurtleNode.this.killImmediately();
         }
 

@@ -19,6 +19,8 @@ public class BlockStreamUtils {
             case STATE_ID_TOPICS -> "ConsensusService.TOPICS";
             case STATE_ID_CONTRACT_BYTECODE -> "ContractService.BYTECODE";
             case STATE_ID_CONTRACT_STORAGE -> "ContractService.STORAGE";
+            case STATE_ID_EVM_HOOK_STATES -> "ContractService.EVM_HOOK_STATES";
+            case STATE_ID_LAMBDA_STORAGE -> "ContractService.LAMBDA_STORAGE";
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";

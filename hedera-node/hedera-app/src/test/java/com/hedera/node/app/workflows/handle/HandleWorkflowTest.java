@@ -216,7 +216,7 @@ class HandleWorkflowTest {
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
-                .commitRoundReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
+                .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,8 +29,8 @@ public final class OnDiskSingletonHelper {
      */
     public static <T> T getFromStore(
             @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final VirtualMap virtualMap) {
-        final Bytes key = getVirtualMapKeyForSingleton(serviceName, stateKey);
-        final VirtualMapValue virtualMapValue = virtualMap.get(key, VirtualMapValue.PROTOBUF);
-        return virtualMapValue != null ? virtualMapValue.value().as() : null;
+        final Bytes key = getStateKeyForSingleton(serviceName, stateKey);
+        final StateValue stateValue = virtualMap.get(key, StateValue.PROTOBUF);
+        return stateValue != null ? stateValue.value().as() : null;
     }
 }

@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -123,7 +124,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() throws InterruptedException {
+    public void start() {
         defaultStartAction.start();
     }
 
@@ -131,7 +132,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void freeze() throws InterruptedException {
+    public void freeze() {
         defaultFreezeAction.freeze();
     }
 
@@ -147,7 +148,57 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void shutdown() throws InterruptedException {
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, @NonNull final String value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final int value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final long value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, @NonNull final Path value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final boolean value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void shutdown() {
         defaultShutdownAction.shutdown();
     }
 
@@ -156,9 +207,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setVersion(@NonNull final SemanticVersion version) {
-        for (final Node node : getNodes()) {
-            node.setVersion(version);
-        }
+        getNodes().forEach(node -> node.setVersion(version));
     }
 
     /**
@@ -166,9 +215,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        for (final Node node : getNodes()) {
-            node.bumpConfigVersion();
-        }
+        getNodes().forEach(Node::bumpConfigVersion);
     }
 
     /**
@@ -334,7 +381,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() throws InterruptedException {
+        public void start() {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");
@@ -355,7 +402,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void freeze() throws InterruptedException {
+        public void freeze() {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
@@ -380,7 +427,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void shutdown() throws InterruptedException {
+        public void shutdown() {
             throwIfInState(State.INIT, "Network has not been started yet.");
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
