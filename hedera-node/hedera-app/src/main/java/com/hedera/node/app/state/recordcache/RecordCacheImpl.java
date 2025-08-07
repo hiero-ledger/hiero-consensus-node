@@ -342,6 +342,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             @NonNull final StreamMode streamMode) {
         if (transactionReceipts.size() >= receiptEntriesBatchSize) {
             commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode);
+            transactionReceipts.clear();
         }
     }
 
