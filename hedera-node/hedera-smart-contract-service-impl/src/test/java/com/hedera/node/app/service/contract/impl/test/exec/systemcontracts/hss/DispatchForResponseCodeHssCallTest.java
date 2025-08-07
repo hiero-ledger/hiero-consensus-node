@@ -72,7 +72,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 verificationStrategy,
                 dispatchGasCalculator,
                 emptySet(),
-                recordBuilder -> encodedRc(recordBuilder.status()));
+                builder -> encodedRc(builder.status()));
         // create call from Attempt constructor
         DeleteScheduleTranslator translator =
                 new DeleteScheduleTranslator(systemContractMethodRegistry, contractMetrics);
@@ -88,7 +88,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 new DispatchForResponseCodeHssCall(attempt, TransactionBody.DEFAULT, dispatchGasCalculator, emptySet());
     }
 
-    private byte[] successResult(final DispatchForResponseCodeHssCall subject) {
+    private byte[] successResult(final DispatchForResponseCodeHssCall call) {
         given(systemContractOperations.dispatch(
                         TransactionBody.DEFAULT,
                         verificationStrategy,
@@ -102,7 +102,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 .willReturn(123L);
         given(recordBuilder.status()).willReturn(SUCCESS);
 
-        final var pricedResult = subject.execute(frame);
+        final var pricedResult = call.execute(frame);
         final var contractResult = pricedResult.fullResult().result().getOutput();
         return contractResult.toArray();
     }

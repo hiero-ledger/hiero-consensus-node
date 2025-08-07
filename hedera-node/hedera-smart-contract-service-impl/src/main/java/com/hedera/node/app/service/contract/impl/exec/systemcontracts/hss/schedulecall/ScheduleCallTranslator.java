@@ -64,13 +64,12 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
-        final var callSender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
         final var keys = attempt.keySetFor();
-        final var body = decoder.decodeScheduleCall(attempt, callSender, keys);
+        final var body = decoder.decodeScheduleCall(attempt, keys);
         return new DispatchForResponseCodeHssCall(
                 attempt.enhancement(),
                 attempt.systemContractGasCalculator(),
-                callSender,
+                body.scheduleCreateOrThrow().payerAccountIDOrThrow(),
                 body,
                 attempt.defaultVerificationStrategy(),
                 ScheduleCallTranslator::gasRequirement,

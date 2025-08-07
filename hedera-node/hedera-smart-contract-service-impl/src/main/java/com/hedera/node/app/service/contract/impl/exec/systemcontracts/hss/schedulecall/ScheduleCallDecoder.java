@@ -40,12 +40,11 @@ public class ScheduleCallDecoder {
 
     /**
      * @param attempt the HSS call attempt
-     * @param callSender  the id of the spender if the current call attempt
      * @param keys    the key set for scheduled calls
      * @return the schedule call transaction body
      */
     public TransactionBody decodeScheduleCall(
-            @NonNull final HssCallAttempt attempt, @NonNull final AccountID callSender, @NonNull final Set<Key> keys) {
+            @NonNull final HssCallAttempt attempt, @NonNull final Set<Key> keys) {
         // read parameters
         final Tuple call;
         final Address to;
@@ -55,7 +54,7 @@ public class ScheduleCallDecoder {
         if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = callSender;
+            sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
             waitForExpiry = true;
         } else if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
