@@ -4,6 +4,7 @@ package com.hedera.node.app.state.merkle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -18,7 +19,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class StateMetadataTest extends MerkleTestBase {
 
     private Schema schema;
-    private StateDefinition<Long, String> def;
+    private StateDefinition<ProtoBytes, ProtoBytes> def;
 
     @BeforeEach
     void setUp() {
@@ -107,7 +108,7 @@ class StateMetadataTest extends MerkleTestBase {
         assertThat(expected).isEqualTo(md.onDiskValueSerializerClassId());
     }
 
-    private long computeClassId(StateMetadata<Long, String> md, String suffix) {
+    private long computeClassId(StateMetadata<ProtoBytes, ProtoBytes> md, String suffix) {
         return StateMetadata.computeClassId(
                 md.serviceName(), md.stateDefinition().stateKey(), md.schema().getVersion(), suffix);
     }

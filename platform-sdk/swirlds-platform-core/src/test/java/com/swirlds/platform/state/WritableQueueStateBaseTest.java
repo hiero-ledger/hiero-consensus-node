@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.inOrder;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.spi.QueueChangeListener;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import java.util.ConcurrentModificationException;
@@ -20,14 +21,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> {
+final class WritableQueueStateBaseTest extends ReadableQueueStateBaseTest {
 
     @Nested
     class AddTests {
         @Test
         void addDoesNotChangeDataSource() {
             final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             final var element = "Hydrology";
 
             subject.add(element);
@@ -38,7 +39,7 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void iteratorIsInvalidAfterAdd() {
             final var subject = writableSTEAMState();
-            final var element = "Hydrology";
+            final var element = toProtoBytes("Hydrology");
 
             final var iterator = subject.iterator();
             assertThat(iterator.hasNext()).isTrue();
@@ -50,19 +51,20 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void iterateAfterAddGivesNewElements() {
             final var subject = writableSTEAMState();
-            final var element = "Hydrology";
+            final var element = toProtoBytes("Hydrology");
 
             subject.add(element);
 
             assertThat(subject.iterator())
                     .toIterable()
-                    .containsExactly(ART, BIOLOGY, CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY, "Hydrology");
+                    .containsExactly(ART, BIOLOGY, CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY, element);
         }
 
         @Test
         void addOnEmptyIsVisibleWithPeek() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
-            final var element = "Hydrology";
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
+            final var element = toProtoBytes("Hydrology");
 
             subject.add(element);
 
@@ -74,7 +76,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
     class PeekTests {
         @Test
         void peekOnEmptyList() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
             assertThat(subject.peek()).isNull();
         }
 
@@ -108,15 +111,17 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void peekAfterAdd() {
             final var subject = writableSTEAMState();
-            subject.add("Hydrology");
+            subject.add(toProtoBytes("Hydrology"));
             assertThat(subject.peek()).isSameAs(ART);
         }
 
         @Test
         void peekAfterAddOnEmptyList() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
-            subject.add("Hydrology");
-            assertThat(subject.peek()).isSameAs("Hydrology");
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
+            final var value = toProtoBytes("Hydrology");
+            subject.add(value);
+            assertThat(subject.peek()).isSameAs(value);
         }
     }
 
@@ -124,7 +129,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
     class PollTests {
         @Test
         void pollOnEmptyList() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
             assertThat(subject.poll()).isNull();
         }
 
@@ -165,7 +171,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void pollAfterAdd() {
             final var subject = writableSTEAMState();
-            subject.add("Hydrology");
+            final var value = toProtoBytes("Hydrology");
+            subject.add(value);
             assertThat(subject.poll()).isSameAs(ART);
             assertThat(subject.poll()).isSameAs(BIOLOGY);
             assertThat(subject.poll()).isSameAs(CHEMISTRY);
@@ -173,13 +180,14 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
             assertThat(subject.poll()).isSameAs(ECOLOGY);
             assertThat(subject.poll()).isSameAs(FIELDS);
             assertThat(subject.poll()).isSameAs(GEOMETRY);
-            assertThat(subject.poll()).isSameAs("Hydrology");
+            assertThat(subject.poll()).isSameAs(value);
             assertThat(subject.poll()).isNull();
         }
 
         @Test
         void pollAfterAddOnEmptyList() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
             subject.add("Hydrology");
             assertThat(subject.poll()).isSameAs("Hydrology");
         }
@@ -189,7 +197,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
     class RemoveIfTests {
         @Test
         void removeIfOnEmptyList() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
             assertThat(subject.removeIf(s -> true)).isNull();
         }
 
@@ -201,7 +210,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void removeIfAfterAdd() {
-            final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+            final var subject =
+                    ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
             subject.add("Hydrology");
             assertThat(subject.removeIf(s -> true)).isSameAs("Hydrology");
         }
@@ -246,7 +256,7 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void commitOnEmptyList() {
             final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.commit();
             assertThat(backingList).isEmpty();
         }
@@ -254,7 +264,7 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void commitAfterAddOnEmptyList() {
             final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             final var element = "Hydrology";
 
             subject.add(element);
@@ -266,7 +276,7 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void commitTwice() {
             final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             final var element = "Hydrology";
 
             subject.add(element);
@@ -278,9 +288,9 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitAfterAddOnNonEmptyList() {
-            final var backingList = new LinkedList<String>();
+            final var backingList = new LinkedList<ProtoBytes>();
             backingList.add(ART);
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
 
             subject.add(BIOLOGY);
             subject.commit();
@@ -290,9 +300,9 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitAfterRemoving() {
-            final var backingList = new LinkedList<String>();
+            final var backingList = new LinkedList<ProtoBytes>();
             backingList.add(ART);
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
 
             assertThat(subject.poll()).isEqualTo(ART);
             assertThat(backingList).containsExactly(ART);
@@ -303,8 +313,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitAfterRemovingAllAddedElementsDoesNotThrow() {
-            final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var backingList = new LinkedList<ProtoBytes>();
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.add(ART);
             subject.add(BIOLOGY);
             subject.removeIf(s -> true);
@@ -314,8 +324,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitAfterRemovingSomeAddedElementsOnlyIncludesAdded() {
-            final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var backingList = new LinkedList<ProtoBytes>();
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.add(ART);
             subject.add(BIOLOGY);
             subject.add(CHEMISTRY);
@@ -329,8 +339,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitResetsIndex() {
-            final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var backingList = new LinkedList<ProtoBytes>();
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.add(ART);
             subject.add(BIOLOGY);
             subject.removeIf(s -> true);
@@ -346,9 +356,9 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void commitAfterPeekingAndAddingStillAddsEverything() {
-            final var backingList = new LinkedList<String>();
+            final var backingList = new LinkedList<ProtoBytes>();
             backingList.add(ART);
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.peek();
             subject.add(BIOLOGY);
             subject.commit();
@@ -361,15 +371,15 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         @Test
         void resetOnEmptyList() {
             final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
             subject.reset();
             assertThat(backingList).isEmpty();
         }
 
         @Test
         void resetBeforeCommit() {
-            final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var backingList = new LinkedList<ProtoBytes>();
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
 
             subject.add(ART);
             subject.reset();
@@ -380,8 +390,8 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         @Test
         void resetAfterCommit() {
-            final var backingList = new LinkedList<String>();
-            final var subject = new ListWritableQueueState<>(STEAM_STATE_KEY, backingList);
+            final var backingList = new LinkedList<ProtoBytes>();
+            final var subject = new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingList);
 
             subject.add(ART);
             subject.commit();
@@ -403,7 +413,7 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
 
         private final Queue<String> backingStore = new LinkedList<>();
         private final ListWritableQueueState<String> subject =
-                new ListWritableQueueState<>(STEAM_STATE_KEY, backingStore);
+                new ListWritableQueueState<>(STEAM_SERVICE_NAME, STEAM_STATE_KEY, backingStore);
 
         @BeforeEach
         void setUp() {

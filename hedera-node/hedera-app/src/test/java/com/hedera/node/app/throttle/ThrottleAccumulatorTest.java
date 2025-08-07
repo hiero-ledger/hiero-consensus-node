@@ -18,6 +18,8 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
@@ -32,7 +34,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -41,7 +42,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -58,6 +58,7 @@ import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
@@ -88,8 +89,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -125,10 +126,7 @@ class ThrottleAccumulatorTest {
             .build();
     private static final ScheduleID SCHEDULE_ID =
             ScheduleID.newBuilder().scheduleNum(333333L).build();
-
     private static final ScaleFactor NFT_SCALE_FACTOR = ScaleFactor.from("5:2");
-    private static final String ALIASES_KEY = "ALIASES";
-
     private static final Bytes ETH_LAZY_CREATE = Bytes.fromHex(
             "02f8ad82012a80a000000000000000000000000000000000000000000000000000000000000003e8a0000000000000000000000000000000000000000000000000000000746a528800831e848094fee687d5088faff48013a6767505c027e2742536880de0b6b3a764000080c080a0f5ddf2394311e634e2147bf38583a017af45f4326bdf5746cac3a1110f973e4fa025bad52d9a9f8b32eb983c9fb8959655258bd75e2826b2c6a48d4c26ec30d112");
 
@@ -274,8 +272,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(states);
 
@@ -319,15 +317,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -367,15 +367,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(0).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -1501,7 +1503,6 @@ class ThrottleAccumulatorTest {
             given(contractsConfig.maxGasPerSec()).willReturn(t);
         } else {
             given(contractsConfig.maxGasPerSecBackend()).willReturn(t);
-            given(contractsConfig.gasThrottleBurstSeconds()).willReturn(1);
         }
     }
 
@@ -1819,9 +1820,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleCreate(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1837,9 +1840,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleSign(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1860,42 +1865,7 @@ class ThrottleAccumulatorTest {
         }
     }
 
-    private CryptoTransferTransactionBody cryptoTransferWithImplicitCreations(int numImplicitCreations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numImplicitCreations; i++) {
-            accountAmounts.add(AccountAmount.newBuilder()
-                    .accountID(AccountID.newBuilder()
-                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
-                            .build())
-                    .amount(i)
-                    .build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .transfers(
-                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
-                .build();
-    }
-
-    private CryptoTransferTransactionBody cryptoTransferFungibleWithAutoAssociations(int numAutoAssociations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numAutoAssociations; i++) {
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(PAYER_ID).amount(-i).build());
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(RECEIVER_ID).amount(i).build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .tokenTransfers(TokenTransferList.newBuilder()
-                        .token(TOKEN_ID)
-                        .transfers(accountAmounts)
-                        .build())
-                .build();
-    }
-
     private void givenMintWith(int numNfts) {
-        final List<ByteString> meta = new ArrayList<>();
         final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);

@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.throttle.NetworkUtilizationManagerImpl;
@@ -59,7 +59,7 @@ class NetworkUtilizationManagerImplTest {
     void verifyTrackFeePayments() {
         // given
         final var expectedTxnToBeChargedFor = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.DEFAULT,
                 TransactionID.DEFAULT,
                 AccountID.DEFAULT,
@@ -74,14 +74,5 @@ class NetworkUtilizationManagerImplTest {
         // then
         verify(throttleAccumulator).checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
-    }
-
-    @Test
-    void verifyShouldThrottleOpsDuration() {
-        // when
-        subject.shouldThrottleByOpsDuration(1_000_000, consensusNow);
-
-        // then
-        verify(throttleAccumulator).checkAndEnforceOpsDurationThrottle(1_000_000, consensusNow);
     }
 }

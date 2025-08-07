@@ -6,42 +6,34 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A convenient base class for mutable singletons.
  *
  * @param <T> The type
  */
-public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T> implements WritableSingletonState<T> {
+public abstract class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
+        implements WritableSingletonState<T> {
+
     /**
      * A sentinel value to represent null in the backing store.
      */
     private static final Object NULL_VALUE = new Object();
 
-    private final Consumer<T> backingStoreMutator;
+    /** Modified value buffered in this mutable state */
     private Object value;
-    /**
-     * Listeners to be notified when the singleton changes.
-     */
+
+    /** A list of listeners to be notified of changes to the state */
     private final List<SingletonChangeListener<T>> listeners = new ArrayList<>();
 
     /**
      * Creates a new instance.
      *
+     * @param serviceName The name of the service that owns the state
      * @param stateKey The state key for this instance
-     * @param backingStoreAccessor A {@link Supplier} that provides access to the value in the
-     *     backing store.
-     * @param backingStoreMutator A {@link Consumer} for mutating the value in the backing store.
      */
-    public WritableSingletonStateBase(
-            @NonNull final String stateKey,
-            @NonNull final Supplier<T> backingStoreAccessor,
-            @NonNull final Consumer<T> backingStoreMutator) {
-        super(stateKey, backingStoreAccessor);
-        this.backingStoreMutator = Objects.requireNonNull(backingStoreMutator);
+    public WritableSingletonStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        super(serviceName, stateKey);
     }
 
     /**
@@ -49,6 +41,7 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
      * a listener, as the lifecycle of a {@link WritableSingletonState} is scoped to the set of mutations made to a
      * state in a round; and there is no case where an application would only want to be notified of a subset of those
      * changes.
+     *
      * @param listener the listener to register
      */
     public void registerListener(@NonNull final SingletonChangeListener<T> listener) {
@@ -58,16 +51,13 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
 
     @Override
     public T get() {
-        // Possible pattern: "put" and then "get". In this case, "read" should be false!! Otherwise,
-        // we invalidate tx when we don't need to
-        final var currentValue = currentValue();
-        if (currentValue != null) {
-            // C.f. https://github.com/hashgraph/hedera-services/issues/14582; in principle we should
-            // also return null here if value is NULL_VALUE, but in production with the SingletonNode
-            // backing store, null values are never actually set so this doesn't matter
-            return currentValue;
+        // If there is a modification, then we've already done a "put" or "remove"
+        // and should return based on the modification
+        if (isModified()) {
+            return currentValue();
+        } else {
+            return super.get();
         }
-        return super.get();
     }
 
     @Override
@@ -86,11 +76,13 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
      * it. Don't cast and commit unless you own the instance!
      */
     public void commit() {
-        if (value != null) {
-            final var currentValue = currentValue();
-            backingStoreMutator.accept(currentValue);
-            if (currentValue != null) {
-                listeners.forEach(l -> l.singletonUpdateChange(currentValue));
+        if (isModified()) {
+            if (currentValue() != null) {
+                putIntoDataSource(currentValue());
+                //noinspection DataFlowIssue
+                listeners.forEach(l -> l.singletonUpdateChange(currentValue()));
+            } else {
+                removeFromDataSource();
             }
         }
         reset();
@@ -111,4 +103,16 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
         this.value = null;
         super.reset();
     }
+
+    /**
+     * Puts the given value into the underlying data source.
+     *
+     * @param value value to put
+     */
+    protected abstract void putIntoDataSource(@NonNull T value);
+
+    /**
+     * Removes the value related to this singleton from the underlying data source.
+     */
+    protected abstract void removeFromDataSource();
 }

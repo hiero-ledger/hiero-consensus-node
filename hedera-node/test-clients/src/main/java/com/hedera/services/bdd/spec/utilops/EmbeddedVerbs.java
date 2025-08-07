@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -19,6 +18,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -270,7 +270,7 @@ public final class EmbeddedVerbs {
                     .accountNum(properties.getLong("accounts.lastThrottleExempt") + 1)
                     .build();
             final var txnInfo = new TransactionInfo(
-                    Transaction.DEFAULT,
+                    SignedTransaction.DEFAULT,
                     TransactionBody.DEFAULT,
                     TransactionID.DEFAULT,
                     throttledPayerId,

@@ -24,6 +24,9 @@ import static java.util.stream.Collectors.toList;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
@@ -115,6 +118,24 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     protected List<Condition> conditions = new ArrayList<>();
 
+    /**
+     * Serializes a signed transaction from the given {@link Transaction}.
+     * @param tx the transaction to serialize
+     * @return the serialized signed transaction bytes
+     */
+    public static byte[] serializedSignedTxFrom(@NonNull final Transaction tx) {
+        return !tx.getSignedTransactionBytes().isEmpty()
+                ? tx.getSignedTransactionBytes().toByteArray()
+                : SignedTransaction.PROTOBUF
+                        .toBytes(SignedTransaction.newBuilder()
+                                .useSerializedTxMessageHashAlgorithm(true)
+                                .sigMap(CommonPbjConverters.protoToPbj(tx.getSigMap(), SignatureMap.class))
+                                .bodyBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                                        tx.getBodyBytes().toByteArray()))
+                                .build())
+                        .toByteArray();
+    }
+
     public T satisfies(@NonNull final Condition condition) {
         conditions.add(condition);
         return self();
@@ -153,6 +174,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public ResponseCodeEnum getExpectedStatus() {
         return expectedStatus.orElse(SUCCESS);
+    }
+
+    public boolean isExpectedStatusSet() {
+        return expectedStatus.isPresent() || permissibleStatuses.isPresent();
     }
 
     public ResponseCodeEnum getExpectedPrecheck() {
@@ -325,7 +350,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return !deferStatusResolution;
     }
 
-    private void resolveStatus(HapiSpec spec) throws Throwable {
+    public void resolveStatus(HapiSpec spec) throws Throwable {
         actualStatus = resolvedStatusOfSubmission(spec);
         spec.updateResolvedCounts(actualStatus);
         if (actualStatus == INSUFFICIENT_PAYER_BALANCE) {
@@ -893,7 +918,15 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    public boolean hasBatchKey() {
+        return batchKey.isPresent();
+    }
+
     public Optional<String> getNode() {
         return node;
+    }
+
+    public boolean shouldResolveStatus() {
+        return !deferStatusResolution && !fireAndForget;
     }
 }

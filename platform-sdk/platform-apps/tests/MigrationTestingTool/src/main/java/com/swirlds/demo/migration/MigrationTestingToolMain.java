@@ -17,9 +17,11 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -63,7 +65,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private double toCreate = 0;
     private long lastGenerateTime = System.nanoTime();
 
-    public static final int SOFTWARE_VERSION = 64;
+    public static final int SOFTWARE_VERSION = 65;
     public static final SemanticVersion PREVIOUS_SOFTWARE_VERSION =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION - 1).build();
     private static final SemanticVersion semanticVersion =
@@ -172,6 +174,17 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         final MigrationTestingToolState state = new MigrationTestingToolState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

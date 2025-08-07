@@ -72,10 +72,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     private static final Logger log = LogManager.getLogger(AbstractEmbeddedHedera.class);
 
     private static final int NANOS_IN_A_SECOND = 1_000_000_000;
-    private static final SemanticVersion EARLIER_SEMVER =
-            SemanticVersion.newBuilder().patch(1).build();
-    private static final SemanticVersion LATER_SEMVER =
-            SemanticVersion.newBuilder().major(999).build();
 
     protected static final NodeId MISSING_NODE_ID = NodeId.of(666L);
     protected static final int MAX_PLATFORM_TXN_SIZE = 1024 * 6;
@@ -308,7 +304,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     /**
      * Gives a pretend state signature transaction.
      */
-    private byte[] mockStateSignatureTxn() {
+    protected byte[] mockStateSignatureTxn() {
         return hedera.encodeSystemTransaction(com.hedera.hapi.platform.event.StateSignatureTransaction.newBuilder()
                         .round(1L)
                         .hash(Bytes.wrap(new byte[48]))

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -29,7 +29,7 @@ import java.util.Objects;
  * <p>Protobuf schema:
  *
  * <pre>
- * message LeafRecord {
+ * message StateItem {
  *
  *     // Virtual node path
  *     optional fixed64 path = 1;
@@ -41,14 +41,11 @@ import java.util.Objects;
  *     bytes value = 3;
  * }
  * </pre>
- *
- * @param path virtual record path
- * @param keyBytes virtual key bytes
- * @param keyHashCode virtual key hash code
- * @param valueBytes virtual value bytes
  */
-public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCode, @Nullable Bytes valueBytes) {
+public class VirtualLeafBytes<V> {
 
+    public static final FieldDefinition FIELD_MERKLELEAF_STATEITEM =
+            new FieldDefinition("state_item", FieldType.MESSAGE, false, false, true, 3);
     public static final FieldDefinition FIELD_LEAFRECORD_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_LEAFRECORD_KEY =
@@ -56,13 +53,110 @@ public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCo
     public static final FieldDefinition FIELD_LEAFRECORD_VALUE =
             new FieldDefinition("value", FieldType.BYTES, false, true, false, 3);
 
+    private final long path;
+
+    private final Bytes keyBytes;
+
+    private V value;
+    private Codec<V> valueCodec;
+    private Bytes valueBytes;
+
+    public VirtualLeafBytes(
+            final long path, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
+        this(path, keyBytes, value, valueCodec, null);
+    }
+
+    public VirtualLeafBytes(final long path, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
+        this(path, keyBytes, null, null, valueBytes);
+    }
+
+    VirtualLeafBytes(
+            final long path,
+            @NonNull final Bytes keyBytes,
+            @Nullable final V value,
+            @Nullable final Codec<V> valueCodec,
+            @Nullable final Bytes valueBytes) {
+        this.path = path;
+        this.keyBytes = Objects.requireNonNull(keyBytes);
+        this.value = value;
+        this.valueCodec = valueCodec;
+        this.valueBytes = valueBytes;
+        if ((value != null) && (valueCodec == null)) {
+            throw new IllegalArgumentException("Null codec for non-null value");
+        }
+    }
+
+    public long path() {
+        return path;
+    }
+
+    public Bytes keyBytes() {
+        return keyBytes;
+    }
+
+    public V value(final Codec<V> valueCodec) {
+        if (value == null) {
+            // No synchronization here. In the worst case, value will be initialized multiple
+            // times, but always to the same object
+            if (valueBytes != null) {
+                assert this.valueCodec == null || this.valueCodec.equals(valueCodec);
+                this.valueCodec = valueCodec;
+                try {
+                    value = valueCodec.parse(valueBytes);
+                } catch (final ParseException e) {
+                    throw new RuntimeException("Failed to deserialize a value from bytes", e);
+                }
+            } else {
+                // valueBytes is null, so the value should be null, too. Does it make sense to
+                // do anything to the codec here? Perhaps not
+            }
+        } else {
+            // The value is provided or already parsed from bytes. Check the codec
+            assert valueCodec != null;
+            if (!this.valueCodec.equals(valueCodec)) {
+                throw new IllegalStateException("Value codec mismatch");
+            }
+        }
+        return value;
+    }
+
+    public Bytes valueBytes() {
+        if (valueBytes == null) {
+            // No synchronization here. In the worst case, valueBytes will be initialized multiple
+            // times, but always to the same value
+            if (value != null) {
+                assert (valueCodec != null);
+                final byte[] vb = new byte[valueCodec.measureRecord(value)];
+                try {
+                    valueCodec.write(value, BufferedData.wrap(vb));
+                    valueBytes = Bytes.wrap(vb);
+                } catch (final IOException e) {
+                    throw new RuntimeException("Failed to serialize a value to bytes", e);
+                }
+            }
+        }
+        return valueBytes;
+    }
+
+    public VirtualLeafBytes<V> withPath(final long newPath) {
+        return new VirtualLeafBytes<>(newPath, keyBytes, value, valueCodec, valueBytes);
+    }
+
+    public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
+        return new VirtualLeafBytes<>(path, keyBytes, newValue, newValueCodec);
+    }
+
+    public VirtualLeafBytes<V> withValueBytes(final Bytes newValueBytes) {
+        return new VirtualLeafBytes<>(path, keyBytes, newValueBytes);
+    }
+
     /**
      * Reads a virtual leaf bytes object from the given sequential data.
      *
      * @param in sequential data to read from
      * @return the virtual leaf bytes object
      */
-    public static VirtualLeafBytes parseFrom(final ReadableSequentialData in) {
+    public static VirtualLeafBytes<?> parseFrom(final ReadableSequentialData in) {
         if (in == null) {
             return null;
         }
@@ -90,7 +184,7 @@ public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCo
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 final int len = in.readVarInt(false);
-                valueBytes = in.readBytes(len);
+                valueBytes = len == 0 ? Bytes.EMPTY : in.readBytes(len);
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }
@@ -99,7 +193,7 @@ public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCo
         Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
 
         // Key hash code is not deserialized
-        return new VirtualLeafBytes(path, keyBytes, 0, valueBytes);
+        return new VirtualLeafBytes<>(path, keyBytes, valueBytes);
     }
 
     public int getSizeInBytes() {
@@ -108,9 +202,18 @@ public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCo
         size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
         size += Long.BYTES;
         size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()));
-        // Key hash code is not serialized
+        final int valueBytesLen;
+        // Don't call valueBytes() as it may trigger value serialization to Bytes
         if (valueBytes != null) {
-            size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, Math.toIntExact(valueBytes.length()));
+            valueBytesLen = Math.toIntExact(valueBytes.length());
+        } else if (value != null) {
+            valueBytesLen = valueCodec.measureRecord(value);
+        } else {
+            // Null value
+            valueBytesLen = -1;
+        }
+        if (valueBytesLen >= 0) {
+            size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueBytesLen);
         }
         return size;
     }
@@ -126,51 +229,85 @@ public record VirtualLeafBytes(long path, @NonNull Bytes keyBytes, int keyHashCo
         out.writeLong(path);
         ProtoWriterTools.writeDelimited(
                 out, FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
-        // Key hash code is not serialized
-        if (valueBytes != null) {
+        final Bytes localValueBytes = valueBytes();
+        if (localValueBytes != null) {
             ProtoWriterTools.writeDelimited(
-                    out, FIELD_LEAFRECORD_VALUE, Math.toIntExact(valueBytes.length()), valueBytes::writeTo);
+                    out, FIELD_LEAFRECORD_VALUE, Math.toIntExact(localValueBytes.length()), localValueBytes::writeTo);
         }
-        assert out.position() == pos + getSizeInBytes();
+        assert out.position() == pos + getSizeInBytes()
+                : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();
     }
 
-    /**
-     * Convert this bytes object to a virtual leaf record. The record will contain a key and
-     * a value, which are parsed from this object's {@code keyBytes} and {@code valueBytes}
-     * bytes using the provided key and value serializers.
-     *
-     * @param keySerializer the key serializer to parse keyBytes
-     * @param valueSerializer the value serializer to parse valueBytes
-     * @return the virtual lead record
-     * @param <K> the virtual key type
-     * @param <V> the virtual value type
-     */
-    public <K extends VirtualKey, V extends VirtualValue> VirtualLeafRecord<K, V> toRecord(
-            final KeySerializer<K> keySerializer, final ValueSerializer<V> valueSerializer) {
-        return new VirtualLeafRecord<>(
-                path,
-                keySerializer.deserialize(keyBytes.toReadableSequentialData()),
-                valueBytes != null ? valueSerializer.deserialize(valueBytes.toReadableSequentialData()) : null);
+    public int getSizeInBytesForHashing() {
+        final Bytes kb = keyBytes();
+        final int keyLen = Math.toIntExact(kb.length());
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
+
+        final Bytes vb = valueBytes();
+        if (vb != null) {
+            final int valueLen = Math.toIntExact(vb.length());
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+        }
+
+        // `1 +` for 0x00 prefix
+        return 1 + ProtoWriterTools.sizeOfDelimited(FIELD_MERKLELEAF_STATEITEM, innerLen);
+    }
+
+    // Output size must be at least getSizeInBytesForHashing()
+    public void writeToForHashing(final BufferedData out) {
+        out.reset();
+        assert out.remaining() >= getSizeInBytesForHashing();
+
+        // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
+        // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
+        out.writeByte((byte) 0x00);
+
+        final Bytes kb = keyBytes();
+        final int keyLen = Math.toIntExact(kb.length());
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
+
+        final Bytes vb = valueBytes();
+        if (vb != null) {
+            final int valueLen = Math.toIntExact(vb.length());
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+        }
+
+        ProtoWriterTools.writeDelimited(out, FIELD_MERKLELEAF_STATEITEM, innerLen, innerOut -> {
+            ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_KEY, keyLen, kb::writeTo);
+            if (vb != null) {
+                final int valueLen = Math.toIntExact(vb.length());
+                ProtoWriterTools.writeDelimited(innerOut, FIELD_LEAFRECORD_VALUE, valueLen, vb::writeTo);
+            }
+        });
+
+        assert out.position() == getSizeInBytesForHashing();
     }
 
     @Override
-    public boolean equals(final Object obj) {
-        // Override the default implementation to exclude keyHashCode field
-        if (!(obj instanceof VirtualLeafBytes that)) {
+    public int hashCode() {
+        // VirtualLeafBytes is not expected to be used in collections, its hashCode()
+        // doesn't have to be fast, so it's based on value bytes
+        return Objects.hash(path, keyBytes, valueBytes());
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (!(o instanceof VirtualLeafBytes<?> other)) {
             return false;
         }
-        return (path == that.path)
-                && Objects.equals(keyBytes, that.keyBytes)
-                && Objects.equals(valueBytes, that.valueBytes);
+        // VirtualLeafBytes is not expected to be used in collections, its equals()
+        // doesn't have to be fast, so it's based on calculated value bytes
+        return (path == other.path)
+                && Objects.equals(keyBytes, other.keyBytes)
+                && Objects.equals(valueBytes(), other.valueBytes());
     }
 
     @Override
     public String toString() {
-        // Override the default implementation to exclude keyHashCode field
         return new ToStringBuilder(this)
                 .append("path", path)
                 .append("keyBytes", keyBytes)
-                .append("valueBytes", valueBytes)
+                .append("valueBytes", valueBytes())
                 .toString();
     }
 }

@@ -110,7 +110,7 @@ public class DefaultIssDetector implements IssDetector {
      * Create an object that tracks reported hashes and detects ISS events.
      *
      * @param platformContext              the platform context
-     * @param roster                the current roster
+     * @param roster                       the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
      * @param ignoredRound                 a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if

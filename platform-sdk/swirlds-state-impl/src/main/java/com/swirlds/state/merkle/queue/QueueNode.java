@@ -14,6 +14,7 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.merkle.singleton.ValueLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,9 +24,10 @@ import java.util.Iterator;
  * A merkle node with a string (the label) as the left child, and the merkle node value as the right
  * child. We actually support a raw type (any type!) as the value, and we serialize it and put it
  * into a simple merkle node.
- *
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  * @param <E> The element type
  */
+@Deprecated
 @DebugIterationEndpoint
 public class QueueNode<E> extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal {
     private static final long CLASS_ID = 0x990FF87AD2691DCL;

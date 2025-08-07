@@ -61,7 +61,8 @@ class IssDetectorTests extends PlatformTest {
     void stateReservationIsReleased() {
         final Randotron random = Randotron.create();
         final RandomSignedStateGenerator stateGenerator = new RandomSignedStateGenerator(random);
-        final ReservedSignedState stateWrapperForTest = stateGenerator.build().reserve("Test caller reference");
+        final ReservedSignedState stateWrapperForTest =
+                stateGenerator.setCalculateHash(true).build().reserve("Test caller reference");
         final ReservedSignedState stateWrapperForIssDetector =
                 stateWrapperForTest.getAndReserve("ISS Detector caller reference");
         assertEquals(
@@ -756,6 +757,7 @@ class IssDetectorTests extends PlatformTest {
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);
         when(s.getHash()).thenReturn(hash);
+        when(s.getInfoJson()).thenReturn("");
         return rs;
     }
 

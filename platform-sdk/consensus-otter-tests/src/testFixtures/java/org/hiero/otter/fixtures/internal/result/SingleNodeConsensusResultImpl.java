@@ -7,6 +7,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
@@ -17,7 +18,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
 
     private final NodeResultsCollector collector;
 
-    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
+    // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
     private volatile int startIndex = 0;
 
     /**
@@ -51,6 +52,19 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public EventWindow getLatestEventWindow() {
+        if (consensusRounds().isEmpty()) {
+            return EventWindow.getGenesisEventWindow();
+        }
+        // Return the event window of the latest consensus round
+        return consensusRounds().getLast().getEventWindow();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         collector.subscribeConsensusRoundSubscriber(subscriber);
     }
@@ -60,6 +74,6 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     public void clear() {
-        startIndex = collector.currentConsensusRounds(0).size();
+        startIndex = collector.currentConsensusRoundsCount();
     }
 }

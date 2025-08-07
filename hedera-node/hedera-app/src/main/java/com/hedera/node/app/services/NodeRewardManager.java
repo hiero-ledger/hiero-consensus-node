@@ -116,9 +116,11 @@ public class NodeRewardManager {
      * @param state the state
      */
     public void updateJudgesOnEndRound(State state) {
-        // Track missing judges in this round
-        missingJudgesInLastRoundOf(state).forEach(nodeId -> missedJudgeCounts.merge(nodeId, 1L, Long::sum));
         roundsThisStakingPeriod++;
+        // Track missing judges in this round
+        missingJudgesInLastRoundOf(state)
+                .forEach(nodeId ->
+                        missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? roundsThisStakingPeriod : v + 1));
     }
 
     /**
@@ -196,6 +198,7 @@ public class NodeRewardManager {
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
         // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
+            log.info("Considering paying node rewards for the last staking period at {}", asTimestamp(now));
             // Identify the nodes active in the last staking period
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var currentRoster =

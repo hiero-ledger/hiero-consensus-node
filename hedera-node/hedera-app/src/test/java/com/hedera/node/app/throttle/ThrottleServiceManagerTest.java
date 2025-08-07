@@ -192,6 +192,7 @@ class ThrottleServiceManagerTest {
         given(backendThrottle.allActiveThrottles()).willReturn(List.of(cryptoTransferThrottle));
         given(cryptoTransferThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(backendThrottle.gasLimitThrottle()).willReturn(gasThrottle);
+        given(backendThrottle.opsDurationThrottle()).willReturn(opsDurationThrottle);
     }
 
     private void givenMockThrottleDefs() {

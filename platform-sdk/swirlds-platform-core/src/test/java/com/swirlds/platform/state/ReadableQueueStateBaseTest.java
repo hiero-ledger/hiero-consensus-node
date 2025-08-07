@@ -3,23 +3,26 @@ package com.swirlds.platform.state;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.ListReadableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 
-class ReadableQueueStateBaseTest<E> extends StateTestBase {
+class ReadableQueueStateBaseTest extends StateTestBase {
     @Test
     void stateKey() {
-        final var subject = ListWritableQueueState.builder("FAKE_KEY").build();
+        final var subject =
+                ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
         assertThat(subject.getStateKey()).isEqualTo("FAKE_KEY");
     }
 
     @Test
     void peekIsNullWhenEmpty() {
         // Given an empty queue
-        final var subject = ListReadableQueueState.builder("FAKE_STATE").build();
+        final var subject =
+                ListReadableQueueState.builder("FAKE_NAME", "FAKE_STATE").build();
 
         // When we peek
         final var element = subject.peek();
@@ -32,14 +35,14 @@ class ReadableQueueStateBaseTest<E> extends StateTestBase {
     void peekDoesNotRemove() {
         // Given a non-empty queue
         final var subject = readableSTEAMState();
-        final var startingElements = new ArrayList<String>();
+        final var startingElements = new ArrayList<ProtoBytes>();
         subject.iterator().forEachRemaining(startingElements::add);
 
         // When we peek
         subject.peek();
 
         // None of the queue elements are removed
-        final var endingElements = new ArrayList<String>();
+        final var endingElements = new ArrayList<ProtoBytes>();
         subject.iterator().forEachRemaining(endingElements::add);
         assertThat(startingElements).containsExactlyElementsOf(endingElements);
     }
