@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporters;
 
-import com.hedera.hapi.platform.state.VirtualMapKey;
-import com.hedera.hapi.platform.state.VirtualMapValue;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
@@ -21,7 +21,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -34,32 +33,35 @@ import static java.util.Objects.requireNonNull;
 @SuppressWarnings("rawtypes")
 public class JsonExporter {
 
-    private static final int ITEMS_PER_FILE = Integer.parseInt(System.getProperty("itemsPerFile", "1000000"));
+    private static final int MAX_OBJ_PER_FILE = Integer.parseInt(System.getProperty("maxObjPerFile", "1000000"));
     private static final String ALL_STATES_TMPL = "exportedState_%d.json";
-    public static final String SPECIFIC_STATE_TMPL = "%s_%s.json";
+    public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
     private final JsonCodec[] keyCodecs = new JsonCodec[10011]; // see max ordinal of VirtualMapKey
     private final JsonCodec[] valueCodecs = new JsonCodec[10011]; // see max ordinal of VirtualMapValue
 
     private final MerkleNodeState state;
-    private final String outputFileName;
+    private final String serviceName;
+    private final String stateKeyName;
     private final ExecutorService executorService;
     private final int expectedStateId;
     private final int writingParallelism;
 
-    private final CountDownLatch startProcessing = new CountDownLatch(1);
     private final boolean allStates;
 
-    public JsonExporter(MerkleNodeState state, String serviceName, String stateName) {
+    public JsonExporter(MerkleNodeState state, String serviceName, String stateKeyName) {
         this.state = state;
-        int numberOfFiles = toIntExact(((VirtualMap) state.getRoot()).getState().getSize() / ITEMS_PER_FILE) + 1;
-        allStates = stateName == null;
-        if(!allStates) {
+        this.serviceName = serviceName;
+        this.stateKeyName = stateKeyName;
+
+        allStates = stateKeyName == null;
+        writingParallelism = toIntExact(((VirtualMap) state.getRoot()).getMetadata().getSize() / MAX_OBJ_PER_FILE) + 1;
+        if(allStates) {
+            expectedStateId = -1;
+        } else {
             requireNonNull(serviceName);
+            expectedStateId = StateUtils.stateIdFor(serviceName, stateKeyName);
         }
-        outputFileName = allStates ? ALL_STATES_TMPL : SPECIFIC_STATE_TMPL.formatted(serviceName, stateName);
-        expectedStateId = allStates ? -1 : StateUtils.stateIdFor(serviceName, stateName);
-        writingParallelism = allStates ? numberOfFiles : 1;
         executorService = Executors.newVirtualThreadPerTaskExecutor();
     }
 
@@ -73,18 +75,20 @@ public class JsonExporter {
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(final VirtualMap virtualMap) {
-        VirtualMapMetadata metadata = virtualMap.getState();
+        VirtualMapMetadata metadata = virtualMap.getMetadata();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        if (allStates) {
-            for (int i = 0; i < writingParallelism; i++) {
-                long firstPath = metadata.getFirstLeafPath() + i * ITEMS_PER_FILE;
-                long lastPath = Math.min(metadata.getFirstLeafPath() + (i + 1) * ITEMS_PER_FILE, metadata.getLastLeafPath() + 1);
-                String fileName = outputFileName.formatted(i + 1);
-                futures.add(CompletableFuture.runAsync(() -> processRange(fileName, firstPath, lastPath), executorService));
+        for (int i = 0; i < writingParallelism; i++) {
+            String fileName;
+            if (allStates) {
+                fileName = String.format(ALL_STATES_TMPL, i);
+            } else {
+                fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKeyName, i);
             }
-        } else {
-            String fileName = outputFileName;
-            futures.add(CompletableFuture.runAsync(() -> processRange(fileName, metadata.getFirstLeafPath(), metadata.getLastLeafPath() + 1), executorService));
+
+            long firstPath = metadata.getFirstLeafPath() + i * MAX_OBJ_PER_FILE;
+            long lastPath = Math.min(metadata.getFirstLeafPath() + (i + 1) * MAX_OBJ_PER_FILE, metadata.getLastLeafPath() + 1);
+
+            futures.add(CompletableFuture.runAsync(() -> processRange(fileName, firstPath, lastPath), executorService));
         }
         return futures;
     }
@@ -97,23 +101,23 @@ public class JsonExporter {
                 VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
                 final Bytes keyBytes = leafRecord.keyBytes();
                 final Bytes valueBytes = leafRecord.valueBytes();
-                final VirtualMapKey virtualMapKey;
-                final VirtualMapValue virtualMapValue;
+                final StateKey stateKey;
+                final StateValue stateValue;
                 try {
-                    virtualMapKey = VirtualMapKey.PROTOBUF.parse(keyBytes);
+                    stateKey = StateKey.PROTOBUF.parse(keyBytes);
                     if (expectedStateId != -1
-                            && expectedStateId != virtualMapKey.key().kind().protoOrdinal()) {
+                            && expectedStateId != stateKey.key().kind().protoOrdinal()) {
                         continue;
                     }
-                    virtualMapValue = VirtualMapValue.PROTOBUF.parse(valueBytes);
-                    if (virtualMapKey.key().kind().equals(VirtualMapKey.KeyOneOfType.SINGLETON)) {
-                        writer.write("{\"p\":%d, \"v\":%s}\n".formatted(path, valueToJson(virtualMapValue.value())));
-                    } else if (virtualMapKey.key().value() instanceof Long) { // queue
+                    stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
+                        writer.write("{\"p\":%d, \"v\":%s}\n".formatted(path, valueToJson(stateValue.value())));
+                    } else if (stateKey.key().value() instanceof Long) { // queue
                         writer.write("{\"p\":%d,\"i\":%s, \"v\":%s}\n"
-                                .formatted(path, virtualMapKey.key().value(), valueToJson(virtualMapValue.value())));
+                                .formatted(path, stateKey.key().value(), valueToJson(stateValue.value())));
                     } else { // kv
                         writer.write("{\"p\":%d,\"k\":%s, \"v\":%s}\n"
-                                .formatted(path, keyToJson(virtualMapKey.key()), valueToJson(virtualMapValue.value())));
+                                .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
                     }
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
@@ -125,16 +129,16 @@ public class JsonExporter {
     }
 
     @SuppressWarnings("unchecked")
-    private String keyToJson(OneOf<VirtualMapKey.KeyOneOfType> key) {
+    private String keyToJson(OneOf<StateKey.KeyOneOfType> key) {
         return lookupKeyCodecFor(key).toJSON(key.value());
     }
 
     @SuppressWarnings("unchecked")
-    private String valueToJson(OneOf<VirtualMapValue.ValueOneOfType> value) {
+    private String valueToJson(OneOf<StateValue.ValueOneOfType> value) {
         return lookupValueCodecFor(value).toJSON(value.value());
     }
 
-    private JsonCodec lookupKeyCodecFor(OneOf<VirtualMapKey.KeyOneOfType> key) {
+    private JsonCodec lookupKeyCodecFor(OneOf<StateKey.KeyOneOfType> key) {
         JsonCodec codec = keyCodecs[key.kind().protoOrdinal()];
         if (codec != null) {
             return codec;
@@ -145,7 +149,7 @@ public class JsonExporter {
         }
     }
 
-    private JsonCodec lookupValueCodecFor(OneOf<VirtualMapValue.ValueOneOfType> value) {
+    private JsonCodec lookupValueCodecFor(OneOf<StateValue.ValueOneOfType> value) {
         JsonCodec codec = valueCodecs[value.kind().protoOrdinal()];
         if (codec != null) {
             return codec;
