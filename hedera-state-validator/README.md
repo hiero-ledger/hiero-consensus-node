@@ -56,18 +56,19 @@ of a corrupted state.
 
 [ExportCommand](src/main/java/com/hedera/statevalidation/ExportCommand.java) allows you to export the state of a Hedera node into a JSON file(s).
 
-### Usage 
+### Usage
+
 1. Download the state files
 2. Run the following command to execute the export:
 
    ```shell
    java -jar ./validator-<version>.jar {path-to-state-round} export [{service_name}] [{state_key}]
    ```
- 
+
 Notes:
 - service name and state name should be both either omitted or specified
-- if service name / state name is specified the resulting file is `{service_name}_{state_key}_X.json` where `X` is a file number
-- if service name / state name is not specified the resulting file is `exportedState_X.json`, where `X` is a file number
+- if service name / state name is specified the resulting file is `{service_name}_{state_key}_X.json` where `X` is an ordinal number in the series of such files
+- if service name / state name is not specified the resulting file is `exportedState_X.json`, where `X` is an ordinal number in the series of such files
 - order of entries is consistent across runs and ordered by path
 - if you export all the states, the exporter limits the number of objects per file to 1 million, to customize the limit use VM parameter `-DmaxObjPerFile`
 - if you export a single state keep in mind that the object count per file though consistent across multiple runs is likely to be uneven, some files may be even empty

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporters;
 
+import static java.lang.StrictMath.toIntExact;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.JsonCodec;
@@ -12,7 +15,6 @@ import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -20,12 +22,11 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import static java.lang.StrictMath.toIntExact;
-import static java.util.Objects.requireNonNull;
 
 /**
  * This class exports the state into JSON file(s)
@@ -37,8 +38,8 @@ public class JsonExporter {
     private static final String ALL_STATES_TMPL = "exportedState_%d.json";
     public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
-    private final JsonCodec[] keyCodecs = new JsonCodec[10011]; // see max ordinal of VirtualMapKey
-    private final JsonCodec[] valueCodecs = new JsonCodec[10011]; // see max ordinal of VirtualMapValue
+    private final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
+    private final Map<Integer, JsonCodec> valueCodecsById = new ConcurrentHashMap<>();
 
     private final MerkleNodeState state;
     private final String serviceName;
@@ -55,8 +56,9 @@ public class JsonExporter {
         this.stateKeyName = stateKeyName;
 
         allStates = stateKeyName == null;
-        writingParallelism = toIntExact(((VirtualMap) state.getRoot()).getMetadata().getSize() / MAX_OBJ_PER_FILE) + 1;
-        if(allStates) {
+        writingParallelism =
+                toIntExact(((VirtualMap) state.getRoot()).getMetadata().getSize() / MAX_OBJ_PER_FILE) + 1;
+        if (allStates) {
             expectedStateId = -1;
         } else {
             requireNonNull(serviceName);
@@ -80,13 +82,14 @@ public class JsonExporter {
         for (int i = 0; i < writingParallelism; i++) {
             String fileName;
             if (allStates) {
-                fileName = String.format(ALL_STATES_TMPL, i);
+                fileName = String.format(ALL_STATES_TMPL, i + 1);
             } else {
-                fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKeyName, i);
+                fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKeyName, i + 1);
             }
 
             long firstPath = metadata.getFirstLeafPath() + i * MAX_OBJ_PER_FILE;
-            long lastPath = Math.min(metadata.getFirstLeafPath() + (i + 1) * MAX_OBJ_PER_FILE, metadata.getLastLeafPath() + 1);
+            long lastPath =
+                    Math.min(metadata.getFirstLeafPath() + (i + 1) * MAX_OBJ_PER_FILE, metadata.getLastLeafPath());
 
             futures.add(CompletableFuture.runAsync(() -> processRange(fileName, firstPath, lastPath), executorService));
         }
@@ -97,7 +100,7 @@ public class JsonExporter {
         VirtualMap vm = (VirtualMap) state.getRoot();
         File file = new File(System.getProperty("state.dir"), fileName);
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (long path = start; path < end; path++) {
+            for (long path = start; path <= end; path++) {
                 VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
                 final Bytes keyBytes = leafRecord.keyBytes();
                 final Bytes valueBytes = leafRecord.valueBytes();
@@ -116,7 +119,7 @@ public class JsonExporter {
                         writer.write("{\"p\":%d,\"i\":%s, \"v\":%s}\n"
                                 .formatted(path, stateKey.key().value(), valueToJson(stateValue.value())));
                     } else { // kv
-                        writer.write("{\"p\":%d,\"k\":%s, \"v\":%s}\n"
+                        writer.write("{\"p\":%d,\"k\":\"%s\", \"v\":%s}\n"
                                 .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
                     }
                 } catch (ParseException e) {
@@ -139,25 +142,11 @@ public class JsonExporter {
     }
 
     private JsonCodec lookupKeyCodecFor(OneOf<StateKey.KeyOneOfType> key) {
-        JsonCodec codec = keyCodecs[key.kind().protoOrdinal()];
-        if (codec != null) {
-            return codec;
-        } else {
-            JsonCodec lookedUpCodec = findCodecReflectively(key.value());
-            keyCodecs[key.kind().protoOrdinal()] = lookedUpCodec;
-            return lookedUpCodec;
-        }
+        return keyCodecsById.computeIfAbsent(key.kind().protoOrdinal(), id -> findCodecReflectively(key.value()));
     }
 
     private JsonCodec lookupValueCodecFor(OneOf<StateValue.ValueOneOfType> value) {
-        JsonCodec codec = valueCodecs[value.kind().protoOrdinal()];
-        if (codec != null) {
-            return codec;
-        } else {
-            JsonCodec lookedUpCodec = findCodecReflectively(value.value());
-            valueCodecs[value.kind().protoOrdinal()] = lookedUpCodec;
-            return lookedUpCodec;
-        }
+        return valueCodecsById.computeIfAbsent(value.kind().protoOrdinal(), id -> findCodecReflectively(value.value()));
     }
 
     @SuppressWarnings("rawtypes")
@@ -169,5 +158,4 @@ public class JsonExporter {
             throw new RuntimeException(e);
         }
     }
-
 }
