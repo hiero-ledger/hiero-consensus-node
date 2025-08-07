@@ -133,7 +133,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
-@Tag(ADHOC)
 public class TraceabilitySuite {
 
     private static final Logger log = LogManager.getLogger(TraceabilitySuite.class);
