@@ -124,15 +124,18 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
     @MethodSource("scheduleCallFunctions")
     public void testDecodeScheduleCall(TestFunction data) {
         // given:
-        if (!(data.senderParameter() instanceof Address)) {
+        if (data.senderParameter() instanceof Address) {
+            given(addressIdConverter.convertSender(data.senderAddress())).willReturn(sender);
+        } else {
             given(addressIdConverter.convert((com.esaulpaugh.headlong.abi.Address) data.senderParameter()))
                     .willReturn(sender);
         }
+
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.getTransactionID()).willReturn(transactionId);
         attempt = createHssCallAttempt(data.input(), OWNER_BESU_ADDRESS, false, configuration, List.of(translator));
         // when:
-        final var body = subject.decodeScheduleCall(attempt, sender, Set.of(key));
+        final var body = subject.decodeScheduleCall(attempt, Set.of(key));
         // then:
         assertTrue(body.hasTransactionID());
         assertEquals(transactionId, body.transactionID());
