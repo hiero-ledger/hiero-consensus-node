@@ -41,7 +41,7 @@ import java.util.Optional;
  * @param outputs the output of processing the transaction
  * @param isTopLevel whether the transaction is a top-level transaction in its unit
  * @param hasEnrichedLegacyRecord whether the transaction has an enriched legacy record
- * @param isBatchScoped where is part of atomic batch (inner transactions and their children)
+ * @param isBatchScoped whether is part of atomic batch (inner transactions and their children)
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
