@@ -64,8 +64,6 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.NodesJsonToGrpcBytes;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -191,7 +189,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                getFileContents(NODE_DETAILS).andValidate(bytes -> System.out.println(new NodesJsonToGrpcBytes().fromRawFile(bytes))));
+                getFileContents(NODE_DETAILS).andValidate(bytes -> {
+                    final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
+                            .filter(entry -> entry.getNodeId() == 0L)
+                            .findFirst()
+                            .orElseThrow()
+                            .getCertHash();
+                    assertEquals(newNode0CertHash.toHex(), node0CertHash);
+                }));
     }
 
     @HapiTest

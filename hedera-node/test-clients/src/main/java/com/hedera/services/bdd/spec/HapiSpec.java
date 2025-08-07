@@ -531,7 +531,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         return network;
     }
 
-
     /**
      * Sleeps for the approximate wall clock time it will take for the spec's target
      * network to advance consensus time by the given duration.

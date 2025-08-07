@@ -5,12 +5,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import org.hiero.base.utility.CommonUtils;
 
 /**
  * Summarizes useful information about the nodes in the AddressBook from the Platform. In
@@ -95,11 +95,11 @@ public interface NodeInfo {
     }
 
     /**
-     * The public key of this node, as a hex-encoded string. It is extracted from the certificate bytes.
-     *
-     * @return the public key
+     * The gRPC certificate hash of this node, if known.
+     * @return the gRPC certificate hash, or null if not known
      */
-    default String hexEncodedPublicKey() {
-        return CommonUtils.hex(sigCert().getPublicKey().getEncoded());
+    @Nullable
+    default Bytes grpcCertHash() {
+        return null;
     }
 }
