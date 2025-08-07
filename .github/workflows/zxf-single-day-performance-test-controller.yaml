@@ -149,7 +149,7 @@ jobs:
           # Extract the commit and user information from the build tag
           COMMIT=$(git rev-list -n 1 "${{ inputs.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
-          AUTHOR=$(git log -1 --pretty=format:'%an')
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
             -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
             '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
