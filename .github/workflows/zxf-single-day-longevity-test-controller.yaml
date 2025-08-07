@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
+name: "ZXF: [CITR] Single Day Longevity NLG Test Controller"
 on:
   workflow_dispatch:
     inputs:
