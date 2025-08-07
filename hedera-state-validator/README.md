@@ -65,6 +65,26 @@ of a corrupted state.
    java -jar ./validator-<version>.jar {path-to-state-round} export [{service_name}] [{state_key}]
    ```
 
+Examples:
+
+Export all states to the current directory:
+
+```shell
+java -jar ./validator-0.65.0.jar . export
+```
+
+Export all states to the current directory, limits the number of objects per file to 100,000:
+
+```shell
+java -jar -DmaxObjPerFile=100000 ./validator-0.65.0.jar . export
+```
+
+Export all accounts to `/tmp/accounts`, limits the number of objects per file to 100,000:
+
+```shell
+java -jar -DmaxObjPerFile=100000 ./validator-0.65.0.jar /tmp/accounts export TokenService ACCOUNTS
+```
+
 Notes:
 - service name and state name should be both either omitted or specified
 - if service name / state name is specified the resulting file is `{service_name}_{state_key}_X.json` where `X` is an ordinal number in the series of such files
