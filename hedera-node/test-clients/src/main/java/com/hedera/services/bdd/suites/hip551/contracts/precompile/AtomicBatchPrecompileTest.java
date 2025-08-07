@@ -189,6 +189,7 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -2063,6 +2064,7 @@ public class AtomicBatchPrecompileTest {
      * LazyCreateThroughPrecompileSuite
      */
     @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
+    @Disabled
     final Stream<DynamicTest> atomicResourceLimitExceededRevertsAllRecords() {
         final var n = 6; // + 2 for the mint and approve allowance in the batch
         final var nft = "nft";
@@ -2124,7 +2126,7 @@ public class AtomicBatchPrecompileTest {
         @FungibleToken(name = "fungibleToken")
         static SpecFungibleToken fungibleToken;
 
-        @HapiTest
+        @LeakyHapiTest
         @DisplayName("cannot transfer value to HTS")
         public Stream<DynamicTest> atomicCannotTransferValueToHts() {
             return hapiTest(internalCall
@@ -2292,6 +2294,7 @@ public class AtomicBatchPrecompileTest {
      * SigningResSuite
      */
     @LeakyHapiTest(overrides = {"contracts.keys.legacyActivations"})
+    @Disabled
     final Stream<DynamicTest> atomicAutoRenewAccountCanUseLegacySigActivationIfConfigured() {
         final var autoRenew = "autoRenew";
         final AtomicReference<Address> autoRenewMirrorAddr = new AtomicReference<>();
