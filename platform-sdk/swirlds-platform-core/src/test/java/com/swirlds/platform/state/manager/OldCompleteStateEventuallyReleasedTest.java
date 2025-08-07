@@ -81,7 +81,7 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(0)
                 .useSignatureSupplierFromRoster()
-                .setState(new TestVirtualMapState())
+                .setState(new TestVirtualMapState(platformContext))
                 .build();
 
         signedStates.put(0L, stateFromDisk);

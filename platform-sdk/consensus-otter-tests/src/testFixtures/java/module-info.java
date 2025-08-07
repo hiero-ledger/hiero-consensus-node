@@ -6,7 +6,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
-    requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
@@ -29,6 +28,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
+    requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;

@@ -320,7 +320,8 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-        TestVirtualMapState state = new TestVirtualMapState();
+        TestVirtualMapState state =
+                new TestVirtualMapState(TestPlatformContextBuilder.create().build());
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid

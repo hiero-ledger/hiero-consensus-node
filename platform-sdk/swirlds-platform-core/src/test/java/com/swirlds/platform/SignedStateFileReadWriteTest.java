@@ -143,7 +143,10 @@ class SignedStateFileReadWriteTest {
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+                stateFile,
+                virtualMap -> new TestVirtualMapState(virtualMap, PlatformContext.create(configuration)),
+                TEST_PLATFORM_STATE_FACADE,
+                PlatformContext.create(configuration));
         hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");

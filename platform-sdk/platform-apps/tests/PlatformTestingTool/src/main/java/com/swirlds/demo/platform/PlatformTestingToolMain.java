@@ -34,6 +34,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.Pair;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -859,7 +860,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public PlatformTestingToolState newStateRoot() {
+    public PlatformTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
         final PlatformTestingToolState state = new PlatformTestingToolState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
@@ -872,7 +873,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      * </p>
      */
     @Override
-    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

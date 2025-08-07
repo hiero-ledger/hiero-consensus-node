@@ -17,6 +17,7 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -81,19 +82,14 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
     public ISSTestingToolState() {
-        // no-op
+        super(PlatformContext.create(
+                ConfigurationBuilder.create().autoDiscoverExtensions().build()));
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
 
-        final PlatformContext platformContext = platform.getContext();
-        super.init(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
+        super.setRoundSupplier(() -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis
         if (trigger == InitTrigger.GENESIS) {
@@ -215,7 +211,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     }
 
     @Override
-    protected ISSTestingToolState copyingConstructor() {
+    protected ISSTestingToolState copyingConstructor(@NonNull final PlatformContext platformContext) {
         return new ISSTestingToolState(this);
     }
 

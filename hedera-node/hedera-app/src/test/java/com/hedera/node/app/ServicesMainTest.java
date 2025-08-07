@@ -13,6 +13,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
@@ -90,20 +91,22 @@ final class ServicesMainTest {
     @Test
     void createsNewStateRoot() {
         ServicesMain.initGlobal(hedera, metrics);
-        given(hedera.newStateRoot()).willReturn(state);
-        assertSame(state, subject.newStateRoot());
+        final PlatformContext platformContext = mock(PlatformContext.class);
+        given(hedera.newStateRoot(platformContext)).willReturn(state);
+        assertSame(state, subject.newStateRoot(platformContext));
     }
 
     @Test
     void createsStateRootFromVirtualMap() {
         ServicesMain.initGlobal(hedera, metrics);
         final VirtualMap virtualMapMock = mock(VirtualMap.class);
+        final PlatformContext platformContext = mock(PlatformContext.class);
         final Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMapMock = mock(Function.class);
 
-        when(hedera.stateRootFromVirtualMap()).thenReturn(stateRootFromVirtualMapMock);
+        when(hedera.stateRootFromVirtualMap(platformContext)).thenReturn(stateRootFromVirtualMapMock);
         when(stateRootFromVirtualMapMock.apply(virtualMapMock)).thenReturn(state);
 
-        assertSame(state, subject.stateRootFromVirtualMap().apply(virtualMapMock));
+        assertSame(state, subject.stateRootFromVirtualMap(platformContext).apply(virtualMapMock));
     }
 
     private void withBadCommandLineArgs() {

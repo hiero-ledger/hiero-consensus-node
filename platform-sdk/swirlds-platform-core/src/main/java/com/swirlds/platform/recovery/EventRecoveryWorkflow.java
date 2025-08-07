@@ -360,7 +360,7 @@ public final class EventRecoveryWorkflow {
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
         SemanticVersion softwareVersion = platformStateFacade.creationSoftwareVersionOf(initialState);
-        initialSignedState.get().init(platformContext);
+        initialSignedState.get().setRoundSupplier();
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
@@ -462,7 +462,7 @@ public final class EventRecoveryWorkflow {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
+        signedState.setRoundSupplier();
         final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 

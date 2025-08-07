@@ -142,10 +142,14 @@ class StateFileManagerTests {
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
         MerkleDb.resetDefaultInstancePath();
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = platformContext.getConfiguration();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+                stateFile,
+                virtualMap -> new TestVirtualMapState(virtualMap, platformContext),
+                TEST_PLATFORM_STATE_FACADE,
+                PlatformContext.create(configuration));
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
 
@@ -310,14 +314,15 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
-                    Configuration configuration =
-                            TestPlatformContextBuilder.create().build().getConfiguration();
+                    PlatformContext platformContext =
+                            TestPlatformContextBuilder.create().build();
+                    Configuration configuration = platformContext.getConfiguration();
                     // Restore to a new MerkleDb instance
                     MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            TestVirtualMapState::new,
+                                            virtualMap -> new TestVirtualMapState(virtualMap, platformContext),
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))
                                     .reservedSignedState()

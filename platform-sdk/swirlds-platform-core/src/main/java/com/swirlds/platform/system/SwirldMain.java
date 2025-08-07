@@ -4,6 +4,7 @@ package com.swirlds.platform.system;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -65,17 +66,19 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      *     </li>
      * </ul>
      *
+     * @param platformContext the platform context
      * @return state root object
      */
     @NonNull
-    T newStateRoot();
+    T newStateRoot(@NonNull final PlatformContext platformContext);
 
     /**
      * A function to instantiate the state root object from a Virtual Map.
      *
+     * @param platformContext the platform context
      * @return a function that accepts a {@code VirtualMap} and returns the state root object.
      */
-    Function<VirtualMap, T> stateRootFromVirtualMap();
+    Function<VirtualMap, T> stateRootFromVirtualMap(@NonNull final PlatformContext platformContext);
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.

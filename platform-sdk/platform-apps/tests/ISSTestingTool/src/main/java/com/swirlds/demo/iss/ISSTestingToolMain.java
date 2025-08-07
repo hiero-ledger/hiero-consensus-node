@@ -7,6 +7,7 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -99,7 +100,7 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
      */
     @Override
     @NonNull
-    public ISSTestingToolState newStateRoot() {
+    public ISSTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
         final ISSTestingToolState state = new ISSTestingToolState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
@@ -112,7 +113,8 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
      * </p>
      */
     @Override
-    public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

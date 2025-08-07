@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
@@ -44,7 +45,10 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
             logger.info(STARTUP.getMarker(), "Registering MigrationTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(MigrationTestingToolState.class, MigrationTestingToolState::new));
+                    new ClassConstructorPair(MigrationTestingToolState.class, () -> {
+                        MigrationTestingToolState migrationTestingToolState = new MigrationTestingToolState();
+                        return migrationTestingToolState;
+                    }));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "MigrationTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {
@@ -170,7 +174,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
      */
     @NonNull
     @Override
-    public MigrationTestingToolState newStateRoot() {
+    public MigrationTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
         final MigrationTestingToolState state = new MigrationTestingToolState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
@@ -183,7 +187,8 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
      * </p>
      */
     @Override
-    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 
