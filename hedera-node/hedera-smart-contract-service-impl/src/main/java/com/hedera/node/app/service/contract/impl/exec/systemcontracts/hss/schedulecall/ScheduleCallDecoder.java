@@ -43,8 +43,7 @@ public class ScheduleCallDecoder {
      * @param keys    the key set for scheduled calls
      * @return the schedule call transaction body
      */
-    public TransactionBody decodeScheduleCall(
-            @NonNull final HssCallAttempt attempt, @NonNull final Set<Key> keys) {
+    public TransactionBody decodeScheduleCall(@NonNull final HssCallAttempt attempt, @NonNull final Set<Key> keys) {
         // read parameters
         final Tuple call;
         final Address to;
