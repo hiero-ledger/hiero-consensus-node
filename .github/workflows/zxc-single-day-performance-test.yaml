@@ -1168,7 +1168,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "NLG Performance Test Report (SDPT)",
+                      "text": "NLG Performance Test Report (SDPT) - ${{ inputs.ref }}",
                       "emoji": true
                     }
                   },

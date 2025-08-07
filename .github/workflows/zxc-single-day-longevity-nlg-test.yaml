@@ -574,7 +574,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "NLG Longevity Test Report (SDLT)",
+                      "text": "NLG Longevity Test Report (SDLT) - ${{ inputs.ref }}",
                       "emoji": true
                     }
                   },
