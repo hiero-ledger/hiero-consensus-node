@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -84,8 +85,9 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodeConsensusResults suppressingNodes(@NotNull final List<Node> nodes) {
-        final List<NodeId> nodeIdToSuppress = nodes.stream().map(Node::selfId).toList();
+    public @NotNull MultipleNodeConsensusResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+        final List<NodeId> nodeIdToSuppress =
+                nodes.stream().distinct().map(Node::selfId).toList();
         final List<SingleNodeConsensusResult> filtered = results.stream()
                 .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
                 .toList();

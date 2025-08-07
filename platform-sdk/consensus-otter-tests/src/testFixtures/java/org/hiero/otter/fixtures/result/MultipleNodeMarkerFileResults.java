@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.result;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
 
@@ -48,7 +49,7 @@ public interface MultipleNodeMarkerFileResults {
      * @return a new instance of {@link MultipleNodeMarkerFileResults} with the specified nodes' marker file results excluded
      */
     @NonNull
-    MultipleNodeMarkerFileResults suppressingNodes(@NonNull final List<Node> nodes);
+    MultipleNodeMarkerFileResults suppressingNodes(@NonNull final Collection<Node> nodes);
 
     /**
      * Excludes the marker file results of one or more nodes from the current results.

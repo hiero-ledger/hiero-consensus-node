@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -62,8 +63,9 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      *
      */
     @Override
-    public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final List<Node> nodes) {
-        final List<NodeId> nodeIdToSuppress = nodes.stream().map(Node::selfId).toList();
+    public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+        final List<NodeId> nodeIdToSuppress =
+                nodes.stream().distinct().map(Node::selfId).toList();
         final List<SingleNodeReconnectResult> filtered = results.stream()
                 .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
                 .toList();

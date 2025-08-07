@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.result;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
 
@@ -50,7 +51,7 @@ public interface MultipleNodeReconnectResults {
      * @return a new instance of {@link MultipleNodeReconnectResults} with the specified nodes' reconnect results excluded
      */
     @NonNull
-    MultipleNodeReconnectResults suppressingNodes(@NonNull final List<Node> nodes);
+    MultipleNodeReconnectResults suppressingNodes(@NonNull final Collection<Node> nodes);
 
     /**
      * Excludes the reconnect results of one or more nodes from the current results.

@@ -5,6 +5,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
 
@@ -60,7 +61,7 @@ public interface MultipleNodeLogResults extends OtterResult {
      * @return a new instance of {@link MultipleNodeLogResults} with the specified nodes' log results excluded
      */
     @NonNull
-    MultipleNodeLogResults suppressingNodes(@NonNull final List<Node> nodes);
+    MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes);
 
     /**
      * Excludes the log results of one or more nodes from the current results.
