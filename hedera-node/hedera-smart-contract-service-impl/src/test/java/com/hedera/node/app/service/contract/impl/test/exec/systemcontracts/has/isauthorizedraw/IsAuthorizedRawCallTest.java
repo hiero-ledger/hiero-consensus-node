@@ -170,7 +170,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         subject = getSubject(mock(Address.class));
 
         given(account.key()).willReturn(key);
-        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
+        given(key.ecdsaSecp256k1()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
 
         given(signatureVerifier.verifySignature(
                         eq(key),
@@ -193,7 +193,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         subject = getSubject(mock(Address.class));
 
         given(account.key()).willReturn(key);
-        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
+        given(key.ecdsaSecp256k1()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
 
         given(signatureVerifier.verifySignature(
                         eq(key),
