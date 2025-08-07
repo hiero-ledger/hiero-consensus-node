@@ -42,17 +42,18 @@ public class ReconnectTest {
         // Setup simulation
 
         // Add more than 3 nodes with balanced weights so that one node can be taken down without halting consensus
-        network.addNodes(4, WeightGenerators.BALANCED);
+        network.setWeightGenerator(WeightGenerators.BALANCED);
+        network.addNodes(4);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.getNodes().forEach(node -> {
+        network.nodes().forEach(node -> {
             node.configuration()
                     .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
                     .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
         });
 
         // Set the node we will force to reconnect
-        final Node nodeToReconnect = network.getNodes().getLast();
+        final Node nodeToReconnect = network.nodes().getLast();
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();

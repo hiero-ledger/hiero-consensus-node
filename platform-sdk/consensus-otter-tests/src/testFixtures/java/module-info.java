@@ -45,6 +45,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
+    exports org.hiero.otter.fixtures.network;
     exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.container.proto;
     exports org.hiero.otter.fixtures.app;

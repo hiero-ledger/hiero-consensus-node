@@ -2,22 +2,26 @@
 package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -25,6 +29,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  */
+@SuppressWarnings("removal")
 public class SimulatedNetwork {
 
     /**
@@ -53,37 +58,24 @@ public class SimulatedNetwork {
      */
     private final Map<NodeId, SimulatedGossip> gossipInstances = new HashMap<>();
 
-    /**
-     * The average delay for events to travel between nodes, in nanoseconds.
-     */
-    private final long averageDelayNanos;
+    @Nullable
+    private Map<GossipConnectionKey, ConnectionData> connections;
 
-    /**
-     * The standard deviation of the delay for events to travel between nodes, in nanoseconds.
-     */
-    private final long standardDeviationDelayNanos;
+    private Map<GossipConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
 
     /**
      * Constructor.
      *
      * @param random                 the random number generator to use for simulating network delays
      * @param roster                 the roster of the network
-     * @param averageDelay           the average delay for events to travel between nodes
-     * @param standardDeviationDelay the standard deviation of the delay for events to travel between nodes
      */
-    public SimulatedNetwork(
-            @NonNull final Random random,
-            @NonNull final Roster roster,
-            @NonNull final Duration averageDelay,
-            @NonNull final Duration standardDeviationDelay) {
+    public SimulatedNetwork(@NonNull final Random random, @NonNull final Roster roster) {
         this(
                 random,
                 roster.rosterEntries().stream()
                         .map(RosterUtils::getNodeId)
                         .sorted()
-                        .toList(),
-                averageDelay,
-                standardDeviationDelay);
+                        .toList());
     }
 
     /**
@@ -91,22 +83,12 @@ public class SimulatedNetwork {
      *
      * @param random                 the random number generator to use for simulating network delays
      * @param addressBook            the address book of the network
-     * @param averageDelay           the average delay for events to travel between nodes
-     * @param standardDeviationDelay the standard deviation of the delay for events to travel between nodes
      */
-    public SimulatedNetwork(
-            @NonNull final Random random,
-            @NonNull final AddressBook addressBook,
-            @NonNull final Duration averageDelay,
-            @NonNull final Duration standardDeviationDelay) {
-        this(random, addressBook.getNodeIdSet().stream().sorted().toList(), averageDelay, standardDeviationDelay);
+    public SimulatedNetwork(@NonNull final Random random, @NonNull final AddressBook addressBook) {
+        this(random, addressBook.getNodeIdSet().stream().sorted().toList());
     }
 
-    private SimulatedNetwork(
-            @NonNull final Random random,
-            @NonNull final List<NodeId> nodeIds,
-            @NonNull final Duration averageDelay,
-            @NonNull final Duration standardDeviationDelay) {
+    private SimulatedNetwork(@NonNull final Random random, @NonNull final List<NodeId> nodeIds) {
 
         this.random = requireNonNull(random);
 
@@ -116,9 +98,16 @@ public class SimulatedNetwork {
             eventsInTransit.put(nodeId, new PriorityQueue<>());
             gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
         }
+    }
 
-        this.averageDelayNanos = averageDelay.toNanos();
-        this.standardDeviationDelayNanos = standardDeviationDelay.toNanos();
+    /**
+     * Set the connection data for this simulated network.
+     *
+     * @param newConnections the connection data
+     */
+    public void setConnections(@NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
+        this.connections = newConnections.entrySet().stream()
+                .collect(toMap(entry -> GossipConnectionKey.of(entry.getKey()), Entry::getValue));
     }
 
     /**
@@ -182,6 +171,10 @@ public class SimulatedNetwork {
      * @param now the current time
      */
     private void transmitEvents(@NonNull final Instant now) {
+        if (connections == null) {
+            return; // No connections have been set, so we cannot transmit events.
+        }
+
         // Transmission order of the loops in this method must be deterministic, else nodes may receive events
         // in nondeterministic orders with nondeterministic timing.
 
@@ -194,20 +187,47 @@ public class SimulatedNetwork {
                         continue;
                     }
 
-                    final PriorityQueue<EventInTransit> receiverEvents = eventsInTransit.get(receiver);
+                    final GossipConnectionKey connectionKey = new GossipConnectionKey(sender, receiver);
+                    final ConnectionData connectionData = connections.get(connectionKey);
 
-                    final Instant deliveryTime = now.plusNanos(
-                            (long) (averageDelayNanos + random.nextGaussian() * standardDeviationDelayNanos));
+                    if (connectionData == null || !connectionData.connected()) {
+                        // No connection between sender and receiver, so skip this event
+                        continue;
+                    }
+
+                    // Simulate network latency and jitter using truncated Gaussian distribution
+                    final double sigma = connectionData.latency().toNanos() * connectionData.jitter().value / 100.0;
+                    final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
+                    Instant deliveryTime =
+                            now.plus(connectionData.latency()).plusNanos((long) jitter);
+
+                    // Ensure delivery time is always incremental
+                    final Instant lastDeliveryTime =
+                            lastDeliveryTimestamps.getOrDefault(connectionKey, Instant.MIN);
+                    if (deliveryTime.isBefore(lastDeliveryTime)) {
+                        deliveryTime = lastDeliveryTime.plusNanos(1L);
+                    }
+                    lastDeliveryTimestamps.put(connectionKey, deliveryTime);
 
                     // create a copy so that nodes don't modify each other's events
                     final PlatformEvent eventToDeliver = event.copyGossipedData();
                     eventToDeliver.setSenderId(sender);
                     eventToDeliver.setTimeReceived(deliveryTime);
                     final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, sender, deliveryTime);
-                    receiverEvents.add(eventInTransit);
+                    eventsInTransit.get(receiver).add(eventInTransit);
                 }
             }
             events.clear();
+        }
+    }
+
+    // Can be removed if we are able to clean up NodeId usage
+    // https://github.com/hiero-ledger/hiero-consensus-node/issues/20537
+    private record GossipConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {
+
+        static GossipConnectionKey of(@NonNull final ConnectionKey key) {
+            return new GossipConnectionKey(
+                    NodeId.of(key.sender().id()), NodeId.of(key.receiver().id()));
         }
     }
 }

@@ -72,7 +72,6 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -167,7 +166,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
         throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
@@ -279,7 +278,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    @NonNull
+    public SingleNodeReconnectResult newReconnectResult() {
         throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 

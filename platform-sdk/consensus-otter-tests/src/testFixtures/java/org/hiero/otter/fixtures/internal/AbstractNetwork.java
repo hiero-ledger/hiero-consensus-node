@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.common.test.fixtures.WeightGenerator;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -24,12 +32,15 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
+import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
@@ -63,6 +74,10 @@ public abstract class AbstractNetwork implements Network {
     }
 
     protected State state = State.INIT;
+
+    protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
+
+    private final Map<NodeId, Partition> partitions = new HashMap<>();
 
     private final AsyncNetworkActions defaultStartAction;
     private final AsyncNetworkActions defaultFreezeAction;
@@ -123,6 +138,14 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
+        this.weightGenerator = requireNonNull(weightGenerator);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void start() {
         defaultStartAction.start();
     }
@@ -131,16 +154,96 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void freeze() {
-        defaultFreezeAction.freeze();
+    @NonNull
+    public Partition createPartition(@NonNull final Collection<Node> nodes) {
+        if (nodes.isEmpty()) {
+            throw new IllegalArgumentException("Cannot create a partition with no nodes.");
+        }
+        if (nodes.stream().anyMatch(node -> partitions.containsKey(node.selfId()))) {
+            throw new IllegalArgumentException("Cannot create a partition with nodes that are already in a partition.");
+        }
+        final Partition partition = Partition.of(nodes);
+        for (final Node node : nodes) {
+            partitions.put(node.selfId(), partition);
+        }
+        updateConnections();
+        return partition;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public long getTotalWeight() {
-        return getNodes().stream().mapToLong(Node::weight).sum();
+    public void removePartition(@NonNull final Partition partition) {
+        for (final Node node : partition.nodes()) {
+            partitions.remove(node.selfId());
+        }
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Set<Partition> partitions() {
+        return Set.copyOf(partitions.values());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nullable
+    public Partition getPartitionContaining(@NonNull final Node node) {
+        return partitions.get(node.selfId());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Partition isolate(@NonNull final Node node) {
+        return createPartition(Set.of(node));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void rejoin(@NonNull final Node node) {
+        final Partition partition = partitions.get(node.selfId());
+        if (partition == null) {
+            throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
+        }
+        removePartition(partition);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isIsolated(@NonNull final Node node) {
+        final Partition partition = partitions.get(node.selfId());
+        return partition != null && partition.size() == 1;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreConnectivity() {
+        partitions.clear();
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void freeze() {
+        defaultFreezeAction.freeze();
     }
 
     /**
@@ -156,7 +259,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setVersion(@NonNull final SemanticVersion version) {
-        for (final Node node : getNodes()) {
+        for (final Node node : nodes()) {
             node.setVersion(version);
         }
     }
@@ -166,7 +269,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        for (final Node node : getNodes()) {
+        for (final Node node : nodes()) {
             node.bumpConfigVersion();
         }
     }
@@ -178,7 +281,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeConsensusResults newConsensusResults() {
         final List<SingleNodeConsensusResult> results =
-                getNodes().stream().map(Node::newConsensusResult).toList();
+                nodes().stream().map(Node::newConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
     }
 
@@ -189,7 +292,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public MultipleNodeLogResults newLogResults() {
         final List<SingleNodeLogResult> results =
-                getNodes().stream().map(Node::newLogResult).toList();
+                nodes().stream().map(Node::newLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
     }
@@ -201,7 +304,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePlatformStatusResults newPlatformStatusResults() {
         final List<SingleNodePlatformStatusResult> statusProgressions =
-                getNodes().stream().map(Node::newPlatformStatusResult).toList();
+                nodes().stream().map(Node::newPlatformStatusResult).toList();
         return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
     }
 
@@ -212,7 +315,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeReconnectResults newReconnectResults() {
         final List<SingleNodeReconnectResult> reconnectResults =
-                getNodes().stream().map(Node::newReconnectResult).toList();
+                nodes().stream().map(Node::newReconnectResult).toList();
         return new MultipleNodeReconnectResultsImpl(reconnectResults);
     }
 
@@ -223,7 +326,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePcesResults newPcesResults() {
         final List<SingleNodePcesResult> results =
-                getNodes().stream().map(Node::newPcesResult).toList();
+                nodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
     }
 
@@ -234,7 +337,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeMarkerFileResults newMarkerFileResults() {
         final List<SingleNodeMarkerFileResult> results =
-                getNodes().stream().map(Node::newMarkerFileResult).toList();
+                nodes().stream().map(Node::newMarkerFileResult).toList();
         return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
@@ -243,7 +346,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
-        final Set<Node> otherNodes = getNodes().stream()
+        final Set<Node> otherNodes = nodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -261,7 +364,7 @@ public abstract class AbstractNetwork implements Network {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
-        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getTotalWeight());
+        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, totalWeight());
     }
 
     /**
@@ -269,7 +372,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = getNodes().stream()
+        final Set<Node> otherNodes = nodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -298,7 +401,7 @@ public abstract class AbstractNetwork implements Network {
      * @return the {@link BooleanSupplier}
      */
     protected BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> getNodes().stream().allMatch(node -> node.platformStatus() == status);
+        return () -> nodes().stream().allMatch(node -> node.platformStatus() == status);
     }
 
     /**
@@ -313,6 +416,27 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalStateException(message);
         }
     }
+
+    private void updateConnections() {
+        final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+        for (final Node sender : nodes()) {
+            for (final Node receiver : nodes()) {
+                if (sender.selfId().equals(receiver.selfId())) {
+                    continue; // Skip self-connections
+                }
+                final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
+                ConnectionData connectionData = topology().getConnectionData(sender, receiver);
+                if (getPartitionContaining(sender) != getPartitionContaining(receiver)) {
+                    connectionData = connectionData.withConnected(false);
+                }
+                // add other effects (e.g., clique, latency) on connections here
+                connections.put(key, connectionData);
+            }
+        }
+        onConnectionsChanged(connections);
+    }
+
+    protected abstract void onConnectionsChanged(Map<ConnectionKey, ConnectionData> connections);
 
     /**
      * Default implementation of {@link AsyncNetworkActions}
@@ -339,7 +463,7 @@ public abstract class AbstractNetwork implements Network {
 
             log.info("Starting network...");
             state = State.RUNNING;
-            for (final Node node : getNodes()) {
+            for (final Node node : nodes()) {
                 node.start();
             }
 
@@ -362,7 +486,7 @@ public abstract class AbstractNetwork implements Network {
             log.info("Sending freeze transaction...");
             final byte[] freezeTransaction =
                     createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
-            getNodes().stream()
+            nodes().stream()
                     .filter(Node::isActive)
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
@@ -385,7 +509,7 @@ public abstract class AbstractNetwork implements Network {
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
             log.info("Killing nodes immediately...");
-            for (final Node node : getNodes()) {
+            for (final Node node : nodes()) {
                 node.killImmediately();
             }
 
