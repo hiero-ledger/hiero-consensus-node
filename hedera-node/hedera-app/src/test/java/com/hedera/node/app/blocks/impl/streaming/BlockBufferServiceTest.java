@@ -334,19 +334,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_blockAfterAcked() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
-        final AtomicLong highestAckedBlockNumber = highestAckedBlockNumber(blockBufferService);
-        highestAckedBlockNumber.set(10);
-
-        assertThatThrownBy(() -> blockBufferService.openBlock(8))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage(
-                        "Attempted to open block 8, but a later block (lastAcked=10) has already been acknowledged");
-    }
-
-    @Test
     void testOpenBlock_existingBlock_proofNotSent() {
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);

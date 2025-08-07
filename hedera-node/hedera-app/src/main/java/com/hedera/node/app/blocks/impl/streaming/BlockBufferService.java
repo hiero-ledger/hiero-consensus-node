@@ -226,16 +226,6 @@ public class BlockBufferService {
             throw new IllegalArgumentException("Block number must be non-negative");
         }
 
-        final long lastAcked = highestAckedBlockNumber.get();
-        if (blockNumber <= lastAcked) {
-            logger.error(
-                    "Attempted to open block {}, but a later block (lastAcked={}) has already been acknowledged",
-                    blockNumber,
-                    lastAcked);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but a later block (lastAcked="
-                    + lastAcked + ") has already been acknowledged");
-        }
-
         final BlockState existingBlock = blockBuffer.get(blockNumber);
         if (existingBlock != null && existingBlock.isBlockProofSent()) {
             logger.error("Attempted to open block {}, but this block already has the block proof sent", blockNumber);
