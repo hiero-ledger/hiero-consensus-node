@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
@@ -158,7 +157,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     @Order(1)
     final Stream<DynamicTest> upgradeWithSameNodesExportsTheOriginalAddressBook() {
         final var newNode0CertHash = Bytes.fromHex("ab".repeat(48));

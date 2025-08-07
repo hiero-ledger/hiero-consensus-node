@@ -111,7 +111,7 @@ val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSm
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
-        "hapiTestAdhoc" to "4",
+        "hapiTestAdhoc" to "3",
         "hapiTestCrypto" to "3",
         "hapiTestToken" to "3",
         "hapiTestSmartContract" to "4",
