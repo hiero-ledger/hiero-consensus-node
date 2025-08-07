@@ -11,9 +11,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.*;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -30,7 +28,6 @@ import org.junit.jupiter.api.*;
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
@@ -63,10 +60,16 @@ public class HasScheduleCapacityTest {
                 .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
+    // with
+    // 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
+
+    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -88,12 +91,4 @@ public class HasScheduleCapacityTest {
                             .isDeleted());
         }));
     }
-
-    //    @Order(Integer.MAX_VALUE - 1)
-    //    @LeakyHapiTest
-    //    final Stream<DynamicTest> streamsAreValid() {
-    //        return hapiTest(
-    //                sleepForBlockPeriod(),
-    //                validateStreams());
-    //    }
 }

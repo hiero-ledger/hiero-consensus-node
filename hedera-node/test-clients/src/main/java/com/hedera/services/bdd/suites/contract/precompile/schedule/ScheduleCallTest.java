@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.contract.precompile.schedule;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
@@ -14,6 +14,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -23,7 +25,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.schedule.HapiGetScheduleInfo;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.suites.HapiSuite;
-import com.hedera.services.bdd.suites.contract.precompile.schedule.ContractSignScheduleTest.SignScheduleFromEOATest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -69,36 +70,32 @@ public class ScheduleCallTest {
                 scheduledCallTest(new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(40))));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
+    // with
+    // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
+
+    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
-        AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
-                scheduleIdHolder,
-                false,
-                sender.name(),
-                "scheduleCallWithSenderExample",
-                sender,
-                BigInteger.valueOf(41))));
+                false, sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(41))));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
-        AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
         return hapiTest(withOpContext(scheduledCallWithSignTest(
-                scheduleIdHolder,
-                true,
-                sender.name(),
-                "executeCallOnSenderSignatureExample",
-                sender,
-                BigInteger.valueOf(42))));
+                true, sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(42))));
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallTest(
@@ -107,12 +104,12 @@ public class ScheduleCallTest {
             @NonNull final Object... parameters) {
         return (spec, opLog) -> {
             // run schedule call
-            final var scheduleAddress = new AtomicReference<Address>();
+            AtomicReference<Address> scheduleAddressHolder = new AtomicReference<>();
             allRunFor(
                     spec,
                     contract.call(functionName, parameters)
                             .gas(2_000_000)
-                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
+                            .exposingResultTo(res -> scheduleAddressHolder.set((Address) res[1]))
                             .andAssert(txn -> txn.hasResults(
                                     ContractFnResultAsserts.resultWith()
                                             .resultThruAbi(
@@ -129,7 +126,7 @@ public class ScheduleCallTest {
                                     ContractFnResultAsserts.anyResult()))
                             .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
             // check schedule exists
-            final var scheduleId = asScheduleId(spec, scheduleAddress.get());
+            final var scheduleId = asScheduleId(spec, scheduleAddressHolder.get());
             final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
             scheduleIdHolder.set(scheduleIdString);
             allRunFor(
@@ -142,12 +139,12 @@ public class ScheduleCallTest {
     }
 
     private CustomSpecAssert.ThrowingConsumer scheduledCallWithSignTest(
-            @NonNull final AtomicReference<String> scheduleIdHolder,
             final boolean executedAfterSigning,
             @NonNull final String payer,
             @NonNull final String functionName,
             @NonNull final Object... parameters) {
         return (spec, opLog) -> {
+            AtomicReference<String> scheduleIdHolder = new AtomicReference<>();
             scheduledCallTest(scheduleIdHolder, functionName, parameters).assertFor(spec, opLog);
             HapiGetScheduleInfo info = getScheduleInfo(scheduleIdHolder.get())
                     .hasScheduleId(scheduleIdHolder.get())
@@ -162,14 +159,7 @@ public class ScheduleCallTest {
             allRunFor(
                     spec,
                     // sign schedule
-                    contractCallWithFunctionAbi(
-                                    scheduleIdHolder.get(),
-                                    getABIFor(
-                                            FUNCTION,
-                                            SignScheduleFromEOATest.SIGN_SCHEDULE,
-                                            SignScheduleFromEOATest.IHRC755))
-                            .payingWith(payer)
-                            .gas(1_000_000),
+                    scheduleSign(scheduleIdHolder.get()).alsoSigningWith(payer),
                     info);
         };
     }

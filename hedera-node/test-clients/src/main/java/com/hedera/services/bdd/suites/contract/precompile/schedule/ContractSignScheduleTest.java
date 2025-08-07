@@ -188,8 +188,8 @@ public class ContractSignScheduleTest {
         private static final AtomicReference<ScheduleID> scheduleID_E = new AtomicReference<>();
         private static final AtomicReference<ScheduleID> scheduleID_F = new AtomicReference<>();
         private static final String OTHER_SENDER = "otherSender";
-        public static final String SIGN_SCHEDULE = "signSchedule";
-        public static final String IHRC755 = "IHRC755";
+        private static final String SIGN_SCHEDULE = "signSchedule";
+        private static final String IHRC755 = "IHRC755";
         private static final String SCHEDULE_E = "testScheduleE";
         private static final String SCHEDULE_F = "testScheduleF";
 
