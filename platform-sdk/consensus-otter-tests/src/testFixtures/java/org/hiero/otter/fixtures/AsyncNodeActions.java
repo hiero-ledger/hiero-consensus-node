@@ -13,10 +13,8 @@ public interface AsyncNodeActions {
      * Kill the node without prior cleanup with the configured timeout.
      *
      * @see Node#killImmediately()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
      * Start a synthetic bottleneck on the node with a default delay of 100 milliseconds per round.

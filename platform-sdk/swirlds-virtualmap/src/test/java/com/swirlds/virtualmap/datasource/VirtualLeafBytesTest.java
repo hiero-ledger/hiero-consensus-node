@@ -84,6 +84,18 @@ class VirtualLeafBytesTest {
 
     @Test
     @Tag(TestComponentTags.VMAP)
+    @DisplayName("Create with empty value bytes works")
+    void createLeafFromEmptyValueBytes() {
+        final Bytes key = TestKey.longToKey(FAKE_KEY_NUM);
+        final Bytes valueBytes = Bytes.EMPTY;
+        final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(104, key, valueBytes);
+        assertEquals(key, leafBytes.keyBytes(), "key should match original");
+        assertEquals(Bytes.EMPTY, valueBytes, "value bytes should be empty");
+        assertEquals(104, leafBytes.path(), "path should match value set");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
     @DisplayName("toString with a null value is OK")
     void toStringWithNullValueDoesNotThrow() {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(11, TestKey.longToKey(11), null, null);

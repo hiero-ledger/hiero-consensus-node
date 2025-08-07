@@ -158,6 +158,13 @@ public interface TokenServiceApi {
     void updateStorageMetadata(@NonNull ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
 
     /**
+     * Updates the total lambda storage usage for the given account.
+     * @param accountId the id of the account whose lambda storage slots should be updated
+     * @param netChangeInSlotsUsed the net change in the number of lambda storage slots used by the account
+     */
+    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
+
+    /**
      * Charges the payer the given network fee, and records that fee in the given record builder.
      *
      * @param payer the id of the account that should be charged

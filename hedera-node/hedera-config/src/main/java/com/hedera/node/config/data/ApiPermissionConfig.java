@@ -41,6 +41,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
@@ -91,7 +93,16 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * A configuration for the permissions of the API.
+ * A configuration for the permissions of the Hiero API (HAPI).
+ * <p>
+ * Permissions are set by payer account id ranges. For example, on Hedera mainnet ({@code shard=0}, {@code realm=0}),
+ * a permission range of {@literal 0-*} for {@link HederaFunctionality#CRYPTO_TRANSFER} means that <i>any</i> account
+ * {@literal 0.0.X} can pay to execute a crypto transfer transaction. But a permission range of {@literal 2-55} for
+ * {@link HederaFunctionality#NODE_CREATE} means that Hedera mainnet will reject any node create with a payer not in
+ * the range {@literal 0.0.2} to {@literal 0.0.55}.
+ * <p>
+ * Finally, a degenerate permission range of {@literal 0-0} means the functionality is not available at all through
+ * HAPI; instead, nodes use it as part of the L1 protocol directly.
  *
  * @param createAccount              the permission for {@link HederaFunctionality#CRYPTO_CREATE} functionality
  * @param cryptoTransfer             the permission for {@link HederaFunctionality#CRYPTO_TRANSFER} functionality
@@ -267,7 +278,9 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofKeyPublication,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyAssemblySignature,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -289,6 +302,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(CONTRACT_CALL, c -> c.contractCallMethod);
         permissionKeys.put(CONTRACT_DELETE, c -> c.deleteContract);
         permissionKeys.put(ETHEREUM_TRANSACTION, c -> c.ethereumTransaction);
+        permissionKeys.put(LAMBDA_S_STORE, c -> c.lambdaSStore);
+        permissionKeys.put(HOOK_DISPATCH, c -> c.hookDispatch);
         permissionKeys.put(CONSENSUS_CREATE_TOPIC, c -> c.createTopic);
         permissionKeys.put(CONSENSUS_UPDATE_TOPIC, c -> c.updateTopic);
         permissionKeys.put(CONSENSUS_DELETE_TOPIC, c -> c.deleteTopic);

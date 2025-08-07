@@ -127,7 +127,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
     }
 
     private VirtualNode getChild(final long childPath) {
-        if (childPath < map.getState().getFirstLeafPath()) {
+        if (childPath < map.getMetadata().getFirstLeafPath()) {
             return getInternalNode(childPath);
         } else {
             return getLeafNode(childPath);
@@ -158,7 +158,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         assert path != INVALID_PATH;
 
         // If the path is not a valid internal path then return null
-        if (path >= map.getState().getFirstLeafPath()) {
+        if (path >= map.getMetadata().getFirstLeafPath()) {
             return null;
         }
 
@@ -196,7 +196,8 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         assert path != ROOT_PATH;
 
         // If the path is not a valid leaf path then return null
-        if ((path < map.getState().getFirstLeafPath()) || (path > map.getState().getLastLeafPath())) {
+        if ((path < map.getMetadata().getFirstLeafPath())
+                || (path > map.getMetadata().getLastLeafPath())) {
             return null;
         }
 

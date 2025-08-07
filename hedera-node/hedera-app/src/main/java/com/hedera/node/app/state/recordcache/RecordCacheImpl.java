@@ -333,7 +333,21 @@ public class RecordCacheImpl implements HederaRecordCache {
     }
 
     @Override
-    public void commitRoundReceipts(
+    public void maybeCommitReceiptsBatch(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            final int receiptEntriesBatchSize,
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final StreamMode streamMode) {
+        if (transactionReceipts.size() >= receiptEntriesBatchSize) {
+            commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode);
+            transactionReceipts.clear();
+        }
+    }
+
+    @Override
+    public void commitReceipts(
             @NonNull final State state,
             @NonNull final Instant consensusNow,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
