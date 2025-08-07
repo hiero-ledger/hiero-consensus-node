@@ -574,7 +574,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "CITR Longevity (Network Load Test) report",
+                      "text": "NLG Longevity Test Report (SDLT)",
                       "emoji": true
                     }
                   },

@@ -1168,7 +1168,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "CITR Network Load Test report",
+                      "text": "NLG Performance Test Report (SDPT)",
                       "emoji": true
                     }
                   },
