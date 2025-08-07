@@ -12,6 +12,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase<T> {
 
+    private final WritableSingletonState<T> delegate;
+
     /**
      * Create a new instance that will treat the given {@code delegate} as the backend data source.
      * Note that the lifecycle of the delegate <b>MUST</b> be as long as, or longer than, the
@@ -22,6 +24,22 @@ public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase
      * @throws NullPointerException if {@code delegate} is {@code null}
      */
     public WrappedWritableSingletonState(@NonNull final WritableSingletonState<T> delegate) {
-        super(delegate.getStateKey(), delegate::get, delegate::put);
+        super(delegate.getServiceName(), delegate.getStateKey());
+        this.delegate = delegate;
+    }
+
+    @Override
+    protected void putIntoDataSource(@NonNull T value) {
+        delegate.put(value);
+    }
+
+    @Override
+    protected void removeFromDataSource() {
+        delegate.put(null);
+    }
+
+    @Override
+    protected T readFromDataSource() {
+        return delegate.get();
     }
 }

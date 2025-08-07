@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -33,21 +32,35 @@ import java.util.Optional;
  * transactional unit with parent/child relationships.
  * <p>
  * The transactionParts will be null for the batch inner transaction parts initially, because each batch inner
- * transaction will not be associated with an event transaction. It will be set using {@link #withTransactionParts(TransactionParts)}
+ * transaction will not be associated with an event transaction. It will be set using {@link #withPartsFromBatchParent(TransactionParts)}
  * when the inner transaction is processed.
  *
  * @param transactionParts the parts of the transaction.
  * @param transactionResult the result of processing the transaction
- * @param role the role of the transaction in the group
  * @param traces any traces associated with the transaction
  * @param outputs the output of processing the transaction
+ * @param isTopLevel whether the transaction is a top-level transaction in its unit
+ * @param hasEnrichedLegacyRecord whether the transaction has an enriched legacy record
+ * @param isBatchScoped whether is part of atomic batch (inner transactions and their children)
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
-        @NonNull TransactionGroupRole role,
         @Nullable List<TraceData> traces,
-        @Nullable List<TransactionOutput> outputs) {
+        @Nullable List<TransactionOutput> outputs,
+        boolean isTopLevel,
+        boolean hasEnrichedLegacyRecord,
+        boolean isBatchScoped) {
+    /**
+     * Returns whether this transaction is an inner batch txn.
+     * <p>
+     * Note: will return false for inner children parts.
+     *
+     * @return true if it is part of a batch, false otherwise
+     */
+    public boolean isInnerBatchTxn() {
+        return body().hasBatchKey();
+    }
 
     /**
      * Returns the status of the transaction.
@@ -164,8 +177,8 @@ public record BlockTransactionParts(
      * @param transactionParts the transaction parts to set
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
-    public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
-        return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs);
+    public BlockTransactionParts withPartsFromBatchParent(@NonNull final TransactionParts transactionParts) {
+        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false, true, true);
     }
 
     /**

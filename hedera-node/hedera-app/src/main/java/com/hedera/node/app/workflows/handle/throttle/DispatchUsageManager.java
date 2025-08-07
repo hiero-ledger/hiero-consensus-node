@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -37,7 +38,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DispatchUsageManager {
     public static final Set<HederaFunctionality> CONTRACT_OPERATIONS =
-            EnumSet.of(HederaFunctionality.CONTRACT_CREATE, HederaFunctionality.CONTRACT_CALL, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION);
 
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics opWorkflowMetrics;

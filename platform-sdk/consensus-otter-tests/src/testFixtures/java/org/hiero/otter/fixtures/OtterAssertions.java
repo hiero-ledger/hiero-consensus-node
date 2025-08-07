@@ -7,20 +7,37 @@ import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
-import org.hiero.otter.fixtures.assertions.MultipleNodeStatusProgressionAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
-import org.hiero.otter.fixtures.assertions.SingleNodeStatusProgressionAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
-import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
@@ -38,6 +55,18 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static SingleNodeConsensusResultAssert assertThat(@Nullable final SingleNodeConsensusResult actual) {
         return SingleNodeConsensusResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeConsensusResult}.
+     *
+     * @param actual the {@link SingleNodeConsensusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeConsensusResult}
+     */
+    @NonNull
+    public static SingleNodeConsensusResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeConsensusResult actual) {
+        return SingleNodeConsensusResultContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
@@ -64,6 +93,18 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
+     * Creates a continuous assertion for the given {@link MultipleNodeReconnectResults}.
+     *
+     * @param actual the {@link MultipleNodeReconnectResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeReconnectResults}
+     */
+    @NonNull
+    public static MultipleNodeReconnectResultContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeReconnectResults actual) {
+        return MultipleNodeReconnectResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
      * Creates an assertion for the given {@link SingleNodeLogResult}.
      *
      * @param actual the {@link SingleNodeLogResult} to assert
@@ -72,6 +113,18 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static SingleNodeLogResultAssert assertThat(@Nullable final SingleNodeLogResult actual) {
         return SingleNodeLogResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeLogResult}.
+     *
+     * @param actual the {@link SingleNodeLogResult} to assert
+     * @return an assertion for the given {@link SingleNodeLogResult}
+     */
+    @NonNull
+    public static SingleNodeLogResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeLogResult actual) {
+        return SingleNodeLogResultContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
@@ -86,25 +139,63 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodeStatusProgression}.
+     * Creates a continuous assertion for the given {@link MultipleNodeLogResults}.
      *
-     * @param actual the {@link SingleNodeStatusProgression} to assert
-     * @return an assertion for the given {@link SingleNodeStatusProgression}
+     * @param actual the {@link MultipleNodeLogResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeLogResults}
      */
     @NonNull
-    public static SingleNodeStatusProgressionAssert assertThat(@Nullable final SingleNodeStatusProgression actual) {
-        return SingleNodeStatusProgressionAssert.assertThat(actual);
+    public static MultipleNodeLogResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeLogResults actual) {
+        return MultipleNodeLogResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
-     * Creates an assertion for the given {@link MultipleNodeStatusProgression}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link MultipleNodeStatusProgression} to assert
-     * @return an assertion for the given {@link MultipleNodeStatusProgression}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
-    public static MultipleNodeStatusProgressionAssert assertThat(@Nullable final MultipleNodeStatusProgression actual) {
-        return MultipleNodeStatusProgressionAssert.assertThat(actual);
+    public static SingleNodePlatformStatusResultAssert assertThat(
+            @Nullable final SingleNodePlatformStatusResult actual) {
+        return SingleNodePlatformStatusResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
+     *
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResult}
+     */
+    @NonNull
+    public static SingleNodePlatformStatusResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodePlatformStatusResult actual) {
+        return SingleNodePlatformStatusResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodePlatformStatusResults}.
+     *
+     * @param actual the {@link MultipleNodePlatformStatusResults} to assert
+     * @return an assertion for the given {@link MultipleNodePlatformStatusResults}
+     */
+    @NonNull
+    public static MultipleNodePlatformStatusResultsAssert assertThat(
+            @Nullable final MultipleNodePlatformStatusResults actual) {
+        return MultipleNodePlatformStatusResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodePlatformStatusResults}.
+     *
+     * @param actual the {@link MultipleNodePlatformStatusResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodePlatformStatusResults}
+     */
+    @NonNull
+    public static MultipleNodePlatformStatusResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodePlatformStatusResults actual) {
+        return MultipleNodePlatformStatusResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
@@ -127,5 +218,85 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodePcesResultsAssert assertThat(@Nullable final MultipleNodePcesResults actual) {
         return MultipleNodePcesResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return an assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public static SingleNodeReconnectResultsAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public static SingleNodeReconnectResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link MultipleNodeReconnectResults} to assert
+     * @return an assertion for the given {@link MultipleNodeReconnectResults}
+     */
+    @NonNull
+    public static MultipleNodeReconnectResultsAssert assertThat(@Nullable final MultipleNodeReconnectResults actual) {
+        return MultipleNodeReconnectResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return an assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultAssert assertThat(@Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return an assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsAssert assertThat(@Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 }

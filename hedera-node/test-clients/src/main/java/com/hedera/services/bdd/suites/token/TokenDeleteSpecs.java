@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.token;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -26,11 +27,13 @@ import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuc
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -94,6 +97,26 @@ public class TokenDeleteSpecs {
                                 .payingWith(PAYER))
                 .when()
                 .then(tokenDelete("tbd").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(TOKEN_IS_IMMUTABLE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> deletionValidatesWrongAdminKey() {
+        return defaultHapiSpec("DeletionValidatesWrongAdminKey")
+                .given(
+                        newKeyNamed(MULTI_KEY),
+                        cryptoCreate(TOKEN_TREASURY).balance(0L),
+                        cryptoCreate(PAYER),
+                        tokenCreate("tbd")
+                                .adminKey(MULTI_KEY)
+                                .freezeDefault(false)
+                                .treasury(TOKEN_TREASURY)
+                                .payingWith(PAYER))
+                .when()
+                .then(tokenDelete("tbd")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

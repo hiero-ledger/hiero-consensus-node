@@ -1,36 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+
 /**
  * Interface for performing asynchronous node actions with a specified timeout.
  */
-@SuppressWarnings("unused")
 public interface AsyncNodeActions {
 
     /**
      * Kill the node without prior cleanup with the configured timeout.
      *
      * @see Node#killImmediately()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
-     * Shutdown the node gracefully with the configured timeout.
+     * Start a synthetic bottleneck on the node with a default delay of 100 milliseconds per round.
      *
-     * @see Node#shutdownGracefully()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
+     * @param delayPerRound the duration to sleep for each round handled by the execution layer
      */
-    void shutdownGracefully() throws InterruptedException;
+    void startSyntheticBottleneck(@NonNull Duration delayPerRound);
+
+    /**
+     * Stop the synthetic bottleneck on the node.
+     *
+     * <p>This method will stop any ongoing synthetic bottleneck that was started by
+     * {@link #startSyntheticBottleneck(Duration)}.
+     */
+    void stopSyntheticBottleneck();
 
     /**
      * Start the node with the configured timeout.
      *
      * @see Node#start()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 }

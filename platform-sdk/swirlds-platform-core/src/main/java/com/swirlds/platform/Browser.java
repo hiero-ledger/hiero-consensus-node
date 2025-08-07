@@ -50,14 +50,16 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.HapiUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -67,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -79,8 +82,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
- * Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */
@@ -264,6 +266,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
+                    stateRootFromVirtualMap(appMain),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -273,7 +276,7 @@ public class Browser {
             final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
-            final AddressBook addressBook = initializeAddressBook(
+            initializeAddressBook(
                     nodeId,
                     appMain.getSemanticVersion(),
                     initialState,
@@ -282,8 +285,20 @@ public class Browser {
                     consensusStateEventHandler,
                     platformStateFacade);
 
-            // Build the platform with the given values
             final State state = initialState.get().getState();
+
+            // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
+            // value
+            if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                    > 0) {
+                final long initialStateRound = platformStateFacade.roundOf(state);
+                platformStateFacade.bulkUpdateOf(state, v -> {
+                    v.setLatestFreezeRound(initialStateRound);
+                });
+            }
+
+            // Build the platform with the given values
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
             final PlatformBuilder builder = PlatformBuilder.create(
@@ -293,9 +308,10 @@ public class Browser {
                     initialState,
                     consensusStateEventHandler,
                     nodeId,
-                    AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
+                    String.valueOf(nodeId),
                     rosterHistory,
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateRootFromVirtualMap(appMain));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
@@ -380,5 +396,15 @@ public class Browser {
                 .setRunnable(appMain)
                 .setDaemon(false)
                 .build(true);
+    }
+
+    /**
+     * A function to instantiate the state root object from a Virtual Map.
+     *
+     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
+     */
+    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
+        Objects.requireNonNull(appMain);
+        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap();
     }
 }

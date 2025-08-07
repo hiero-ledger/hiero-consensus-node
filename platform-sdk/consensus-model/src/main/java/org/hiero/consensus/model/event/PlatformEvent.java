@@ -4,7 +4,6 @@ package org.hiero.consensus.model.event;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -156,12 +155,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getTimeCreated();
     }
 
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return gossipEvent.eventCore().version();
-    }
-
     /**
      * {{@inheritDoc}}
      */
@@ -175,16 +168,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public NodeId getCreatorId() {
         return metadata.getCreatorId();
-    }
-
-    /**
-     * Get the generation of the event.
-     *
-     * @return the generation of the event
-     */
-    @Deprecated(forRemoval = true)
-    public long getGeneration() {
-        return metadata.getGeneration();
     }
 
     /**

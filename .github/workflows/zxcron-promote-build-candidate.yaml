@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXCron: Promote Build Candidate"
+name: "ZXCron: [CITR] Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:
@@ -10,25 +10,26 @@ permissions:
   actions: write
   contents: write
   statuses: write
+  id-token: write
 
 defaults:
   run:
     shell: bash
 
 env:
-  XTS_PASS_GREP_PATTERN: "xts-pass-*"
+  XTS_PASS_GREP_PATTERN: "xts-pass-[0-9]*"
   PROMOTED_GREP_PATTERN: "build-.{5}"
 
 jobs:
   determine-build-candidate:
     name: Fetch Latest Build Candidate
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -77,14 +78,14 @@ jobs:
 
   promote-build-candidate:
     name: Promote Build Candidate
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -99,7 +100,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -142,9 +143,43 @@ jobs:
           echo "### Preview Next Build Tag" >> "${GITHUB_STEP_SUMMARY}"
           echo "Next build tag is: ${NEXT_BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - promote-build-candidate
+    if: ${{ needs.promote-build-candidate.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: "Trigger ZXF: [CITR] Single Day Performance Test (SDPT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
+      - name: "Trigger ZXF: [CITR] Single Day Canonical Test (SDCT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-canonical-test.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
   report-promotion:
     name: Report Build Promotion
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
@@ -153,7 +188,7 @@ jobs:
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -220,14 +255,14 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
     if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

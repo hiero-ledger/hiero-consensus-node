@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -29,7 +30,6 @@ import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
-import com.hedera.services.bdd.junit.support.validators.block.BlockItemNonceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
@@ -69,8 +69,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY,
-            BlockItemNonceValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY);
 
     private final int historyProofsToWaitFor;
 
@@ -94,6 +93,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         // cannot be run after submitting a freeze
         allRunFor(
                 spec,
+                // Ensure only top-level txs could change balances before validations
+                overriding("nodes.nodeRewardsEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),

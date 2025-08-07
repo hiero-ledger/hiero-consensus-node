@@ -30,6 +30,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -163,7 +164,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final Bytes applicationTxBytes,
+            @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
             @NonNull final InnerTransaction innerTransaction) {
@@ -182,11 +183,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
             if (previousResult == null) {
-                if (InnerTransaction.YES.equals(innerTransaction)) {
-                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes, maxBytes);
-                } else {
-                    txInfo = transactionChecker.parseAndCheck(applicationTxBytes, maxBytes);
-                }
+                txInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
             } else {
                 txInfo = previousResult.txInfo();
             }

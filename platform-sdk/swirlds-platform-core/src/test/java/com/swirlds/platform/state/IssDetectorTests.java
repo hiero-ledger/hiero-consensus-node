@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -55,13 +54,15 @@ import org.junit.jupiter.api.Test;
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
     private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
+    private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
 
     @Test
     @DisplayName("State reservation is released")
     void stateReservationIsReleased() {
         final Randotron random = Randotron.create();
         final RandomSignedStateGenerator stateGenerator = new RandomSignedStateGenerator(random);
-        final ReservedSignedState stateWrapperForTest = stateGenerator.build().reserve("Test caller reference");
+        final ReservedSignedState stateWrapperForTest =
+                stateGenerator.setCalculateHash(true).build().reserve("Test caller reference");
         final ReservedSignedState stateWrapperForIssDetector =
                 stateWrapperForTest.getAndReserve("ISS Detector caller reference");
         assertEquals(
@@ -71,7 +72,7 @@ class IssDetectorTests extends PlatformTest {
 
         final PlatformContext platformContext = createDefaultPlatformContext();
         final IssDetector issDetector = new DefaultIssDetector(
-                platformContext, mock(Roster.class), SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                platformContext, mock(Roster.class), false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
 
         issDetector.handleState(stateWrapperForIssDetector);
         assertTrue(stateWrapperForIssDetector.isClosed(), "State passed to the ISS Detector should be closed");
@@ -95,7 +96,7 @@ class IssDetectorTests extends PlatformTest {
         final PlatformContext platformContext = createDefaultPlatformContext();
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -223,7 +224,7 @@ class IssDetectorTests extends PlatformTest {
         }
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -320,7 +321,7 @@ class IssDetectorTests extends PlatformTest {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -436,7 +437,7 @@ class IssDetectorTests extends PlatformTest {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -522,7 +523,7 @@ class IssDetectorTests extends PlatformTest {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -601,7 +602,7 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, 1);
+                new DefaultIssDetector(platformContext, roster, false, 1, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -637,6 +638,63 @@ class IssDetectorTests extends PlatformTest {
         assertMarkerFile(IssType.OTHER_ISS.toString(), false);
     }
 
+    /**
+     * Causes a catastrophic ISS, but only if events from the previous version are considered. This should cause the ISS
+     * to not be detected.
+     */
+    @Test
+    @DisplayName("ISS from previous version events Test")
+    void previousVersionEventsTest() {
+        final Randotron random = Randotron.create();
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withSize(100)
+                .withWeightGenerator(WEIGHT_GENERATOR)
+                .build();
+
+        final PlatformContext platformContext = createDefaultPlatformContext();
+        final int roundsNonAncient = platformContext
+                .getConfiguration()
+                .getConfigData(ConsensusConfig.class)
+                .roundsNonAncient();
+
+        final long latestFreezeRound = 5L;
+        final IssDetector issDetector = new DefaultIssDetector(platformContext, roster, false, 1, latestFreezeRound);
+        final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
+
+        long currentRound = 5;
+
+        issDetectorTestHelper.overridingState(mockState(currentRound, randomHash()));
+        currentRound++;
+
+        final List<RoundHashValidatorTests.NodeHashInfo> catastrophicData =
+                generateCatastrophicTimeoutIss(random, roster, currentRound);
+
+        final RoundHashValidatorTests.HashGenerationData hashGenerationData =
+                new RoundHashValidatorTests.HashGenerationData(catastrophicData, null);
+        final Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> nodeIdStateSignatureTransactionMap =
+                generateSystemTransactions(currentRound, latestFreezeRound, hashGenerationData);
+        final List<ScopedSystemTransaction<StateSignatureTransaction>> signaturesOnCatastrophicRound =
+                new LinkedList<>(nodeIdStateSignatureTransactionMap.values());
+
+        // handle the round and all signatures.
+        // The round has a catastrophic ISS, but should be discarded because they are in events with an old birth round
+        issDetectorTestHelper.handleState(mockState(currentRound, randomHash()));
+        issDetectorTestHelper.handleStateSignatureTransactions(signaturesOnCatastrophicRound);
+
+        // shift through some rounds, to make sure nothing unexpected happens
+        for (currentRound++; currentRound <= roundsNonAncient; currentRound++) {
+            issDetectorTestHelper.handleState(mockState(currentRound, randomHash()));
+        }
+
+        assertEquals(0, issDetectorTestHelper.getIssNotificationList().size(), "ISS should have been ignored");
+
+        // verify marker files
+        assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
+        assertMarkerFile(IssType.SELF_ISS.toString(), false);
+        assertMarkerFile(IssType.OTHER_ISS.toString(), false);
+    }
+
     @AfterEach
     void tearDown() {
         MerkleDbTestUtils.assertAllDatabasesClosed();
@@ -644,6 +702,13 @@ class IssDetectorTests extends PlatformTest {
 
     private static Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> generateSystemTransactions(
             final long roundNumber, @NonNull final RoundHashValidatorTests.HashGenerationData hashGenerationData) {
+        return generateSystemTransactions(roundNumber, 1, hashGenerationData);
+    }
+
+    private static Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> generateSystemTransactions(
+            final long roundNumber,
+            final long birthRound,
+            @NonNull final RoundHashValidatorTests.HashGenerationData hashGenerationData) {
 
         final Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> nodeIdToScopedSystemTransactionMap =
                 new HashMap<>();
@@ -654,7 +719,7 @@ class IssDetectorTests extends PlatformTest {
                     .hash(nodeHashInfo.nodeStateHash().getBytes())
                     .build();
             final ScopedSystemTransaction<StateSignatureTransaction> scopedSystemTransaction =
-                    new ScopedSystemTransaction<>(nodeHashInfo.nodeId(), SemanticVersion.DEFAULT, signatureTransaction);
+                    new ScopedSystemTransaction<>(nodeHashInfo.nodeId(), birthRound, signatureTransaction);
             nodeIdToScopedSystemTransactionMap.put(nodeHashInfo.nodeId(), scopedSystemTransaction);
         });
 
@@ -692,6 +757,7 @@ class IssDetectorTests extends PlatformTest {
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);
         when(s.getHash()).thenReturn(hash);
+        when(s.getInfoJson()).thenReturn("");
         return rs;
     }
 

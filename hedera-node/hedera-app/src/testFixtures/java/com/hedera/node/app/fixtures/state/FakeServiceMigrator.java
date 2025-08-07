@@ -10,7 +10,6 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -21,9 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 public class FakeServiceMigrator implements ServiceMigrator {
-    private static final String NAME_OF_ENTITY_ID_SERVICE = "EntityIdService";
-    private static final String NAME_OF_ENTITY_ID_SINGLETON = "ENTITY_ID";
-
     @Override
     public List<StateChanges.Builder> doMigrations(
             @NonNull final MerkleNodeState state,
@@ -32,7 +28,6 @@ public class FakeServiceMigrator implements ServiceMigrator {
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @NonNull final Metrics metrics,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
             @NonNull final ConfigProviderImpl configProvider,
@@ -42,7 +37,6 @@ public class FakeServiceMigrator implements ServiceMigrator {
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
-        requireNonNull(metrics);
 
         if (!(state instanceof FakeState fakeState)) {
             throw new IllegalArgumentException("Can only be used with FakeState instances");

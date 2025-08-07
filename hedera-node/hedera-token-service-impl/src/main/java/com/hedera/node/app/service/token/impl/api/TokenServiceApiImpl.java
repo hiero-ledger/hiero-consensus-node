@@ -193,7 +193,14 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // from the contract account.
         final var evmAddress = contract.alias();
         accountStore.removeAlias(evmAddress);
-        accountStore.put(contract.copyBuilder().alias(Bytes.EMPTY).deleted(true).build());
+        final var builder = contract.copyBuilder().deleted(true);
+        final var originalContract = accountStore.getOriginalValue(contract.accountIdOrThrow());
+        // If this contract was just created in the same EVM transaction, we need to externalize its alias in the
+        // block stream state changes for parity with with legacy record streams
+        if (originalContract != null && originalContract.smartContract()) {
+            builder.alias(Bytes.EMPTY);
+        }
+        accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the
         // contract account itself. This shouldn't happen because it means that somehow we were able to look up the
@@ -303,6 +310,26 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .firstContractStorageKey(firstKey)
                 .contractKvPairsNumber(newNumKvPairs)
                 .build());
+    }
+
+    @Override
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var account = accountStore.get(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("No account found for ID " + accountId);
+        }
+        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        if (newSlotsUsed < 0) {
+            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
+                    + account.numberLambdaStorageSlots()
+                    + ") by "
+                    + netChangeInSlotsUsed
+                    + " for account "
+                    + accountId);
+        }
+        accountStore.put(
+                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
     }
 
     @Override

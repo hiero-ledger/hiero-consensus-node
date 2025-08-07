@@ -4,49 +4,43 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Validates that the timestamps of consensus events increase.
  */
-public class RoundTimestampCheckerValidation implements ConsensusRoundValidation {
+public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistencyValidation {
+    INSTANCE;
 
     /**
      * Validate the timestamps of {@link PlatformEvent} in a consensus round are increasing.
      *
-     * @param round1 the round to validate from one node
-     * @param round2 the round to validate from another node
+     * @param rounds the rounds to validate
+     * @throws AssertionError if the validation fails
      */
     @Override
-    public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {
-        validateSingleRound(round1);
-        validateSingleRound(round2);
-    }
+    public void validate(@NonNull final List<ConsensusRound> rounds) {
+        for (final ConsensusRound round : rounds) {
+            for (int i = 1; i < round.getEventCount(); i++) {
 
-    private void validateSingleRound(final ConsensusRound round) {
-        PlatformEvent previousConsensusEvent = null;
+                final PlatformEvent previousEvent = round.getConsensusEvents().get(i - 1);
+                final PlatformEvent currentEvent = round.getConsensusEvents().get(i);
 
-        for (final PlatformEvent e : round.getConsensusEvents()) {
-            if (previousConsensusEvent == null) {
-                previousConsensusEvent = e;
-                continue;
+                assertThat(currentEvent.getConsensusTimestamp())
+                        .withFailMessage(String.format(
+                                "Consensus time does not increase!%n"
+                                        + "Event %s consOrder:%s consTime:%s%n"
+                                        + "Event %s consOrder:%s consTime:%s%n",
+                                previousEvent.getDescriptor(),
+                                previousEvent.getConsensusOrder(),
+                                previousEvent.getConsensusTimestamp(),
+                                currentEvent.getDescriptor(),
+                                currentEvent.getConsensusOrder(),
+                                currentEvent.getConsensusTimestamp()))
+                        .isAfter(previousEvent.getConsensusTimestamp());
             }
-            assertThat(e.getConsensusTimestamp()).isNotNull();
-            assertThat(previousConsensusEvent.getConsensusTimestamp()).isNotNull();
-            assertThat(e.getConsensusTimestamp().isAfter(previousConsensusEvent.getConsensusTimestamp()))
-                    .withFailMessage(String.format(
-                            "Consensus time does not increase!%n"
-                                    + "Event %s consOrder:%s consTime:%s%n"
-                                    + "Event %s consOrder:%s consTime:%s%n",
-                            previousConsensusEvent.getDescriptor(),
-                            previousConsensusEvent.getConsensusOrder(),
-                            previousConsensusEvent.getConsensusTimestamp(),
-                            e.getDescriptor(),
-                            e.getConsensusOrder(),
-                            e.getConsensusTimestamp()))
-                    .isTrue();
-            previousConsensusEvent = e;
         }
     }
 }

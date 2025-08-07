@@ -2,49 +2,45 @@
 name: "ZXF: [Node] Deploy Integration Network Release"
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        required: true
-        description: "The github branch or tag that triggered the workflow"
-      ref_name:
-        required: true
-        description: "The name of the github branch or tag that triggered the workflow"
 
 permissions:
   contents: read
 
 jobs:
-  jenkins-checks:
-    name: Build Artifact
+  ### The Jenkins workflow is only accepting integration deployments from the main branch where the ref is `refs/heads/main`.
+  ### Therefore, we have hardcoded the ref to `refs/heads/main` in the checkout step and the payload sent to Jenkins.
+  integration-deploy:
+    name: Integration / Deploy Artifact
     runs-on: hiero-network-node-linux-medium
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Check out code at the specified ref
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: refs/heads/main
 
       - name: Gather commit info
         id: gather-commit-info
         run: |
           # Fetch info from the most recent commit for the given ref
-          COMMIT_SHA=${{ inputs.ref }}
-          COMMIT_AUTHOR="$(git show -s --format='%an' ${COMMIT_SHA})"
-          COMMIT_MSG="$(git show -s --format='%s' ${COMMIT_SHA})"
+          COMMIT_AUTHOR="$(git log -1 --pretty=format:'%an')"
+          COMMIT_MSG="$(git log -1 --pretty=format:'%s')"
+          COMMIT_SHA="$(git rev-parse HEAD)"
 
           # Print them to the console
-          echo "Commit Author: $COMMIT_AUTHOR"
-          echo "Commit Message: $COMMIT_MSG"
-          echo "Commit SHA: $COMMIT_SHA"
+          echo "Commit Author: ${COMMIT_AUTHOR}"
+          echo "Commit Message: ${COMMIT_MSG}"
+          echo "Commit SHA: ${COMMIT_SHA}"
 
           # Expose them as outputs for the next steps
-          echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
-          echo "msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "author=${COMMIT_AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "msg=${COMMIT_MSG}" >> "${GITHUB_OUTPUT}"
+          echo "sha=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
 
       - name: Notify Jenkins of Release (Integration)
         id: jenkins-integration
@@ -52,12 +48,12 @@ jobs:
         with:
           url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
           data: |
-            '{
-              "ref": "${{ inputs.ref_name }}",
+            {
+              "ref": "refs/heads/main",
               "author": "${{ steps.gather-commit-info.outputs.author }}",
               "msg": "${{ steps.gather-commit-info.outputs.msg }}",
-              "sha": "${{ inputs.ref }}"
-            }'
+              "sha": "${{ steps.gather-commit-info.outputs.sha }}"
+            }
 
       - name: Display Jenkins Payload
         env:

@@ -31,6 +31,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
@@ -335,12 +336,12 @@ public class NetworkAdminHandlerTestBase {
 
     @NonNull
     protected MapReadableKVState.Builder<AccountID, Account> emptyReadableAccountStateBuilder() {
-        return MapReadableKVState.builder(ACCOUNTS);
+        return MapReadableKVState.builder(TokenService.NAME, ACCOUNTS);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<EntityIDPair, TokenRelation> emptyReadableTokenRelsStateBuilder() {
-        return MapReadableKVState.builder(TOKEN_RELS);
+        return MapReadableKVState.builder(TokenService.NAME, TOKEN_RELS);
     }
 
     @NonNull
@@ -351,7 +352,7 @@ public class NetworkAdminHandlerTestBase {
 
     @NonNull
     protected MapReadableKVState<TokenID, Token> readableTokenState() {
-        return MapReadableKVState.<TokenID, Token>builder(TOKENS)
+        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
                 .value(fungibleTokenId, fungibleToken)
                 .value(nonFungibleTokenId, nonFungibleToken)
                 .build();
@@ -453,7 +454,10 @@ public class NetworkAdminHandlerTestBase {
                 false,
                 null,
                 null,
-                0);
+                0,
+                0L,
+                0L,
+                0L);
     }
 
     protected void givenFungibleTokenRelation() {

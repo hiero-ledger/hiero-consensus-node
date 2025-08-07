@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c;
 
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.TOKEN_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 
@@ -22,7 +21,7 @@ public class UpdateKeysTranslator extends UpdateKeysCommonTranslator {
      * Selector for updateTokenKeys(address, TOKEN_KEY[]) method.
      */
     public static final SystemContractMethod TOKEN_UPDATE_KEYS_16C = SystemContractMethod.declare(
-                    "updateTokenKeys(address," + TOKEN_KEY + ARRAY_BRACKETS + ")", ReturnTypes.INT)
+                    "updateTokenKeys(address," + TOKEN_KEY + "[])", ReturnTypes.INT)
             .withCategories(SystemContractMethod.Category.UPDATE)
             .withSupportedAddress(HTS_16C_CONTRACT_ID);
 

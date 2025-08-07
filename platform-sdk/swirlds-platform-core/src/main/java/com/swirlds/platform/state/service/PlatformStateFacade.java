@@ -12,7 +12,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
@@ -174,38 +174,6 @@ public class PlatformStateFacade {
     }
 
     /**
-     * Given a {@link State}, returns the first software version where the birth round migration happened, or null if
-     * birth round migration has not yet happened.
-     *
-     * @param state the state to extract the first version in birth round mode from
-     * @return the number of non-ancient rounds, or zero if the state is a genesis state
-     */
-    @Nullable
-    public SemanticVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
-        return readablePlatformStateStore(state).getFirstVersionInBirthRoundMode();
-    }
-
-    /**
-     * Given a {@link State}, returns the last round before the birth round mode was enabled.
-     *
-     * @param root the root to extract the round number from
-     * @return the last round before the birth round mode was enabled, or zero if the state is a genesis state
-     */
-    public long lastRoundBeforeBirthRoundModeOf(@NonNull final State root) {
-        return readablePlatformStateStore(root).getLastRoundBeforeBirthRoundMode();
-    }
-
-    /**
-     * Given a {@link State}, lowest judge generation before birth round mode.
-     *
-     * @param state the state to extract the judge generation from
-     * @return the number of non-ancient rounds, or zero if the state is a genesis state
-     */
-    public long lowestJudgeGenerationBeforeBirthRoundModeOf(@NonNull final State state) {
-        return readablePlatformStateStore(state).getLowestJudgeGenerationBeforeBirthRoundMode();
-    }
-
-    /**
      * Given a {@link State}, returns consensus timestamp if it exists.
      *
      * @param state the state to extract the consensus timestamp from
@@ -242,8 +210,17 @@ public class PlatformStateFacade {
      * @return the last frozen time, or null if the state is a genesis state
      */
     @Nullable
-    public Instant lastFrozenTimeOf(State state) {
+    public Instant lastFrozenTimeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLastFrozenTime();
+    }
+
+    /**
+     * Returns the last freeze round of the state.
+     * @param state the state to extract the last freeze round from
+     * @return the last freeze round
+     */
+    public long latestFreezeRoundOf(@NonNull final State state) {
+        return readablePlatformStateStore(state).getLatestFreezeRound();
     }
 
     /**
@@ -301,7 +278,13 @@ public class PlatformStateFacade {
      */
     @NonNull
     public String getInfoString(@NonNull final State state, final int hashDepth) {
-        return createInfoString(hashDepth, readablePlatformStateStore(state), state.getHash(), (MerkleNode) state);
+        final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
+        return createInfoString(
+                        hashDepth,
+                        readablePlatformStateStore(state),
+                        merkleNodeState.getHash(),
+                        merkleNodeState.getRoot())
+                .concat(merkleNodeState.getInfoJson());
     }
 
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

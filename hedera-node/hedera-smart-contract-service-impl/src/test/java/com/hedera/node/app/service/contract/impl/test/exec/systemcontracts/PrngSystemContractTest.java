@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -30,7 +29,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
@@ -52,13 +50,10 @@ class PrngSystemContractTest {
     private MessageFrame messageFrame;
 
     @Mock
-    BlockValues blockValues;
-
-    @Mock
     ProxyWorldUpdater proxyWorldUpdater;
 
     @Mock
-    ContractCallStreamBuilder contractCallRecordBuilder;
+    ContractCallStreamBuilder streamBuilder;
 
     @Mock
     private ProxyEvmContract mutableAccount;
@@ -126,9 +121,9 @@ class PrngSystemContractTest {
         given(proxyWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
         given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
 
-        when(systemContractOperations.dispatch(any(), any(), any(), any())).thenReturn(contractCallRecordBuilder);
-        when(contractCallRecordBuilder.contractCallResult(any())).thenReturn(contractCallRecordBuilder);
-        when(contractCallRecordBuilder.entropyBytes(any())).thenReturn(contractCallRecordBuilder);
+        when(systemContractOperations.dispatch(any(), any(), any(), any())).thenReturn(streamBuilder);
+        when(streamBuilder.contractCallResult(any())).thenReturn(streamBuilder);
+        when(streamBuilder.entropyBytes(any())).thenReturn(streamBuilder);
 
         // when:
         var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
@@ -147,7 +142,8 @@ class PrngSystemContractTest {
         given(messageFrame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(proxyWorldUpdater.entropy()).willReturn(Bytes.wrap(ZERO_ENTROPY.toByteArray()));
         when(systemContractOperations.externalizePreemptedDispatch(any(), any(), eq(UTIL_PRNG)))
-                .thenReturn(mock(ContractCallStreamBuilder.class));
+                .thenReturn(streamBuilder);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
 
         // when:
         var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
@@ -165,7 +161,8 @@ class PrngSystemContractTest {
         given(messageFrame.isStatic()).willReturn(false);
         given(messageFrame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         when(systemContractOperations.externalizePreemptedDispatch(any(), any(), eq(UTIL_PRNG)))
-                .thenReturn(mock(ContractCallStreamBuilder.class));
+                .thenReturn(streamBuilder);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
 
         // when:
         var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
@@ -179,9 +176,10 @@ class PrngSystemContractTest {
         commonMocks();
         givenCommon();
 
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
         given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
         when(systemContractOperations.externalizePreemptedDispatch(any(), any(), eq(UTIL_PRNG)))
-                .thenReturn(mock(ContractCallStreamBuilder.class));
+                .thenReturn(streamBuilder);
 
         // when:
         var actual = subject.computeFully(PRNG_CONTRACT_ID, EXPECTED_RANDOM_NUMBER, messageFrame);

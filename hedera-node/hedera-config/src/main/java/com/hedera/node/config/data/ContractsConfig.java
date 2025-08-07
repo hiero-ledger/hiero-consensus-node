@@ -9,26 +9,20 @@ import java.util.Set;
 
 @ConfigData("contracts")
 public record ContractsConfig(
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean itemizeStorageFees,
         @ConfigProperty(defaultValue = "1062787,1461860") Set<Long> permittedDelegateCallers,
-        @ConfigProperty(defaultValue = "31536000") @NetworkProperty long referenceSlotLifetime,
-        @ConfigProperty(defaultValue = "100") @NetworkProperty int freeStorageTierLimit,
-        @ConfigProperty(defaultValue = "0til100M,2000til450M") @NetworkProperty String storageSlotPriceTiers,
-        @ConfigProperty(defaultValue = "7890000") @NetworkProperty long defaultLifetime,
-        // @ConfigProperty(defaultValue = "") KnownBlockValues knownBlockHash,
         @ConfigProperty(value = "keys.legacyActivations", defaultValue = "1058134by[1062784]")
                 String keysLegacyActivations,
         @ConfigProperty(value = "localCall.estRetBytes", defaultValue = "4096") @NetworkProperty
                 int localCallEstRetBytes,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean allowCreate2,
-        @ConfigProperty(defaultValue = "0") @NetworkProperty long maxNumWithHapiSigsAccess,
         @ConfigProperty(value = "nonces.externalization.enabled", defaultValue = "true") @NetworkProperty
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long maxOpsDuration,
-        @ConfigProperty(defaultValue = "1") @NetworkProperty int gasThrottleBurstSeconds,
+        @ConfigProperty(defaultValue = "1") @NetworkProperty int opsDurationThrottleBurstSeconds,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty
@@ -45,27 +39,12 @@ public record ContractsConfig(
         @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
                 boolean throttleThrottleByOpsDuration,
         @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
-        @ConfigProperty(defaultValue = "5000000") @NetworkProperty long scheduleThrottleMaxGasLimit,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean redirectTokenCalls,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
                 long precompileExchangeRateGasCost,
         @ConfigProperty(value = "precompile.htsDefaultGasCost", defaultValue = "10000") @NetworkProperty
                 long precompileHtsDefaultGasCost,
-
-        // Default value of `sigVerificationCost` from fee schedule's CryptoTransfer servicedata vpt field
-        // FUTURE: Fees for system contracts need to be in the fee schedule
-        @ConfigProperty(value = "precompile.sigVerificationCost", defaultValue = "605466012") @NetworkProperty
-                long sigVerificationCostInFeeScheduleUnits,
-        @ConfigProperty(value = "precompile.exportRecordResults", defaultValue = "true") @NetworkProperty
-                boolean precompileExportRecordResults,
-        @ConfigProperty(value = "precompile.htsEnableTokenCreate", defaultValue = "true") @NetworkProperty
-                boolean precompileHtsEnableTokenCreate,
-        // @ConfigProperty(value = "precompile.unsupportedCustomFeeReceiverDebits", defaultValue = "")
-        // Set<CustomFeeType> precompileUnsupportedCustomFeeReceiverDebits,
         @ConfigProperty(value = "precompile.atomicCryptoTransfer.enabled", defaultValue = "true") @NetworkProperty
                 boolean precompileAtomicCryptoTransferEnabled,
-        @ConfigProperty(value = "precompile.hrcFacade.associate.enabled", defaultValue = "true") @NetworkProperty
-                boolean precompileHrcFacadeAssociateEnabled,
         @ConfigProperty(value = "precompile.disabled", defaultValue = "") @NetworkProperty
                 Set<Integer> disabledPrecompiles,
         @ConfigProperty(value = "systemContract.accountService.enabled", defaultValue = "true") @NetworkProperty

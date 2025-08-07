@@ -12,7 +12,9 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DAT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_TO_ADDRESS;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -50,7 +52,7 @@ class EthereumCallDataHydrationTest {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(ETH_WITH_TO_ADDRESS)
                 .build();
-        assertEquals(successFrom(ETH_DATA_WITH_TO_ADDRESS), subject.tryToHydrate(ethTxn, fileStore, 1001L));
+        assertEquals(successFrom(ETH_DATA_WITH_TO_ADDRESS, false), subject.tryToHydrate(ethTxn, fileStore, 1001L));
         verifyNoInteractions(fileStore);
     }
 
@@ -60,7 +62,7 @@ class EthereumCallDataHydrationTest {
                 .ethereumData(ETH_WITH_CALL_DATA)
                 .callData(ETH_CALLDATA_FILE_ID)
                 .build();
-        assertEquals(successFrom(ETH_DATA_WITH_CALL_DATA), subject.tryToHydrate(ethTxn, fileStore, 1001L));
+        assertEquals(successFrom(ETH_DATA_WITH_CALL_DATA, false), subject.tryToHydrate(ethTxn, fileStore, 1001L));
         verifyNoInteractions(fileStore);
     }
 

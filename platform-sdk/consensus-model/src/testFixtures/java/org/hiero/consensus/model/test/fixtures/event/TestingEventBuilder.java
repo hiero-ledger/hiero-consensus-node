@@ -3,9 +3,7 @@ package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -33,8 +31,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class TestingEventBuilder {
     private static final Instant DEFAULT_TIMESTAMP = Instant.ofEpochMilli(1588771316678L);
-    private static final SemanticVersion DEFAULT_SOFTWARE_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
     private static final NodeId DEFAULT_CREATOR_ID = NodeId.of(0);
     private static final int DEFAULT_APP_TRANSACTION_COUNT = 2;
     private static final int DEFAULT_SYSTEM_TRANSACTION_COUNT = 0;
@@ -86,8 +82,6 @@ public class TestingEventBuilder {
      */
     private List<Bytes> transactionBytes;
 
-    private List<EventTransaction> transactions;
-
     /**
      * The self parent of the event.
      */
@@ -119,13 +113,6 @@ public class TestingEventBuilder {
      * between 0 and 2 inclusive.
      */
     private Long birthRound;
-
-    /**
-     * The software version of the event.
-     * <p>
-     * If not set, defaults to {@link #DEFAULT_SOFTWARE_VERSION}.
-     */
-    private SemanticVersion softwareVersion;
 
     /**
      * The consensus timestamp of the event.
@@ -186,20 +173,6 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the software version of the event.
-     * <p>
-     * If not set, defaults to {@link #DEFAULT_SOFTWARE_VERSION}.
-     *
-     * @param softwareVersion the software version
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder setSoftwareVersion(@Nullable final SemanticVersion softwareVersion) {
-        this.softwareVersion =
-                SemanticVersion.newBuilder().major(softwareVersion.major()).build();
-        return this;
-    }
-
-    /**
      * Set the time created of an event.
      * <p>
      * If not set, defaults to the time created of the self parent, plus a random number of milliseconds between 1 and
@@ -216,7 +189,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of app transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfAppTransactions the number of app transactions
      * @return this instance
@@ -233,7 +206,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of system transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
@@ -253,7 +226,7 @@ public class TestingEventBuilder {
     /**
      * Set the transaction size.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param transactionSize the transaction size
      * @return this instance
@@ -264,27 +237,6 @@ public class TestingEventBuilder {
         }
 
         this.transactionSize = transactionSize;
-        return this;
-    }
-
-    /**
-     * Explicitly set the transactions of an event.
-     * <p>
-     * Throws an exception if app transaction count, system transaction count, or transaction size are set.
-     *
-     * @param transactions the transactions
-     * @return this instance
-     * @deprecated the {@link EventTransaction} type will be removed in the future
-     */
-    @Deprecated
-    public @NonNull TestingEventBuilder setTransactions(@Nullable final List<EventTransaction> transactions) {
-        if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
-            throw new IllegalStateException(
-                    "Cannot set transactions when app transaction count, system transaction count, or transaction "
-                            + "size are explicitly set");
-        }
-
-        this.transactions = transactions;
         return this;
     }
 
@@ -417,7 +369,7 @@ public class TestingEventBuilder {
     /**
      * Generate transactions based on the settings provided.
      * <p>
-     * Only utilized if the transactions are not set with {@link #setTransactions}.
+     * Only utilized if the transactions are not set with {@link #setTransactionBytes(List)}.
      *
      * @return the generated transactions
      */
@@ -487,10 +439,6 @@ public class TestingEventBuilder {
      * @return the new event
      */
     public @NonNull PlatformEvent build() {
-        if (softwareVersion == null) {
-            softwareVersion = DEFAULT_SOFTWARE_VERSION;
-        }
-
         if (creatorId == null) {
             if (selfParent != null) {
                 creatorId = selfParent.getCreatorId();
@@ -533,13 +481,7 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                softwareVersion,
-                creatorId,
-                selfParentDescriptor,
-                otherParentDescriptors,
-                birthRound,
-                timeCreated,
-                transactionBytes);
+                creatorId, selfParentDescriptor, otherParentDescriptors, birthRound, timeCreated, transactionBytes);
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);

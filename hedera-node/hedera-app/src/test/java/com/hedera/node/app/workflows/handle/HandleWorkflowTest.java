@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -23,10 +24,11 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
@@ -51,10 +53,13 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -115,7 +120,7 @@ class HandleWorkflowTest {
     private ScheduleService scheduleService;
 
     @Mock
-    private KVStateChangeListener kvStateChangeListener;
+    private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -166,7 +171,19 @@ class HandleWorkflowTest {
     private NodeRewardManager nodeRewardManager;
 
     @Mock
+    private PlatformStateFacade platformStateFacade;
+
+    @Mock
     private BlockBufferService blockBufferService;
+
+    @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private EventCore eventCore;
+
+    @Mock
+    private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
     private HandleWorkflow subject;
 
@@ -176,6 +193,11 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(platformStateReadableSingletonState.get())
+                .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
+        given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
@@ -193,14 +215,18 @@ class HandleWorkflowTest {
 
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
-        verify(recordCache).commitRoundReceipts(any(), any());
+        verify(recordCache)
+                .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
+        given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
@@ -217,6 +243,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithNoParentEvents() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.allParentsIterator())
@@ -247,7 +276,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -259,6 +288,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -298,7 +330,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -315,6 +347,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -355,7 +390,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -372,6 +407,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithMixedParentEvents() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentInBlockHash = CryptoRandomUtils.randomHash();
@@ -421,7 +459,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -464,7 +502,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,
@@ -474,8 +511,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
-                kvStateChangeListener,
-                boundaryStateChangeListener,
+                immediateStateChangeListener,
                 scheduleService,
                 hintsService,
                 historyService,
@@ -484,11 +520,15 @@ class HandleWorkflowTest {
                 blockHashSigner,
                 null,
                 nodeRewardManager,
+                platformStateFacade,
                 blockBufferService);
     }
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
         final Hash eventHash = CryptoRandomUtils.randomHash();

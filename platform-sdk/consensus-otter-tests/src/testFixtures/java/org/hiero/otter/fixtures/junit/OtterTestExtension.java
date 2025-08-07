@@ -1,22 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.junit;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.Capability;
+import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.solo.SoloTestEnvironment;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExecutionCondition;
 import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
@@ -40,7 +46,21 @@ import org.junit.platform.commons.support.AnnotationSupport;
  * ensures that the method is executed like a regular test (i.e., as if annotated with {@link Test}).
  */
 public class OtterTestExtension
-        implements TestInstancePreDestroyCallback, ParameterResolver, TestTemplateInvocationContextProvider {
+        implements TestInstancePreDestroyCallback,
+                ParameterResolver,
+                TestTemplateInvocationContextProvider,
+                ExecutionCondition {
+
+    private enum Environment {
+        TURTLE("turtle"),
+        CONTAINER("container");
+
+        private final String propertyValue;
+
+        Environment(@NonNull final String propertyValue) {
+            this.propertyValue = propertyValue;
+        }
+    }
 
     /**
      * The namespace of the extension.
@@ -53,7 +73,6 @@ public class OtterTestExtension
     private static final String ENVIRONMENT_KEY = "environment";
 
     public static final String SYSTEM_PROPERTY_OTTER_ENV = "otter.env";
-    public static final String SOLO_ENV_KEY = "solo";
 
     /**
      * Checks if this extension supports parameter resolution for the given parameter context.
@@ -69,7 +88,7 @@ public class OtterTestExtension
     public boolean supportsParameter(
             @NonNull final ParameterContext parameterContext, @Nullable final ExtensionContext ignored)
             throws ParameterResolutionException {
-        Objects.requireNonNull(parameterContext, "parameterContext must not be null");
+        requireNonNull(parameterContext, "parameterContext must not be null");
 
         return Optional.of(parameterContext)
                 .map(ParameterContext::getParameter)
@@ -92,8 +111,8 @@ public class OtterTestExtension
     public Object resolveParameter(
             @NonNull final ParameterContext parameterContext, @NonNull final ExtensionContext extensionContext)
             throws ParameterResolutionException {
-        Objects.requireNonNull(parameterContext, "parameterContext must not be null");
-        Objects.requireNonNull(extensionContext, "extensionContext must not be null");
+        requireNonNull(parameterContext, "parameterContext must not be null");
+        requireNonNull(extensionContext, "extensionContext must not be null");
 
         return Optional.of(parameterContext)
                 .map(ParameterContext::getParameter)
@@ -109,7 +128,8 @@ public class OtterTestExtension
      * @param extensionContext the current extension context; never {@code null}
      */
     @Override
-    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) throws InterruptedException {
+    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext)
+            throws IOException, InterruptedException {
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
@@ -126,7 +146,7 @@ public class OtterTestExtension
      */
     @Override
     public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(final ExtensionContext context) {
-        Objects.requireNonNull(context, "context must not be null");
+        requireNonNull(context, "context must not be null");
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
@@ -148,10 +168,68 @@ public class OtterTestExtension
      */
     @Override
     public boolean supportsTestTemplate(@NonNull final ExtensionContext context) {
-        Objects.requireNonNull(context, "context must not be null");
+        requireNonNull(context, "context must not be null");
         final Method testMethod = context.getRequiredTestMethod();
         // Only act if no other test annotation is present
         return !isTestAnnotated(testMethod);
+    }
+
+    /**
+     * Checks if the test requires additional capabilities to run and whether the current environment supports them.
+     *
+     * @param extensionContext the current extension context; never {@code null}
+     * @return {@code disabled} if the test requires capabilities that are not met by the current environment, {@code enabled otherwise}
+     */
+    @Override
+    @NonNull
+    public ConditionEvaluationResult evaluateExecutionCondition(@NonNull final ExtensionContext extensionContext) {
+        final Environment environment = readEnvironmentFromSystemProperty();
+        if (environment == null) {
+            return ConditionEvaluationResult.enabled("No environment set, a matching one will be selected");
+        }
+
+        final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
+        final boolean allSupported =
+                switch (environment) {
+                    case TURTLE -> TurtleTestEnvironment.supports(requiredCapabilities);
+                    case CONTAINER -> ContainerTestEnvironment.supports(requiredCapabilities);
+                };
+        return allSupported
+                ? ConditionEvaluationResult.enabled(
+                        "Environment %s supports all required capabilities".formatted(environment))
+                : ConditionEvaluationResult.disabled(
+                        "Environment %s does not support all required capabilities".formatted(environment));
+    }
+
+    /**
+     * Retrieves the current environment based on the system property {@code "otter.env"}.
+     *
+     * @return the current {@link Environment}
+     */
+    @Nullable
+    private OtterTestExtension.Environment readEnvironmentFromSystemProperty() {
+        final String propertyValue = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV);
+        if (propertyValue == null) {
+            return null;
+        }
+        for (final Environment env : Environment.values()) {
+            if (env.propertyValue.equalsIgnoreCase(propertyValue)) {
+                return env;
+            }
+        }
+        throw new IllegalArgumentException("Unknown otter environment: " + propertyValue);
+    }
+
+    /**
+     * Retrieves the required capabilities for a test method by evaluating {@link OtterTest#requires()}.
+     *
+     * @param extensionContext the extension context of the test
+     * @return a list of required capabilities
+     */
+    private List<Capability> getRequiredCapabilitiesFromTest(@NonNull final ExtensionContext extensionContext) {
+        final OtterTest otterTest = AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class)
+                .orElseThrow();
+        return List.of(otterTest.requires());
     }
 
     /**
@@ -161,10 +239,16 @@ public class OtterTestExtension
      *
      * @return a new {@link TestEnvironment} instance
      */
+    @NonNull
     private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final String environmentKey = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV);
-        final TestEnvironment testEnvironment = SOLO_ENV_KEY.equalsIgnoreCase(environmentKey)
-                ? createSoloTestEnvironment(extensionContext)
+        Environment environment = readEnvironmentFromSystemProperty();
+        if (environment == null) {
+            final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
+            environment =
+                    TurtleTestEnvironment.supports(requiredCapabilities) ? Environment.TURTLE : Environment.CONTAINER;
+        }
+        final TestEnvironment testEnvironment = environment == Environment.CONTAINER
+                ? createContainerTestEnvironment(extensionContext)
                 : createTurtleTestEnvironment(extensionContext);
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
         return testEnvironment;
@@ -177,6 +261,7 @@ public class OtterTestExtension
      *
      * @return a new {@link TurtleTestEnvironment} instance
      */
+    @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
@@ -186,14 +271,15 @@ public class OtterTestExtension
     }
 
     /**
-     * Creates a new {@link org.hiero.otter.fixtures.solo.SoloTestEnvironment} instance.
+     * Creates a new {@link ContainerTestEnvironment} instance.
      *
      * @param extensionContext the extension context of the test
      *
-     * @return a new {@link TestEnvironment} instance for solo tests
+     * @return a new {@link TestEnvironment} instance for container tests
      */
-    private TestEnvironment createSoloTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        return new SoloTestEnvironment();
+    @NonNull
+    private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        return new ContainerTestEnvironment();
     }
 
     /**
@@ -203,7 +289,7 @@ public class OtterTestExtension
      * @return {@code true} if the method has any of the JUnit test annotations; {@code false} otherwise
      */
     private boolean isTestAnnotated(@NonNull final Method method) {
-        Objects.requireNonNull(method, "method must not be null");
+        requireNonNull(method, "method must not be null");
         return method.isAnnotationPresent(Test.class)
                 || method.isAnnotationPresent(RepeatedTest.class)
                 || method.isAnnotationPresent(ParameterizedTest.class)

@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.unti
 import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.untilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.CONTAINS;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.DOES_NOT_CONTAIN;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
@@ -80,6 +81,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -95,7 +97,6 @@ import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -151,7 +152,6 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
-import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
@@ -395,15 +395,6 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns an operation that validates the streams of the target network with dynamic validators
-     *
-     * @return the operation that validates the streams
-     */
-    public static BlockStreamValidationOp validateBlockStream() {
-        return new BlockStreamValidationOp();
-    }
-
-    /**
      * Returns an operation that delays for the given time and then validates
      * any of the target network node application logs.
      *
@@ -570,17 +561,16 @@ public class UtilVerbs {
 
     /**
      * Returns a submission strategy that requires an embedded network and given one submits a transaction with
-     * the given synthetic version.
-     *
-     * @param syntheticVersion the synthetic version to use
+     * the given event birth round.
+     * @param eventBirthRound the event birth round to use for the submission
      * @return the submission strategy
      */
-    public static HapiTxnOp.SubmissionStrategy usingVersion(@NonNull final SyntheticVersion syntheticVersion) {
+    public static HapiTxnOp.SubmissionStrategy usingEventBirthRound(long eventBirthRound) {
         return (network, transaction, functionality, target, nodeAccountId) -> {
             if (!(network instanceof EmbeddedNetwork embeddedNetwork)) {
                 throw new IllegalArgumentException("Expected an EmbeddedNetwork");
             }
-            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, syntheticVersion);
+            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, eventBirthRound);
         };
     }
 
@@ -898,6 +888,10 @@ public class UtilVerbs {
 
     public static BalanceSnapshot balanceSnapshot(String name, String forAccount) {
         return new BalanceSnapshot(forAccount, name);
+    }
+
+    public static BalanceSnapshot tokenBalanceSnapshot(String token, String name, String forAccount) {
+        return new BalanceSnapshot(forAccount, name).forToken(token);
     }
 
     public static MutateAccountOp mutateAccount(
@@ -1365,11 +1359,10 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
-    public static Function<HapiSpec, RecordStreamAssertion> visibleItems(
-            @NonNull final VisibleItemsValidator validator, @NonNull final String... specTxnIds) {
-        requireNonNull(specTxnIds);
+    public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
+            @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
-        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, specTxnIds);
+        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, ALL_TX_IDS);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> selectedItems(
@@ -2074,6 +2067,28 @@ public class UtilVerbs {
     }
 
     /**
+     * Validates that the gas charge for an inner transaction (inside Atomic Batch)
+     * is within the allowedPercentDiff of expected gas in USD.
+     *
+     * @param txn txn to be validated
+     * @param expectedUsdForGas expected gas charge in usd
+     * @param allowedPercentDiff allowed percentage difference
+     */
+    public static CustomSpecAssert validateChargedUsdForGasOnlyForInnerTxn(
+            String txn, String parent, double expectedUsdForGas, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var gasCharged = getChargedGasForInnerTxn(spec, txn, parent);
+            assertEquals(
+                    expectedUsdForGas,
+                    gasCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsdForGas,
+                    String.format(
+                            "%s gas charge (%s) more than %.2f percent different than expected!",
+                            sdec(expectedUsdForGas, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    /**
      * Validates that an amount is within a certain percentage of an expected value.
      * @param expected expected value
      * @param actual actual value
@@ -2408,9 +2423,8 @@ public class UtilVerbs {
             final var items = block.items();
             for (int i = 0, n = items.size(); i < n; i++) {
                 final var item = items.get(i);
-                if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.transactionIdOrThrow().equals(executionTxnId)) {
                         for (int j = i + 1; j < n; j++) {
                             final var followingItem = items.get(j);
@@ -2670,6 +2684,31 @@ public class UtilVerbs {
                 / 100;
     }
 
+    /**
+     * Returns the charged gas for an inner transaction (inside Atomic Batch) in USD, assuming a standard cost of
+     * 71 tinybars per gas unit.
+     *
+     * @param spec the spec
+     * @param txn the transaction
+     * @return the charged gas in USD
+     */
+    private static double getChargedGasForInnerTxn(
+            @NonNull final HapiSpec spec, @NonNull final String txn, @NonNull final String parent) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        var parentOp = getTxnRecord(parent);
+        allRunFor(spec, subOp, parentOp);
+        final var rcd = subOp.getResponseRecord();
+        final var parentRcd = parentOp.getResponseRecord();
+        final var gasUsed = rcd.getContractCallResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / parentRcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * parentRcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
     private static double getChargedUsdFromChild(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -2713,7 +2752,103 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
-    private static final class DurationConverter implements ConfigConverter<Duration> {
+    public static void getTransactionDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("transaction"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getPrecompileDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("precompile"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getSystemContractDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("system_contract"))
+                .forEach(opLog::info))));
+    }
+
+    public static void getEvmOpsDurationMetrics() {
+        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
+                .filter(metric -> metric.contains("ops"))
+                .forEach(opLog::info))));
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageWithin(final double expectedPercentage) {
+        return throttleUsagePercentageWithin(expectedPercentage, 0.1);
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageWithin(
+            final double expectedPercentage, final double allowedPercentDiff) {
+        return assertionsHold((spec, opLog) -> {
+            final var actualPercentage = getOpsDurationValue(spec);
+            assertEquals(
+                    expectedPercentage,
+                    actualPercentage,
+                    (allowedPercentDiff / 100.0) * expectedPercentage,
+                    String.format(
+                            "%s Throttle bucket filled more than %.2f percent different than expected!",
+                            sdec(actualPercentage, 4), allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
+            final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount > threshold,
+                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount < threshold,
+                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    (pre + delta) < post,
+                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
+        });
+    }
+
+    public static Double getOpsDurationValue(HapiSpec spec) {
+        final var metrics = getDurationThrottleMetrics(spec);
+        assertFalse(metrics.isEmpty(), "No throttle metrics found!");
+        final var latestThrottleMetric = metrics.getLast();
+        return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
+    }
+
+    private static List<String> getTransactionMetrics() {
+        final var list = new ArrayList<String>();
+        withOpContext((spec, opLog) -> allRunFor(
+                spec,
+                doAdhoc(() -> list.addAll(spec.prometheusClient()
+                        .getTransactionMetrics(spec.targetNetworkOrThrow()
+                                .nodes()
+                                .getFirst()
+                                .metadata()
+                                .prometheusPort())))));
+        return list;
+    }
+
+    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+        return spec.prometheusClient()
+                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                        .nodes()
+                        .getFirst()
+                        .metadata()
+                        .prometheusPort());
+    }
+
+    public static final class DurationConverter implements ConfigConverter<Duration> {
 
         /**
          * Regular expression for parsing durations. Looks for a number (with our without a decimal) followed by a unit.
@@ -2749,7 +2884,7 @@ public class UtilVerbs {
          * @return a Duration
          * @throws IllegalArgumentException if there is a problem parsing the string
          */
-        private static Duration parseDuration(final String str) {
+        public static Duration parseDuration(final String str) {
 
             final Matcher matcher = DURATION_REGEX.matcher(str);
 

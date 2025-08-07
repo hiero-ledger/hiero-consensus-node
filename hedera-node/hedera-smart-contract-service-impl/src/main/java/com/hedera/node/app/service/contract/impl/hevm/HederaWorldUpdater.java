@@ -13,11 +13,10 @@ import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperat
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -268,13 +267,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
     void finalizeHollowAccount(@NonNull Address address, @NonNull Address parent);
 
     /**
-     * Returns all storage updates that would be committed by this updater, necessary for constructing
-     * a {@link com.hedera.hapi.streams.SidecarType#CONTRACT_STATE_CHANGE} sidecar.
-     *
-     * @return the full list of account-scoped storage changes
+     * Returns a summary of all storage usage in this updater's transaction.
+     * @return a summary of all storage usage in this updater's transaction
      */
     @NonNull
-    List<StorageAccesses> pendingStorageUpdates();
+    TxStorageUsage getTxStorageUsage();
 
     /**
      * Returns the {@link ExchangeRate} for the current consensus timestamp

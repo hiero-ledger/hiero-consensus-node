@@ -23,10 +23,6 @@ public class BenchmarkValue implements VirtualValue {
         valueSize = size;
     }
 
-    public static int getValueSize() {
-        return valueSize;
-    }
-
     public BenchmarkValue() {
         // default constructor for deserialize
     }
@@ -36,32 +32,45 @@ public class BenchmarkValue implements VirtualValue {
         Utils.toBytes(seed, valueBytes);
     }
 
-    public BenchmarkValue(BenchmarkValue other) {
-        valueBytes = Arrays.copyOf(other.valueBytes, other.valueBytes.length);
+    private BenchmarkValue(byte[] valueBytes) {
+        this.valueBytes = Arrays.copyOf(valueBytes, valueBytes.length);
+    }
+
+    protected BenchmarkValue(BenchmarkValue other) {
+        this(other.valueBytes);
+    }
+
+    public BenchmarkValue(final ReadableSequentialData in) {
+        final int len = in.readInt();
+        valueBytes = new byte[len];
+        in.readBytes(valueBytes);
     }
 
     public long toLong() {
         return Utils.fromBytes(valueBytes);
     }
 
-    public void update(LongUnaryOperator updater) {
-        long value = Utils.fromBytes(valueBytes);
-        value = updater.applyAsLong(value);
-        Utils.toBytes(value, valueBytes);
-    }
-
     @Override
     public VirtualValue copy() {
-        return new BenchmarkValue(this);
+        return new BenchmarkValue(this.valueBytes);
     }
 
     @Override
     public VirtualValue asReadOnly() {
-        return new BenchmarkValue(this);
+        return this;
     }
 
-    public static int getSerializedSize() {
-        return Integer.BYTES + valueSize;
+    public Builder copyBuilder() {
+        return new Builder(this);
+    }
+
+    public int getSizeInBytes() {
+        return Integer.BYTES + valueBytes.length;
+    }
+
+    public void writeTo(final WritableSequentialData out) {
+        out.writeInt(valueBytes.length);
+        out.writeBytes(valueBytes);
     }
 
     @Override
@@ -124,5 +133,25 @@ public class BenchmarkValue implements VirtualValue {
     @Override
     public int hashCode() {
         return Arrays.hashCode(valueBytes);
+    }
+
+    public static final class Builder {
+
+        private byte[] valueBytes;
+
+        public Builder(final BenchmarkValue value) {
+            this.valueBytes = Arrays.copyOf(value.valueBytes, value.valueBytes.length);
+        }
+
+        public Builder update(LongUnaryOperator updater) {
+            long value = Utils.fromBytes(valueBytes);
+            value = updater.applyAsLong(value);
+            Utils.toBytes(value, valueBytes);
+            return this;
+        }
+
+        public BenchmarkValue build() {
+            return new BenchmarkValue(valueBytes);
+        }
     }
 }

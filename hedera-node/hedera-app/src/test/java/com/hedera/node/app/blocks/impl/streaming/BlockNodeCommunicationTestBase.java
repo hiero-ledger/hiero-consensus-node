@@ -57,11 +57,9 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
-    protected static PublishStreamResponse createBlockAckResponse(final long blockNumber, final boolean alreadyExists) {
-        final BlockAcknowledgement blockAck = BlockAcknowledgement.newBuilder()
-                .blockNumber(blockNumber)
-                .blockAlreadyExists(alreadyExists)
-                .build();
+    protected static PublishStreamResponse createBlockAckResponse(final long blockNumber) {
+        final BlockAcknowledgement blockAck =
+                BlockAcknowledgement.newBuilder().blockNumber(blockNumber).build();
 
         return PublishStreamResponse.newBuilder().acknowledgement(blockAck).build();
     }

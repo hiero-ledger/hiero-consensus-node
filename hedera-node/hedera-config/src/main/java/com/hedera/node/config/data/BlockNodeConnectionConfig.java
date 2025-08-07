@@ -11,9 +11,10 @@ import java.time.Duration;
  * @param shutdownNodeOnNoBlockNodes whether to shut down the consensus node if there are no block node connections
  * @param blockNodeConnectionFileDir the directory to get the block node configuration file
  * @param blockNodeConfigFile the file containing the block nodes configurations
- * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed in a time frame
+ * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed within a time frame
  * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
  * @param endOfStreamScheduleDelay the delay in seconds to schedule connections after the limit is reached
+ * @param streamResetPeriod the period in hours to periodically reset the stream, once a day should be enough
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -22,4 +23,5 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty String blockNodeConfigFile,
         @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay) {}
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay,
+        @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod) {}

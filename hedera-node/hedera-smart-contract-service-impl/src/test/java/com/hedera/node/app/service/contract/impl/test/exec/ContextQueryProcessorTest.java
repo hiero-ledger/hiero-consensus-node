@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -60,12 +61,28 @@ class ContextQueryProcessorTest {
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);
         given(hevmStaticTransactionFactory.fromHapiQuery(Query.DEFAULT)).willReturn(HEVM_CREATION);
-        given(processor.processTransaction(HEVM_CREATION, proxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        proxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        OpsDurationCounter.disabled()))
                 .willReturn(SUCCESS_RESULT);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
-        final var expectedResult =
-                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, null, null);
+        final var expectedResult = new CallOutcome(
+                protoResult,
+                SUCCESS,
+                HEVM_CREATION.contractId(),
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmQueryResult(),
+                null,
+                null,
+                null);
         assertEquals(expectedResult, subject.call());
     }
 }

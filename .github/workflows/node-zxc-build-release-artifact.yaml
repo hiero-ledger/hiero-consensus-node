@@ -68,9 +68,9 @@ on:
         required: true
       cdn-bucket-name:
         required: true
-      svcs-ossrh-username:
+      central-publishing-username:
         required: true
-      svcs-ossrh-password:
+      central-publishing-password:
         required: true
       svcs-gpg-key-contents:
         required: true
@@ -126,7 +126,7 @@ jobs:
       prerelease: ${{ steps.effective-version.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -144,12 +144,18 @@ jobs:
 
       - name: Verify Workflow Parameters
         id: parameters
+        env:
+          REF_CHECK: ${{ inputs.ref }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
-          if [[ "${{ inputs.ref }}" == refs/*  ]]; then
-            COMMIT_SHA=$( git log -1 --format="%H" "${{ inputs.ref }}" )
+          REF_INFO=$(git ls-remote "${REPO_URL}" "${REF_CHECK}")
+          if [[ -n "${REF_INFO/ /}" ]]; then
+            COMMIT_SHA="$(echo "${REF_INFO}" | awk '{print $1}')"
           else
-            COMMIT_SHA="${{ inputs.ref }}"
+            COMMIT_SHA="${REF_CHECK}"
           fi
+
+          echo "COMMIT SHA is: ${COMMIT_SHA}"
           BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
@@ -164,6 +170,14 @@ jobs:
           echo "commit-prefix=${COMMIT_PREFIX}" >>"${GITHUB_OUTPUT}"
           echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}"
           echo "commit-id-short=$(echo "${COMMIT_SHA}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
+
+          echo "### Branch and Commit Metadata" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name: ${BRANCH_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (lowercase): ${BRANCH_NAME_LOWER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (safe): ${BRANCH_NAME_SAFE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit Prefix: ${COMMIT_PREFIX}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA: ${COMMIT_SHA}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA (short): $(echo "${COMMIT_SHA}" | cut -c1-8)" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify Version Update (As Specified)
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -229,7 +243,7 @@ jobs:
       - validate
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -302,7 +316,7 @@ jobs:
           gradle-version: ${{ inputs.gradle-version }}
 
       - name: Download Build Version
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
 
@@ -391,7 +405,7 @@ jobs:
       - build-artifact
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -430,7 +444,7 @@ jobs:
         uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
           version: v0.16.2
           driver-opts: network=host
@@ -451,7 +465,7 @@ jobs:
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Restore Build Artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ~/artifact-build
           name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
@@ -570,7 +584,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -589,7 +603,7 @@ jobs:
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@611876cbed7d009aab97257020a59ddde6e840c0 # v4.5.8
+        uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
         env:
           JF_URL: ${{ secrets.jf-url }}
           JF_ACCESS_TOKEN: ${{ secrets.jf-access-token }}
@@ -686,7 +700,7 @@ jobs:
     if: ${{ inputs.release-profile != 'none' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -710,7 +724,7 @@ jobs:
 
       - name: Import GPG key
         id: gpg_key
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           gpg_private_key: ${{ secrets.sdk-gpg-key-contents }}
           passphrase: ${{ secrets.sdk-gpg-key-passphrase }}
@@ -742,7 +756,7 @@ jobs:
           gradle-version: ${{ inputs.gradle-version }}
 
       - name: Download Build Version
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
 
@@ -817,12 +831,16 @@ jobs:
             gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
           echo "::endgroup::"
 
-      - name: Gradle Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
-          NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
+      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
+        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+
+      - name: Gradle Publish to Maven Central
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -843,7 +861,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

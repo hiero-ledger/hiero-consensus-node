@@ -18,6 +18,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-otter-tests:
+        description: "Otter Tests Enabled"
+        type: boolean
+        required: false
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
@@ -33,11 +38,6 @@ on:
         type: boolean
         required: false
         default: true
-      enable-ci-trigger:
-        description: "Trigger CI Flows Enabled"
-        type: boolean
-        required: false
-        default: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -128,6 +128,7 @@ jobs:
       enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
       enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
       enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
       enable-network-log-capture: true
@@ -171,19 +172,18 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - mats-unit-tests
       - mats-gradle-determinism
       - mats-docker-determinism
-    if:
-      ${{ (github.event_name == 'push' || github.event.inputs.enable-ci-trigger == 'true') &&
+    if: ${{ (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
       needs.mats-gradle-determinism.result == 'success' &&
       needs.mats-docker-determinism.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -202,7 +202,7 @@ jobs:
 
   report-failure:
     name: Report MATS execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - code
       - dependency-check
@@ -223,7 +223,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
