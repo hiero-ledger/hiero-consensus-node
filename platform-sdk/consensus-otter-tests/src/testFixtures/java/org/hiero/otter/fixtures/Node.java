@@ -104,7 +104,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration configuration();
+    NodeConfiguration getConfiguration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -112,14 +112,14 @@ public interface Node {
      * @return the self id
      */
     @NonNull
-    NodeId selfId();
+    NodeId getSelfId();
 
     /**
      * Gets the weight of the node. This value is always non-negative.
      *
      * @return the weight
      */
-    long weight();
+    long getWeight();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -127,7 +127,7 @@ public interface Node {
      * @return the status of the platform
      */
     @Nullable
-    PlatformStatus platformStatus();
+    PlatformStatus getPlatformStatus();
 
     /**
      * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#ACTIVE}.
@@ -163,7 +163,7 @@ public interface Node {
      * @return {@code true} if the node is in the supplied status, {@code false} otherwise
      */
     default boolean isInStatus(@NonNull final PlatformStatus status) {
-        return platformStatus() == status;
+        return getPlatformStatus() == status;
     }
 
     /**
@@ -172,7 +172,7 @@ public interface Node {
      * @return the software version of the node
      */
     @NonNull
-    SemanticVersion version();
+    SemanticVersion getVersion();
 
     /**
      * Sets the software version of the node.

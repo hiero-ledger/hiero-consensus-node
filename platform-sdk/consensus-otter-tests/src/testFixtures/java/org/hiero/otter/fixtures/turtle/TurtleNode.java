@@ -233,7 +233,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public NodeConfiguration configuration() {
+    public NodeConfiguration getConfiguration() {
         return nodeConfiguration;
     }
 
@@ -270,7 +270,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+        return new SingleNodePcesResultImpl(getSelfId(), platformContext.getConfiguration());
     }
 
     /**

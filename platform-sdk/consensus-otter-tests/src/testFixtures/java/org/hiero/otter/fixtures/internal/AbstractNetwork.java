@@ -140,7 +140,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public long getTotalWeight() {
-        return getNodes().stream().mapToLong(Node::weight).sum();
+        return getNodes().stream().mapToLong(Node::getWeight).sum();
     }
 
     /**
@@ -244,7 +244,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
         final Set<Node> otherNodes = getNodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+                .filter(n -> !n.getSelfId().equals(maybeBehindNode.getSelfId()))
                 .collect(Collectors.toSet());
 
         // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
@@ -258,7 +258,7 @@ public abstract class AbstractNetwork implements Network {
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
             if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
                     != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                weightOfAheadNodes += maybeAheadNode.weight();
+                weightOfAheadNodes += maybeAheadNode.getWeight();
             }
         }
         return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getTotalWeight());
@@ -270,7 +270,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
         final Set<Node> otherNodes = getNodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+                .filter(n -> !n.getSelfId().equals(maybeBehindNode.getSelfId()))
                 .collect(Collectors.toSet());
 
         // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
@@ -298,7 +298,7 @@ public abstract class AbstractNetwork implements Network {
      * @return the {@link BooleanSupplier}
      */
     protected BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> getNodes().stream().allMatch(node -> node.platformStatus() == status);
+        return () -> getNodes().stream().allMatch(node -> node.getPlatformStatus() == status);
     }
 
     /**

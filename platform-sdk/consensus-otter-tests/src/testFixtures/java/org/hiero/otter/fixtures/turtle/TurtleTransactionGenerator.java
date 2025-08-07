@@ -79,7 +79,7 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
                     Duration.between(startTime, lastTimestamp).dividedBy(CYCLE_DURATION);
             final long currentCount = Duration.between(startTime, now).dividedBy(CYCLE_DURATION);
             final List<TurtleNode> activeNodes = nodes.stream()
-                    .filter(node -> node.platformStatus() == PlatformStatus.ACTIVE)
+                    .filter(node -> node.getPlatformStatus() == PlatformStatus.ACTIVE)
                     .toList();
             for (long i = previousCount; i < currentCount; i++) {
                 for (final TurtleNode node : activeNodes) {

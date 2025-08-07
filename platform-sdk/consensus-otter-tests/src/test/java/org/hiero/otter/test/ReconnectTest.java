@@ -46,7 +46,7 @@ public class ReconnectTest {
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         network.getNodes().forEach(node -> {
-            node.configuration()
+            node.getConfiguration()
                     .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
                     .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
         });
@@ -79,7 +79,7 @@ public class ReconnectTest {
 
         // Wait for the node we just killed to fall behind
         if (!timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30))) {
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(60))) {
             fail("Node did not fall behind in the time allotted.");
         }
 

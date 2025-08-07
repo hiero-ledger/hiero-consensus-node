@@ -53,7 +53,7 @@ public abstract class AbstractMultipleNodeContinuousAssertion<SELF extends Abstr
      */
     @NonNull
     public SELF startSuppressingNode(@NonNull final Node node) {
-        return startSuppressingNode(node.selfId());
+        return startSuppressingNode(node.getSelfId());
     }
 
     /**
@@ -77,6 +77,6 @@ public abstract class AbstractMultipleNodeContinuousAssertion<SELF extends Abstr
      */
     @NonNull
     public SELF stopSuppressingNode(@NonNull final Node node) {
-        return stopSuppressingNode(node.selfId());
+        return stopSuppressingNode(node.getSelfId());
     }
 }

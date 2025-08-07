@@ -39,6 +39,6 @@ public interface MultipleNodePcesResults {
      */
     @NonNull
     default MultipleNodePcesResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.selfId());
+        return suppressingNode(node.getSelfId());
     }
 }

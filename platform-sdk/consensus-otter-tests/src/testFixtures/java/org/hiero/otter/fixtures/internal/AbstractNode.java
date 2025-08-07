@@ -79,7 +79,7 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     @Nullable
-    public PlatformStatus platformStatus() {
+    public PlatformStatus getPlatformStatus() {
         return platformStatus;
     }
 
@@ -88,7 +88,7 @@ public abstract class AbstractNode implements Node {
      */
     @NonNull
     @Override
-    public NodeId selfId() {
+    public NodeId getSelfId() {
         return selfId;
     }
 
@@ -96,7 +96,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public long weight() {
+    public long getWeight() {
         return weight;
     }
 
@@ -105,7 +105,7 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SemanticVersion version() {
+    public SemanticVersion getVersion() {
         return version;
     }
 

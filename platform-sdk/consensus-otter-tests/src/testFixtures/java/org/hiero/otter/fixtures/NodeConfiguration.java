@@ -7,7 +7,7 @@ import java.nio.file.Path;
 
 /**
  * This class contains the current configuration of the node at the time it was requested via
- * {@link Node#configuration()}. It can also be used to modify the configuration.
+ * {@link Node#getConfiguration()}. It can also be used to modify the configuration.
  */
 public interface NodeConfiguration {
 
