@@ -74,8 +74,8 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<String> autoRenewAccount = Optional.empty();
     private Optional<Integer> maxAutomaticTokenAssociations = Optional.empty();
     private Optional<ByteString> inlineInitcode = Optional.empty();
-    Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
-    Optional<Consumer<Address>> newAddressObserver = Optional.empty();
+    private Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
+    private Optional<Consumer<Address>> addressObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
     private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
@@ -96,7 +96,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     }
 
     public HapiContractCreate exposingAddressTo(Consumer<Address> obs) {
-        newAddressObserver = Optional.of(obs);
+        addressObserver = Optional.of(obs);
         return this;
     }
 
@@ -277,7 +277,8 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         final var newId = lastReceipt.getContractID();
         newNumObserver.ifPresent(obs -> obs.accept(newId.getContractNum()));
         newIdObserver.ifPresent(obs -> obs.accept(newId));
-        newAddressObserver.ifPresent(obs -> obs.accept(asHeadlongAddress(asAddress(newId))));
+        addressObserver.ifPresent(obs -> obs.accept(asHeadlongAddress(asAddress(newId))));
+
         if (shouldAlsoRegisterAsAccount) {
             spec.registry().saveAccountId(contract, equivAccount(lastReceipt.getContractID()));
         }
