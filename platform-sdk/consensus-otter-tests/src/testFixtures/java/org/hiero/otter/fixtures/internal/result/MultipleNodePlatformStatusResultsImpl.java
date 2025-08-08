@@ -9,7 +9,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.OtterResult;
@@ -86,10 +88,9 @@ public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatfo
      */
     @Override
     public @NotNull MultipleNodePlatformStatusResults suppressingNodes(@NotNull final Collection<Node> nodes) {
-        final List<NodeId> nodeIdToSuppress =
-                nodes.stream().distinct().map(Node::selfId).toList();
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodePlatformStatusResult> filtered = results.stream()
-                .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodePlatformStatusResultsImpl(filtered);
     }

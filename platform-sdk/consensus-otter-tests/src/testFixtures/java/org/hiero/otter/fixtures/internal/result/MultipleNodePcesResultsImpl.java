@@ -6,6 +6,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -36,10 +38,9 @@ public record MultipleNodePcesResultsImpl(@NonNull List<SingleNodePcesResult> pc
      */
     @Override
     public @NotNull MultipleNodePcesResults suppressingNodes(@NotNull final Collection<Node> nodes) {
-        final List<NodeId> nodeIdToSuppress =
-                nodes.stream().distinct().map(Node::selfId).toList();
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodePcesResult> filtered = pcesResults.stream()
-                .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodePcesResultsImpl(filtered);
     }

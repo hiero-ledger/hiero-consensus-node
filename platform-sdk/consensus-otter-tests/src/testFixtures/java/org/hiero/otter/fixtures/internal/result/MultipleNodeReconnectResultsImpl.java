@@ -9,7 +9,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
@@ -64,10 +66,9 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      */
     @Override
     public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final Collection<Node> nodes) {
-        final List<NodeId> nodeIdToSuppress =
-                nodes.stream().distinct().map(Node::selfId).toList();
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeReconnectResult> filtered = results.stream()
-                .filter(result -> !nodeIdToSuppress.contains(result.nodeId()))
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodeReconnectResultsImpl(filtered);
     }
