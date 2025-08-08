@@ -204,6 +204,6 @@ public class ContainerNetwork extends AbstractNetwork {
     void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        topology.nodes().forEach(node -> ((ContainerNode)node).destroy());
+        topology.nodes().forEach(node -> ((ContainerNode) node).destroy());
     }
 }

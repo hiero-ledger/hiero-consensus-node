@@ -168,7 +168,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
         CompletableFuture.allOf(topology.nodes().stream()
-                        .map(node -> CompletableFuture.runAsync(() -> ((TurtleNode)node).tick(now), executorService))
+                        .map(node -> CompletableFuture.runAsync(() -> ((TurtleNode) node).tick(now), executorService))
                         .toArray(CompletableFuture[]::new))
                 .join();
     }
@@ -180,7 +180,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        topology.nodes().forEach(node -> ((TurtleNode)node).destroy());
+        topology.nodes().forEach(node -> ((TurtleNode) node).destroy());
         if (executorService != null) {
             executorService.shutdownNow();
         }

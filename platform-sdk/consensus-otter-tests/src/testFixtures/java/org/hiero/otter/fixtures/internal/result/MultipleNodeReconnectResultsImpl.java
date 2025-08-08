@@ -64,7 +64,8 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      *
      */
     @Override
-    public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    @NonNull
+    public MultipleNodeReconnectResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeReconnectResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
