@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.deleteschedule;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_CONTRACT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
@@ -34,6 +27,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -143,6 +137,20 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         final var scheduleId = subject.scheduleIdFor(attempt);
         // then:
         assertEquals(scheduleID, scheduleId);
+    }
+
+    @Test
+    void testScheduleIdForNonLongZeroAddress() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        // when:
+        attempt = createHssCallAttempt(
+                Bytes.wrapByteBuffer(DeleteScheduleTranslator.DELETE_SCHEDULE.encodeCall(
+                        Tuple.singleton(asHeadlongAddress(Address.fromHexString(NON_LONG_ZERO_ADDRESS))))),
+                false,
+                configuration,
+                List.of(subject));
+        // then
+        assertThrows(IllegalArgumentException.class, () -> subject.scheduleIdFor(attempt));
     }
 
     @ParameterizedTest

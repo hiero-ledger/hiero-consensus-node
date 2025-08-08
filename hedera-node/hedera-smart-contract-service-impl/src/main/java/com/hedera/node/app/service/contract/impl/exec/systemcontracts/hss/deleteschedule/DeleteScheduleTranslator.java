@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.deleteschedule;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -106,8 +105,7 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
         if (attempt.isSelector(DELETE_SCHEDULE)) {
             final var call = DELETE_SCHEDULE.decodeCall(attempt.inputBytes());
             final Address scheduleAddress = call.get(SCHEDULE_ADDRESS_INDEX);
-            final var number = ConversionUtils.numberOfLongZero(explicitFromHeadlong(scheduleAddress));
-            return attempt.nativeOperations().entityIdFactory().newScheduleId(number);
+            return ConversionUtils.addressToScheduleID(attempt.nativeOperations().entityIdFactory(), scheduleAddress);
         } else if (attempt.isSelector(DELETE_SCHEDULE_PROXY)) {
             return attempt.redirectScheduleId();
         }
