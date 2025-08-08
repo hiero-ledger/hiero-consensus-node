@@ -105,13 +105,13 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
         }
 
         for (final Node node : nodes) {
-            if (node.getPlatformStatus() == PlatformStatus.ACTIVE) {
+            if (node.platformStatus() == PlatformStatus.ACTIVE) {
                 final byte[] transaction = TransactionFactory.createEmptyTransaction(random.nextInt())
                         .toByteArray();
                 try {
                     node.submitTransaction(transaction);
                 } catch (final Exception e) {
-                    log.debug("Unable to submit transaction to node {}", node.getSelfId(), e);
+                    log.debug("Unable to submit transaction to node {}", node.selfId(), e);
                 }
             }
         }

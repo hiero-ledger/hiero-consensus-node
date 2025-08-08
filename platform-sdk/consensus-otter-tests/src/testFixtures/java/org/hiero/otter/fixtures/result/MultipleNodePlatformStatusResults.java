@@ -43,7 +43,7 @@ public interface MultipleNodePlatformStatusResults extends OtterResult {
      */
     @NonNull
     default MultipleNodePlatformStatusResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**

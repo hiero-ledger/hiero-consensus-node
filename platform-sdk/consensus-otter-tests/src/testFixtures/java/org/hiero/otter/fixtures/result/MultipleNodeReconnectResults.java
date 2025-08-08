@@ -41,7 +41,7 @@ public interface MultipleNodeReconnectResults {
      */
     @NonNull
     default MultipleNodeReconnectResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**

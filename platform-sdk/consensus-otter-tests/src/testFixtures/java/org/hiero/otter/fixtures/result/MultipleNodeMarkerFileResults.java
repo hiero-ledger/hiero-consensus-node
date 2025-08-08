@@ -39,7 +39,7 @@ public interface MultipleNodeMarkerFileResults {
      */
     @NonNull
     default MultipleNodeMarkerFileResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**

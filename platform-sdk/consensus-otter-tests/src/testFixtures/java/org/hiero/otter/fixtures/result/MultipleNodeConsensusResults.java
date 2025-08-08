@@ -49,7 +49,7 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      */
     @NonNull
     default MultipleNodeConsensusResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**

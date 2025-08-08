@@ -51,7 +51,7 @@ public interface MultipleNodeLogResults extends OtterResult {
      */
     @NonNull
     default MultipleNodeLogResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**

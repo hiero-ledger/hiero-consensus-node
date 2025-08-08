@@ -205,7 +205,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     @NonNull
-    public NodeConfiguration getConfiguration() {
+    public NodeConfiguration configuration() {
         return nodeConfiguration;
     }
 

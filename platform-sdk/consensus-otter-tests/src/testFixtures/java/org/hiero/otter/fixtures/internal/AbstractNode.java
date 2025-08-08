@@ -79,7 +79,7 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     @Nullable
-    public PlatformStatus getPlatformStatus() {
+    public PlatformStatus platformStatus() {
         return platformStatus;
     }
 
@@ -88,7 +88,7 @@ public abstract class AbstractNode implements Node {
      */
     @NonNull
     @Override
-    public NodeId getSelfId() {
+    public NodeId selfId() {
         return selfId;
     }
 
@@ -96,7 +96,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public long getWeight() {
+    public long weight() {
         return weight;
     }
 
@@ -105,7 +105,7 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SemanticVersion getVersion() {
+    public SemanticVersion version() {
         return version;
     }
 
@@ -113,7 +113,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void setVersion(@NonNull final SemanticVersion version) {
+    public void version(@NonNull final SemanticVersion version) {
         throwIfIn(LifeCycle.RUNNING, "Cannot set version while the node is running");
         throwIfIn(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
