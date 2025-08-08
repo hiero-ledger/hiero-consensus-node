@@ -20,29 +20,9 @@ public abstract class PlatformMetricConfig<T extends Metric, C extends MetricCon
      *
      * @param category    the category of the {@link Metric}
      * @param name        the name of the {@link Metric}
-     * @param description the description of the {@link Metric}
-     * @param unit        the unit of the {@link Metric}
-     * @param format      the format of the {@link Metric}
      */
-    protected PlatformMetricConfig(
-            @NonNull final String category,
-            @NonNull final String name,
-            @NonNull final String description,
-            @NonNull final String unit,
-            @NonNull final String format) {
-        super(category, name, description, unit, format);
-    }
-
-    /**
-     * Constructs a new {@link PlatformMetricConfig} with the given parameters.
-     *
-     * @param category      the category of the {@link Metric}
-     * @param name          the name of the {@link Metric}
-     * @param defaultFormat the default format of the {@link Metric}
-     */
-    protected PlatformMetricConfig(
-            @NonNull final String category, @NonNull final String name, @NonNull final String defaultFormat) {
-        super(category, name, defaultFormat);
+    protected PlatformMetricConfig(@NonNull final String category, @NonNull final String name) {
+        super(category, name);
     }
 
     /**
