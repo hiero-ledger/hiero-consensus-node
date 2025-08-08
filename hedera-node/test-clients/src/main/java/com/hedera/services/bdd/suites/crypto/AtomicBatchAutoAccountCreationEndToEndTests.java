@@ -2175,6 +2175,11 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
                         allRunFor(spec, atomicBatchTransactionSecond);
 
                         // sync the registry to ensure the key is updated
+                        // (FUTURE) This shouldn't be necessary, but only _sometimes_ the key for
+                        // `VALID_ALIAS_ED25519` gets changed in the registry to match `VALID_ALIAS_ED25519_SECOND`
+                        // during test execution.
+                        // We need to figure out why. Until then, this line syncs the expected original key value of
+                        // `VALID_ALIAS_ED25519` to the registry.
                         syncRegistryKeyFromAccountInfo(spec, VALID_ALIAS_ED25519);
 
                         // get the actual account key
