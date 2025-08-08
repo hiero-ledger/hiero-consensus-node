@@ -13,7 +13,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -37,8 +36,6 @@ import org.junit.jupiter.api.DynamicTest;
 @HapiTestLifecycle
 public class AtomicBatchTokenTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
-    public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
-            new BigInteger(1, Bytes.fromHex("010000000000000000").toByteArray());
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
