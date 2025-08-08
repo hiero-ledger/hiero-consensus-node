@@ -313,10 +313,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 

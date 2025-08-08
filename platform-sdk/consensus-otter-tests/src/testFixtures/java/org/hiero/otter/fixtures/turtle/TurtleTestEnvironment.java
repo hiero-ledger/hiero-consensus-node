@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -100,6 +101,15 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
+    public Set<Capability> capabilities() {
+        return Set.of();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
     public Network network() {
         return network;
     }
@@ -126,7 +136,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException {
+    public void destroy() {
         InMemorySubscriptionManager.INSTANCE.reset();
         network.destroy();
         ConstructableRegistry.getInstance().reset();

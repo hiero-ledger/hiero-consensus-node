@@ -177,10 +177,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the network is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final TurtleNode node : topology.nodesImpl()) {

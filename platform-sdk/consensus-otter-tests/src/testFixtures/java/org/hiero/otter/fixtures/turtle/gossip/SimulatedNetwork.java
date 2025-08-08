@@ -198,12 +198,10 @@ public class SimulatedNetwork {
                     // Simulate network latency and jitter using truncated Gaussian distribution
                     final double sigma = connectionData.latency().toNanos() * connectionData.jitter().value / 100.0;
                     final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-                    Instant deliveryTime =
-                            now.plus(connectionData.latency()).plusNanos((long) jitter);
+                    Instant deliveryTime = now.plus(connectionData.latency()).plusNanos((long) jitter);
 
                     // Ensure delivery time is always incremental
-                    final Instant lastDeliveryTime =
-                            lastDeliveryTimestamps.getOrDefault(connectionKey, Instant.MIN);
+                    final Instant lastDeliveryTime = lastDeliveryTimestamps.getOrDefault(connectionKey, Instant.MIN);
                     if (deliveryTime.isBefore(lastDeliveryTime)) {
                         deliveryTime = lastDeliveryTime.plusNanos(1L);
                     }

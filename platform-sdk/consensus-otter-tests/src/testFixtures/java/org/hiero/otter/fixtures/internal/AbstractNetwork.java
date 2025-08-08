@@ -147,6 +147,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void start() {
+        updateConnections();
         defaultStartAction.start();
     }
 

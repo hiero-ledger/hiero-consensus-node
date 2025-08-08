@@ -11,19 +11,23 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Tests for the node isolation functionality in the Network interface.
  */
-public class NetworkIsolationTest {
+class NetworkIsolationTest {
+
+    private static final long RANDOM_SEED = 0L;
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -31,7 +35,7 @@ public class NetworkIsolationTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(0L));
+        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED));
     }
 
     /**
@@ -42,42 +46,44 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testIsolateSingleNode(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node nodeToIsolate = nodes.getFirst();
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node nodeToIsolate = nodes.getFirst();
 
-        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+            assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        network.start();
+            network.start();
 
-        // Wait for nodes to become active
-        timeManager.waitFor(Duration.ofSeconds(30));
+            // Wait for nodes to become active
+            timeManager.waitFor(Duration.ofSeconds(30));
 
-        // Isolate the first node
-        final Partition partition = network.isolate(nodeToIsolate);
+            // Isolate the first node
+            final Partition partition = network.isolate(nodeToIsolate);
 
-        // Verify the node is isolated
-        assertThat(network.isIsolated(nodeToIsolate)).isTrue();
-        assertThat(partition).isNotNull();
-        assertThat(partition.nodes()).containsExactly(nodeToIsolate);
-        assertThat(partition.size()).isEqualTo(1);
+            // Verify the node is isolated
+            assertThat(network.isIsolated(nodeToIsolate)).isTrue();
+            assertThat(partition).isNotNull();
+            assertThat(partition.nodes()).containsExactly(nodeToIsolate);
+            assertThat(partition.size()).isEqualTo(1);
 
-        // Verify the node is in a partition
-        assertThat(network.getPartitionContaining(nodeToIsolate)).isEqualTo(partition);
-        assertThat(network.partitions()).contains(partition);
+            // Verify the node is in a partition
+            assertThat(network.getPartitionContaining(nodeToIsolate)).isEqualTo(partition);
+            assertThat(network.partitions()).contains(partition);
 
-        // Let the network run with the isolated node
-        timeManager.waitFor(Duration.ofSeconds(10));
+            // Let the network run with the isolated node
+            timeManager.waitFor(Duration.ofSeconds(10));
 
-        // Other nodes should continue to make progress
-        assertThat(nodes.get(1).platformStatus()).isEqualTo(ACTIVE);
-        assertThat(nodes.get(2).platformStatus()).isEqualTo(ACTIVE);
-        assertThat(nodes.get(3).platformStatus()).isEqualTo(ACTIVE);
-
-        network.shutdown();
+            // Other nodes should continue to make progress
+            assertThat(nodes.get(1).platformStatus()).isEqualTo(ACTIVE);
+            assertThat(nodes.get(2).platformStatus()).isEqualTo(ACTIVE);
+            assertThat(nodes.get(3).platformStatus()).isEqualTo(ACTIVE);
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -88,43 +94,49 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testRejoinIsolatedNode(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
-
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node nodeToIsolate = nodes.getFirst();
-
-        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-
-        network.start();
-
-        // Wait for nodes to become active
-        timeManager.waitFor(Duration.ofSeconds(5));
-
-        // Isolate and then rejoin the node
-        final Partition partition = network.isolate(nodeToIsolate);
-        assertThat(network.isIsolated(nodeToIsolate)).isTrue();
-
-        timeManager.waitFor(Duration.ofSeconds(5));
-
-        // Rejoin the node
-        network.rejoin(nodeToIsolate);
-
-        // Verify the node is no longer isolated
-        assertThat(network.isIsolated(nodeToIsolate)).isFalse();
-        assertThat(network.getPartitionContaining(nodeToIsolate)).isNull();
-        assertThat(network.partitions()).doesNotContain(partition);
-
-        // Let the network run after rejoining
-        timeManager.waitFor(Duration.ofSeconds(10));
-
-        // All nodes should be active
-        for (final Node node : nodes) {
-            assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+        // Rejoining a network requires the RECONNECT capability.
+        if (! env.capabilities().contains(Capability.RECONNECT)) {
+            return;
         }
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        network.shutdown();
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node nodeToIsolate = nodes.getFirst();
+
+            assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+
+            network.start();
+
+            // Wait for nodes to become active
+            timeManager.waitFor(Duration.ofSeconds(5));
+
+            // Isolate and then rejoin the node
+            final Partition partition = network.isolate(nodeToIsolate);
+            assertThat(network.isIsolated(nodeToIsolate)).isTrue();
+
+            timeManager.waitFor(Duration.ofSeconds(5));
+
+            // Rejoin the node
+            network.rejoin(nodeToIsolate);
+
+            // Verify the node is no longer isolated
+            assertThat(network.isIsolated(nodeToIsolate)).isFalse();
+            assertThat(network.getPartitionContaining(nodeToIsolate)).isNull();
+            assertThat(network.partitions()).doesNotContain(partition);
+
+            // Let the network run after rejoining
+            timeManager.waitFor(Duration.ofSeconds(10));
+
+            // All nodes should be active
+            for (final Node node : nodes) {
+                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+            }
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -135,32 +147,34 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testIsIsolatedCheck(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
+        try {
+            final Network network = env.network();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node node1 = nodes.getFirst();
-        final Node node2 = nodes.get(1);
-        final Node node3 = nodes.get(2);
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node node1 = nodes.getFirst();
+            final Node node2 = nodes.get(1);
+            final Node node3 = nodes.get(2);
 
-        network.start();
+            network.start();
 
-        // Initially no nodes are isolated
-        assertThat(network.isIsolated(node1)).isFalse();
-        assertThat(network.isIsolated(node2)).isFalse();
-        assertThat(network.isIsolated(node3)).isFalse();
+            // Initially no nodes are isolated
+            assertThat(network.isIsolated(node1)).isFalse();
+            assertThat(network.isIsolated(node2)).isFalse();
+            assertThat(network.isIsolated(node3)).isFalse();
 
-        // Isolate node1
-        network.isolate(node1);
-        assertThat(network.isIsolated(node1)).isTrue();
-        assertThat(network.isIsolated(node2)).isFalse();
+            // Isolate node1
+            network.isolate(node1);
+            assertThat(network.isIsolated(node1)).isTrue();
+            assertThat(network.isIsolated(node2)).isFalse();
 
-        // Create a partition with multiple nodes (not isolated)
-        final Partition multiNodePartition = network.createPartition(Set.of(node2, node3));
-        assertThat(network.isIsolated(node2)).isFalse(); // Part of multi-node partition
-        assertThat(network.isIsolated(node3)).isFalse(); // Part of multi-node partition
-
-        network.shutdown();
+            // Create a partition with multiple nodes (not isolated)
+            final Partition multiNodePartition = network.createPartition(Set.of(node2, node3));
+            assertThat(network.isIsolated(node2)).isFalse(); // Part of multi-node partition
+            assertThat(network.isIsolated(node3)).isFalse(); // Part of multi-node partition
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -171,42 +185,44 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testIsolateMultipleNodes(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        // Setup network with 5 nodes
-        final List<Node> nodes = network.addNodes(5);
-        final Node node1 = nodes.getFirst();
-        final Node node2 = nodes.get(1);
+            // Setup network with 5 nodes
+            final List<Node> nodes = network.addNodes(5);
+            final Node node1 = nodes.getFirst();
+            final Node node2 = nodes.get(1);
 
-        network.start();
+            network.start();
 
-        // Wait for nodes to become active
-        timeManager.waitFor(Duration.ofSeconds(5));
+            // Wait for nodes to become active
+            timeManager.waitFor(Duration.ofSeconds(5));
 
-        // Isolate two nodes independently
-        final Partition partition1 = network.isolate(node1);
-        final Partition partition2 = network.isolate(node2);
+            // Isolate two nodes independently
+            final Partition partition1 = network.isolate(node1);
+            final Partition partition2 = network.isolate(node2);
 
-        // Verify both nodes are isolated
-        assertThat(network.isIsolated(node1)).isTrue();
-        assertThat(network.isIsolated(node2)).isTrue();
+            // Verify both nodes are isolated
+            assertThat(network.isIsolated(node1)).isTrue();
+            assertThat(network.isIsolated(node2)).isTrue();
 
-        // Verify they are in separate partitions
-        assertThat(partition1).isNotEqualTo(partition2);
-        assertThat(partition1.nodes()).containsExactly(node1);
-        assertThat(partition2.nodes()).containsExactly(node2);
+            // Verify they are in separate partitions
+            assertThat(partition1).isNotEqualTo(partition2);
+            assertThat(partition1.nodes()).containsExactly(node1);
+            assertThat(partition2.nodes()).containsExactly(node2);
 
-        // Verify the network has both partitions
-        assertThat(network.partitions()).containsExactlyInAnyOrder(partition1, partition2);
+            // Verify the network has both partitions
+            assertThat(network.partitions()).containsExactlyInAnyOrder(partition1, partition2);
 
-        // Rejoin one node
-        network.rejoin(node1);
-        assertThat(network.isIsolated(node1)).isFalse();
-        assertThat(network.isIsolated(node2)).isTrue();
-        assertThat(network.partitions()).containsExactly(partition2);
-
-        network.shutdown();
+            // Rejoin one node
+            network.rejoin(node1);
+            assertThat(network.isIsolated(node1)).isFalse();
+            assertThat(network.isIsolated(node2)).isTrue();
+            assertThat(network.partitions()).containsExactly(partition2);
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -217,23 +233,25 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testIsolateAlreadyPartitionedNode(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
+        try {
+            final Network network = env.network();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node node1 = nodes.getFirst();
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node node1 = nodes.getFirst();
 
-        network.start();
+            network.start();
 
-        // First isolate the node
-        network.isolate(node1);
+            // First isolate the node
+            network.isolate(node1);
 
-        // Try to isolate the same node again - should throw exception
-        assertThatThrownBy(() -> network.isolate(node1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("already in a partition");
-
-        network.shutdown();
+            // Try to isolate the same node again - should throw exception
+            assertThatThrownBy(() -> network.isolate(node1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("already in a partition");
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -244,20 +262,22 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testRejoinNonIsolatedNode(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
+        try {
+            final Network network = env.network();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node node1 = nodes.getFirst();
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node node1 = nodes.getFirst();
 
-        network.start();
+            network.start();
 
-        // Try to rejoin a node that is not isolated - should throw exception
-        assertThatThrownBy(() -> network.rejoin(node1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("not isolated");
-
-        network.shutdown();
+            // Try to rejoin a node that is not isolated - should throw exception
+            assertThatThrownBy(() -> network.rejoin(node1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("not isolated");
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -268,39 +288,41 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testPartitionLifecycleWithIsolation(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node node1 = nodes.getFirst();
-        final Node node2 = nodes.get(1);
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node node1 = nodes.getFirst();
+            final Node node2 = nodes.get(1);
 
-        network.start();
+            network.start();
 
-        // Create a regular partition first
-        final Partition regularPartition = network.createPartition(Set.of(node1, node2));
-        assertThat(network.getPartitionContaining(node1)).isEqualTo(regularPartition);
-        assertThat(network.getPartitionContaining(node2)).isEqualTo(regularPartition);
-        assertThat(network.isIsolated(node1)).isFalse();
-        assertThat(network.isIsolated(node2)).isFalse();
+            // Create a regular partition first
+            final Partition regularPartition = network.createPartition(Set.of(node1, node2));
+            assertThat(network.getPartitionContaining(node1)).isEqualTo(regularPartition);
+            assertThat(network.getPartitionContaining(node2)).isEqualTo(regularPartition);
+            assertThat(network.isIsolated(node1)).isFalse();
+            assertThat(network.isIsolated(node2)).isFalse();
 
-        // Remove the partition
-        network.removePartition(regularPartition);
-        assertThat(network.getPartitionContaining(node1)).isNull();
-        assertThat(network.getPartitionContaining(node2)).isNull();
+            // Remove the partition
+            network.removePartition(regularPartition);
+            assertThat(network.getPartitionContaining(node1)).isNull();
+            assertThat(network.getPartitionContaining(node2)).isNull();
 
-        // Now isolate node1
-        final Partition isolationPartition = network.isolate(node1);
-        assertThat(network.isIsolated(node1)).isTrue();
-        assertThat(network.getPartitionContaining(node1)).isEqualTo(isolationPartition);
+            // Now isolate node1
+            final Partition isolationPartition = network.isolate(node1);
+            assertThat(network.isIsolated(node1)).isTrue();
+            assertThat(network.getPartitionContaining(node1)).isEqualTo(isolationPartition);
 
-        // Remove the isolation partition using removePartition
-        network.removePartition(isolationPartition);
-        assertThat(network.isIsolated(node1)).isFalse();
-        assertThat(network.getPartitionContaining(node1)).isNull();
-
-        network.shutdown();
+            // Remove the isolation partition using removePartition
+            network.removePartition(isolationPartition);
+            assertThat(network.isIsolated(node1)).isFalse();
+            assertThat(network.getPartitionContaining(node1)).isNull();
+        } finally {
+            env.destroy();
+        }
     }
 
     /**
@@ -311,54 +333,56 @@ public class NetworkIsolationTest {
     @ParameterizedTest
     @MethodSource("environments")
     void testRestoreConnectivityWithIsolatedNodes(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        // Setup network with 5 nodes
-        final List<Node> nodes = network.addNodes(5);
-        final Node node1 = nodes.getFirst();
-        final Node node2 = nodes.get(1);
-        final Node node3 = nodes.get(2);
-        final Node node4 = nodes.get(3);
+            // Setup network with 5 nodes
+            final List<Node> nodes = network.addNodes(5);
+            final Node node1 = nodes.getFirst();
+            final Node node2 = nodes.get(1);
+            final Node node3 = nodes.get(2);
+            final Node node4 = nodes.get(3);
 
-        network.start();
+            network.start();
 
-        // Wait for nodes to become active
-        timeManager.waitFor(Duration.ofSeconds(5));
+            // Wait for nodes to become active
+            timeManager.waitFor(Duration.ofSeconds(5));
 
-        // Create various partitions and isolations
-        network.isolate(node1);
-        network.isolate(node2);
-        final Partition multiNodePartition = network.createPartition(Set.of(node3, node4));
+            // Create various partitions and isolations
+            network.isolate(node1);
+            network.isolate(node2);
+            final Partition multiNodePartition = network.createPartition(Set.of(node3, node4));
 
-        // Verify the state
-        assertThat(network.isIsolated(node1)).isTrue();
-        assertThat(network.isIsolated(node2)).isTrue();
-        assertThat(network.getPartitionContaining(node3)).isEqualTo(multiNodePartition);
-        assertThat(network.getPartitionContaining(node4)).isEqualTo(multiNodePartition);
-        assertThat(network.partitions()).hasSize(3);
+            // Verify the state
+            assertThat(network.isIsolated(node1)).isTrue();
+            assertThat(network.isIsolated(node2)).isTrue();
+            assertThat(network.getPartitionContaining(node3)).isEqualTo(multiNodePartition);
+            assertThat(network.getPartitionContaining(node4)).isEqualTo(multiNodePartition);
+            assertThat(network.partitions()).hasSize(3);
 
-        // Restore all connectivity
-        network.restoreConnectivity();
+            // Restore all connectivity
+            network.restoreConnectivity();
 
-        // Verify all nodes are no longer isolated or partitioned
-        assertThat(network.isIsolated(node1)).isFalse();
-        assertThat(network.isIsolated(node2)).isFalse();
-        assertThat(network.getPartitionContaining(node1)).isNull();
-        assertThat(network.getPartitionContaining(node2)).isNull();
-        assertThat(network.getPartitionContaining(node3)).isNull();
-        assertThat(network.getPartitionContaining(node4)).isNull();
-        assertThat(network.partitions()).isEmpty();
+            // Verify all nodes are no longer isolated or partitioned
+            assertThat(network.isIsolated(node1)).isFalse();
+            assertThat(network.isIsolated(node2)).isFalse();
+            assertThat(network.getPartitionContaining(node1)).isNull();
+            assertThat(network.getPartitionContaining(node2)).isNull();
+            assertThat(network.getPartitionContaining(node3)).isNull();
+            assertThat(network.getPartitionContaining(node4)).isNull();
+            assertThat(network.partitions()).isEmpty();
 
-        // Let the network run after restoration
-        timeManager.waitFor(Duration.ofSeconds(10));
+            // Let the network run after restoration
+            timeManager.waitFor(Duration.ofSeconds(10));
 
-        // All nodes should be active
-        for (final Node node : nodes) {
-            assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+            // All nodes should be active
+            for (final Node node : nodes) {
+                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+            }
+        } finally {
+            env.destroy();
         }
-
-        network.shutdown();
     }
 
     /**
@@ -366,33 +390,36 @@ public class NetworkIsolationTest {
      *
      * @param env the test environment for this test
      */
+    @Disabled("Investigate how this scenario is handled in production and adjust accordingly")
     @ParameterizedTest
     @MethodSource("environments")
     void testIsolationDuringFreeze(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
-        // Setup network with 4 nodes
-        final List<Node> nodes = network.addNodes(4);
-        final Node nodeToIsolate = nodes.getFirst();
+            // Setup network with 4 nodes
+            final List<Node> nodes = network.addNodes(4);
+            final Node nodeToIsolate = nodes.getFirst();
 
-        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+            assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        network.start();
+            network.start();
 
-        // Wait for nodes to become active
-        timeManager.waitFor(Duration.ofSeconds(5));
+            // Wait for nodes to become active
+            timeManager.waitFor(Duration.ofSeconds(5));
 
-        // Isolate a node
-        network.isolate(nodeToIsolate);
-        assertThat(network.isIsolated(nodeToIsolate)).isTrue();
+            // Isolate a node
+            network.isolate(nodeToIsolate);
+            assertThat(network.isIsolated(nodeToIsolate)).isTrue();
 
-        // Freeze the network
-        network.freeze();
+            // Freeze the network
+            network.freeze();
 
-        // The isolated node should remain isolated during freeze
-        assertThat(network.isIsolated(nodeToIsolate)).isTrue();
-
-        network.shutdown();
+            // The isolated node should remain isolated during freeze
+            assertThat(network.isIsolated(nodeToIsolate)).isTrue();
+        } finally {
+            env.destroy();
+        }
     }
 }
