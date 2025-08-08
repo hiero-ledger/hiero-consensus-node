@@ -45,11 +45,8 @@ public class ReconnectTest {
         network.addNodes(4, WeightGenerators.BALANCED);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.getNodes().forEach(node -> {
-            node.getConfiguration()
-                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
-                    .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
-        });
+        network.setConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
+                .setConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
         // Set the node we will force to reconnect
         final Node nodeToReconnect = network.getNodes().getLast();
