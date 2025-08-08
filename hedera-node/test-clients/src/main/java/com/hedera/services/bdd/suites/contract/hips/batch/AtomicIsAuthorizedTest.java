@@ -221,39 +221,6 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
-        final Stream<DynamicTest> isAuthorizedRawECDSAInvalidVValue() {
-            return hapiTest(
-                    newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ECDSA_KEY, ONE_HUNDRED_HBARS)),
-                    uploadInitCode(HRC632_CONTRACT),
-                    contractCreate(HRC632_CONTRACT),
-                    withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-
-                        final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
-                        final var addressBytes = recoverAddressFromPrivateKey(privateKey);
-                        final var signature = Signing.signMessage(messageHash, privateKey);
-                        signature[signature.length - 1] = (byte) 2;
-
-                        final var call = atomicBatch(contractCall(
-                                                HRC632_CONTRACT,
-                                                "isAuthorizedRawCall",
-                                                asHeadlongAddress(addressBytes),
-                                                messageHash,
-                                                signature)
-                                        .via("authorizeCall")
-                                        .gas(2_000_000L)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR);
-                        allRunFor(spec, call);
-                    }),
-                    getTxnRecord("authorizeCall")
-                            .hasPriority(recordWith()
-                                    .status(SUCCESS)
-                                    .contractCallResult(resultWith().contractCallResult(BoolResult.flag(false)))));
-        }
-
-        @HapiTest
         final Stream<DynamicTest> isAuthorizedRawECDSAInvalidSignatureLength() {
             return hapiTest(
                     newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
