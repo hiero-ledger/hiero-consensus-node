@@ -1,38 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.creator.impl.pool;
-
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.CompareTo.isLessThan;
+package org.hiero.consensus.transaction;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.TransactionConfig;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be
  * created.
  */
-public class TransactionPoolNexus implements TransactionSupplier {
-
-    private static final Logger logger = LogManager.getLogger(TransactionPoolNexus.class);
-    private final RateLimitedLogger illegalTransactionLogger;
-
+public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * A list of transactions created by this node waiting to be put into a self-event.
      */
@@ -76,38 +61,24 @@ public class TransactionPoolNexus implements TransactionSupplier {
     private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
 
     /**
-     * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
-     */
-    private final Duration maximumPermissibleUnhealthyDuration;
-
-    /**
-     * Whether the platform is currently in a healthy state.
-     */
-    private boolean healthy = true;
-
-    /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param configuration the configuration to use
-     * @param metrics       the metrics to use
-     * @param time          the time source to use
+     * @param transactionLimits            the configuration to use
+     * @param throttleTransactionQueueSize the maximum number of transactions that can be buffered before new
+     *                                     application transactions are rejected
+     * @param metrics                      the metrics to use
      */
     public TransactionPoolNexus(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-
-        illegalTransactionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(10));
-
-        final TransactionConfig transactionConfig = configuration.getConfigData(TransactionConfig.class);
-        maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
-        throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
+            @NonNull final TransactionLimits transactionLimits,
+            final int throttleTransactionQueueSize,
+            @NonNull final Metrics metrics) {
+        maxTransactionBytesPerEvent = transactionLimits.maxTransactionBytesPerEvent();
+        this.throttleTransactionQueueSize = throttleTransactionQueueSize;
 
         transactionPoolMetrics = new TransactionPoolMetrics(
                 metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
 
-        maximumTransactionSize = transactionConfig.transactionMaxBytes();
-
-        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
-        maximumPermissibleUnhealthyDuration = eventCreationConfig.maximumPermissibleUnhealthyDuration();
+        maximumTransactionSize = transactionLimits.transactionMaxBytes();
     }
 
     // FUTURE WORK: these checks should be unified with the checks performed when a system transaction is submitted.
@@ -122,26 +93,30 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
     public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
-        if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
+        if (platformStatus != PlatformStatus.ACTIVE) {
             return false;
         }
 
         if (appTransaction == null) {
             // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
-            illegalTransactionLogger.error(EXCEPTION.getMarker(), "transaction is null");
             return false;
         }
         if (appTransaction.length() > maximumTransactionSize) {
             // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
-            illegalTransactionLogger.error(
-                    EXCEPTION.getMarker(),
-                    "transaction has {} bytes, maximum permissible transaction size is {}",
-                    appTransaction.length(),
-                    maximumTransactionSize);
             return false;
         }
 
         return submitTransaction(appTransaction, false);
+    }
+
+    /**
+     * Submit a transaction that is considered a priority transaction. This transaction will be submitted before other
+     * waiting transactions that are not marked with the priority flag.
+     *
+     * @param transaction the transaction to submit
+     */
+    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
+        submitTransaction(transaction, true);
     }
 
     /**
@@ -154,7 +129,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      *                    functionalities.
      * @return true if successful
      */
-    public synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
+    private synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
         Objects.requireNonNull(transaction);
 
         // Always submit system transactions. If it's not a system transaction, then only submit it if we
@@ -188,16 +163,9 @@ public class TransactionPoolNexus implements TransactionSupplier {
      */
     public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
-    }
-
-    /**
-     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
-     * {@link Duration#ZERO} when the system enters a healthy state.
-     *
-     * @param duration the amount of time that the system has been in an unhealthy state
-     */
-    public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
-        healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
+        if (platformStatus == PlatformStatus.BEHIND) {
+            clear();
+        }
     }
 
     /**
@@ -235,7 +203,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      */
     @NonNull
     @Override
-    public synchronized List<Bytes> getTransactions() {
+    public synchronized List<Bytes> getTransactionsForEvent() {
         // Early return due to no transactions waiting
         if (bufferedTransactions.isEmpty() && priorityBufferedTransactions.isEmpty()) {
             return Collections.emptyList();

@@ -22,6 +22,7 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.assertj.core")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
 }
 

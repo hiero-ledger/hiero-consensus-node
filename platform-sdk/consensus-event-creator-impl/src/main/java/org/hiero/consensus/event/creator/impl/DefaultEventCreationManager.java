@@ -20,7 +20,6 @@ import java.util.Objects;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
@@ -29,6 +28,7 @@ import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
  * Default implementation of the {@link EventCreationManager}.
@@ -65,17 +65,17 @@ public class DefaultEventCreationManager implements EventCreationManager {
     /**
      * Constructor.
      *
-     * @param configuration provides the configuration for the event creator
-     * @param metrics provides the metrics for the event creator
-     * @param time provides the time source for the event creator
-     * @param transactionPoolNexus provides transactions to be added to new events
-     * @param creator creates events
+     * @param configuration             provides the configuration for the event creator
+     * @param metrics                   provides the metrics for the event creator
+     * @param time                      provides the time source for the event creator
+     * @param signatureTransactionCheck checks for pending signature transactions
+     * @param creator                   creates events
      */
     public DefaultEventCreationManager(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final TransactionPoolNexus transactionPoolNexus,
+            @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
@@ -84,7 +84,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
+        rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);

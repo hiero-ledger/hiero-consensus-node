@@ -22,13 +22,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 public class FakePlatformContext implements PlatformContext {
     public static final Configuration PLATFORM_CONFIG = ConfigurationBuilder.create()
             .withConfigDataType(MetricsConfig.class)
-            .withConfigDataType(TransactionConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .withConfigDataType(BasicConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
