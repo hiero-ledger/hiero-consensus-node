@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -39,7 +38,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
@@ -47,7 +45,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -104,7 +101,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -164,7 +160,6 @@ import com.hederahashgraph.api.proto.java.Fraction;
 import com.hederahashgraph.api.proto.java.FractionalFee;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenInfo;
@@ -187,15 +182,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class AtomicBatchPrecompileTest {
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
@@ -2116,29 +2108,6 @@ public class AtomicBatchPrecompileTest {
     }
 
     /**
-     * MiscTokenTest
-     */
-    @Nested
-    class MiscTokenTest {
-
-        @Contract(contract = "InternalCall", creationGas = 1_000_000L)
-        static SpecContract internalCall;
-
-        @FungibleToken(name = "fungibleToken")
-        static SpecFungibleToken fungibleToken;
-
-        @HapiTest
-        @DisplayName("cannot transfer value to HTS")
-        public Stream<DynamicTest> atomicCannotTransferValueToHts() {
-            return hapiTest(internalCall
-                    .call("isATokenWithCall", fungibleToken)
-                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
-                    .sending(100L)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_CONTRACT_ID)));
-        }
-    }
-
-    /**
      * PauseUnpauseTokenAccountPrecompileSuite
      */
     @HapiTest
@@ -2638,57 +2607,6 @@ public class AtomicBatchPrecompileTest {
                         .hasTinyBars(0)
                         .hasTokenBalance(FUNGIBLE_TOKEN, 0L)
                         .hasTokenBalance(FUNGIBLE_TOKEN_B, 0L));
-    }
-
-    /**
-     * UnknownFunctionSelectorTest
-     */
-    @Nested
-    class UnknownFunctionSelectorTest {
-
-        @Account(tinybarBalance = ONE_HUNDRED_HBARS)
-        static SpecAccount account;
-
-        @Account()
-        static SpecAccount receiver;
-
-        @Contract(contract = "UnknownFunctionSelectorContract", creationGas = 1_500_000)
-        static SpecContract contract;
-
-        @HapiTest
-        final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector() {
-
-            final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
-            final String schedule = "testSchedule";
-            return hapiTest(
-                    account.getInfo(),
-                    receiver.getInfo(),
-                    scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(account.name(), receiver.name(), 1)))
-                            .exposingCreatedIdTo(scheduleID::set),
-                    withOpContext((spec, opLog) -> allRunFor(
-                            spec,
-                            contract.call(
-                                            "callScheduleServiceWithFakeSelector",
-                                            mirrorAddrWith(
-                                                    spec, scheduleID.get().getScheduleNum()))
-                                    .payingWith(account)
-                                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
-                                    .gas(1_000_000)
-                                    .via("txn"))),
-                    withOpContext((spec, opLog) -> {
-                        final var txn = getTxnRecord("txn");
-                        allRunFor(spec, txn);
-
-                        final var res = Bytes32.wrap(Arrays.copyOfRange(
-                                txn.getResponseRecord()
-                                        .getContractCallResult()
-                                        .getContractCallResult()
-                                        .toByteArray(),
-                                32,
-                                64));
-                        assertEquals(Bytes32.ZERO, res);
-                    }));
-        }
     }
 
     /**

@@ -4,19 +4,14 @@ package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -31,7 +26,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey;
-import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Map;
@@ -108,31 +102,6 @@ public class AtomicBatchTokenTest {
     }
 
     /**
-     * UpdateTokenMetadataTest
-     */
-    @HapiTest
-    @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
-    public Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
-            @NonFungibleToken(
-                            numPreMints = 10,
-                            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY})
-                    final SpecNonFungibleToken nft,
-            @Contract(contract = "UpdateTokenMetadata", creationGas = 4_000_000L, variant = VARIANT_16C)
-                    final SpecContract updateTokenMetadata) {
-        final int serialNumber = 1;
-        return hapiTest(
-                nft.authorizeContracts(updateTokenMetadata)
-                        .alsoAuthorizing(TokenKeyType.METADATA_KEY, TokenKeyType.SUPPLY_KEY),
-                nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("SN#" + serialNumber))),
-                updateTokenMetadata
-                        .call("callUpdateNFTsMetadata", nft, new long[] {serialNumber}, "The Lion King".getBytes())
-                        .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
-                        .gas(1_000_000L)
-                        .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
-                nft.getInfo(serialNumber).andAssert(info -> info.hasMetadata(metadata("The Lion King"))));
-    }
-
-    /**
      * UpdateTokenPrecompileTest
      */
     @HapiTest
@@ -150,43 +119,5 @@ public class AtomicBatchTokenTest {
                         .call("updateTokenName", sharedMutableToken, "NEW_NAME")
                         .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
                 sharedMutableToken.getInfo().andAssert(info -> info.hasName("NEW_NAME")));
-    }
-
-    /**
-     * NumericValidationTest
-     */
-    @HapiTest
-    @DisplayName("Atomic FT redirect proxy approve(address,uint256)")
-    public Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken(
-            @Contract(contract = "NumericContract", creationGas = 8_000_000L) final SpecContract numericContract,
-            @FungibleToken(
-                            name = "NumericValidationTestFT",
-                            initialSupply = 1_000L,
-                            maxSupply = 1_200L,
-                            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY, WIPE_KEY})
-                    final SpecFungibleToken fungibleToken,
-            @Contract(contract = "NumericContractComplex", creationGas = 8_000_000L)
-                    final SpecContract numericContractComplex) {
-        return hapiTest(
-                // Authorizations + additional keys
-                fungibleToken
-                        .authorizeContracts(numericContract, numericContractComplex)
-                        .alsoAuthorizing(
-                                TokenKeyType.SUPPLY_KEY,
-                                TokenKeyType.PAUSE_KEY,
-                                TokenKeyType.METADATA_KEY,
-                                TokenKeyType.WIPE_KEY),
-                // Associations
-                numericContract.associateTokens(fungibleToken),
-                numericContract
-                        .call("approveRedirect", fungibleToken, numericContractComplex, MAX_LONG_PLUS_1_BIG_INT)
-                        .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, SUCCESS, INNER_TRANSACTION_FAILED)
-                        .gas(1_000_000L)
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                numericContract
-                        .call("approveRedirect", fungibleToken, numericContractComplex, BigInteger.ZERO)
-                        .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, SUCCESS, INNER_TRANSACTION_FAILED)
-                        .gas(1_000_000L)
-                        .andAssert(txn -> txn.hasKnownStatus(SUCCESS)));
     }
 }

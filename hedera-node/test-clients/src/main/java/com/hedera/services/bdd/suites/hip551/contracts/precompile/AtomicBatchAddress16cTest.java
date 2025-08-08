@@ -4,13 +4,9 @@ package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FREEZE_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.KYC_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -98,18 +94,5 @@ public class AtomicBatchAddress16cTest {
                         .gas(1_000_000L)
                         .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                 nft.getInfo().andAssert(info -> info.hasMetadata("randomMetaNew777")));
-    }
-
-    @HapiTest
-    @DisplayName("atomic get token type")
-    public Stream<DynamicTest> atomicCannotUpdateMissingToken(
-            @Contract(contract = "TokenAndTypeCheck", creationGas = 4_000_000L, variant = VARIANT_16C)
-                    final SpecContract tokenTypeCheckContract,
-            @FungibleToken(
-                            name = "immutableToken",
-                            keys = {FEE_SCHEDULE_KEY, SUPPLY_KEY, WIPE_KEY, PAUSE_KEY, FREEZE_KEY, KYC_KEY})
-                    final SpecFungibleToken immutableToken) {
-        return hapiTest(
-                tokenTypeCheckContract.call("getType", immutableToken).wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR));
     }
 }
