@@ -191,9 +191,7 @@ public final class StartupStateUtils {
         signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        final Hash hash = platformContext
-                .getMerkleCryptography()
-                .digestTreeSync(initialSignedState.getState().getRoot());
+        final Hash hash = initialSignedState.getState().getRoot().getHash();
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.test.fixtures.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.readFromStream;
 import static com.swirlds.state.merkle.StateUtils.writeToStream;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,8 +22,11 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * terms of business objects, and this one implementation of {@link VirtualValue} is used for all
  * types of values.
  *
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
+ *
  * @param <V> The type of the value (business object) held in this merkel data structure
  */
+@Deprecated
 public class OnDiskValue<V> implements VirtualValue {
 
     @Deprecated(forRemoval = true)
