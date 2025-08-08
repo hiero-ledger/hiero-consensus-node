@@ -95,7 +95,7 @@ class NetworkIsolationTest {
     @MethodSource("environments")
     void testRejoinIsolatedNode(@NonNull final TestEnvironment env) {
         // Rejoining a network requires the RECONNECT capability.
-        if (! env.capabilities().contains(Capability.RECONNECT)) {
+        if (!env.capabilities().contains(Capability.RECONNECT)) {
             return;
         }
         try {

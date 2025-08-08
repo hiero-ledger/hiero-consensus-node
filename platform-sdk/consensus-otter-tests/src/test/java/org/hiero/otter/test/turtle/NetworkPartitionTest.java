@@ -310,9 +310,7 @@ class NetworkPartitionTest {
 
             // Create a large partition with 7 nodes
             final Set<Node> partitionNodes = Set.of(
-                    nodes.get(0), nodes.get(1), nodes.get(2), nodes.get(3),
-                    nodes.get(4), nodes.get(5), nodes.get(6)
-            );
+                    nodes.get(0), nodes.get(1), nodes.get(2), nodes.get(3), nodes.get(4), nodes.get(5), nodes.get(6));
             final Partition partition = network.createPartition(partitionNodes);
 
             // Verify the large partition
@@ -533,7 +531,7 @@ class NetworkPartitionTest {
             // Verify isolation behavior
             assertThat(network.isIsolated(nodes.get(0))).isFalse(); // Part of multi-node partition
             assertThat(network.isIsolated(nodes.get(1))).isFalse(); // Part of multi-node partition
-            assertThat(network.isIsolated(nodes.get(2))).isTrue();  // Isolated node
+            assertThat(network.isIsolated(nodes.get(2))).isTrue(); // Isolated node
 
             // Try to isolate a node that's already in a partition - should throw exception
             assertThatThrownBy(() -> network.isolate(nodes.getFirst()))
