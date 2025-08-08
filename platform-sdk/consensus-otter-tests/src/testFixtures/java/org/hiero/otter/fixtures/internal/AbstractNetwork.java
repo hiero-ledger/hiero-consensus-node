@@ -260,7 +260,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setVersion(@NonNull final SemanticVersion version) {
-        for (final Node node : nodes()) {
+        for (final Node node : getNodes()) {
             node.setVersion(version);
         }
     }
@@ -270,7 +270,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        for (final Node node : nodes()) {
+        for (final Node node : getNodes()) {
             node.bumpConfigVersion();
         }
     }
@@ -282,7 +282,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeConsensusResults newConsensusResults() {
         final List<SingleNodeConsensusResult> results =
-                nodes().stream().map(Node::newConsensusResult).toList();
+                getNodes().stream().map(Node::newConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
     }
 
@@ -293,7 +293,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public MultipleNodeLogResults newLogResults() {
         final List<SingleNodeLogResult> results =
-                nodes().stream().map(Node::newLogResult).toList();
+                getNodes().stream().map(Node::newLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
     }
@@ -305,7 +305,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePlatformStatusResults newPlatformStatusResults() {
         final List<SingleNodePlatformStatusResult> statusProgressions =
-                nodes().stream().map(Node::newPlatformStatusResult).toList();
+                getNodes().stream().map(Node::newPlatformStatusResult).toList();
         return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
     }
 
@@ -316,7 +316,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeReconnectResults newReconnectResults() {
         final List<SingleNodeReconnectResult> reconnectResults =
-                nodes().stream().map(Node::newReconnectResult).toList();
+                getNodes().stream().map(Node::newReconnectResult).toList();
         return new MultipleNodeReconnectResultsImpl(reconnectResults);
     }
 
@@ -327,7 +327,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePcesResults newPcesResults() {
         final List<SingleNodePcesResult> results =
-                nodes().stream().map(Node::newPcesResult).toList();
+                getNodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
     }
 
@@ -338,7 +338,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeMarkerFileResults newMarkerFileResults() {
         final List<SingleNodeMarkerFileResult> results =
-                nodes().stream().map(Node::newMarkerFileResult).toList();
+                getNodes().stream().map(Node::newMarkerFileResult).toList();
         return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
@@ -347,7 +347,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
-        final Set<Node> otherNodes = nodes().stream()
+        final Set<Node> otherNodes = getNodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -365,7 +365,7 @@ public abstract class AbstractNetwork implements Network {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
-        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, totalWeight());
+        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getTotalWeight());
     }
 
     /**
@@ -373,7 +373,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = nodes().stream()
+        final Set<Node> otherNodes = getNodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -402,7 +402,7 @@ public abstract class AbstractNetwork implements Network {
      * @return the {@link BooleanSupplier}
      */
     protected BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> nodes().stream().allMatch(node -> node.platformStatus() == status);
+        return () -> getNodes().stream().allMatch(node -> node.platformStatus() == status);
     }
 
     /**
@@ -420,8 +420,8 @@ public abstract class AbstractNetwork implements Network {
 
     private void updateConnections() {
         final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
-        for (final Node sender : nodes()) {
-            for (final Node receiver : nodes()) {
+        for (final Node sender : getNodes()) {
+            for (final Node receiver : getNodes()) {
                 if (sender.selfId().equals(receiver.selfId())) {
                     continue; // Skip self-connections
                 }
@@ -464,7 +464,7 @@ public abstract class AbstractNetwork implements Network {
 
             log.info("Starting network...");
             state = State.RUNNING;
-            for (final Node node : nodes()) {
+            for (final Node node : getNodes()) {
                 node.start();
             }
 
@@ -487,7 +487,7 @@ public abstract class AbstractNetwork implements Network {
             log.info("Sending freeze transaction...");
             final byte[] freezeTransaction =
                     createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
-            nodes().stream()
+            getNodes().stream()
                     .filter(Node::isActive)
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
@@ -510,7 +510,7 @@ public abstract class AbstractNetwork implements Network {
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
             log.info("Killing nodes immediately...");
-            for (final Node node : nodes()) {
+            for (final Node node : getNodes()) {
                 node.killImmediately();
             }
 

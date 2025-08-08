@@ -46,14 +46,14 @@ public class ReconnectTest {
         network.addNodes(4);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.nodes().forEach(node -> {
+        network.getNodes().forEach(node -> {
             node.configuration()
                     .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
                     .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
         });
 
         // Set the node we will force to reconnect
-        final Node nodeToReconnect = network.nodes().getLast();
+        final Node nodeToReconnect = network.getNodes().getLast();
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();

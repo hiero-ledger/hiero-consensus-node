@@ -37,7 +37,7 @@ public interface Network {
      * @return a list of nodes in the network
      */
     @NonNull
-    default List<Node> nodes() {
+    default List<Node> getNodes() {
         return topology().nodes();
     }
 
@@ -103,8 +103,8 @@ public interface Network {
      *
      * @return the network weight
      */
-    default long totalWeight() {
-        return nodes().stream().mapToLong(Node::weight).sum();
+    default long getTotalWeight() {
+        return getNodes().stream().mapToLong(Node::weight).sum();
     }
 
     /**

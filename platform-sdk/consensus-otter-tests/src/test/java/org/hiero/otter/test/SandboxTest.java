@@ -126,7 +126,7 @@ public class SandboxTest {
 
         // Validations
         final MultipleNodeLogResults logResults = network.newLogResults()
-                .suppressingNode(network.nodes().getFirst())
+                .suppressingNode(network.getNodes().getFirst())
                 .suppressingLogMarker(STARTUP);
         assertThat(logResults).haveNoMessagesWithLevelHigherThan(Level.WARN);
 
