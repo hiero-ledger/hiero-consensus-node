@@ -12,6 +12,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateUtils;
@@ -65,12 +66,12 @@ public class SortedJsonExporter {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
         ArrayList<Bytes> keys = collectKeys(vm);
-        if(keys.isEmpty()) {
+        if (keys.isEmpty()) {
             throw new RuntimeException(String.format("No valid keys found in state %s_%s", serviceName, stateKeyName));
         }
 
         // do not sort queues
-        if(expectedStateId < StateKey.KeyOneOfType.RECORD_CACHE_TRANSACTION_RECEIPT_QUEUE.protoOrdinal()) {
+        if (expectedStateId < StateKey.KeyOneOfType.RECORD_CACHE_TRANSACTION_RECEIPT_QUEUE.protoOrdinal()) {
             parallelSort(keys, Comparator.naturalOrder());
         } else {
             parallelSort(keys, (key1, key2) -> {
@@ -78,10 +79,10 @@ public class SortedJsonExporter {
                     StateKey stateKey1 = StateKey.PROTOBUF.parse(key1);
                     StateKey stateKey2 = StateKey.PROTOBUF.parse(key2);
                     // queue metadata
-                    if(stateKey1.key().value() instanceof SingletonType) {
+                    if (stateKey1.key().value() instanceof SingletonType) {
                         return -1;
                     }
-                    if(stateKey2.key().value() instanceof SingletonType) {
+                    if (stateKey2.key().value() instanceof SingletonType) {
                         return 1;
                     }
                     Long index1 = (Long) stateKey1.key().value();
@@ -106,12 +107,13 @@ public class SortedJsonExporter {
                 .forEach(path -> {
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
                     final Bytes keyBytes = leafRecord.keyBytes();
-                    int tag = keyBytes.getVarInt(0, false);
+                    final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+                    int tag = keyData.readVarInt(false);
                     final int actualStateId = tag >> TAG_FIELD_OFFSET;
-                    if(actualStateId == 1) {
+                    if (actualStateId == 1) {
                         // it's a singleton, additional read is required
-                        int singletonStateId = keyBytes.getVarInt(1, false);
-                        if(singletonStateId == expectedStateId) {
+                        int singletonStateId = keyData.readVarInt(false);
+                        if (singletonStateId == expectedStateId) {
                             keys.add(keyBytes);
                         }
                         return;

@@ -12,6 +12,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateUtils;
@@ -112,10 +113,11 @@ public class JsonExporter {
                 final StateKey stateKey;
                 final StateValue stateValue;
                 try {
-                    int tag = keyBytes.getVarInt(0, false);
+                    final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+                    final int tag = keyData.readVarInt(false);
                     // normalize stateId for singletons
-                    final int actualStateId = tag >> TAG_FIELD_OFFSET  == 1 ?
-                            keyBytes.getVarInt(1, false) : tag >> TAG_FIELD_OFFSET;
+                    final int actualStateId =
+                            tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
                     if (expectedStateId != -1 && expectedStateId != actualStateId) {
                         continue;
                     }
@@ -142,7 +144,7 @@ public class JsonExporter {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        if(emptyFile) {
+        if (emptyFile) {
             file.delete();
         }
     }
