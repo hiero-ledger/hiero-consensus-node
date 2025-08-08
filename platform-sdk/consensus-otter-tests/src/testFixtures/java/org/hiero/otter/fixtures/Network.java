@@ -6,6 +6,7 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -185,6 +186,56 @@ public interface Network {
      * connection settings. The defaults are defined by the {@link Topology} of the network.
      */
     void restoreConnectivity();
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    Network setConfigValue(@NonNull String key, @NonNull String value);
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    Network setConfigValue(@NonNull String key, int value);
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    Network setConfigValue(@NonNull String key, long value);
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    Network setConfigValue(@NonNull String key, boolean value);
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    Network setConfigValue(@NonNull String key, @NonNull Path value);
 
     /**
      * Freezes the network.

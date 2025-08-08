@@ -6,9 +6,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -51,6 +55,19 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
     public MultipleNodeReconnectResults suppressingNode(@NonNull final NodeId nodeId) {
         final List<SingleNodeReconnectResult> filtered = results.stream()
                 .filter(it -> Objects.equals(it.nodeId(), nodeId))
+                .toList();
+        return new MultipleNodeReconnectResultsImpl(filtered);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
+    public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
+        final List<SingleNodeReconnectResult> filtered = results.stream()
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodeReconnectResultsImpl(filtered);
     }

@@ -14,6 +14,7 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
@@ -251,6 +252,56 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, @NonNull final String value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final int value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final long value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, @NonNull final Path value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network setConfigValue(@NonNull final String key, final boolean value) {
+        getNodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void shutdown() {
         defaultShutdownAction.shutdown();
     }
@@ -260,9 +311,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setVersion(@NonNull final SemanticVersion version) {
-        for (final Node node : getNodes()) {
-            node.setVersion(version);
-        }
+        getNodes().forEach(node -> node.setVersion(version));
     }
 
     /**
@@ -270,9 +319,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        for (final Node node : getNodes()) {
-            node.bumpConfigVersion();
-        }
+        getNodes().forEach(Node::bumpConfigVersion);
     }
 
     /**
