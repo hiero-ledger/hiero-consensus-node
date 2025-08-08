@@ -179,7 +179,7 @@ jobs:
           USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
           PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
           SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
-          TEST_SCRIPT: ".github/workflows/support/scripts/nightly.sh"
+          TEST_SCRIPT: ".github/workflows/support/scripts/sdct.sh"
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
