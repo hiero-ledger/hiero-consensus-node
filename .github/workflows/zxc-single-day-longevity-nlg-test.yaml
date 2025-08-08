@@ -530,7 +530,9 @@ jobs:
           CRYPTO="${{ needs.performance-tests-start.outputs.Cryptoscore }}"
           HCS="${{ needs.performance-tests-start.outputs.HCSscore }}"
           SMART="${{ needs.performance-tests-start.outputs.Smartscore }}"
+          RESULT="failure"
           
+          # Check if any variable is empty. If it is, we set the result to failure.
           if [ -z "${NFT}" ] || [ -z "${HELI}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
             echo "RESULT=failure" >> "${GITHUB_OUTPUT}"
           else
