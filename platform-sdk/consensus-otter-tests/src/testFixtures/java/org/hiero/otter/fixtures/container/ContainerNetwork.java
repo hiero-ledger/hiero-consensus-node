@@ -34,7 +34,6 @@ import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
-import org.hiero.otter.fixtures.internal.network.TopologyImplementation;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.testcontainers.containers.Network;
@@ -42,7 +41,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
  * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment. This class provides a
- * basic structure for a container network, but does not implement all functionalities yet.
+ * basic structure for a container network but does not implement all functionalities yet.
  */
 public class ContainerNetwork extends AbstractNetwork {
 
@@ -60,7 +59,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
-    private final TopologyImplementation<ContainerNode> topology = new MeshTopologyImpl<>(this::createContainerNodes);
+    private final Topology topology = new MeshTopologyImpl(this::createContainerNodes);
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -114,7 +113,7 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void onConnectionsChanged(final Map<ConnectionKey, ConnectionData> connections) {
-        // No-op for container network, will be implemented next
+        // No-op for container network, it will be implemented next
         // https://github.com/hiero-ledger/hiero-consensus-node/issues/20258
     }
 
@@ -205,8 +204,6 @@ public class ContainerNetwork extends AbstractNetwork {
     void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        for (final ContainerNode node : topology.nodesImpl()) {
-            node.destroy();
-        }
+        topology.nodes().forEach(node -> ((ContainerNode)node).destroy());
     }
 }

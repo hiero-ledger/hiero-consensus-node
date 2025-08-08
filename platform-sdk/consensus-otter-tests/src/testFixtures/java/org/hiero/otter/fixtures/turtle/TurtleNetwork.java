@@ -28,7 +28,6 @@ import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
-import org.hiero.otter.fixtures.internal.network.TopologyImplementation;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
@@ -49,7 +48,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final TurtleTransactionGenerator transactionGenerator;
-    private final TopologyImplementation<TurtleNode> topology = new MeshTopologyImpl<>(this::createTurtleNodes);
+    private final Topology topology = new MeshTopologyImpl(this::createTurtleNodes);
 
     private ExecutorService executorService;
     private SimulatedNetwork simulatedNetwork;
@@ -164,12 +163,12 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         }
 
         simulatedNetwork.tick(now);
-        transactionGenerator.tick(now, topology.nodesImpl());
+        transactionGenerator.tick(now, topology.nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
-        CompletableFuture.allOf(topology.nodesImpl().stream()
-                        .map(node -> CompletableFuture.runAsync(() -> node.tick(now), executorService))
+        CompletableFuture.allOf(topology.nodes().stream()
+                        .map(node -> CompletableFuture.runAsync(() -> ((TurtleNode)node).tick(now), executorService))
                         .toArray(CompletableFuture[]::new))
                 .join();
     }
@@ -181,9 +180,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        for (final TurtleNode node : topology.nodesImpl()) {
-            node.destroy();
-        }
+        topology.nodes().forEach(node -> ((TurtleNode)node).destroy());
         if (executorService != null) {
             executorService.shutdownNow();
         }
