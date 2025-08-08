@@ -18,7 +18,7 @@ dependencies {
 val autoService = "1.1.1"
 val besu = "24.3.3"
 val bouncycastle = "1.81"
-val dagger = "2.56.2"
+val dagger = "2.57"
 val eclipseCollections = "13.0.0"
 val grpc = "1.72.0"
 val hederaCryptography = "0.2.3-SNAPSHOT"
