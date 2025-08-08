@@ -105,7 +105,8 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
         if (attempt.isSelector(DELETE_SCHEDULE)) {
             final var call = DELETE_SCHEDULE.decodeCall(attempt.inputBytes());
             final Address scheduleAddress = call.get(SCHEDULE_ADDRESS_INDEX);
-            return ConversionUtils.addressToScheduleID(attempt.nativeOperations().entityIdFactory(), scheduleAddress);
+            return ConversionUtils.addressToScheduleID(
+                    attempt.nativeOperations().entityIdFactory(), scheduleAddress);
         } else if (attempt.isSelector(DELETE_SCHEDULE_PROXY)) {
             return attempt.redirectScheduleId();
         }
