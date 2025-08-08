@@ -25,6 +25,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * and a few other params like whether to prefer disk based indexes or not. These table
  * configs are stored in virtual database metadata and persisted across JVM runs.
  */
+@Deprecated
 public final class MerkleDbTableConfig implements SelfSerializable {
 
     private static final long CLASS_ID = 0xbb41e7eb9fcad23cL;

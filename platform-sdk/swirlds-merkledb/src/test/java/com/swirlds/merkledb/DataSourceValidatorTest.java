@@ -4,9 +4,11 @@ package com.swirlds.merkledb;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -22,9 +24,12 @@ class DataSourceValidatorTest {
     private int count;
 
     @BeforeEach
-    public void setUp() {
+    public void setUp() throws IOException {
         count = 10_000;
         MerkleDbTestUtils.assertAllDatabasesClosed();
+        if (Files.exists(tempDir)) {
+            FileUtils.deleteDirectory(tempDir);
+        }
     }
 
     @Test
