@@ -48,6 +48,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
@@ -1355,8 +1356,8 @@ class VirtualMapTests extends VirtualTestBase {
         }
 
         final VirtualMap root2 = createMap();
-        final long firstLeafPath = root1.getState().getFirstLeafPath();
-        final long lastLeafPath = root1.getState().getLastLeafPath();
+        final long firstLeafPath = root1.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = root1.getMetadata().getLastLeafPath();
         for (long index = firstLeafPath; index <= lastLeafPath; index++) {
             final VirtualLeafBytes leaf = root1.getRecords().findLeafRecord(index);
             final Bytes key = leaf.keyBytes().replicate();
@@ -1454,12 +1455,23 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("Detach Test")
     void detachTest() throws IOException {
         final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+        Bytes testKey = Bytes.wrap("testKey");
+        original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
         final VirtualMap copy = original.copy();
 
         original.getHash(); // forces copy to become hashed
+
         final RecordAccessor detachedCopy = original.getPipeline().pausePipelineAndRun("copy", original::detach);
         assertTrue(original.isDetached(), "root should be detached");
         assertNotNull(detachedCopy);
+
+        VirtualMapMetadata originalMetadata = original.getMetadata();
+        // let's change the original state and make sure that the detached copy is not affected
+        originalMetadata.setFirstLeafPath(-1);
+        originalMetadata.setLastLeafPath(-1);
+        VirtualLeafBytes leafRecord = detachedCopy.findLeafRecord(1L);
+        assertNotNull(leafRecord);
+        assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
 
         original.release();
         copy.release();

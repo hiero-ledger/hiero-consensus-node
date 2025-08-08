@@ -56,7 +56,6 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -66,7 +65,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @DisplayName("Records Suite")
-@Disabled
 public class AtomicRecordsSuite {
 
     public static final String LOG_NOW = "logNow";
@@ -198,7 +196,7 @@ public class AtomicRecordsSuite {
                     final var firstCallLogs =
                             firstCallRecord.getContractCallResult().getLogInfoList();
                     final var firstCallTimeLogData =
-                            firstCallLogs.get(0).getData().toByteArray();
+                            firstCallLogs.getFirst().getData().toByteArray();
                     final var firstCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(firstCallTimeLogData, 24, 32));
 
@@ -206,7 +204,7 @@ public class AtomicRecordsSuite {
                     final var secondCallLogs =
                             secondCallRecord.getContractCallResult().getLogInfoList();
                     final var secondCallTimeLogData =
-                            secondCallLogs.get(0).getData().toByteArray();
+                            secondCallLogs.getFirst().getData().toByteArray();
                     final var secondCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(secondCallTimeLogData, 24, 32));
 

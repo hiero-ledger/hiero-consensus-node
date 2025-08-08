@@ -1,0 +1,528 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Adhoc - Single Day Longevity Test Controller"
+on:
+  workflow_dispatch:
+    inputs:
+      test-asset:
+        required: true
+        default: "SDLT2"
+        description: "Performance test on given Longevity Machine (SDLT2)"
+        type: choice
+        options:
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
+          - SDLT2
+      ref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "180"
+          - "330"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  verify-tag:
+    name: Verify Tag
+    runs-on: hiero-citr-linux-medium
+    continue-on-error: true
+    outputs:
+      build-number: ${{ steps.verify-tag.outputs.build-number }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Verify Tag
+        id: verify-tag
+        env:
+          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
+          CHECK_TAG: "${{ inputs.ref }}"
+        run: |
+          # Ensure the tag that we received is a build tag
+          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
+          # return the build tag as an output
+          # if the tag is not a build tag then we will fail the workflow
+          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
+            echo "The tag is a valid build tag."
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  run-single-day-longevity-nlg-test:
+    name: Performance Test
+    needs:
+      - verify-tag
+    uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
+    with:
+      test-asset: "${{ inputs.test-asset }}"
+      ref: "${{ inputs.ref }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+  tag-sdlt-passing:
+    name: Tag SDLT Passing
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - run-single-day-longevity-nlg-test
+      - verify-tag
+    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag SDLT Passing
+        run: |
+          TAG_NAME="sdlt-pass-${{ needs.verify-tag.outputs.build-number }}"
+          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          git push --set-upstream origin --tags
+
+          echo "### SDLT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+
+  get-commit-info:
+    name: Get Commit Information
+    runs-on: hiero-citr-linux-medium
+    if: ${{ inputs.disable-notifications != true }}
+    needs:
+      - verify-tag
+    outputs:
+      commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
+      commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
+      slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          BUILD_TAG: ${{ inputs.ref }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+        run: |
+          # Extract the commit and user information from the build tag
+          COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
+          EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+
+  report-success:
+    name: Report SDLT execution success
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - verify-tag
+      - tag-sdlt-passing
+      - run-single-day-longevity-nlg-test
+      - get-commit-info
+    if: ${{ (needs.verify-tag.result == 'success' &&
+      needs.tag-sdlt-passing.result == 'success' &&
+      needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
+      needs.get-commit-info.result == 'success') &&
+      inputs.disable-notifications != true && !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#00FF00",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Passed",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*SDLT Job Succeeded. Test panel status below*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Verify Tag for SDLT"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.verify-tag.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Run Single Day Performance Test"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result  }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Tag SDLT Passing"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.tag-sdlt-passing.result }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow, Tag, and Commit Information*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Tag*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
+  report-failure:
+    name: Report SDLT execution failure
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - verify-tag
+      - run-single-day-longevity-nlg-test
+      - tag-sdlt-passing
+      - get-commit-info
+    if: ${{ (needs.verify-tag.result != 'success' ||
+      needs.tag-sdlt-passing.result != 'success' ||
+      needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success') &&
+      inputs.disable-notifications != true && !cancelled() && always() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Failed",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*SDLT Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Verify Tag for SDLT"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.verify-tag.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Run Single Day Performance Test"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag SDLT Passing"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.tag-sdlt-passing.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Get Commit Information"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.get-commit-info.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow, Tag, and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Tag*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

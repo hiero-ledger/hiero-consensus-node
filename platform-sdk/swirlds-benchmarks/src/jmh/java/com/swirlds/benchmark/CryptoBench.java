@@ -140,23 +140,25 @@ public abstract class CryptoBench extends VirtualMapBench {
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
                 } else {
-                    value1.update(l -> l + amount);
+                    value1 = value1.copyBuilder().update(l -> l + amount).build();
                 }
                 virtualMap.put(key1, value1, BenchmarkValueCodec.INSTANCE);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
                 } else {
-                    value2.update(l -> l - amount);
+                    value2 = value2.copyBuilder().update(l -> l - amount).build();
                 }
                 virtualMap.put(key2, value2, BenchmarkValueCodec.INSTANCE);
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
@@ -251,23 +253,25 @@ public abstract class CryptoBench extends VirtualMapBench {
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
                 } else {
-                    value1.update(l -> l + amount);
+                    value1 = value1.copyBuilder().update(l -> l + amount).build();
                 }
                 virtualMap.put(key1, value1, BenchmarkValueCodec.INSTANCE);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
                 } else {
-                    value2.update(l -> l - amount);
+                    value2 = value2.copyBuilder().update(l -> l - amount).build();
                 }
                 virtualMap.put(key2, value2, BenchmarkValueCodec.INSTANCE);
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
@@ -374,8 +378,8 @@ public abstract class CryptoBench extends VirtualMapBench {
                 BenchmarkValue value1 = buffer.removeFirst().orElse(new BenchmarkValue(0));
                 BenchmarkValue value2 = buffer.removeFirst().orElse(new BenchmarkValue(0));
                 long amount = Utils.randomLong(MAX_AMOUNT);
-                value1.update(l -> l + amount);
-                value2.update(l -> l - amount);
+                value1 = value1.copyBuilder().update(l -> l + amount).build();
+                value2 = value2.copyBuilder().update(l -> l - amount).build();
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
                 currentMap.put(BenchmarkKey.longToKey(keyId1), value1, BenchmarkValueCodec.INSTANCE);
@@ -383,10 +387,12 @@ public abstract class CryptoBench extends VirtualMapBench {
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
