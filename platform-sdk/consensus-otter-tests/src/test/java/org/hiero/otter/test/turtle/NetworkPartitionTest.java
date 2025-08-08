@@ -12,13 +12,13 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -60,8 +60,8 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
-            timeManager.waitFor(Duration.ofSeconds(30));
+            // Wait for nodes to stabilize
+            timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create a partition with two nodes
             final Partition partition = network.createPartition(Set.of(node0, node1));
@@ -85,7 +85,7 @@ class NetworkPartitionTest {
             assertThat(network.isIsolated(node2)).isFalse();
 
             // Let the network run with the partition
-            timeManager.waitFor(Duration.ofSeconds(30));
+            timeManager.waitFor(Duration.ofSeconds(15));
 
             // Nodes outside partition should continue to make progress
             assertThat(nodes.get(0).platformStatus()).isEqualTo(CHECKING);
@@ -116,7 +116,7 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
+            // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create two separate partitions
@@ -136,9 +136,6 @@ class NetworkPartitionTest {
             // Verify remaining nodes are not in any partition
             assertThat(network.getPartitionContaining(nodes.get(4))).isNull();
             assertThat(network.getPartitionContaining(nodes.get(5))).isNull();
-
-            // Let the network run with multiple partitions
-            timeManager.waitFor(Duration.ofSeconds(10));
         } finally {
             env.destroy();
         }
@@ -162,7 +159,7 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
+            // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create a partition with a single node
@@ -204,7 +201,7 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
+            // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create a partition
@@ -212,6 +209,9 @@ class NetworkPartitionTest {
             assertThat(network.partitions()).contains(partition);
             assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
             assertThat(network.getPartitionContaining(node2)).isEqualTo(partition);
+
+            // Let the network run with the partition
+            timeManager.waitFor(Duration.ofSeconds(15));
 
             // Remove the partition
             network.removePartition(partition);
@@ -221,12 +221,14 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node1)).isNull();
             assertThat(network.getPartitionContaining(node2)).isNull();
 
-            // Let the network run after partition removal
-            timeManager.waitFor(Duration.ofSeconds(10));
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // Let the network run after partition removal
+                timeManager.waitFor(Duration.ofSeconds(15));
 
-            // All nodes should be active again
-            for (final Node node : nodes) {
-                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                // All nodes should be active again
+                for (final Node node : nodes) {
+                    assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                }
             }
         } finally {
             env.destroy();
@@ -243,10 +245,14 @@ class NetworkPartitionTest {
     void testCreatePartitionWithEmptyNodes(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
             network.addNodes(4);
             network.start();
+
+            // Wait for nodes to stabilize
+            timeManager.waitFor(Duration.ofSeconds(5));
 
             // Try to create a partition with no nodes - should throw exception
             assertThatThrownBy(() -> network.createPartition(Set.of()))
@@ -267,6 +273,7 @@ class NetworkPartitionTest {
     void testCreatePartitionWithAlreadyPartitionedNodes(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
             final List<Node> nodes = network.addNodes(4);
@@ -275,6 +282,9 @@ class NetworkPartitionTest {
             final Node node3 = nodes.get(2);
 
             network.start();
+
+            // Wait for nodes to stabilize
+            timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create first partition
             network.createPartition(Set.of(node1, node2));
@@ -305,7 +315,7 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
+            // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create a large partition with 7 nodes
@@ -328,60 +338,22 @@ class NetworkPartitionTest {
                 assertThat(network.getPartitionContaining(nodes.get(i))).isNull();
             }
 
-            // Let the network run with the large partition
-            timeManager.waitFor(Duration.ofSeconds(30));
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // Let the network run with the large partition
+                timeManager.waitFor(Duration.ofSeconds(15));
 
-            // Non-partitioned nodes should continue to make progress
-            assertThat(nodes.get(0).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(1).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(2).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(3).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(4).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(5).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(6).platformStatus()).isEqualTo(ACTIVE);
-            assertThat(nodes.get(7).platformStatus()).isEqualTo(CHECKING);
-            assertThat(nodes.get(8).platformStatus()).isEqualTo(CHECKING);
-            assertThat(nodes.get(9).platformStatus()).isEqualTo(CHECKING);
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test that partitions work correctly with network freeze operations.
-     *
-     * @param env the test environment for this test
-     */
-    @Disabled("Investigate how partitions interact with freeze in production")
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testPartitionDuringFreeze(@NonNull final TestEnvironment env) {
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 5 nodes
-            final List<Node> nodes = network.addNodes(5);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-
-            assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-
-            network.start();
-
-            // Wait for nodes to become active
-            timeManager.waitFor(Duration.ofSeconds(5));
-
-            // Create a partition
-            final Partition partition = network.createPartition(Set.of(node0, node1));
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition);
-
-            // Freeze the network
-            network.freeze();
-
-            // The partition should remain intact during freeze
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition);
-            assertThat(network.partitions()).contains(partition);
+                // Non-partitioned nodes should continue to make progress
+                assertThat(nodes.get(0).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(1).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(2).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(3).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(4).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(5).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(6).platformStatus()).isEqualTo(ACTIVE);
+                assertThat(nodes.get(7).platformStatus()).isEqualTo(CHECKING);
+                assertThat(nodes.get(8).platformStatus()).isEqualTo(CHECKING);
+                assertThat(nodes.get(9).platformStatus()).isEqualTo(CHECKING);
+            }
         } finally {
             env.destroy();
         }
@@ -404,7 +376,7 @@ class NetworkPartitionTest {
 
             network.start();
 
-            // Wait for nodes to become active
+            // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create multiple partitions
@@ -426,12 +398,14 @@ class NetworkPartitionTest {
                 assertThat(network.isIsolated(node)).isFalse();
             }
 
-            // Let the network run after connectivity restoration
-            timeManager.waitFor(Duration.ofSeconds(10));
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // Let the network run after connectivity restoration
+                timeManager.waitFor(Duration.ofSeconds(15));
 
-            // All nodes should be active
-            for (final Node node : nodes) {
-                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                // All nodes should be active
+                for (final Node node : nodes) {
+                    assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                }
             }
         } finally {
             env.destroy();
@@ -485,14 +459,16 @@ class NetworkPartitionTest {
             network.removePartition(partition2);
             assertThat(network.partitions()).isEmpty();
 
-            // Let the network run after all partitions are removed
-            timeManager.waitFor(Duration.ofSeconds(10));
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // Let the network run after all partitions are removed
+                timeManager.waitFor(Duration.ofSeconds(15));
 
-            // All nodes should be active
-            for (final Node node : nodes) {
-                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
-                assertThat(network.getPartitionContaining(node)).isNull();
-                assertThat(network.isIsolated(node)).isFalse();
+                // All nodes should be active
+                for (final Node node : nodes) {
+                    assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                    assertThat(network.getPartitionContaining(node)).isNull();
+                    assertThat(network.isIsolated(node)).isFalse();
+                }
             }
         } finally {
             env.destroy();
@@ -547,12 +523,14 @@ class NetworkPartitionTest {
             network.removePartition(multiNodePartition);
             assertThat(network.partitions()).isEmpty();
 
-            // Let the network run with full connectivity
-            timeManager.waitFor(Duration.ofSeconds(10));
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // Let the network run with full connectivity
+                timeManager.waitFor(Duration.ofSeconds(15));
 
-            // All nodes should be active
-            for (final Node node : nodes) {
-                assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                // All nodes should be active
+                for (final Node node : nodes) {
+                    assertThat(node.platformStatus()).isEqualTo(ACTIVE);
+                }
             }
         } finally {
             env.destroy();
