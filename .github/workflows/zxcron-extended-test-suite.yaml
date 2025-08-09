@@ -496,7 +496,7 @@ jobs:
         id: rootly-summary
         run: |
           {
-            echo 'ROOTLY_SUMMARY<<EOF'
+            echo 'summary<<EOF'
             echo "The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
             echo "------------------------------------"
             echo "Status of each jobs:"
@@ -512,6 +512,11 @@ jobs:
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
+        
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
 #      - name: Build Slack Payload Message
 #        id: payload
