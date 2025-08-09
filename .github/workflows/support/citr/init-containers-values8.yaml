@@ -101,35 +101,35 @@ defaults:
     recordStreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     eventStreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     recordStreamSidecarUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     blockstreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 1000m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 2000m
+          memory: 750Mi
   root:
     resources:
       requests:
@@ -140,7 +140,7 @@ defaults:
         memory: 256Gi
     extraEnv:
       - name: JAVA_OPTS
-        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=64g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser"
+        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=64g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
       - name: JAVA_HEAP_MIN
         value: "32g"
       - name: JAVA_HEAP_MAX
