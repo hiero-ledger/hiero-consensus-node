@@ -37,6 +37,8 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.cache.RecordBlockCache;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
@@ -98,6 +100,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
+    public static final int BLOCK_BUFFER_CAPACITY = 150;
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -114,6 +117,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
+    private final BlockBufferService blockBufferService;
+    private final RecordBlockCache recordBlockCache;
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
@@ -199,6 +204,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Nullable
     private volatile CompletableFuture<Void> fatalShutdownFuture = null;
 
+    private long fatalRoundNumber = 0;
+
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
@@ -220,7 +227,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final RecordBlockCache recordBlockCache) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
@@ -244,6 +253,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
+        this.recordBlockCache = recordBlockCache;
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
         indirectProofCounter = requireNonNull(metrics)
@@ -253,6 +263,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
                 hashFuture.isDone() ? hashFuture.join().toHex() : "<PENDING>");
+        this.blockBufferService = requireNonNull(blockBufferService);
     }
 
     @Override
@@ -300,6 +311,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             traceDataHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
+            recordBlockCache.createBlock(blockNumber);
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
                                 .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
@@ -623,6 +635,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
+            recordBlockCache.addBlockItem(blockNumber, proofItem);
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
@@ -786,7 +799,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
+
             writer.writePbjItemAndBytes(item, serialized);
+            recordBlockCache.addBlockItem(writer.blockNumber(), item);
 
             next.send();
             return true;

@@ -33,7 +33,7 @@ final class SignatureWriterV6 {
     /** Logger to use */
     private static final Logger logger = LogManager.getLogger(SignatureWriterV6.class);
     /** The suffix added to RECORD_EXTENSION for the record signature files */
-    private static final String RECORD_SIG_EXTENSION_SUFFIX = "_sig";
+    public static final String RECORD_SIG_EXTENSION_SUFFIX = "_sig";
 
     private SignatureWriterV6() {
         // prohibit instantiation

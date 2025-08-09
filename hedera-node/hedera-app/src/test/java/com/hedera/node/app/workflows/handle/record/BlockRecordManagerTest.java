@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.cache.RecordBlockCache;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.BlockRecordService;
@@ -63,6 +64,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,6 +90,9 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     private BlockRecordFormat blockRecordFormat;
     private BlockRecordWriterFactory blockRecordWriterFactory;
+
+    @Mock
+    private RecordBlockCache recordBlockCache;
 
     @BeforeEach
     void setUpEach() throws Exception {
@@ -171,8 +176,13 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var merkleState = app.workingStateAccessor().getState();
         final var producer = concurrent
                 ? new StreamFileProducerConcurrent(
-                        blockRecordFormat, blockRecordWriterFactory, ForkJoinPool.commonPool(), app.hapiVersion())
-                : new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+                        blockRecordFormat,
+                        blockRecordWriterFactory,
+                        ForkJoinPool.commonPool(),
+                        app.hapiVersion(),
+                        recordBlockCache)
+                : new StreamFileProducerSingleThreaded(
+                        blockRecordFormat, blockRecordWriterFactory, app.hapiVersion(), recordBlockCache);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(), app.workingStateAccessor().getState(), producer)) {
@@ -258,8 +268,8 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         final Random random = new Random(82792874);
         final var merkleState = app.workingStateAccessor().getState();
-        final var producer =
-                new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var producer = new StreamFileProducerSingleThreaded(
+                blockRecordFormat, blockRecordWriterFactory, app.hapiVersion(), recordBlockCache);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(), app.workingStateAccessor().getState(), producer)) {

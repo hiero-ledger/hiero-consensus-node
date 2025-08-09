@@ -147,6 +147,11 @@ tasks.register<Test>("testSubprocess") {
         )
     }
 
+    // Set the system property if ciTagExpression is ISS
+    if (ciTagExpression == "ISS") {
+        systemProperty("hapi.spec.minio", "true")
+    }
+
     // Choose a different initial port for each test task if running as PR check
     val initialPort =
         gradle.startParameter.taskNames

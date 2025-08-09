@@ -68,6 +68,11 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public long blockNumber() {
+        return fileBlockItemWriter.blockNumber();
+    }
+
+    @Override
     public void writePbjItem(@NonNull BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 /**
  * Creates a new {@link BlockRecordWriter} instance on demand, based on configuration. During processing of
  * transactions, when we determine it is time to write a new block to file, then we need to create a new
@@ -12,8 +14,9 @@ public interface BlockRecordWriterFactory {
     /**
      * Create a new {@link BlockRecordWriter} instance.
      *
+     * @param recordDir an optional directory to write records to; if null, use a default location based on config
      * @return the new instance
      * @throws RuntimeException if creation fails
      */
-    BlockRecordWriter create() throws RuntimeException;
+    BlockRecordWriter create(@Nullable String recordDir) throws RuntimeException;
 }

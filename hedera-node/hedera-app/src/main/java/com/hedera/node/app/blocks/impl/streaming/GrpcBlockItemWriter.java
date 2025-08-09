@@ -81,4 +81,9 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         // No-op
     }
+
+    @Override
+    public long blockNumber() {
+        return blockNumber;
+    }
 }

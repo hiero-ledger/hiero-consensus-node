@@ -58,4 +58,10 @@ public interface BlockRecordWriter {
      * @throws UncheckedIOException if there is an error writing to the destination
      */
     void close(@NonNull HashObject endRunningHash);
+
+    /**
+     * Get the block number of the block being written.
+     * @return the block number
+     */
+    long getBlockNumber();
 }

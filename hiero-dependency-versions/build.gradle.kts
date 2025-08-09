@@ -156,4 +156,6 @@ dependencies.constraints {
     api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
     }
+    api("io.minio:minio:8.5.17") { because("io.minio") }
+    api("com.squareup.okio:okio-jvm:3.15.0") { because("okio") } // required by minio
 }

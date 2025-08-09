@@ -389,6 +389,7 @@ public class HandleWorkflow {
                             creator,
                             platformTxn,
                             event.getEventCore().birthRound(),
+                            round.getRoundNum(),
                             simplifiedStateSignatureTxnCallback);
                 } catch (final Exception e) {
                     logger.fatal(
@@ -472,6 +473,7 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
+     * @param round the round in which the transaction is being executed
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
@@ -479,6 +481,7 @@ public class HandleWorkflow {
             @NonNull final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
+            final long round,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         final var handleStart = System.nanoTime();
 

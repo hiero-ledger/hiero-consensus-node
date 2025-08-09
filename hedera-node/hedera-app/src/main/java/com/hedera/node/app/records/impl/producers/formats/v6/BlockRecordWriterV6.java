@@ -143,7 +143,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             @NonNull final BlockRecordStreamConfig config,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final Signer signer,
-            @NonNull final FileSystem fileSystem) {
+            @NonNull final FileSystem fileSystem,
+            @NonNull final String recordDir) {
 
         if (config.recordFileVersion() != 6) {
             logger.fatal(
@@ -164,8 +165,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;
 
         // Compute directories for record and sidecar files
-        final Path recordDir = fileSystem.getPath(config.logDir());
-        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeInfo.accountId()));
+        final Path recordDirectory = fileSystem.getPath(recordDir);
+        nodeScopedRecordDir = recordDirectory.resolve("record" + asAccountString(nodeInfo.accountId()));
         nodeScopedSidecarDir = nodeScopedRecordDir.resolve(config.sidecarDir());
 
         // Create parent directories if needed for the record file itself
@@ -278,6 +279,14 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             logger.warn("Error closing record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getBlockNumber() {
+        return blockNumber;
     }
 
     // =================================================================================================================

@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -47,10 +48,14 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockState;
+import com.hedera.node.app.cache.RecordBlockCache;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.S3IssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -59,6 +64,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -67,17 +73,27 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.minio.GetObjectArgs;
+import io.minio.GetObjectResponse;
+import io.minio.ListObjectsArgs;
+import io.minio.MakeBucketArgs;
+import io.minio.MinioClient;
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import java.util.zip.GZIPInputStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -88,6 +104,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.testcontainers.containers.GenericContainer;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
@@ -168,6 +185,12 @@ class BlockStreamManagerImplTest {
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
+    @Mock
+    private BlockBufferService blockBufferService;
+
+    @Mock
+    private RecordBlockCache recordBlockCache;
+
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
@@ -176,6 +199,12 @@ class BlockStreamManagerImplTest {
     private WritableSingletonStateBase<BlockStreamInfo> blockStreamInfoState;
 
     private BlockStreamManagerImpl subject;
+
+    private static final String BUCKET_NAME = "test-bucket";
+    private static final int MINIO_ROOT_PORT = 9000;
+    private static final String MINIO_ROOT_USER = "minioadmin";
+    private static final String MINIO_ROOT_PASSWORD = "minioadmin";
+    private MinioClient minioClient;
 
     @BeforeEach
     void setUp() {
@@ -243,7 +272,9 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
-                metrics);
+                metrics,
+                blockBufferService,
+                recordBlockCache);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -267,7 +298,9 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
-                metrics);
+                metrics,
+                blockBufferService,
+                recordBlockCache);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -926,6 +959,321 @@ class BlockStreamManagerImplTest {
         assertEquals(Optional.of(0), subject.getEventIndex(eventHash3));
     }
 
+    @Test
+    void uploadBlockStateToGcpBucketCompleteBlock() throws Exception {
+        NodeInfo mockSelfNodeInfo = mock(NodeInfo.class);
+        given(networkInfo.selfNodeInfo()).willReturn(mockSelfNodeInfo);
+        given(mockSelfNodeInfo.nodeId()).willReturn(3L);
+
+        // Start MinIO container
+        GenericContainer<?> minioContainer = new GenericContainer<>("minio/minio:latest")
+                .withCommand("server /data")
+                .withExposedPorts(MINIO_ROOT_PORT)
+                .withEnv("MINIO_ROOT_USER", MINIO_ROOT_USER)
+                .withEnv("MINIO_ROOT_PASSWORD", MINIO_ROOT_PASSWORD);
+        minioContainer.start();
+        // Initialize MinIO client
+        String endpoint = "http://" + minioContainer.getHost() + ":" + minioContainer.getMappedPort(MINIO_ROOT_PORT);
+        minioClient = MinioClient.builder()
+                .endpoint(endpoint)
+                .credentials(MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)
+                .build();
+        // Create a bucket
+        minioClient.makeBucket(MakeBucketArgs.builder().bucket(BUCKET_NAME).build());
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockPeriod", Duration.of(2, ChronoUnit.SECONDS))
+                .withConfigDataType(S3IssConfig.class)
+                .withValue("s3IssConfig.regionName", "us-central1")
+                .withValue("s3IssConfig.bucketName", BUCKET_NAME)
+                .withValue("s3IssConfig.endpointUrl", endpoint)
+                .withValue("s3IssConfig.accessKey", MINIO_ROOT_USER)
+                .withValue("s3IssConfig.secretKey", MINIO_ROOT_PASSWORD)
+                .withValue("s3IssConfig.basePath", "blocks")
+                .withValue("s3IssConfig.storageClass", "STANDARD")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                networkInfo,
+                boundaryStateChangeListener,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle,
+                metrics,
+                blockBufferService,
+                recordBlockCache);
+        infoRef.set(blockStreamInfoWith(
+                Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()));
+        stateRef.set(platformStateWithFreezeTime(null));
+        blockStreamInfoState = new FunctionWritableSingletonState<>(
+                BlockStreamService.NAME, BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+
+        BlockState blockState = new BlockState(42);
+        BlockItem blockItem = BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().number(42).build())
+                .build();
+        blockState.addItem(blockItem);
+        blockState.processPendingItems(1);
+
+        // subject.uploadBlockStateToS3Bucket(blockState);
+
+        final Set<String> allObjects = getAllObjects();
+        allObjects.forEach(System.out::println);
+        assertTrue(allObjects.contains("blocks/node3/ISS/000000000000000000000000000000000042.blk.gz"));
+
+        GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(BUCKET_NAME)
+                .object("blocks/node3/ISS/000000000000000000000000000000000042.blk.gz")
+                .build());
+        byte[] storedObject = response.readAllBytes();
+        // First Uncompress the gzipped content
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(storedObject);
+        GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+        byte[] decompressedData = gzipInputStream.readAllBytes();
+        gzipInputStream.close();
+        byteArrayInputStream.close();
+        // Then parse the Block from the decompressed data
+        Block storedBlock = Block.PROTOBUF.parse(Bytes.wrap(decompressedData));
+        // Assert the block matches
+        assertEquals(storedBlock.items().getFirst().blockHeader().number(), 42L);
+    }
+
+    @Test
+    void uploadBlockStateToGcpBucketIncompleteBlock() throws Exception {
+        NodeInfo mockSelfNodeInfo = mock(NodeInfo.class);
+        given(networkInfo.selfNodeInfo()).willReturn(mockSelfNodeInfo);
+        given(mockSelfNodeInfo.nodeId()).willReturn(3L);
+
+        // Start MinIO container
+        GenericContainer<?> minioContainer = new GenericContainer<>("minio/minio:latest")
+                .withCommand("server /data")
+                .withExposedPorts(MINIO_ROOT_PORT)
+                .withEnv("MINIO_ROOT_USER", MINIO_ROOT_USER)
+                .withEnv("MINIO_ROOT_PASSWORD", MINIO_ROOT_PASSWORD);
+        minioContainer.start();
+        // Initialize MinIO client
+        String endpoint = "http://" + minioContainer.getHost() + ":" + minioContainer.getMappedPort(MINIO_ROOT_PORT);
+        minioClient = MinioClient.builder()
+                .endpoint(endpoint)
+                .credentials(MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)
+                .build();
+        // Create a bucket
+        minioClient.makeBucket(MakeBucketArgs.builder().bucket(BUCKET_NAME).build());
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockPeriod", Duration.of(2, ChronoUnit.SECONDS))
+                .withConfigDataType(S3IssConfig.class)
+                .withValue("s3IssConfig.regionName", "us-central1")
+                .withValue("s3IssConfig.bucketName", BUCKET_NAME)
+                .withValue("s3IssConfig.endpointUrl", endpoint)
+                .withValue("s3IssConfig.accessKey", MINIO_ROOT_USER)
+                .withValue("s3IssConfig.secretKey", MINIO_ROOT_PASSWORD)
+                .withValue("s3IssConfig.basePath", "blocks")
+                .withValue("s3IssConfig.storageClass", "STANDARD")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                networkInfo,
+                boundaryStateChangeListener,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle,
+                metrics,
+                blockBufferService,
+                recordBlockCache);
+        infoRef.set(blockStreamInfoWith(
+                Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()));
+        stateRef.set(platformStateWithFreezeTime(null));
+        blockStreamInfoState = new FunctionWritableSingletonState<>(
+                BlockStreamService.NAME, BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+
+        BlockState blockState = new BlockState(42);
+        BlockItem blockItem = BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().number(42).build())
+                .build();
+        blockState.addItem(blockItem);
+
+        // subject.uploadBlockStateToS3Bucket(blockState);
+
+        final Set<String> allObjects = getAllObjects();
+        allObjects.forEach(System.out::println);
+        assertTrue(allObjects.contains("blocks/node3/ISS/000000000000000000000000000000000042.blk.gz"));
+
+        GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(BUCKET_NAME)
+                .object("blocks/node3/ISS/000000000000000000000000000000000042.blk.gz")
+                .build());
+        byte[] storedObject = response.readAllBytes();
+        // First Uncompress the gzipped content
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(storedObject);
+        GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+        byte[] decompressedData = gzipInputStream.readAllBytes();
+        gzipInputStream.close();
+        byteArrayInputStream.close();
+        // Then parse the Block from the decompressed data
+        Block storedBlock = Block.PROTOBUF.parse(Bytes.wrap(decompressedData));
+        // Assert the block matches
+        assertEquals(storedBlock.items().getFirst().blockHeader().number(), 42L);
+    }
+
+    /**
+     * Get all the objects in the bucket.
+     *
+     * @return Set of object names, aka full path
+     */
+    private Set<String> getAllObjects() {
+        try {
+            return StreamSupport.stream(
+                            minioClient
+                                    .listObjects(ListObjectsArgs.builder()
+                                            .bucket(BUCKET_NAME)
+                                            .recursive(true)
+                                            .build())
+                                    .spliterator(),
+                            false)
+                    .map(result -> {
+                        try {
+                            return result.get().objectName();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    //    @Nested
+    //    class BlockStateBufferTest {
+    //
+    //        @Test
+    //        void initializesEmpty() {
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer =
+    //                    new BlockStreamManagerImpl.BlockStateBuffer(BLOCK_BUFFER_CAPACITY);
+    //            assertTrue(buffer.isEmpty(), "Buffer should initialize as empty");
+    //        }
+    //
+    //        @Test
+    //        void addsAndRetrievesElements() {
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer =
+    //                    new BlockStreamManagerImpl.BlockStateBuffer(BLOCK_BUFFER_CAPACITY);
+    //            BlockState blockState = new BlockState(1L);
+    //
+    //            buffer.put(1L, blockState);
+    //
+    //            assertEquals(1, buffer.size(), "Buffer should contain one element");
+    //            assertSame(blockState, buffer.get(1L), "Retrieved element should match the inserted element");
+    //        }
+    //
+    //        @Test
+    //        void removesElements() {
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer =
+    //                    new BlockStreamManagerImpl.BlockStateBuffer(BLOCK_BUFFER_CAPACITY);
+    //            BlockState blockState = new BlockState(1L);
+    //
+    //            buffer.put(1L, blockState);
+    //            buffer.remove(1L);
+    //
+    //            assertTrue(buffer.isEmpty(), "Buffer should be empty after removing the element");
+    //        }
+    //
+    //        @Test
+    //        void preservesInsertionOrder() {
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer =
+    //                    new BlockStreamManagerImpl.BlockStateBuffer(BLOCK_BUFFER_CAPACITY);
+    //            BlockState blockState1 = new BlockState(1L);
+    //            BlockState blockState2 = new BlockState(2L);
+    //
+    //            buffer.put(1L, blockState1);
+    //            buffer.put(2L, blockState2);
+    //
+    //            assertEquals(2, buffer.size(), "Buffer should contain two elements");
+    //            assertEquals(1L, buffer.entrySet().iterator().next().getKey(), "First key should be 1");
+    //        }
+    //
+    //        @Test
+    //        void evictsOldestEntryWhenCapacityExceeded() {
+    //            // Assuming BlockStateBuffer has a maximum capacity of 2
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer =
+    //                    new BlockStreamManagerImpl.BlockStateBuffer(BLOCK_BUFFER_CAPACITY) {
+    //                        @Override
+    //                        protected boolean removeEldestEntry(Map.Entry<Long, BlockState> eldest) {
+    //                            return this.size() > 2;
+    //                        }
+    //                    };
+    //
+    //            BlockState blockState1 = new BlockState(1L);
+    //            BlockState blockState2 = new BlockState(2L);
+    //            BlockState blockState3 = new BlockState(3L);
+    //
+    //            buffer.put(1L, blockState1);
+    //            buffer.put(2L, blockState2);
+    //            buffer.put(3L, blockState3);
+    //
+    //            assertEquals(2, buffer.size(), "Buffer should not exceed maximum capacity");
+    //            assertNull(buffer.get(1L), "Oldest entry should be evicted");
+    //            assertNotNull(buffer.get(2L), "Second entry should still exist");
+    //            assertNotNull(buffer.get(3L), "Newest entry should still exist");
+    //        }
+    //
+    //        @Test
+    //        void testGetBlockStateForRoundNumber() {
+    //            // Given
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer = new BlockStreamManagerImpl.BlockStateBuffer(10);
+    //            BlockState blockState = new BlockState(1L);
+    //            blockState.addItem(BlockItem.newBuilder()
+    //                    .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+    //                    .build());
+    //
+    //            // When
+    //            buffer.put(1L, blockState);
+    //            BlockState retrievedState = buffer.getBlockStateForRoundNumber(1L);
+    //
+    //            // Then
+    //            assertNotNull(retrievedState, "BlockState should not be null");
+    //            assertEquals(blockState, retrievedState, "Retrieved BlockState should match the inserted BlockState");
+    //        }
+    //
+    //        @Test
+    //        void testGetBlockStateForRoundNumberNotPresent() {
+    //            // Given
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer = new BlockStreamManagerImpl.BlockStateBuffer(10);
+    //            BlockState blockState = new BlockState(1L);
+    //
+    //            // When
+    //            buffer.put(1L, blockState);
+    //            BlockState retrievedState = buffer.getBlockStateForRoundNumber(1L);
+    //
+    //            // Then
+    //            assertNull(retrievedState, "BlockState should be null");
+    //        }
+    //
+    //        @Test
+    //        void testPut() {
+    //            // Given
+    //            BlockStreamManagerImpl.BlockStateBuffer buffer = new BlockStreamManagerImpl.BlockStateBuffer(10);
+    //
+    //            // When
+    //            buffer.put(1L);
+    //
+    //            // Then
+    //            assertEquals(1, buffer.size(), "Buffer should contain one element");
+    //        }
+    //    }
+
     private void givenSubjectWith(
             final int roundsPerBlock,
             final int blockPeriod,
@@ -950,7 +1298,9 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
-                metrics);
+                metrics,
+                blockBufferService,
+                recordBlockCache);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
         lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);

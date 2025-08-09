@@ -308,6 +308,23 @@ public class BlockBufferService {
     }
 
     /**
+     * Retrieves the block state for the specified round number.
+     * @param roundNumber the round number to retrieve the block state for
+     * @return the block state which contains the specified round number, or null if no block state exists
+     */
+    public @Nullable BlockState getBlockStateForRoundNumber(final long roundNumber) {
+        for (final BlockState blockState : blockBuffer.values()) {
+            if (blockState.getLowestRoundNumber() != null) {
+                if (roundNumber >= blockState.getLowestRoundNumber()
+                        && roundNumber <= blockState.getHighestRoundNumber()) {
+                    return blockState;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Retrieves if the specified block has been marked as acknowledged.
      *
      * @param blockNumber the block to check

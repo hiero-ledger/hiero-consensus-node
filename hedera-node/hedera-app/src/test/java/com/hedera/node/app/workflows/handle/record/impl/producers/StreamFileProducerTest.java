@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.streams.HashObject;
+import com.hedera.node.app.cache.RecordBlockCache;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @SuppressWarnings("DataFlowIssue")
@@ -47,14 +49,18 @@ abstract class StreamFileProducerTest extends AppTestBase {
     private final List<BlockRecordWriterDummy> writers = new CopyOnWriteArrayList<>();
     private BlockRecordStreamProducer subject;
 
-    abstract BlockRecordStreamProducer createStreamProducer(@NonNull BlockRecordWriterFactory factory);
+    @Mock
+    protected RecordBlockCache recordBlockCache;
+
+    abstract BlockRecordStreamProducer createStreamProducer(
+            @NonNull BlockRecordWriterFactory factory, @NonNull final RecordBlockCache recordBlockCache);
 
     @Nested
     @DisplayName("Initialization Tests")
     final class InitTests {
         @BeforeEach
         void setUp() {
-            subject = createStreamProducer(BlockRecordWriterDummy::new);
+            subject = createStreamProducer(recordDir -> new BlockRecordWriterDummy(), recordBlockCache);
         }
 
         @Test
@@ -105,7 +111,7 @@ abstract class StreamFileProducerTest extends AppTestBase {
     final class WritingTests {
         @BeforeEach
         void setUp() {
-            subject = createStreamProducer(BlockRecordWriterDummy::new);
+            subject = createStreamProducer(recordDir -> new BlockRecordWriterDummy(), recordBlockCache);
         }
 
         static Stream<Arguments> provideBlocks() {
@@ -187,7 +193,7 @@ abstract class StreamFileProducerTest extends AppTestBase {
     final class SwitchingTests {
         @BeforeEach
         void setUp() {
-            subject = createStreamProducer(BlockRecordWriterDummy::new);
+            subject = createStreamProducer(recordDir -> new BlockRecordWriterDummy(), recordBlockCache);
         }
 
         @Test
@@ -255,12 +261,14 @@ abstract class StreamFileProducerTest extends AppTestBase {
         @Test
         @DisplayName("Exceptions that occur when closing an old writer do not prevent new writers from working")
         void errorClosingWriter() throws Exception {
-            subject = createStreamProducer(() -> new BlockRecordWriterDummy() {
-                @Override
-                public void close(@NonNull final HashObject endRunningHash) {
-                    throw new RuntimeException("Close throws!");
-                }
-            });
+            subject = createStreamProducer(
+                    recordDir -> new BlockRecordWriterDummy() {
+                        @Override
+                        public void close(@NonNull final HashObject endRunningHash) {
+                            throw new RuntimeException("Close throws!");
+                        }
+                    },
+                    recordBlockCache);
 
             final var consensusTime = Instant.now();
             subject.initRunningHash(new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null));
@@ -326,6 +334,11 @@ abstract class StreamFileProducerTest extends AppTestBase {
             assertThat(endRunningHash).isNotNull();
             this.endRunningHash = endRunningHash;
             this.closed = true;
+        }
+
+        @Override
+        public long getBlockNumber() {
+            return blockNumber;
         }
     }
 }

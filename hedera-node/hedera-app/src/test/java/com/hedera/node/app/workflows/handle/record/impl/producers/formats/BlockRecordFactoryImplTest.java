@@ -18,7 +18,7 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
                 .build();
         final var factory =
                 new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
-        final var writer = factory.create();
+        final var writer = factory.create(null);
         assertThat(writer).isInstanceOf(BlockRecordWriterV6.class);
     }
 
@@ -31,7 +31,7 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
 
         final var factory =
                 new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
-        assertThatThrownBy(factory::create)
+        assertThatThrownBy(() -> factory.create(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Record file version 7 is not yet supported");
     }
@@ -45,7 +45,7 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
 
         final var factory =
                 new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
-        assertThatThrownBy(factory::create)
+        assertThatThrownBy(() -> factory.create(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unknown record file version");
     }

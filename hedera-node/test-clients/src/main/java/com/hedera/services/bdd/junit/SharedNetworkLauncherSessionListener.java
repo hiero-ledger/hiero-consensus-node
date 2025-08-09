@@ -23,6 +23,8 @@ import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.minio.MakeBucketArgs;
+import io.minio.MinioClient;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -39,6 +41,7 @@ import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
+import org.testcontainers.containers.GenericContainer;
 
 /**
  * Registers a {@link TestExecutionListener} when the {@link LauncherSession} is opened to
@@ -48,6 +51,11 @@ import org.junit.platform.launcher.TestPlan;
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
     private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
+
+    public static final String MINIO_BUCKET_NAME = "test-bucket";
+    public static final int MINIO_ROOT_PORT = 9000;
+    public static final String MINIO_ROOT_USER = "minioadmin";
+    public static final String MINIO_ROOT_PASSWORD = "minioadmin";
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
@@ -99,8 +107,39 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     };
             if (network != null) {
                 checkPrOverridesForBlockNodeStreaming(network);
+                checkIfMinioContainerIsNeeded();
                 network.start();
                 SHARED_NETWORK.set(network);
+            }
+        }
+
+        private void checkIfMinioContainerIsNeeded() {
+            final String minioContainerNeeded =
+                    Optional.ofNullable(System.getProperty("hapi.spec.minio")).orElse("");
+            if (minioContainerNeeded.equalsIgnoreCase("true")) {
+                log.info("Starting MinIO container for test execution");
+                HapiSpec.MINIO_CONTAINER = new GenericContainer<>("minio/minio:latest")
+                        .withCommand("server /data")
+                        .withExposedPorts(MINIO_ROOT_PORT)
+                        .withEnv("MINIO_ROOT_USER", MINIO_ROOT_USER)
+                        .withEnv("MINIO_ROOT_PASSWORD", MINIO_ROOT_PASSWORD);
+                HapiSpec.MINIO_CONTAINER.start();
+                log.info("MinIO container started on port {}", HapiSpec.MINIO_CONTAINER.getMappedPort(MINIO_ROOT_PORT));
+                // Initialize MinIO client
+                String endpoint = "http://" + HapiSpec.MINIO_CONTAINER.getHost() + ":"
+                        + HapiSpec.MINIO_CONTAINER.getMappedPort(MINIO_ROOT_PORT);
+                MinioClient minioClient = MinioClient.builder()
+                        .endpoint(endpoint)
+                        .credentials(MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)
+                        .build();
+                // Create a bucket
+                try {
+                    minioClient.makeBucket(
+                            MakeBucketArgs.builder().bucket(MINIO_BUCKET_NAME).build());
+                } catch (Exception e) {
+                    log.error("Failed to create MinIO bucket '{}': {}", MINIO_BUCKET_NAME, e.getMessage());
+                    throw new RuntimeException(e);
+                }
             }
         }
 

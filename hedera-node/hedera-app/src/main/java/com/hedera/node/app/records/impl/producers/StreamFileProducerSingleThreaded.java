@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
+import com.hedera.node.app.cache.RecordBlockCache;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -48,6 +49,8 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
 
     private long currentBlockNumber = 0;
 
+    private final RecordBlockCache recordBlockCache;
+
     /**
      * Construct RecordManager and start background thread
      *
@@ -59,10 +62,12 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
     public StreamFileProducerSingleThreaded(
             @NonNull final BlockRecordFormat format,
             @NonNull final BlockRecordWriterFactory writerFactory,
-            final SemanticVersion hapiVersion) {
+            final SemanticVersion hapiVersion,
+            @NonNull final RecordBlockCache recordBlockCache) {
         this.writerFactory = requireNonNull(writerFactory);
         this.format = requireNonNull(format);
         this.hapiVersion = hapiVersion;
+        this.recordBlockCache = requireNonNull(recordBlockCache);
     }
 
     // =========================================================================================================================================================================
@@ -155,6 +160,7 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
         serializedItems.forEach(item -> {
             try {
                 writer.writeItem(item);
+                recordBlockCache.addRecordStreamItem(writer.getBlockNumber(), item);
             } catch (final Exception e) {
                 // This **may** prove fatal. The node should be able to carry on, but then fail when it comes to
                 // actually producing a valid record stream file. We need to have some way of letting all nodes know
@@ -183,6 +189,7 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
             // node, or maybe retry a number of times before giving up.
             try {
                 writer.close(lastRunningHash);
+                recordBlockCache.closeRecordStreamFile(writer.getBlockNumber(), lastRunningHash);
             } catch (final Exception e) {
                 logger.error("Error closing block record writer for block {}", lastBlockNumber, e);
             }
@@ -194,8 +201,10 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
             @NonNull final HashObject lastRunningHash,
             @NonNull final Instant newBlockFirstTransactionConsensusTime) {
         try {
-            writer = writerFactory.create();
+            writer = writerFactory.create(null);
             writer.init(hapiVersion, lastRunningHash, newBlockFirstTransactionConsensusTime, currentBlockNumber);
+            recordBlockCache.createRecordStreamBlock(
+                    hapiVersion, lastRunningHash, newBlockFirstTransactionConsensusTime, currentBlockNumber);
         } catch (final Exception e) {
             // This represents an almost certainly fatal error. In the FUTURE we should look at dealing with this in a
             // more comprehensive and consistent way. Maybe we retry a bunch of times before giving up, then restart

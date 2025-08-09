@@ -115,6 +115,7 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.minio;
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;

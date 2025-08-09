@@ -56,8 +56,7 @@ public class BlockNodeSimulatorSuite {
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                burstOfTps(300, Duration.ofSeconds(600)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                waitUntilNextBlocks(100), assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest

@@ -10,6 +10,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.FileSystem;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -41,7 +42,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
     }
 
     @Override
-    public BlockRecordWriter create() throws RuntimeException {
+    public BlockRecordWriter create(@Nullable String recordDir) throws RuntimeException {
         // read configuration
         final var config = configProvider.getConfiguration();
         final var recordStreamConfig = config.getConfigData(BlockRecordStreamConfig.class);
@@ -54,7 +55,13 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
                         configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class),
                         selfNodeInfo,
                         signer,
-                        fileSystem);
+                        fileSystem,
+                        recordDir != null
+                                ? recordDir
+                                : configProvider
+                                        .getConfiguration()
+                                        .getConfigData(BlockRecordStreamConfig.class)
+                                        .logDir());
             case 7 -> throw new IllegalArgumentException("Record file version 7 is not yet supported");
             default -> throw new IllegalArgumentException("Unknown record file version: " + recordFileVersion);
         };

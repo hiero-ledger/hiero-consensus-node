@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
@@ -141,6 +142,9 @@ public class BlockState {
      */
     private final ItemInfo preProofItemInfo = new ItemInfo();
 
+    private Long lowestRoundNumber = null;
+    private Long highestRoundNumber = null;
+
     /**
      * Create a new block state for the specified block number.
      *
@@ -189,6 +193,14 @@ public class BlockState {
                     "[Block {}] Pre-proof state change item added, but pre-proof state change already encountered (state={})",
                     blockNumber,
                     preProofItemInfo.state.get());
+        } else if (item.hasRoundHeader()) {
+            RoundHeader roundHeader = item.roundHeader();
+            if (lowestRoundNumber == null && roundHeader != null) {
+                lowestRoundNumber = roundHeader.roundNumber();
+                highestRoundNumber = roundHeader.roundNumber();
+            } else if (roundHeader != null) {
+                highestRoundNumber = roundHeader.roundNumber();
+            }
         }
 
         pendingItems.add(item);
@@ -377,6 +389,38 @@ public class BlockState {
                                 != -1);
     }
 
+    /**
+     * Get the lowest round number associated with this block state.
+     * @return the lowest round number, or null if no round header has been received
+     */
+    public Long getLowestRoundNumber() {
+        return lowestRoundNumber;
+    }
+
+    /**
+     * Get the highest round number associated with this block state.
+     * @return the highest round number, or null if no round header has been received
+     */
+    public Long getHighestRoundNumber() {
+        return highestRoundNumber;
+    }
+
+    /**
+     * Get the requests that have been created for this block.
+     * @return a list of requests that have been created for this block
+     */
+    public List<PublishStreamRequest> getRequests() {
+        return requestsByIndex.values().stream().map(RequestWrapper::request).toList();
+    }
+
+    /**
+     * Get the pending items that have been added to this block state, but not yet included in a request.
+     * @return the queue of pending items
+     */
+    public Queue<BlockItem> getPendingItems() {
+        return pendingItems;
+    }
+
     @Override
     public String toString() {
         return "BlockState {"
@@ -387,6 +431,8 @@ public class BlockState {
                 + ", blockHeader=" + headerItemInfo
                 + ", blockPreProof=" + preProofItemInfo
                 + ", blockProof=" + proofItemInfo
+                + ", lowestRoundNumber=" + lowestRoundNumber
+                + ", highestRoundNumber=" + highestRoundNumber
                 + "}";
     }
 }

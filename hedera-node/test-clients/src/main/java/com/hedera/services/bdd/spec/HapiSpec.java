@@ -132,6 +132,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.function.Executable;
+import org.testcontainers.containers.GenericContainer;
 
 /**
  * A specification for a Hedera network test. A spec is a sequence of operations
@@ -183,6 +184,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public static final ThreadLocal<HederaNetwork> TARGET_NETWORK = new ThreadLocal<>();
     public static final ThreadLocal<BlockNodeNetwork> TARGET_BLOCK_NODE_NETWORK = new ThreadLocal<>();
+
+    public static GenericContainer<?> MINIO_CONTAINER = null;
     /**
      * If set, a list of properties to preserve in construction of this thread's next {@link HapiSpec} instance.
      * Typically the {@link NetworkTargetingExtension} will bind this value to the thread prior to executing a
