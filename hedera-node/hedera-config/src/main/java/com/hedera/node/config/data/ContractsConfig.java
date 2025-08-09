@@ -65,6 +65,9 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleNativeEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "false")
+                @NetworkProperty
+                boolean systemContractScheduleCallEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractAccountServiceIsAuthorizedRawEnabled,
