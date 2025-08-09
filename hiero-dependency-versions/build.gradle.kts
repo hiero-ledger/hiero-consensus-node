@@ -65,6 +65,10 @@ dependencies.constraints {
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
+    api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
+        because("com.hedera.pbj.grpc.client.helidon")
+    }
+    api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
     api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }

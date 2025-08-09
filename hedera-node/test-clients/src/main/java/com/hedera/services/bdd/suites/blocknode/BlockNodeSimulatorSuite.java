@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -30,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
-import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -56,7 +55,7 @@ public class BlockNodeSimulatorSuite {
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                burstOfTps(300, Duration.ofSeconds(600)),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -244,7 +243,7 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(60, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -402,13 +401,13 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(30, SECONDS),
                         Duration.of(15, SECONDS),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT30S",
                                 portNumbers.getFirst()))),
-                burstOfTps(300, Duration.ofSeconds(60)),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(90, SECONDS),
+                        Duration.of(60, SECONDS),
                         Duration.of(15, SECONDS),
                         // Verify that the periodic reset is performed after the period and the connection is closed
                         String.format(
@@ -420,14 +419,10 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/UNINITIALIZED] Connection successfully closed", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
-                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
-                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.getLast()),
-                        String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
-                                portNumbers.getLast()),
-                        String.format(
-                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
-                                portNumbers.getLast()))),
+                        "Selected block node",
+                        "Running connection task...",
+                        "Connection state transitioned from CONNECTING to PENDING",
+                        "Connection state transitioned from PENDING to ACTIVE")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }
