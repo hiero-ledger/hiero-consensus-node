@@ -41,6 +41,7 @@ jobs:
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
       xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
+      commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -133,6 +134,7 @@ jobs:
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
+            # GitHub Outputs
             echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
@@ -140,6 +142,15 @@ jobs:
             echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
+            
+            # Commit list output (multiline)
+            {
+              echo 'commit-list<<EOF'
+              echo "${COMMIT_LIST}"
+              echo EOF
+            } >> "${GITHUB_OUTPUT}"
+          
+            # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
@@ -510,6 +521,10 @@ jobs:
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo "------------------------------------"
+            echo "Additional Information:"
+            echo "- Commit List:"
+            echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
         
