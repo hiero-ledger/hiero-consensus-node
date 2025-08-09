@@ -201,7 +201,7 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     @NonNull
-    public List<Node> getNodes() {
+    public List<Node> nodes() {
         return publicNodes;
     }
 
