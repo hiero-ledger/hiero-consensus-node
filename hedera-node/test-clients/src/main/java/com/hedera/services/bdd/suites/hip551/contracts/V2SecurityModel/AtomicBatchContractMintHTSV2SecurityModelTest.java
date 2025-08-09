@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip551.contracts;
+package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator.MINT_V2;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;

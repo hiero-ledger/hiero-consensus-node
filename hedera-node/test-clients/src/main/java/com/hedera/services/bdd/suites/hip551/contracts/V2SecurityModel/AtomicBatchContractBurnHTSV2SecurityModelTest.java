@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip551.contracts;
+package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
