@@ -9,14 +9,14 @@
 #ARG UBUNTU_TAG="focal-20220922"
 #ARG UBUNTU_TAG="focal-20221019"
 #ARG UBUNTU_TAG="focal-20221130"
-ARG UBUNTU_TAG="focal-20230605"
+ARG UBUNTU_TAG="bookworm-20250630-slim"
 
 ########################################################################################################################
 #
 # Setup Builder Image
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS openjdk-builder
+FROM debian:${UBUNTU_TAG} AS openjdk-builder
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
@@ -67,7 +67,7 @@ RUN set -eux; \
 # Build Final Image
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS openjdk-base
+FROM debian:${UBUNTU_TAG} AS openjdk-base
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
