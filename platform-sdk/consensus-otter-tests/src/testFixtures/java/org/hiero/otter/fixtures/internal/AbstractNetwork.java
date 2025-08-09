@@ -206,7 +206,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void withVersion(@NonNull final SemanticVersion version) {
+    public void version(@NonNull final SemanticVersion version) {
         nodes().forEach(node -> node.version(version));
     }
 
