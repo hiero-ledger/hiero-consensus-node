@@ -55,9 +55,9 @@ jobs:
           set +e
           set +x
 
-          for $namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
           do
-            echo "Cleaning $namespace"
+            echo "Cleaning ${namespace}"
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
           done
           exit 0
