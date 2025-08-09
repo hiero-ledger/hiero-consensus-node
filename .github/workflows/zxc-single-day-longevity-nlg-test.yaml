@@ -553,7 +553,7 @@ jobs:
       - name: Clean branch or tag name from input.ref
         id: clean-branch-name
         run: |
-          raw_ref="${{ input.ref }}"
+          raw_ref="${{ inputs.ref }}"
           echo "Raw input ref: $raw_ref"
           clean_ref=""
 
