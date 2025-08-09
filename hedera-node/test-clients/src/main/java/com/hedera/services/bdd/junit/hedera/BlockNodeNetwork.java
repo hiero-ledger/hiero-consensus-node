@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
 
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.findAvailablePort;
 
@@ -13,7 +12,6 @@ import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +37,7 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
-    public static final int BLOCK_NODE_LOCAL_PORT = 8080;
+    public static final int BLOCK_NODE_LOCAL_PORT = 40840;
 
     private BlockNodeSimulatorController blockNodeSimulatorController;
 
@@ -160,49 +158,11 @@ public class BlockNodeNetwork {
                 // Write the config to this consensus node's block-nodes.json
                 Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
                 Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-
-                // Update application.properties with block stream settings
-                updateApplicationPropertiesWithGrpcStreaming(node);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
         logger.info("Configured block node connection information for node {}: {}", node.getNodeId(), blockNodes);
-    }
-
-    private static void updateApplicationPropertiesWithGrpcStreaming(HederaNode node) throws IOException {
-        Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
-        logger.info(
-                "Attempting to update application.properties at path {} for node {}",
-                appPropertiesPath,
-                node.getNodeId());
-
-        // First check if file exists and log current content
-        if (Files.exists(appPropertiesPath)) {
-            String currentContent = Files.readString(appPropertiesPath);
-            logger.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
-        } else {
-            logger.info(
-                    "application.properties does not exist yet for node {}, will create new file", node.getNodeId());
-        }
-
-        String blockStreamConfig =
-                """
-                # Block stream configuration
-                blockStream.writerMode=FILE_AND_GRPC
-                blockStream.shutdownNodeOnNoBlockNodes=true
-                blockNode.streamResetPeriod=60s
-                """;
-
-        // Write the properties with CREATE and APPEND options
-        Files.writeString(appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-
-        // Verify the file was updated
-        String updatedContent = Files.readString(appPropertiesPath);
-        logger.info(
-                "Verified application.properties content after update for node {}: {}",
-                node.getNodeId(),
-                updatedContent);
     }
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
