@@ -450,31 +450,31 @@ jobs:
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
-          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of HeliSwapLoadTest test
         id: HeliSwapLoadTestLogs
         run: |
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of CryptoTransferLoadTest test
         id: CryptoTransferLoadTestLogs
         run: |
-          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of HCSLoadTest test
         id: HCSLoadTestLogs
         run: |
-          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of SmartContractLoadTest test
         id: SmartContractLoadTestLogs
         run: |
-          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
@@ -524,20 +524,24 @@ jobs:
 
       - name: Set output
         id: sdlt-status
-        env:
-          nft_transfer_load_result: ${{ needs.performance-LongevityLoadTest-report.result }}
-
         run: |
-          # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
           RESULT="failure"
-          if [[ "${nft_transfer_load_result}" == "success" ]]; then
-              RESULT="success"
-          fi
+          NFT="${{ needs.performance-tests-start.outputs.NFTscore }}"
+          HELI="${{ needs.performance-tests-start.outputs.Heliscore }}"
+          CRYPTO="${{ needs.performance-tests-start.outputs.Cryptoscore }}"
+          HCS="${{ needs.performance-tests-start.outputs.HCSscore }}"
+          SMART="${{ needs.performance-tests-start.outputs.Smartscore }}"
 
-          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
+          # Check if any variable is empty. If it is, we set the result to failure.
+          if [ -z "${NFT}" ] || [ -z "${HELI}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
+            RESULT="failure"
+          else
+            RESULT="success"
+          fi
 
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
   performance-report-to-Slack:
     runs-on: hiero-citr-linux-medium
