@@ -481,7 +481,13 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                creatorId, selfParentDescriptor, otherParentDescriptors, birthRound, timeCreated, transactionBytes);
+                creatorId,
+                selfParentDescriptor,
+                otherParentDescriptors,
+                birthRound,
+                timeCreated,
+                transactionBytes,
+                random.nextLong(0, Long.MAX_VALUE));
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);

@@ -37,9 +37,10 @@ message EventHeader {
     repeated ParentEventReference parents = 2;
 
     /**
-     * The middle bit of the node's signature on the event.<br/>
+     * Used to be middle bit of the node's signature on the event.<br/>
+     * The usage of this has been replaced by EventCore.coin
      */
-    bool signature_middle_bit = 3;
+    reserved 3;
 }
 
 /*

@@ -15,7 +15,6 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.consensus.ConsensusUtils.coin;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
@@ -458,7 +457,7 @@ public class HandleWorkflow {
             }
         }
         final var headerItem = BlockItem.newBuilder()
-                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
+                .eventHeader(new EventHeader(event.getEventCore(), parents))
                 .build();
         blockStreamManager.writeItem(headerItem);
     }
