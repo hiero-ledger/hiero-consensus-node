@@ -74,6 +74,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -517,6 +518,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         } else {
             throw new IllegalStateException(embeddedHedera.getClass().getSimpleName() + " is not repeatable");
         }
+    }
+
+    /**
+     * Returns the {@link SubProcessNetwork} if the target network is of that type, or throws.
+     * @return the target subprocess network
+     */
+    public SubProcessNetwork subProcessNetworkOrThrow() {
+        if (!(targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
+            throw new IllegalStateException("Target network is not subprocess");
+        }
+        return network;
     }
 
     /**
