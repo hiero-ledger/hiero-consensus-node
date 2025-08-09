@@ -139,6 +139,25 @@ The backpressure mechanism operates at two levels:
        this value is 60%, then the buffer must be at or below 60% saturation before back pressure is removed.
    - Transaction processing resumes
 
+### Block Buffer Persistence
+
+Since the block buffer is a memory-based data structure, when an application restart happens the buffer gets reset to an
+empty state. For most use cases this is OK, but if a block node requests a recent block the consensus node may not be
+able to provide it. Because of this, there are two "recovery" mechanisms in place: 1) pre-consensus event stream (PCES)
+replay and 2) block buffer persistence.
+
+At any given time the platform keeps a set of events since the last saved state called the pre-consensus event stream or
+PCES. The PCES data gets reset upon each state save operation, which typically occurs every 15 minutes. If the
+application crashes, upon startup the PCES files will be automatically read and subsequent blocks will be re-built.
+However, given that a block in the buffer has a lifespan of 5 minutes (configurable), if the application crashes within
+five minutes of the last state save, then the PCES files will not contain information to build blocks from before the
+state save. This would mean that upon restart only a partial set of the blocks that would have been in the buffer will
+be re-created.
+
+To address this issue, a secondary mechanism is in place: persisting the buffer itself. Upon being notified a state save
+has occurred, all the blocks in the buffer will be written to disk, regardless of if some may be covered by PCES replay.
+Upon startup of the block buffer service, an attempt will be made to load the most recent blocks from disk.
+
 ## Sequence Diagrams
 
 ```mermaid
