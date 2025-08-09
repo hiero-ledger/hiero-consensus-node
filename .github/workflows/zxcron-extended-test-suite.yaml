@@ -154,6 +154,7 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
+          exit 1 # fail  intentionally for testing
 
   extended-test-suite:
     name: Execute eXtended Test Suite
@@ -490,130 +491,151 @@ jobs:
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build Slack Payload Message
-        id: payload
+      
+      - name: Build Rootly Summary
+        id: rootly-summary
         run: |
-          cat <<EOF > slack_payload.json
           {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*XTS Job Resulted in failure. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+            echo 'ROOTLY_SUMMARY<<EOF'
+            echo "The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Abbreviated Panel: ${{ needs.abbreviated-panel.result }}"
+            echo "- Extended Test Suite: ${{ needs.extended-test-suite.result }}"
+            echo "- Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
+            echo "- SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+            echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
 
-      - name: Report failure (slack citr-operations)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+#      - name: Build Slack Payload Message
+#        id: payload
+#        run: |
+#          cat <<EOF > slack_payload.json
+#          {
+#            "attachments": [
+#              {
+#                "color": "#FF0000",
+#                "blocks": [
+#                  {
+#                    "type": "header",
+#                    "text": {
+#                      "type": "plain_text",
+#                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
+#                      "emoji": true
+#                    }
+#                  },
+#                  {
+#                    "type": "divider"
+#                  },
+#                  {
+#                    "type": "section",
+#                    "text": {
+#                      "type": "mrkdwn",
+#                      "text": "*XTS Job Resulted in failure. See status below.*"
+#                    },
+#                    "fields": [
+#                      {
+#                        "type": "plain_text",
+#                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
+#                      },
+#                      {
+#                        "type": "plain_text",
+#                        "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
+#                      },
+#                      {
+#                        "type": "plain_text",
+#                        "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
+#                      },
+#                      {
+#                        "type": "plain_text",
+#                        "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
+#                      },
+#                      {
+#                        "type": "plain_text",
+#                        "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+#                      },
+#                      {
+#                        "type": "plain_text",
+#                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
+#                      }
+#                    ]
+#                  },
+#                  {
+#                    "type": "divider"
+#                  },
+#                  {
+#                    "type": "section",
+#                    "text": {
+#                      "type": "mrkdwn",
+#                      "text": "*Workflow and Commit Information*"
+#                    },
+#                    "fields": [
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Source Commit*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Commit author*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Slack user*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Workflow run ID*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": " ${{ github.run_id }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Workflow run URL*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+#                      }
+#                    ]
+#                  }
+#                ]
+#              }
+#            ]
+#          }
+#          EOF
+#
+#      - name: Report failure (slack citr-operations)
+#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+#        with:
+#          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+#          webhook-type: incoming-webhook
+#          payload-templated: true
+#          payload-file-path: slack_payload.json
+#
+#      - name: Report failure (slack release-team)
+#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+#        with:
+#          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+#          webhook-type: incoming-webhook
+#          payload-templated: true
+#          payload-file-path: slack_payload.json
