@@ -522,8 +522,7 @@ jobs:
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo "------------------------------------"
-            echo "Additional Information:"
-            echo "- Commit List:"
+            echo "Commit List:"
             echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
