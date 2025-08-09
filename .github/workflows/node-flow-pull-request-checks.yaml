@@ -86,6 +86,22 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
+  hapi-tests-misc-records:
+    name: HAPI Tests (Misc Records)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-hapi-tests-misc-records: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   hapi-tests-crypto:
     name: HAPI Tests (Crypto)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
