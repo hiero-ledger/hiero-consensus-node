@@ -294,6 +294,8 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
           cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
           gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy"
+
           exit "${task_code}"
 
       - name: Move to Github Workspace
