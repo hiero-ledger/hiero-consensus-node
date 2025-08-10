@@ -142,14 +142,14 @@ jobs:
             echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
-            
+
             # Commit list output (multiline)
             {
               echo 'commit-list<<EOF'
               echo "${COMMIT_LIST}"
               echo EOF
             } >> "${GITHUB_OUTPUT}"
-          
+
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
@@ -502,13 +502,14 @@ jobs:
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
-      
+
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
+          title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
-            echo "The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
             echo "------------------------------------"
             echo "Status of each jobs:"
             echo "- Abbreviated Panel: ${{ needs.abbreviated-panel.result }}"
@@ -526,12 +527,25 @@ jobs:
             echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
-        
+
       - name: Log Rootly Summary
         run: |
           echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> ${GITHUB_STEP_SUMMARY}
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
+      - name: Report failure (rootly)
+        uses: pandaswhocode/rootly-incident-action@6079253269015b289c431c81b3e05af1e078f51f #v1.0.1
+        with:
+          services: "CITR,Release Engineering Infrastructure"
+          groups: "Platform Cl,Release Engineering"
+          environments: "CITR"
+          incident-types: "Platform-CI,Release Engineering Infrastructure"
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          create-alert: "true"
+          severity: "Triage Event"
+          api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 #      - name: Build Slack Payload Message
 #        id: payload
 #        run: |
@@ -636,6 +650,17 @@ jobs:
 #                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
 #                      }
 #                    ]
+#                  },
+#                  {
+#                    "type": "divider"
+#                  },
+#                  {
+#                    "type": "section",
+#                    "text": {
+#                      "type": "mrkdwn",
+#                      "text": "*Commit List.*"
+#                    },
+#                    ###### TODO: Add commit list as text block
 #                  }
 #                ]
 #              }
