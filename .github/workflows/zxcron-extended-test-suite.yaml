@@ -535,18 +535,17 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@rbarker-dev-error-on-undefined-api-response
-
+        uses: pandaswhocode/rootly-incident-action@025cede21f38570e824596608d9302169c212ef0 #v1.0.2-alpha.1
         with:
           services: "CITR"
           groups: "Platform Cl"
           environments: "CITR"
-          incident-types: "Platform-CI"
+          incident_types: "Platform-CI"
           title: "${{ steps.rootly-summary.outputs.title }}"
           summary: "${{ steps.rootly-summary.outputs.summary }}"
-          create-alert: "true"
+          create_alert: "true"
           severity: "Triage Event"
-          api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
 
       - name: Verify Rootly Incident
         continue-on-error: true
