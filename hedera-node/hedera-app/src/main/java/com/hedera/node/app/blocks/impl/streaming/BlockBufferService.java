@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
-    public static final int DEFAULT_BUFFER_SIZE = 150;
+    private static final int DEFAULT_BUFFER_SIZE = 150;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
