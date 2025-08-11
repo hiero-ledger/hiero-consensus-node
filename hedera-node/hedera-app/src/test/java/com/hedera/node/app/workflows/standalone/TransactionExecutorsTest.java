@@ -158,7 +158,7 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true);
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
@@ -540,7 +540,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true);
+                        true,
+                        null);
             }
 
             @NonNull
@@ -553,7 +554,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false));
+                        false,
+                        null));
             }
 
             @Override
@@ -565,7 +567,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         Bytes.EMPTY,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false);
+                        false,
+                        null);
             }
 
             @Override

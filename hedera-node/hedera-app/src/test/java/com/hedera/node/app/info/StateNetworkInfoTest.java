@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -109,7 +109,9 @@ public class StateNetworkInfoTest {
 
     @Test
     public void testUpdateFrom() {
-        when(nodeState.get(any(EntityNumber.class))).thenReturn(mock(Node.class));
+        final var placeholderNode =
+                Node.newBuilder().accountId(AccountID.DEFAULT).build();
+        when(nodeState.get(any(EntityNumber.class))).thenReturn(placeholderNode);
 
         networkInfo.updateFrom(state);
         assertEquals(2, networkInfo.addressBook().size());

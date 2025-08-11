@@ -97,6 +97,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -313,9 +314,9 @@ public class SystemTransactions {
                                 .gossipEndpoint(nodeInfo.gossipEndpoints())
                                 .gossipCaCertificate(nodeInfo.sigCertBytes())
                                 .serviceEndpoint(hapiEndpoints)
-                                .declineReward(true)
-                                .build();
-                        b.nodeCreate(nodeCreate);
+                                .declineReward(true);
+                        Optional.ofNullable(nodeInfo.grpcCertHash()).ifPresent(nodeCreate::grpcCertificateHash);
+                        b.nodeCreate(nodeCreate.build());
                     },
                     nodeInfo.nodeId());
         }
@@ -503,6 +504,7 @@ public class SystemTransactions {
                                             .serviceEndpoint(node.serviceEndpoint())
                                             .declineReward(node.declineReward())
                                             .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                                            .grpcCertificateHash(node.grpcCertificateHash())
                                             .build())
                                     .build(),
                             node.nodeId());
@@ -519,6 +521,7 @@ public class SystemTransactions {
                                     .serviceEndpoint(node.serviceEndpoint())
                                     .declineReward(node.declineReward())
                                     .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                                    .grpcCertificateHash(node.grpcCertificateHash())
                                     .build()));
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
