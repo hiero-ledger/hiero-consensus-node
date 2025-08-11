@@ -160,6 +160,27 @@ final class SubmissionManagerTest extends AppTestBase {
             // And the deduplication cache is updated just once
             verify(deduplicationCache).add(txBody.transactionIDOrThrow());
         }
+
+        @Test
+        @DisplayName("Submitting the same transaction twice but after first becomes stale is allowed")
+        void testSubmittingDuplicateTransactionsCloseTogetherStaleness() throws PreCheckException {
+            // Given a platform that will succeed in taking bytes
+            when(platform.createTransaction(any())).thenReturn(true);
+            when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(false);
+            when(deduplicationCache.isStale(txBody.transactionIDOrThrow())).thenReturn(false);
+
+            submissionManager.submit(txBody, bytes);
+
+            when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(true);
+            when(deduplicationCache.isStale(txBody.transactionIDOrThrow())).thenReturn(true);
+            when(deduplicationCache.clearStale(txBody.transactionIDOrThrow())).thenReturn(true);
+
+            // When we submit a duplicate transaction twice in close succession, the second one is allowed
+            // as the first one has become stale
+            submissionManager.submit(txBody, bytes);
+            // Verify we safely clear the stale transaction status from the deduplication cache
+            verify(deduplicationCache).clearStale(txBody.transactionIDOrThrow());
+        }
     }
 
     @Nested

@@ -15,7 +15,6 @@ import com.hedera.node.config.data.HederaConfig;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -205,6 +204,62 @@ final class DeduplicationCacheTest {
         assertThat(cache.contains(txId)).isTrue();
     }
 
+    @Test
+    @DisplayName("markStale updates transaction status to STALE")
+    void markStaleUpdatesStatus() {
+        // Given a transaction in the cache
+        final var txId = createTransactionID();
+        cache.add(txId);
+        assertThat(!cache.isStale(txId)).isTrue();
+
+        // When marking it as stale
+        cache.markStale(txId);
+
+        // Then the status is updated to STALE
+        assertThat(cache.isStale(txId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("clearStale causes isStale to return false")
+    void clearStaleUpdatesStatus() {
+        // Given a transaction marked as stale
+        final var txId = createTransactionID();
+        cache.add(txId);
+        cache.markStale(txId);
+
+        // When clearing the stale status
+        final var result = cache.clearStale(txId);
+
+        // Then the map no longer contains the transaction ID so isStale returns false
+        assertThat(result).isTrue();
+        assertThat(cache.isStale(txId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("clear removes all transactions from the cache")
+    void clearRemovesAllTransactions() {
+        // Given multiple transactions in the cache
+        final var txId1 = createTransactionID();
+        final var txId2 = createTransactionID();
+        cache.add(txId1);
+        cache.add(txId2);
+
+        // When clearing the cache
+        cache.clear();
+
+        // Then the cache is empty
+        assertThat(cache.contains(txId1)).isFalse();
+        assertThat(cache.contains(txId2)).isFalse();
+    }
+
+    private TransactionID createTransactionID() {
+        final var now = Instant.now();
+        return TransactionID.newBuilder()
+                .transactionValidStart(
+                        Timestamp.newBuilder().seconds(now.getEpochSecond()).build())
+                .build();
+    }
+
     /**
      * Utility method for testing purposes that gets at the internal Map used by the cache. This makes it possible to
      * test more completely without having to open the access permissions on the cache itself.
@@ -216,8 +271,7 @@ final class DeduplicationCacheTest {
             final var field = DeduplicationCacheImpl.class.getDeclaredField("submittedTxns");
             field.setAccessible(true);
             //noinspection unchecked
-            final var map = (Map<TransactionID, TxStatus>) field.get(cache);
-            return map;
+            return (Map<TransactionID, TxStatus>) field.get(cache);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

@@ -114,6 +114,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
@@ -1448,8 +1449,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     final TransactionID transactionID = transactionBody.transactionIDOrThrow();
                     // Mark the TransactionID as stale for resubmission allowance and query reporting.
                     component.deduplicationCache().markStale(transactionID);
-                } catch (Exception e) {
-                    // Ignore parsing errors for transactions
+                } catch (ParseException e) {
+                    // Ignore parsing errors for stale events
                 }
             }
         };
