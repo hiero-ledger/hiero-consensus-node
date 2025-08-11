@@ -7,7 +7,10 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.AbstractFakePlatform;
@@ -33,8 +36,10 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An embedded Hedera node that can be used in concurrent tests.
@@ -204,6 +209,15 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                 // Now drain all events that will go in the next round and pre-handle them
                 final List<FakeEvent> newEvents = new ArrayList<>();
                 queue.drainTo(newEvents);
+                // If any newEvents contain Transactions which have been marked as stale, do not preHandle them
+                newEvents.removeIf(event -> {
+                    final Bytes transactionBytes = event.transaction.getApplicationTransaction();
+                    boolean isStaleAndShouldBeSkipped = staleTransactions.contains(transactionBytes);
+                    if (isStaleAndShouldBeSkipped){
+                        staleTransactions.remove(transactionBytes);
+                    }
+                    return isStaleAndShouldBeSkipped;
+                });
                 newEvents.forEach(event -> hedera.onPreHandle(event, state, NOOP_STATE_SIG_CALLBACK));
                 prehandledEvents.addAll(newEvents);
             } catch (Throwable t) {

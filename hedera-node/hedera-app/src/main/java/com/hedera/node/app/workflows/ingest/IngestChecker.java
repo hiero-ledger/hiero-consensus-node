@@ -275,8 +275,8 @@ public final class IngestChecker {
         // will convert that to INVALID_TRANSACTION_BODY.
         assert functionality != HederaFunctionality.NONE;
 
-        // 3. Deduplicate
-        if (deduplicationCache.contains(txInfo.transactionID())) {
+        // 3. Deduplicate the transaction and check for staleness
+        if (deduplicationCache.contains(txInfo.transactionID()) && !deduplicationCache.isStale(txInfo.transactionID())) {
             throw new PreCheckException(DUPLICATE_TRANSACTION);
         }
 

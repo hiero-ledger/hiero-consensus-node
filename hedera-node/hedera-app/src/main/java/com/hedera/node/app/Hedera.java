@@ -148,6 +148,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -165,6 +166,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -1429,5 +1431,27 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 logger.warn("No block nodes available to connect to");
             }
         }
+    }
+
+    @Override
+    public Consumer<PlatformEvent> staleEventCallback() {
+        return event -> {
+            final HederaInjectionComponent component = requireNonNull(daggerApp);
+            final Iterator<Transaction> iterator = event.transactionIterator();
+            while (iterator.hasNext()) {
+                final Transaction tx = iterator.next();
+                final Bytes bytes = tx.getApplicationTransaction();
+                try {
+                    final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(bytes);
+                    final TransactionBody transactionBody =
+                            TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+                    final TransactionID transactionID = transactionBody.transactionIDOrThrow();
+                    // Mark the TransactionID as stale for resubmission allowance and query reporting.
+                    component.deduplicationCache().markStale(transactionID);
+                } catch (Exception e) {
+                    // Ignore parsing errors for transactions
+                }
+            }
+        };
     }
 }

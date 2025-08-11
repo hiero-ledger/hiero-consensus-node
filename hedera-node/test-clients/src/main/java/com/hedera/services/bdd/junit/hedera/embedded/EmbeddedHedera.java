@@ -129,4 +129,14 @@ public interface EmbeddedHedera {
      * @return the response to the transaction
      */
     TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, long eventBirthRound);
+
+    void injectStaleEventForTransaction(@NonNull Transaction transaction);
+
+    /**
+     *
+     * @param transaction
+     */
+    void markTransactionStale(@NonNull Transaction transaction);
+
+
 }

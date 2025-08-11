@@ -2,6 +2,7 @@
 package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_IN_STALE_EVENT;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
@@ -472,9 +473,28 @@ public class RecordCacheImpl implements HederaRecordCache {
     public @Nullable ReceiptSource getReceipts(@NonNull final TransactionID txnId) {
         requireNonNull(txnId);
         final var historySource = historySources.get(txnId);
-        return historySource != null
-                ? historySource
-                : (deduplicationCache.contains(txnId) ? EMPTY_HISTORY_SOURCE : null);
+        if (historySource != null) {
+            return historySource;
+        }
+
+        boolean isKnownToDeduplicationCache = deduplicationCache.contains(txnId);
+        if (isKnownToDeduplicationCache && deduplicationCache.isStale(txnId)) {
+            final var receipt = TransactionReceipt.newBuilder()
+                    .status(TRANSACTION_IN_STALE_EVENT)
+                    .build();
+            final var record = TransactionRecord.newBuilder()
+                    .transactionID(txnId)
+                    .receipt(receipt)
+                    .build();
+            final var source = new PartialRecordSource(record);
+            final var history = new HistorySource();
+            history.recordSources.add(source);
+            return history;
+        } else if (isKnownToDeduplicationCache) {
+            return EMPTY_HISTORY_SOURCE;
+        } else {
+            return  null;
+        }
     }
 
     @NonNull

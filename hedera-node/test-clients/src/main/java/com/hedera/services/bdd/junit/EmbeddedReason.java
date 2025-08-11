@@ -18,4 +18,9 @@ public enum EmbeddedReason {
      * The test manipulates the software version of the simulated consensus event for a transaction.
      */
     MANIPULATES_EVENT_VERSION,
+    /**
+     * The test manipulates the workflow of the simulated consensus event for a transaction.
+     * For example, the test may only want to preHandle a transaction and invoke a stale consensus event callback.
+     */
+    MANIPULATES_WORKFLOW,
 }

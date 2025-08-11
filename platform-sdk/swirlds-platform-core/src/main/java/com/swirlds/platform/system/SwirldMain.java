@@ -10,7 +10,9 @@ import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -114,4 +116,16 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      */
     @NonNull
     Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
+
+    /**
+     * Optional callback invoked by the platform when a self event is detected to be stale (i.e. will never reach consensus).
+     * Applications may use this to update any in-flight bookkeeping for transaction in the stale event (for example, to update
+     * receipt status or enable re-submission of the transaction).
+     *
+     * <p> Default implementation returns {@code null}, which means the application is not interested in these notifications.
+     * @return a consumer that accepts a {@link PlatformEvent} representing the stale event, or {@code null} if not interested
+     */
+    default Consumer<PlatformEvent> staleEventCallback() {
+        return null;
+    }
 }

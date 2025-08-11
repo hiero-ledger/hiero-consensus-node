@@ -16,7 +16,9 @@ import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -38,6 +40,8 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
                     .thenComparing(txnId -> txnId.accountIDOrElse(AccountID.DEFAULT), ACCOUNT_ID_COMPARATOR)
                     .thenComparing(TransactionID::scheduled)
                     .thenComparing(TransactionID::nonce));
+
+    private final Set<TransactionID> staleTxns = ConcurrentHashMap.newKeySet();
 
     /** Used for looking up the max transaction duration window. */
     private final ConfigProvider configProvider;
@@ -82,8 +86,33 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
 
     /** {@inheritDoc} */
     @Override
+    public void markStale(@NonNull TransactionID transactionID) {
+        // Prune and then mark as stale
+        final var epochSeconds = approxEarliestValidStartSecond();
+        // If the transaction is within the max transaction duration window, then add it to the set.
+        if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
+            staleTxns.add(transactionID);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isStale(@NonNull TransactionID transactionID) {
+        return staleTxns.contains(transactionID);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean clearStale(@NonNull TransactionID transactionID) {
+        return staleTxns.remove(transactionID);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void clear() {
         submittedTxns.clear();
+        staleTxns.clear();
     }
 
     /**
@@ -110,6 +139,7 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
             final var txId = itr.next();
             if (txId.transactionValidStartOrThrow().seconds() < earliestEpochSecond) {
                 itr.remove();
+                staleTxns.remove(txId);
             } else {
                 return;
             }

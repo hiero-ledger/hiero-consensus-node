@@ -32,6 +32,27 @@ public interface DeduplicationCache {
      */
     boolean contains(@NonNull TransactionID transactionID);
 
+    /**
+     * Marks the given TransactionID as having been observed in a stale event. This information is kept
+     * in-memory only and ages out with the same policy as {@link #add(TransactionID)}.
+     * @param transactionID the transaction ID to mark as stale
+     */
+    void markStale(@NonNull TransactionID transactionID);
+
+    /**
+     * Returns true if the given {@link TransactionID} has been observed in a stale event and has not yet aged out.
+     * @param transactionID the transaction ID to check
+     * @return true if the transaction ID has been marked as stale
+     */
+    boolean isStale(@NonNull TransactionID transactionID);
+
+    /**
+     * Clears the stale state for the given {@link TransactionID}.
+     * @param transactionID the transaction ID to clear from the stale state
+     * @return true if the stale state was cleared
+     */
+    boolean clearStale(@NonNull TransactionID transactionID);
+
     /** Clear everything from the cache. Used during reconnect */
     void clear();
 }

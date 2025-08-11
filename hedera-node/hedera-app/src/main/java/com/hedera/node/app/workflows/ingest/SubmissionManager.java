@@ -143,7 +143,14 @@ public class SubmissionManager {
             // and BEFORE we record the transaction as a duplicate.
             final var txId = txBody.transactionIDOrThrow();
             if (submittedTxns.contains(txId)) {
-                throw new PreCheckException(DUPLICATE_TRANSACTION);
+                if (submittedTxns.isStale(txId)) {
+                    boolean wasStale = submittedTxns.clearStale(txId);
+                    if (!wasStale) {
+                        throw new PreCheckException(DUPLICATE_TRANSACTION);
+                    }
+                } else {
+                    throw new PreCheckException(DUPLICATE_TRANSACTION);
+                }
             }
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
