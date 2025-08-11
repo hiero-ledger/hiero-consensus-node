@@ -16,7 +16,6 @@ import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -106,7 +105,6 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
     public boolean clearStale(@NonNull TransactionID transactionID) {
         return staleTxns.remove(transactionID);
     }
-
 
     /** {@inheritDoc} */
     @Override

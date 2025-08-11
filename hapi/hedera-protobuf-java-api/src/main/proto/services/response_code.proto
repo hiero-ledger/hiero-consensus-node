@@ -1847,5 +1847,5 @@ enum ResponseCodeEnum {
      * A transaction was contained in a stale self event and will never reach consensus. Clients could resubmit
      * this transaction if it's transactionValidStart is greater than the current consensus time of the network.
      */
-    TRANSACTION_IN_STALE_EVENT = 514;
+    TRANSACTION_IN_STALE_SELF_EVENT = 514;
 }

@@ -276,7 +276,8 @@ public final class IngestChecker {
         assert functionality != HederaFunctionality.NONE;
 
         // 3. Deduplicate the transaction and check for staleness
-        if (deduplicationCache.contains(txInfo.transactionID()) && !deduplicationCache.isStale(txInfo.transactionID())) {
+        if (deduplicationCache.contains(txInfo.transactionID())
+                && !deduplicationCache.isStale(txInfo.transactionID())) {
             throw new PreCheckException(DUPLICATE_TRANSACTION);
         }
 

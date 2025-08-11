@@ -133,10 +133,8 @@ public interface EmbeddedHedera {
     void injectStaleEventForTransaction(@NonNull Transaction transaction);
 
     /**
-     *
-     * @param transaction
+     * Sets whether all events should be considered stale.
+     * @param considerAllEventsStale true if all events should be considered stale, false otherwise
      */
-    void markTransactionStale(@NonNull Transaction transaction);
-
-
+    void considerAllEventsStale(boolean considerAllEventsStale);
 }

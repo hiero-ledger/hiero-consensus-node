@@ -57,13 +57,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,7 +116,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected SemanticVersion version;
     protected boolean blockStreamEnabled;
 
-    protected Set<Bytes> staleTransactions = new HashSet<>();
+    protected AtomicBoolean allEventsStale = new AtomicBoolean(false);
 
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.HintsServiceFactory} lambda we give the
@@ -382,13 +381,18 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     public void injectStaleEventForTransaction(@NotNull Transaction transaction) {
         requireNonNull(transaction);
         final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
-        final FakeEvent fakeStaleEvent = new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(serializedSignedTx));
-        hedera.staleEventCallback().accept(new PlatformEvent(new GossipEvent(fakeStaleEvent.getEventCore(),
-                fakeStaleEvent.getSignature(), List.of(Bytes.wrap(serializedSignedTx)), List.of())));
+        final FakeEvent fakeStaleEvent =
+                new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(serializedSignedTx));
+        hedera.staleEventCallback()
+                .accept(new PlatformEvent(new GossipEvent(
+                        fakeStaleEvent.getEventCore(),
+                        fakeStaleEvent.getSignature(),
+                        List.of(Bytes.wrap(serializedSignedTx)),
+                        List.of())));
     }
 
     @Override
-    public void markTransactionStale(@NonNull Transaction transaction) {
-        staleTransactions.add(Bytes.wrap(transaction.getSignedTransactionBytes().toByteArray()));
+    public void considerAllEventsStale(boolean considerAllEventsStale) {
+        allEventsStale.set(considerAllEventsStale);
     }
 }

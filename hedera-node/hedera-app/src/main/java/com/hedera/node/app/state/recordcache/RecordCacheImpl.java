@@ -2,7 +2,7 @@
 package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_IN_STALE_EVENT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_IN_STALE_SELF_EVENT;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
@@ -480,7 +480,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         boolean isKnownToDeduplicationCache = deduplicationCache.contains(txnId);
         if (isKnownToDeduplicationCache && deduplicationCache.isStale(txnId)) {
             final var receipt = TransactionReceipt.newBuilder()
-                    .status(TRANSACTION_IN_STALE_EVENT)
+                    .status(TRANSACTION_IN_STALE_SELF_EVENT)
                     .build();
             final var record = TransactionRecord.newBuilder()
                     .transactionID(txnId)
@@ -493,7 +493,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         } else if (isKnownToDeduplicationCache) {
             return EMPTY_HISTORY_SOURCE;
         } else {
-            return  null;
+            return null;
         }
     }
 
