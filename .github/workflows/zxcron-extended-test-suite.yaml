@@ -535,7 +535,7 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@6079253269015b289c431c81b3e05af1e078f51f #v1.0.1
+        uses: pandaswhocode/rootly-incident-action@197b2f5b6741dcd67b0466c4fb61dc5f656ef387 #Branched.
         with:
           services: "CITR"
           groups: "Platform Cl"
@@ -546,7 +546,18 @@ jobs:
           create-alert: "true"
           severity: "Triage Event"
           api-token: ${{ secrets.ROOTLY_API_TOKEN }}
-          
+
+      - name: Verify Rootly Incident
+        continue-on-error: true
+        run: |
+          if [[ -z "${{ steps.rootly-summary.outputs.incident-id }}" ]]; then
+            echo "No rootly incident was created." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          if [[ -z "${{ steps.rootly-summary.outputs.alert-id }}" ]]; then
+            echo "No rootly alert was created." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
 #      - name: Build Slack Payload Message
 #        id: payload
 #        run: |
