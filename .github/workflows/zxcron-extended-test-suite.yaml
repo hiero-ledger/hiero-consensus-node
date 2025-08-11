@@ -535,7 +535,8 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@197b2f5b6741dcd67b0466c4fb61dc5f656ef387 #Branched.
+        uses: pandaswhocode/rootly-incident-action@rbarker-dev-error-on-undefined-api-response
+
         with:
           services: "CITR"
           groups: "Platform Cl"
