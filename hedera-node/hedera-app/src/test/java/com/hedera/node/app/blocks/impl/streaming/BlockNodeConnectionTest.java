@@ -424,7 +424,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
-
         verify(metrics).incrementResendBlockCount();
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
