@@ -442,6 +442,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
+        verify(connectionManager).currentStreamingBlockNumber();
         verify(metrics).incrementResendBlockCount();
         verify(connectionManager).jumpToBlock(10L);
         verify(stateManager).getBlockState(10L);
@@ -459,7 +460,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         when(stateManager.getBlockState(10L)).thenReturn(null);
 
         connection.onNext(response);
-
+        verify(connectionManager).currentStreamingBlockNumber();
         verify(metrics).incrementResendBlockCount();
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
