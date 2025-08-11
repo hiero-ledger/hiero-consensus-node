@@ -35,12 +35,6 @@ message EventHeader {
     * A list of references to parent events. <br/>
     */
     repeated ParentEventReference parents = 2;
-
-    /**
-     * Used to be middle bit of the node's signature on the event.<br/>
-     * The usage of this has been replaced by EventCore.coin
-     */
-    reserved 3;
 }
 
 /*
