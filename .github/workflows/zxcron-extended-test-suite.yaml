@@ -537,15 +537,16 @@ jobs:
       - name: Report failure (rootly)
         uses: pandaswhocode/rootly-incident-action@6079253269015b289c431c81b3e05af1e078f51f #v1.0.1
         with:
-          services: "CITR,Release Engineering Infrastructure"
-          groups: "Platform Cl,Release Engineering"
+          services: "CITR"
+          groups: "Platform Cl"
           environments: "CITR"
-          incident-types: "Platform-CI,Release Engineering Infrastructure"
+          incident-types: "Platform-CI"
           title: "${{ steps.rootly-summary.outputs.title }}"
           summary: "${{ steps.rootly-summary.outputs.summary }}"
           create-alert: "true"
           severity: "Triage Event"
           api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+          
 #      - name: Build Slack Payload Message
 #        id: payload
 #        run: |
