@@ -118,8 +118,8 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
 
     /**
-     * Optional callback invoked by the platform when a self event is detected to be stale (i.e. will never reach consensus).
-     * Applications may use this to update any in-flight bookkeeping for transaction in the stale event (for example, to update
+     * Optional callback invoked by the platform when an event is detected to be stale (i.e. will never reach consensus).
+     * Applications may use this to update any in-flight bookkeeping for the transactions in the stale event (for example, to update
      * receipt status or enable re-submission of the transaction).
      *
      * <p> Default implementation returns {@code null}, which means the application is not interested in these notifications.

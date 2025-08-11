@@ -378,7 +378,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     }
 
     @Override
-    public void injectStaleEventForTransaction(@NotNull Transaction transaction) {
+    public void triggerStaleEventCallbackForTransaction(@NotNull Transaction transaction) {
         requireNonNull(transaction);
         final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
         final FakeEvent fakeStaleEvent =

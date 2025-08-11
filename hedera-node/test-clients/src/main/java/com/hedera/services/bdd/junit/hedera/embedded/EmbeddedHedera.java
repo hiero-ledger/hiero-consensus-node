@@ -130,7 +130,11 @@ public interface EmbeddedHedera {
      */
     TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, long eventBirthRound);
 
-    void injectStaleEventForTransaction(@NonNull Transaction transaction);
+    /**
+     * Triggers the stale event callback for a given transaction.
+     * @param transaction the transaction for which to trigger the stale event callback
+     */
+    void triggerStaleEventCallbackForTransaction(@NonNull Transaction transaction);
 
     /**
      * Sets whether all events should be considered stale.

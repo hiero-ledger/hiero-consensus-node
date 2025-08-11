@@ -2,7 +2,7 @@
 package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_IN_STALE_SELF_EVENT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.STALE;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
@@ -476,12 +476,8 @@ public class RecordCacheImpl implements HederaRecordCache {
         if (historySource != null) {
             return historySource;
         }
-
-        boolean isKnownToDeduplicationCache = deduplicationCache.contains(txnId);
-        if (isKnownToDeduplicationCache && deduplicationCache.isStale(txnId)) {
-            final var receipt = TransactionReceipt.newBuilder()
-                    .status(TRANSACTION_IN_STALE_SELF_EVENT)
-                    .build();
+        if (deduplicationCache.isStale(txnId)) {
+            final var receipt = TransactionReceipt.newBuilder().status(STALE).build();
             final var record = TransactionRecord.newBuilder()
                     .transactionID(txnId)
                     .receipt(receipt)
@@ -490,7 +486,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             final var history = new HistorySource();
             history.recordSources.add(source);
             return history;
-        } else if (isKnownToDeduplicationCache) {
+        } else if (deduplicationCache.contains(txnId)) {
             return EMPTY_HISTORY_SOURCE;
         } else {
             return null;

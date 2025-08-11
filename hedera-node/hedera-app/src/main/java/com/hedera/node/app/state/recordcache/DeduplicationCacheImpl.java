@@ -16,31 +16,43 @@ import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Comparator;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /** An implementation of {@link DeduplicationCache}. */
 @Singleton
 public final class DeduplicationCacheImpl implements DeduplicationCache {
+
     /**
-     * The {@link TransactionID}s that this node has already submitted to the platform, sorted by transaction start
+     * The status of a transaction in the deduplication cache.
+     */
+    public enum TxStatus {
+        /**
+         * The transaction has been submitted to the platform.
+         */
+        SUBMITTED,
+        /**
+         * The transaction has been marked as stale.
+         */
+        STALE
+    };
+
+    /**
+     * The {@link TransactionID}s and their corresponding {@link TxStatus} that this node has already submitted to the platform, sorted by transaction start
      * time, such that earlier start times come first.
      * <p>
      * Note that an ID with scheduled set is different from the same ID without scheduled set.
      * In fact, an ID with scheduled set will always match the ID of the ScheduleCreate transaction that created
      * the schedule, except scheduled is set.
      */
-    private final Set<TransactionID> submittedTxns =
-            new ConcurrentSkipListSet<>(Comparator.<TransactionID, Timestamp>comparing(
+    private final ConcurrentNavigableMap<TransactionID, TxStatus> submittedTxns =
+            new ConcurrentSkipListMap<>(Comparator.<TransactionID, Timestamp>comparing(
                             txnId -> txnId.transactionValidStartOrElse(Timestamp.DEFAULT), TIMESTAMP_COMPARATOR)
                     .thenComparing(txnId -> txnId.accountIDOrElse(AccountID.DEFAULT), ACCOUNT_ID_COMPARATOR)
                     .thenComparing(TransactionID::scheduled)
                     .thenComparing(TransactionID::nonce));
-
-    private final Set<TransactionID> staleTxns = ConcurrentHashMap.newKeySet();
 
     /** Used for looking up the max transaction duration window. */
     private final ConfigProvider configProvider;
@@ -69,7 +81,7 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
 
         // If the transaction is within the max transaction duration window, then add it to the set.
         if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
-            submittedTxns.add(transactionID);
+            submittedTxns.put(transactionID, TxStatus.SUBMITTED);
         }
     }
 
@@ -80,37 +92,32 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
         // if the transactionID is still valid
         final var epochSeconds = approxEarliestValidStartSecond();
         removeTransactionsOlderThan(epochSeconds);
-        return submittedTxns.contains(transactionID);
+        return submittedTxns.containsKey(transactionID);
     }
 
     /** {@inheritDoc} */
     @Override
     public void markStale(@NonNull TransactionID transactionID) {
-        // Prune and then mark as stale
-        final var epochSeconds = approxEarliestValidStartSecond();
-        // If the transaction is within the max transaction duration window, then add it to the set.
-        if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
-            staleTxns.add(transactionID);
-        }
+        submittedTxns.computeIfPresent(transactionID, (key, value) -> TxStatus.STALE);
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean isStale(@NonNull TransactionID transactionID) {
-        return staleTxns.contains(transactionID);
+        final var status = submittedTxns.get(transactionID);
+        return status == TxStatus.STALE;
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean clearStale(@NonNull TransactionID transactionID) {
-        return staleTxns.remove(transactionID);
+        return submittedTxns.replace(transactionID, TxStatus.STALE, TxStatus.SUBMITTED);
     }
 
     /** {@inheritDoc} */
     @Override
     public void clear() {
         submittedTxns.clear();
-        staleTxns.clear();
     }
 
     /**
@@ -132,12 +139,11 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
      * @param earliestEpochSecond The earliest epoch second that should be kept in the cache.
      */
     private void removeTransactionsOlderThan(final long earliestEpochSecond) {
-        final var itr = submittedTxns.iterator();
+        final var itr = submittedTxns.keySet().iterator();
         while (itr.hasNext()) {
             final var txId = itr.next();
             if (txId.transactionValidStartOrThrow().seconds() < earliestEpochSecond) {
                 itr.remove();
-                staleTxns.remove(txId);
             } else {
                 return;
             }

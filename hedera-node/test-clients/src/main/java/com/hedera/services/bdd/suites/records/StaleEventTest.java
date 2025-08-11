@@ -10,8 +10,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.STALE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_IN_STALE_SELF_EVENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -25,6 +25,10 @@ import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
+/**
+ * Tests that a transaction submitted to a node can be resubmitted after it has gone through ingest, submitted to
+ * the platform, the event becomes stale, and then app receives a stale event notification.
+ */
 public class StaleEventTest {
 
     @EmbeddedHapiTest(MANIPULATES_WORKFLOW)
@@ -62,12 +66,12 @@ public class StaleEventTest {
                 // TRANSACTION_IN_STALE_EVENT, client can resubmit the transaction
                 embeddedNetwork
                         .embeddedHederaOrThrow()
-                        .injectStaleEventForTransaction(transfer.getSubmittedTransaction());
+                        .triggerStaleEventCallbackForTransaction(transfer.getSubmittedTransaction());
                 HapiGetReceipt nextReceipt = getReceipt("txn");
                 nextReceipt.execFor(spec);
 
                 assertEquals(
-                        TRANSACTION_IN_STALE_SELF_EVENT,
+                        STALE,
                         nextReceipt
                                 .getResponse()
                                 .getTransactionGetReceipt()
