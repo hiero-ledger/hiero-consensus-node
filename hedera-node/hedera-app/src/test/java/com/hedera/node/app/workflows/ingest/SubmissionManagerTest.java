@@ -8,6 +8,7 @@ import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxSta
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -178,7 +179,7 @@ final class SubmissionManagerTest extends AppTestBase {
             // as the first one has become stale
             submissionManager.submit(txBody, bytes);
             // Verify we clear the stale transaction status from the deduplication cache by adding
-            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
+            verify(deduplicationCache, times(2)).add(txBody.transactionIDOrThrow());
         }
     }
 
