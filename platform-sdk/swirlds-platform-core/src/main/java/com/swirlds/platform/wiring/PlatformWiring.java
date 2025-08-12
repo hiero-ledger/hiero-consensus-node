@@ -413,7 +413,16 @@ public class PlatformWiring {
                     platformPublisherWiring.getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
-        splitOrphanBufferOutput.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
+        final OutputWire<PlatformEvent> consEngineAddedEvents = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer(
+                        "getPreConsensusEvents",
+                        "consensusEngineOutput",
+                        ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter(
+                        "preConsensusEventsSplitter",
+                        "preConsensusEvents");
+        consEngineAddedEvents.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
                 TransactionPrehandler::prehandleApplicationTransactions));
 
         applicationTransactionPrehandlerWiring
