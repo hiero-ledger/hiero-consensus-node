@@ -173,13 +173,12 @@ final class SubmissionManagerTest extends AppTestBase {
             submissionManager.submit(txBody, bytes);
 
             when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(STALE);
-            when(deduplicationCache.clearStale(txBody.transactionIDOrThrow())).thenReturn(true);
 
             // When we submit a duplicate transaction twice in close succession, the second one is allowed
             // as the first one has become stale
             submissionManager.submit(txBody, bytes);
-            // Verify we safely clear the stale transaction status from the deduplication cache
-            verify(deduplicationCache).clearStale(txBody.transactionIDOrThrow());
+            // Verify we clear the stale transaction status from the deduplication cache by adding
+            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
         }
     }
 

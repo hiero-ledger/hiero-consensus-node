@@ -220,18 +220,17 @@ final class DeduplicationCacheTest {
     }
 
     @Test
-    @DisplayName("clearStale causes isStale to return false")
-    void clearStaleUpdatesStatus() {
+    @DisplayName("add clears STALE status")
+    void addClearsStaleUpdatesStatus() {
         // Given a transaction marked as stale
         final var txId = createTransactionID();
         cache.add(txId);
         cache.markStale(txId);
 
         // When clearing the stale status
-        final var result = cache.clearStale(txId);
+        cache.add(txId);
 
         // Then the map no longer contains the transaction ID so isStale returns false
-        assertThat(result).isTrue();
         assertThat(cache.getTxStatus(txId) == TxStatus.SUBMITTED).isTrue();
     }
 

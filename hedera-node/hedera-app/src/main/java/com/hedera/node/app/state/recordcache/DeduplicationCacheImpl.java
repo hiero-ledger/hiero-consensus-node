@@ -101,12 +101,6 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
         submittedTxns.computeIfPresent(transactionID, (key, value) -> TxStatus.STALE);
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public boolean clearStale(@NonNull TransactionID transactionID) {
-        return submittedTxns.replace(transactionID, TxStatus.STALE, TxStatus.SUBMITTED);
-    }
-
     @Override
     public TxStatus getTxStatus(@NonNull TransactionID transactionID) {
         return submittedTxns.get(transactionID);

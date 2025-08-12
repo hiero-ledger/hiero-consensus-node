@@ -42,13 +42,6 @@ public interface DeduplicationCache {
     void markStale(@NonNull TransactionID transactionID);
 
     /**
-     * Clears the stale state for the given {@link TransactionID}.
-     * @param transactionID the transaction ID to clear from the stale state
-     * @return true if the stale state was cleared
-     */
-    boolean clearStale(@NonNull TransactionID transactionID);
-
-    /**
      * Get the status of a transaction in the cache. If the transaction is not in the cache, or if it has
      * aged out, then this will return null.
      * @param transactionID the transaction ID to get the status for
