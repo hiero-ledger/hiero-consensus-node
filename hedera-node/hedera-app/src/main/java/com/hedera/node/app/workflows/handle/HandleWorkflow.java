@@ -158,6 +158,8 @@ public class HandleWorkflow {
     private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag whether the 0.65 system account cleanup has been done; can be removed after that release
+    private boolean systemAccountCleanupDone;
 
     @Inject
     public HandleWorkflow(
@@ -521,6 +523,11 @@ public class HandleWorkflow {
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
+            }
+        } else {
+            if (!systemAccountCleanupDone) {
+                // Ensure the system account cleanup is finished post-upgrade
+                systemAccountCleanupDone = systemTransactions.do065SystemAccountCleanup(consensusNow, state);
             }
         }
         final var userTxn =

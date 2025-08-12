@@ -28,6 +28,8 @@ import javax.inject.Inject;
  * <p>The checks in this class do not require access to state, and thus can be performed at any time.
  */
 public class PrivilegesVerifier {
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 100L;
+    private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
@@ -74,7 +76,7 @@ public class PrivilegesVerifier {
                 // Authorization for deletes
             case FILE_DELETE -> checkEntityDelete(
                     txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
-            case CRYPTO_DELETE -> checkEntityDelete(
+            case CRYPTO_DELETE -> checkCryptoDelete(
                     txBody.cryptoDeleteOrThrow().deleteAccountIDOrThrow().accountNumOrThrow());
             case NODE_CREATE -> checkNodeCreate(payerId);
             default -> SystemPrivilege.UNNECESSARY;
@@ -208,5 +210,14 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {
         return isSystemEntity(entityNum) ? IMPERMISSIBLE : UNNECESSARY;
+    }
+
+    private SystemPrivilege checkCryptoDelete(final long entityNum) {
+        return (isSystemEntity(entityNum) && !isSystemFile(entityNum)) ? IMPERMISSIBLE : UNNECESSARY;
+    }
+
+    private boolean isSystemFile(final long entityNum) {
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum
+                && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 }
