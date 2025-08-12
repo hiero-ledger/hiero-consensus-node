@@ -66,6 +66,14 @@ message EventCore {
   proto.Timestamp time_created = 3;
 
   /**
+   * A random number used in the unlikely case that the consensus algorithm gets to a coin vote.<br/>
+   * This number SHALL be used to break ties in the consensus algorithm.<br/>
+   * The number SHALL be between 0 and the size of the roster (inclusive) for the event's birth round.<br/>
+   * For example, if the roster size is 10, the minimum value is 0 and the maximum value is 10.<br/>
+   */
+  int64 coin = 5;
+
+  /**
    * Used to be a list of EventDescriptors representing the parents of this event.<br/>
    * This field has been moved to GossipEvent.
    */
