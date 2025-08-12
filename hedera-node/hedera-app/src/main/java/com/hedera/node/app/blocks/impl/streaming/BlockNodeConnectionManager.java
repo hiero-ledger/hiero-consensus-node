@@ -890,10 +890,5 @@ public class BlockNodeConnectionManager {
                 connection.close();
             }
         }
-
-        @Override
-        public String toString() {
-            return getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this));
-        }
     }
 }

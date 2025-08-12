@@ -189,21 +189,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
 
-        logger.info(
-                """
-                        [{}] BlockNodeConnection initialized with:\s
-                        grpcEndpoint: {}\s
-                        maxEndOfStreamsAllowed: {}\s
-                        endOfStreamTimeFrame: {}\s
-                        endOfStreamScheduleDelay: {}\s
-                        streamResetPeriod: {}\s
-                        """,
-                this,
-                this.grpcEndpoint,
-                this.maxEndOfStreamsAllowed,
-                this.endOfStreamTimeFrame,
-                this.endOfStreamScheduleDelay,
-                this.streamResetPeriod);
+        logger.debug("[{}] BlockNodeConnection initialized", this);
     }
 
     /**
@@ -257,7 +243,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             logger.debug("[{}] Attempting scheduled stream reset", this);
             endTheStreamWith(RESET);
             blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
-            logger.debug("[{}] Scheduled stream reset", this);
         }
     }
 
@@ -455,14 +440,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     private void handleResendBlock(@NonNull final ResendBlock resendBlock) {
         requireNonNull(resendBlock, "resendBlock must not be null");
-        final long streamingBlockNumber = blockNodeConnectionManager.currentStreamingBlockNumber();
 
         final long resendBlockNumber = resendBlock.blockNumber();
-        logger.debug(
-                "[{}] Received ResendBlock response for block {}, current streaming block is {}",
-                this,
-                resendBlockNumber,
-                streamingBlockNumber);
+        logger.debug("[{}] Received ResendBlock response for block {}", this, resendBlockNumber);
 
         if (blockBufferService.getBlockState(resendBlockNumber) != null) {
             jumpToBlock(resendBlockNumber);
