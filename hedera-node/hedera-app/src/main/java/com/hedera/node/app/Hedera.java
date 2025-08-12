@@ -1453,7 +1453,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             } catch (ParseException e) {
                 // Ignore parsing errors for stale events
             } catch (Exception e) {
-                logger.warn("Exception during staleEventCallback while for transaction {}: {}", tx, e.getMessage(), e);
+                logger.warn("Exception during staleEventCallback for transaction {}: {}", tx, e.getMessage(), e);
             }
         }
     }
