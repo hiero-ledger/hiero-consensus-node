@@ -92,6 +92,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualS
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
@@ -125,6 +126,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -471,6 +473,18 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull HederaNetwork targetNetworkOrThrow() {
         return requireNonNull(targetNetwork);
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link ContractID} for the target network.
+     * @return the contract ID factory function
+     */
+    public LongFunction<ContractID> contractIdFactory() {
+        return num -> ContractID.newBuilder()
+                .setShardNum(hapiSetup.shard())
+                .setRealmNum(hapiSetup.realm())
+                .setContractNum(num)
+                .build();
     }
 
     /**
