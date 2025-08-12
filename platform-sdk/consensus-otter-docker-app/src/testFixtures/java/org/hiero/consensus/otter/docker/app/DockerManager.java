@@ -10,24 +10,21 @@ import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
-import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
+import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 
 /**
- * gRPC service implementation for starting and stopping the consensus node between the test framework and the
- * container.
+ * gRPC service implementation for communication between the test framework and the container to start and stop the
+ * consensus node.
  * <p>
- * This service handles incoming messages to initialize the {@link ConsensusNodeManager} which manages the consensus
- * node itself, and to kill the consensus node process.
+ * This service handles incoming messages to initialize the {@link NodeCommunicationService} which handles communication
+ * with the consensus node itself.
  */
 public final class DockerManager extends ContainerControlServiceGrpc.ContainerControlServiceImplBase {
 
@@ -37,12 +34,15 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Port on which the consensus node manager gRPC service listens. */
     private static final int CONSENSUS_NODE_PORT = 8081;
 
-    /** Default thread name for the consensus node manager gRCP service */
-    private static final String NODE_GRPC_THREAD_NAME = "grpc-outbound-dispatcher";
+    /**
+     * The ID of the consensus node in this container. The ID is immutable for the node in this container and cannot
+     * be changed even between restarts.
+     */
+    private NodeId selfId;
 
     /** Manages the consensus node and platform lifecycle */
     @Nullable
-    private ConsensusNodeManager nodeManager;
+    private NodeCommunicationService nodeCommunicationService;
 
     /** Thread that runs the consensus node manager gRPC service. null when the service is not running. */
     @Nullable
@@ -58,7 +58,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Override
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        final NodeId selfId = ProtobufConverter.toPbj(request.getSelfId());
+        this.selfId = ProtobufConverter.toPbj(request.getSelfId());
         DockerLogConfigBuilder.configure(Path.of(""), selfId);
 
         if (nodeManagerThread != null) {
@@ -68,7 +68,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             return;
         }
 
-        nodeManager = new ConsensusNodeManager(selfId, createDispatchExecutor(), Executors.newCachedThreadPool());
+        nodeCommunicationService = new NodeCommunicationService(selfId);
         nodeManagerThread = new Thread(this::startAndRunConsensusNodeService, "ConsensusNodeGrpcServiceThread");
         nodeManagerThread.start();
 
@@ -79,7 +79,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private void startAndRunConsensusNodeService() {
         // Start the consensus node manager gRPC server
         final Server nodeGrpcServer = ServerBuilder.forPort(CONSENSUS_NODE_PORT)
-                .addService(nodeManager)
+                .addService(nodeCommunicationService)
                 .build();
         try {
             nodeGrpcServer.start();
@@ -96,23 +96,6 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     }
 
     /**
-     * Creates the default {@link ExecutorService} for the gRPC server.
-     * <p>
-     * The default executor is a single-threaded executor
-     * </p>
-     *
-     * @return a single-threaded {@link ExecutorService} with custom thread factory
-     */
-    private static ExecutorService createDispatchExecutor() {
-        final ThreadFactory factory = r -> {
-            final Thread t = new Thread(r, NODE_GRPC_THREAD_NAME);
-            t.setDaemon(true);
-            return t;
-        };
-        return Executors.newSingleThreadExecutor(factory);
-    }
-
-    /**
      * Immediately terminates the platform. The container and dispatcher are left intact to allow data to be gathered
      * for verification.
      *
@@ -124,16 +107,15 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Received kill request: {}", request);
         try {
-            if (nodeManager != null) {
-                nodeManager.destroy();
-                nodeManager = null;
+            if (nodeCommunicationService != null) {
+                nodeCommunicationService.destroy();
             }
 
-            if (nodeManagerThread != null) {
-                nodeManagerThread.interrupt();
-                nodeManagerThread.join();
-                nodeManagerThread = null;
-            }
+            //            if (nodeManagerThread != null) {
+            //                nodeManagerThread.interrupt();
+            //                nodeManagerThread.join();
+            //                nodeManagerThread = null;
+            //            }
 
             responseObserver.onNext(Empty.getDefaultInstance());
             responseObserver.onCompleted();

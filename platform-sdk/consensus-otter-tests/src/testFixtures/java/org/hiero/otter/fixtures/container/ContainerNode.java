@@ -139,14 +139,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
 
-        // Blocking stub for communicating with the consensus node
-        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
-
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.fromPbj(selfId))
                 .build();
         //noinspection ResultOfMethodCallIgnored
         containerControlBlockingStub.init(initRequest);
+
+        // Blocking stub for communicating with the consensus node
+        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
     }
 
     private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
@@ -370,8 +370,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
 
-            final NodeCommunicationServiceStub stub =
-                    NodeCommunicationServiceGrpc.newStub(nodeCommChannel).withDeadlineAfter(timeout);
+            final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
@@ -424,7 +423,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
                 final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
                 // Unary call – will throw if server returns an error.
-                containerControlBlockingStub.killImmediately(request);
+                containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
@@ -438,9 +437,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
             log.info("Starting synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            nodeCommBlockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                    .setSleepMillisPerRound(delayPerRound.toMillis())
-                    .build());
+            nodeCommBlockingStub
+                    .withDeadlineAfter(timeout)
+                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                            .setSleepMillisPerRound(delayPerRound.toMillis())
+                            .build());
         }
 
         /**
@@ -451,9 +452,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void stopSyntheticBottleneck() {
             log.info("Stopping synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            nodeCommBlockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                    .setSleepMillisPerRound(0)
-                    .build());
+            nodeCommBlockingStub
+                    .withDeadlineAfter(timeout)
+                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                            .setSleepMillisPerRound(0)
+                            .build());
         }
     }
 
