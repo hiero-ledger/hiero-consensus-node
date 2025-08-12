@@ -538,7 +538,7 @@ jobs:
         uses: pandaswhocode/rootly-incident-action@8b0a30b0f0cb6c4f951ff38d00660524e98b9b3f #v1.0.2-alpha.2
         with:
           services: "CITR"
-          groups: "Platform CI"
+          teams: "Platform CI"
           environments: "CITR"
           incident_types: "Platform-CI"
           title: "${{ steps.rootly-summary.outputs.title }}"
