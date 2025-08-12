@@ -32,7 +32,7 @@ public interface ConsensusEngine {
      */
     @NonNull
     @InputWireLabel("PlatformEvent")
-    List<ConsensusRound> addEvent(@NonNull PlatformEvent event);
+    ConsensusEngineOutput addEvent(@NonNull PlatformEvent event);
 
     /**
      * Perform an out-of-band snapshot update. This happens at restart/reconnect boundaries.
