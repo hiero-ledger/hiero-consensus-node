@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
@@ -18,7 +19,8 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  * containers. It connects the container to the provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
-    public static final int CONTROL_PORT = 8080;
+    public static final int CONTAINER_CONTROL_PORT = 8080;
+    public static final int CONSENSUS_NODE_PORT = 8081;
     private static final int BASE_DEBUG_PORT = 5005;
 
     /**
@@ -42,7 +44,10 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         final int debugPort = BASE_DEBUG_PORT + (int) selfId.id();
 
         // Apply the common configuration expected by tests
-        withNetwork(network).withNetworkAliases(alias).withExposedPorts(CONTROL_PORT);
+        withNetwork(network)
+                .withNetworkAliases(alias)
+                .withExposedPorts(CONTAINER_CONTROL_PORT, CONSENSUS_NODE_PORT)
+                .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, debugPort));
 
         // Create a local directory for saved state directory contents and
         // bind it to the saved state directory for the node in the container

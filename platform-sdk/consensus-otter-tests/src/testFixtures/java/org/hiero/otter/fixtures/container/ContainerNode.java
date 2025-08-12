@@ -3,7 +3,8 @@ package org.hiero.otter.fixtures.container;
 
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONSENSUS_NODE_PORT;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -40,14 +41,15 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
-import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
-import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
@@ -80,8 +82,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
-    private final ManagedChannel channel;
-    private final TestControlGrpc.TestControlBlockingStub blockingStub;
+    private final ManagedChannel containerControlChannel;
+    private final ManagedChannel nodeCommChannel;
+    private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
+    private final NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
@@ -121,18 +125,28 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
         container.start();
-        channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
+        containerControlChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
+                .maxInboundMessageSize(32 * 1024 * 1024)
+                .usePlaintext()
+                .build();
+        nodeCommChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(CONSENSUS_NODE_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
 
-        blockingStub = TestControlGrpc.newBlockingStub(channel);
+        // Blocking stub for initializing and killing the consensus node
+        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+
+        // Blocking stub for communicating with the consensus node
+        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.fromPbj(selfId))
                 .build();
         //noinspection ResultOfMethodCallIgnored
-        blockingStub.init(initRequest);
+        containerControlBlockingStub.init(initRequest);
     }
 
     private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
@@ -191,7 +205,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .setPayload(ByteString.copyFrom(transaction))
                     .build();
 
-            final TransactionRequestAnswer answer = blockingStub.submitTransaction(request);
+            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
             if (!answer.getResult()) {
                 fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
             }
@@ -295,7 +309,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
-            channel.shutdownNow();
+            containerControlChannel.shutdownNow();
             container.stop();
         }
         resultsCollector.destroy();
@@ -356,7 +370,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
 
-            final TestControlStub stub = TestControlGrpc.newStub(channel);
+            final NodeCommunicationServiceStub stub =
+                    NodeCommunicationServiceGrpc.newStub(nodeCommChannel).withDeadlineAfter(timeout);
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
@@ -409,7 +424,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
                 final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
                 // Unary call – will throw if server returns an error.
-                blockingStub.killImmediately(request);
+                containerControlBlockingStub.killImmediately(request);
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
@@ -423,7 +438,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
             log.info("Starting synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+            nodeCommBlockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
                     .build());
         }
@@ -436,7 +451,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void stopSyntheticBottleneck() {
             log.info("Stopping synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+            nodeCommBlockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
                     .build());
         }
