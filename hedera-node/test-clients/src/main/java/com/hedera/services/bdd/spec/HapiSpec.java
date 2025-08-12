@@ -461,7 +461,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * @return the path to the record stream
      * @throws RuntimeException if the spec has no target network or the node is not found
      */
-    public @NonNull Path streamsLoc(@NonNull final NodeSelector selector) {
+    public @NonNull Path recordStreamsLoc(@NonNull final NodeSelector selector) {
         requireNonNull(selector);
         return targetNetworkOrThrow().getRequiredNode(selector).getExternalPath(RECORD_STREAMS_DIR);
     }

@@ -43,6 +43,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -60,6 +61,7 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -82,6 +84,7 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
@@ -440,6 +443,7 @@ public class SystemTransactions {
             final var legacyAccount = accountsState.get(accountId);
             if (legacyAccount != null) {
                 legacyAccountId.set(accountId);
+                log.info("Deleting {} @ {}", accountId, systemContext.now());
                 systemContext.dispatchAdmin(b -> b.cryptoDelete(CryptoDeleteTransactionBody.newBuilder()
                         .deleteAccountID(accountId)
                         .transferAccountID(feeCollectionId)));
