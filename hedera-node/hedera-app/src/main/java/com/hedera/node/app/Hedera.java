@@ -1434,25 +1434,27 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public Consumer<PlatformEvent> staleEventCallback() {
-        return event -> {
-            final HederaInjectionComponent component = requireNonNull(daggerApp);
-            final Iterator<Transaction> iterator = event.transactionIterator();
-            while (iterator.hasNext()) {
-                final Transaction tx = iterator.next();
-                final Bytes bytes = tx.getApplicationTransaction();
-                try {
-                    final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(bytes);
-                    final TransactionBody transactionBody =
-                            TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-                    final TransactionID transactionID = transactionBody.transactionIDOrThrow();
-                    // Mark the TransactionID as stale for resubmission allowance and query reporting.
-                    component.deduplicationCache().markStale(transactionID);
-                } catch (ParseException e) {
-                    // Ignore parsing errors for stale events
-                }
+    public void staleEventCallback(@NonNull PlatformEvent event) {
+        final HederaInjectionComponent component = requireNonNull(daggerApp);
+        final Iterator<Transaction> iterator = event.transactionIterator();
+        while (iterator.hasNext()) {
+            final Transaction tx = iterator.next();
+            final Bytes bytes = tx.getApplicationTransaction();
+            try {
+                final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(bytes);
+                final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+                final TransactionID transactionID = transactionBody.transactionIDOrThrow();
+                // Mark the TransactionID as stale for resubmission allowance and query reporting.
+                component.deduplicationCache().markStale(transactionID);
+            } catch (ParseException e) {
+                // Ignore parsing errors for stale events
+            } catch (Exception e) {
+                logger.warn("Exception during staleEventCallback while for transaction {}: {}", tx, e.getMessage(), e);
             }
-        };
+        }
     }
 }

@@ -71,7 +71,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.
@@ -378,17 +377,16 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     }
 
     @Override
-    public void triggerStaleEventCallbackForTransaction(@NotNull Transaction transaction) {
+    public void triggerStaleEventCallbackForTransaction(@NonNull Transaction transaction) {
         requireNonNull(transaction);
         final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
         final FakeEvent fakeStaleEvent =
                 new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(serializedSignedTx));
-        hedera.staleEventCallback()
-                .accept(new PlatformEvent(new GossipEvent(
-                        fakeStaleEvent.getEventCore(),
-                        fakeStaleEvent.getSignature(),
-                        List.of(Bytes.wrap(serializedSignedTx)),
-                        List.of())));
+        hedera.staleEventCallback(new PlatformEvent(new GossipEvent(
+                fakeStaleEvent.getEventCore(),
+                fakeStaleEvent.getSignature(),
+                List.of(Bytes.wrap(serializedSignedTx)),
+                List.of())));
     }
 
     @Override

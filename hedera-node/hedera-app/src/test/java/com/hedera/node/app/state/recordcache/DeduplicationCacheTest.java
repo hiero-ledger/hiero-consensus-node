@@ -210,13 +210,13 @@ final class DeduplicationCacheTest {
         // Given a transaction in the cache
         final var txId = createTransactionID();
         cache.add(txId);
-        assertThat(!cache.isStale(txId)).isTrue();
+        assertThat(cache.getTxStatus(txId) == TxStatus.SUBMITTED).isTrue();
 
         // When marking it as stale
         cache.markStale(txId);
 
         // Then the status is updated to STALE
-        assertThat(cache.isStale(txId)).isTrue();
+        assertThat(cache.getTxStatus(txId) == TxStatus.STALE).isTrue();
     }
 
     @Test
@@ -232,7 +232,7 @@ final class DeduplicationCacheTest {
 
         // Then the map no longer contains the transaction ID so isStale returns false
         assertThat(result).isTrue();
-        assertThat(cache.isStale(txId)).isFalse();
+        assertThat(cache.getTxStatus(txId) == TxStatus.SUBMITTED).isTrue();
     }
 
     @Test

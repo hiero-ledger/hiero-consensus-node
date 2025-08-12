@@ -3,6 +3,8 @@ package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
+import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.STALE;
+import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.SUBMITTED;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -167,12 +169,12 @@ final class SubmissionManagerTest extends AppTestBase {
             // Given a platform that will succeed in taking bytes
             when(platform.createTransaction(any())).thenReturn(true);
             when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(false);
-            when(deduplicationCache.isStale(txBody.transactionIDOrThrow())).thenReturn(false);
+            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(SUBMITTED);
 
             submissionManager.submit(txBody, bytes);
 
             when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(true);
-            when(deduplicationCache.isStale(txBody.transactionIDOrThrow())).thenReturn(true);
+            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(STALE);
             when(deduplicationCache.clearStale(txBody.transactionIDOrThrow())).thenReturn(true);
 
             // When we submit a duplicate transaction twice in close succession, the second one is allowed

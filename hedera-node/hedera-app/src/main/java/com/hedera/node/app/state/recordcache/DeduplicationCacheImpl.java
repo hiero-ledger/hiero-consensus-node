@@ -103,15 +103,13 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
 
     /** {@inheritDoc} */
     @Override
-    public boolean isStale(@NonNull TransactionID transactionID) {
-        final var status = submittedTxns.get(transactionID);
-        return status == TxStatus.STALE;
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public boolean clearStale(@NonNull TransactionID transactionID) {
         return submittedTxns.replace(transactionID, TxStatus.STALE, TxStatus.SUBMITTED);
+    }
+
+    @Override
+    public TxStatus getTxStatus(@NonNull TransactionID transactionID) {
+        return submittedTxns.get(transactionID);
     }
 
     /** {@inheritDoc} */
