@@ -148,9 +148,9 @@ final class SubmissionManagerTest extends AppTestBase {
         void testSubmittingDuplicateTransactionsCloseTogether() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
             when(platform.createTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(txBody.transactionIDOrThrow()))
-                    .thenReturn(false)
-                    .thenReturn(true);
+            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow()))
+                    .thenReturn(null)
+                    .thenReturn(SUBMITTED);
 
             // When we submit a duplicate transaction twice in close succession, then the second one fails
             // with a DUPLICATE_TRANSACTION error
@@ -168,12 +168,10 @@ final class SubmissionManagerTest extends AppTestBase {
         void testSubmittingDuplicateTransactionsCloseTogetherStaleness() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
             when(platform.createTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(false);
-            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(SUBMITTED);
+            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(null);
 
             submissionManager.submit(txBody, bytes);
 
-            when(deduplicationCache.contains(txBody.transactionIDOrThrow())).thenReturn(true);
             when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(STALE);
             when(deduplicationCache.clearStale(txBody.transactionIDOrThrow())).thenReturn(true);
 

@@ -58,7 +58,7 @@ public class StaleEventTest {
                                 .getStatus());
 
                 // Now inject a stale event containing the same txn; expect receipt query to return
-                // TRANSACTION_IN_STALE_EVENT, client can resubmit the transaction
+                // STALE, client can resubmit the transaction
                 embeddedNetwork
                         .embeddedHederaOrThrow()
                         .triggerStaleEventCallbackForTransaction(transfer.getSubmittedTransaction());
