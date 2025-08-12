@@ -31,12 +31,12 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
-    /** Port on which the consensus node manager gRPC service listens. */
-    private static final int CONSENSUS_NODE_PORT = 8081;
+    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
+    private static final int NODE_COMM_SERVICE_PORT = 8081;
 
     /**
-     * The ID of the consensus node in this container. The ID is immutable for the node in this container and cannot
-     * be changed even between restarts.
+     * The ID of the consensus node in this container. The ID must not be changed even between restarts. In the future,
+     * successive init calls should verify that the self ID is the same.
      */
     private NodeId selfId;
 
@@ -44,7 +44,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Nullable
     private NodeCommunicationService nodeCommunicationService;
 
-    /** Thread that runs the consensus node manager gRPC service. null when the service is not running. */
+    /**
+     * Thread that runs the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}. {@code null}
+     * when the service is not running.
+     */
     @Nullable
     private Thread nodeManagerThread;
 
@@ -78,7 +81,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
     private void startAndRunConsensusNodeService() {
         // Start the consensus node manager gRPC server
-        final Server nodeGrpcServer = ServerBuilder.forPort(CONSENSUS_NODE_PORT)
+        final Server nodeGrpcServer = ServerBuilder.forPort(NODE_COMM_SERVICE_PORT)
                 .addService(nodeCommunicationService)
                 .build();
         try {
@@ -110,12 +113,6 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             if (nodeCommunicationService != null) {
                 nodeCommunicationService.destroy();
             }
-
-            //            if (nodeManagerThread != null) {
-            //                nodeManagerThread.interrupt();
-            //                nodeManagerThread.join();
-            //                nodeManagerThread = null;
-            //            }
 
             responseObserver.onNext(Empty.getDefaultInstance());
             responseObserver.onCompleted();

@@ -61,7 +61,10 @@ public class ConsensusNodeManager {
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
-    /** Indicates if the consensus node is running or not */
+    /**
+     * Indicates if the consensus node is running or not. Can be removed in the future when the entire process is
+     * killed.
+     */
     private boolean running;
 
     /**

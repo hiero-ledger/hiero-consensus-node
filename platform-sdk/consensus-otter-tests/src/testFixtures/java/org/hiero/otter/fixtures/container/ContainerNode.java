@@ -3,8 +3,8 @@ package org.hiero.otter.fixtures.container;
 
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONSENSUS_NODE_PORT;
 import static org.hiero.otter.fixtures.container.ContainerImage.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.ContainerImage.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -75,21 +75,40 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    public static final int GOSSIP_PORT = 5777;
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
-    private final ContainerImage container;
-    private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
+
+    /** The image used to run the consensus node. */
+    private final ContainerImage container;
+
+    /** The directory mounted to the container used as the consensus node working directory. */
+    private final Path mountedDir;
+
+    /** The channel used for the {@link ContainerControlServiceGrpc} */
     private final ManagedChannel containerControlChannel;
+
+    /** The channel used for the {@link NodeCommunicationServiceGrpc} */
     private final ManagedChannel nodeCommChannel;
+
+    /** The gRPC service used to initialize and stop the consensus node */
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
+
+    /** The gRPC service used to communicate with the consensus node */
     private final NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+
+    /** An instance of asynchronous actions this node can perform with the default time. */
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
+
+    /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
-    private final NodeResultsCollector resultsCollector;
+
+    /** A queue of all test run related events as they occur, such as log message and status changes. */
     private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
+
+    /** A collector of the various test run related events stored as strongly typed objects use for assertions. */
+    private final NodeResultsCollector resultsCollector;
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -131,7 +150,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .usePlaintext()
                 .build();
         nodeCommChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(CONSENSUS_NODE_PORT))
+                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
@@ -149,9 +168,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
     }
 
-    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+    /**
+     * Utility method that calculated the weight of the node based in the specified roster.
+     *
+     * @param roster the roster to use for the lookup
+     * @param nodeId the id of the node whose weight to lookup
+     * @return the node's weight
+     */
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
         return roster.rosterEntries().stream()
-                .filter(entry -> entry.nodeId() == selfId.id())
+                .filter(entry -> entry.nodeId() == nodeId.id())
                 .findFirst()
                 .map(RosterEntry::weight)
                 .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
@@ -165,11 +191,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         defaultAsyncAction.killImmediately();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
         defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void stopSyntheticBottleneck() {
         defaultAsyncAction.stopSyntheticBottleneck();

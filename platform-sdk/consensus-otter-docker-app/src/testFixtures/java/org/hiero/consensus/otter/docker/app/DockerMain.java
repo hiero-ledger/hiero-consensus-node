@@ -17,8 +17,8 @@ import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
  */
 public final class DockerMain {
 
-    /** Port on which the docker manager gRPC service listens. */
-    private static final int GRPC_PORT = 8080;
+    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc} listens. */
+    private static final int CONTAINER_CONTROL_SERVICE_PORT = 8080;
 
     /** The underlying gRPC server instance. */
     private final Server grpcServer;
@@ -31,15 +31,16 @@ public final class DockerMain {
      * @throws NullPointerException if {@code dispatchExecutor} is {@code null}
      */
     public DockerMain() {
-        grpcServer =
-                ServerBuilder.forPort(GRPC_PORT).addService(new DockerManager()).build();
+        grpcServer = ServerBuilder.forPort(CONTAINER_CONTROL_SERVICE_PORT)
+                .addService(new DockerManager())
+                .build();
     }
 
     /**
      * Main method to start the gRPC server.
      * <p>
-     * This method initializes a {@link DockerMain} instance and starts the gRPC server,
-     * blocking until the server is terminated.
+     * This method initializes a {@link DockerMain} instance and starts the gRPC server, blocking until the server is
+     * terminated.
      * </p>
      *
      * @param args command-line arguments (not used)

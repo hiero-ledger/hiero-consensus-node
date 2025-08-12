@@ -34,19 +34,19 @@ import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
- * Responsible for all communication between the test framework and the consensus node.
+ * Responsible for all gRPC communication between the test framework and the consensus node. This class acts as an
+ * intermediary between the test framework and the consensus node.
  */
 public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase {
 
     /** Default thread name for the consensus node manager gRCP service */
-    private static final String NODE_GRPC_THREAD_NAME = "grpc-outbound-dispatcher";
+    private static final String NODE_COMMUNICATION_THREAD_NAME = "grpc-outbound-dispatcher";
 
     /** Logger */
     private static final Logger log = LogManager.getLogger(NodeCommunicationService.class);
 
     /**
-     * The ID of the consensus node in this container. The ID is immutable for the node in this container and must not
-     * be changed even between restarts.
+     * The ID of the consensus node in this container. The ID must not be changed even between restarts.
      */
     private final NodeId selfId;
 
@@ -62,6 +62,11 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     /** Manages the consensus node, including setup, tear down, and all interactions in between. */
     private ConsensusNodeManager consensusNodeManager;
 
+    /**
+     * Constructs a {@link NodeCommunicationService} with the specified self ID.
+     *
+     * @param selfId the ID of this node, which must not change between restarts
+     */
     public NodeCommunicationService(@NonNull final NodeId selfId) {
         this.selfId = requireNonNull(selfId);
         this.dispatchExecutor = createDispatchExecutor();
@@ -78,7 +83,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
      */
     private static ExecutorService createDispatchExecutor() {
         final ThreadFactory factory = r -> {
-            final Thread t = new Thread(r, NODE_GRPC_THREAD_NAME);
+            final Thread t = new Thread(r, NODE_COMMUNICATION_THREAD_NAME);
             t.setDaemon(true);
             return t;
         };

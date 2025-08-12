@@ -12,20 +12,6 @@ import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
 
-// Service definition for communicating with the consensus node.
-service NodeCommunicationService {
-
-  // RPC to start the platform and stream event messages.
-  rpc Start(StartRequest) returns (stream EventMessage);
-
-  // RPC used by the test harness to submit a transaction to the running
-  // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
-  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
-
-  // RPC to change the synthetic bottleneck of the handle thread.
-  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
-}
-
 // Request to start the remote platform.
 message StartRequest {
   // Semantic version of the platform.
@@ -220,3 +206,16 @@ message SyntheticBottleneckRequest {
   uint64 sleep_millis_per_round = 1;
 }
 
+// Service definition for communicating with the consensus node.
+service NodeCommunicationService {
+
+  // RPC to start the platform and stream event messages.
+  rpc Start(StartRequest) returns (stream EventMessage);
+
+  // RPC used by the test harness to submit a transaction to the running
+  // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
+  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+
+  // RPC to change the synthetic bottleneck of the handle thread.
+  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+}

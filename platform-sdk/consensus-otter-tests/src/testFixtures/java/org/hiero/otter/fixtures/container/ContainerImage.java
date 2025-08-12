@@ -20,7 +20,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
     public static final int CONTAINER_CONTROL_PORT = 8080;
-    public static final int CONSENSUS_NODE_PORT = 8081;
+    public static final int NODE_COMMUNICATION_PORT = 8081;
     private static final int BASE_DEBUG_PORT = 5005;
 
     /**
@@ -46,7 +46,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         // Apply the common configuration expected by tests
         withNetwork(network)
                 .withNetworkAliases(alias)
-                .withExposedPorts(CONTAINER_CONTROL_PORT, CONSENSUS_NODE_PORT)
+                .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)
                 .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, debugPort));
 
         // Create a local directory for saved state directory contents and
