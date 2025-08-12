@@ -147,13 +147,6 @@ public class SubmissionManager {
             if (txStatus == TxStatus.SUBMITTED) {
                 // If the transaction is already submitted, we do not want to submit it again.
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
-            } else if (txStatus == TxStatus.STALE) {
-                // If the transaction is stale, we want to clear it and then submit it again.
-                boolean wasStale = submittedTxns.clearStale(txId);
-                if (!wasStale) {
-                    // If the transaction was not stale, then it was a duplicate.
-                    throw new PreCheckException(DUPLICATE_TRANSACTION);
-                }
             }
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
