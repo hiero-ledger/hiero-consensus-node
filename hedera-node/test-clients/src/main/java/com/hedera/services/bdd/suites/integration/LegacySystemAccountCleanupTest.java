@@ -86,13 +86,13 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                         final var account = accounts.get(toPbj(id));
                         assertNull(account, "Account #" + i + " should not exist after upgrade");
                     }
-                    // Validate the HBAR supply is correct
+                    // Validate the HBAR supply is intact
                     final var map = (MapWritableKVState<AccountID, Account>) accounts;
                     final var totalHbarBalance = map.getBackingStore().values().stream()
                             .mapToLong(Account::tinybarBalance)
                             .sum();
                     assertEquals(50 * ONE_BILLION_HBARS, totalHbarBalance, "Wrong HBAR balance after upgrade");
-                    // And check the stream outputs
+                    // And validate the resulting record stream
                     assertRecordStreamsAsExpected(spec.recordStreamsLoc(NodeSelector.byNodeId(0L)));
                 }));
     }

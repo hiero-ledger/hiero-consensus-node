@@ -75,6 +75,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     @Override
+    public Duration restartOffset() {
+        return Duration.between(FIXED_POINT, time.now());
+    }
+
+    @Override
     public void tick(@NonNull Duration duration) {
         time.tick(duration);
     }
