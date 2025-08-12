@@ -25,6 +25,9 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -67,8 +70,18 @@ public class TipsetEventCreatorTestUtils {
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
+        // Use SHA1PRNG for deterministic behavior
+        final SecureRandom secureRandom;
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
+            throw new RuntimeException(e);
+        }
+        // Set a fixed seed for deterministic output
+        secureRandom.setSeed(random.nextLong());
+
         return new TipsetEventCreator(
-                configuration, metrics, time, random, signer, roster, nodeId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
     }
 
     /**

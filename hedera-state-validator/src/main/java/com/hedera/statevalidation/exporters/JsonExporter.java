@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporters;
 
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.statevalidation.ExportCommand.MAX_OBJ_PER_FILE;
+import static com.hedera.statevalidation.ExportCommand.PRETTY_PRINT_ENABLED;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
@@ -9,6 +12,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateUtils;
@@ -34,13 +38,13 @@ import java.util.concurrent.Executors;
 @SuppressWarnings("rawtypes")
 public class JsonExporter {
 
-    private static final int MAX_OBJ_PER_FILE = Integer.parseInt(System.getProperty("maxObjPerFile", "1000000"));
     private static final String ALL_STATES_TMPL = "exportedState_%d.json";
     public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
     private final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
     private final Map<Integer, JsonCodec> valueCodecsById = new ConcurrentHashMap<>();
 
+    private final File resultDir;
     private final MerkleNodeState state;
     private final String serviceName;
     private final String stateKeyName;
@@ -50,7 +54,8 @@ public class JsonExporter {
 
     private final boolean allStates;
 
-    public JsonExporter(MerkleNodeState state, String serviceName, String stateKeyName) {
+    public JsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
+        this.resultDir = resultDir;
         this.state = state;
         this.serviceName = serviceName;
         this.stateKeyName = stateKeyName;
@@ -98,7 +103,8 @@ public class JsonExporter {
 
     private void processRange(String fileName, long start, long end) {
         VirtualMap vm = (VirtualMap) state.getRoot();
-        File file = new File(System.getProperty("state.dir"), fileName);
+        File file = new File(resultDir, fileName);
+        boolean emptyFile = true;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             for (long path = start; path <= end; path++) {
                 VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
@@ -107,27 +113,48 @@ public class JsonExporter {
                 final StateKey stateKey;
                 final StateValue stateValue;
                 try {
-                    stateKey = StateKey.PROTOBUF.parse(keyBytes);
-                    if (expectedStateId != -1
-                            && expectedStateId != stateKey.key().kind().protoOrdinal()) {
+                    final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+                    final int tag = keyData.readVarInt(false);
+                    // normalize stateId for singletons
+                    final int actualStateId =
+                            tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
+                    if (expectedStateId != -1 && expectedStateId != actualStateId) {
                         continue;
                     }
+                    stateKey = StateKey.PROTOBUF.parse(keyBytes);
                     stateValue = StateValue.PROTOBUF.parse(valueBytes);
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
-                        writer.write("{\"p\":%d, \"v\":%s}\n".formatted(path, valueToJson(stateValue.value())));
+                        write(writer, "{\"p\":%d, \"v\":%s}\n".formatted(path, valueToJson(stateValue.value())));
                     } else if (stateKey.key().value() instanceof Long) { // queue
-                        writer.write("{\"p\":%d,\"i\":%s, \"v\":%s}\n"
-                                .formatted(path, stateKey.key().value(), valueToJson(stateValue.value())));
+                        write(
+                                writer,
+                                "{\"p\":%d,\"i\":%s, \"v\":%s}\n"
+                                        .formatted(path, stateKey.key().value(), valueToJson(stateValue.value())));
                     } else { // kv
-                        writer.write("{\"p\":%d,\"k\":\"%s\", \"v\":%s}\n"
-                                .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
+                        write(
+                                writer,
+                                "{\"p\":%d,\"k\":\"%s\", \"v\":%s}\n"
+                                        .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
                     }
+                    emptyFile = false;
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+        if (emptyFile) {
+            file.delete();
+        }
+    }
+
+    static void write(BufferedWriter writer, String value) throws IOException {
+        if (PRETTY_PRINT_ENABLED) {
+            writer.write(value);
+        } else {
+            writer.write(value.replaceAll("[\n\\s]", ""));
+            writer.newLine();
         }
     }
 

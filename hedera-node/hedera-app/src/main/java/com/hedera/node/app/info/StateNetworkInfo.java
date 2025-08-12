@@ -154,7 +154,8 @@ public class StateNetworkInfo implements NetworkInfo {
                         node.gossipEndpoint(),
                         node.gossipCaCertificate(),
                         node.serviceEndpoint(),
-                        node.declineReward());
+                        node.declineReward(),
+                        node.grpcCertificateHash().length() > 0 ? node.grpcCertificateHash() : null);
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
         } else {

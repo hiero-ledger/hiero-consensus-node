@@ -637,7 +637,7 @@ public class ConsensusImpl implements Consensus {
         consensusMetrics.coinRound();
         final boolean vote = countingVote.isSupermajority()
                 ? countingVote.getVote()
-                : ConsensusUtils.coin(votingWitness.getBaseEvent().getSignature());
+                : ConsensusUtils.coin(votingWitness.getBaseEvent());
 
         votingWitness.setVote(candidateWitness, vote);
     }
