@@ -13,15 +13,11 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.STREAM_FILE_WAIT;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,15 +31,12 @@ import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,7 +50,6 @@ import java.util.function.LongFunction;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.api.Assertions;
@@ -110,11 +102,15 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
             final var loc = path.toAbsolutePath().toString();
             final var lastRecordFile = orderedRecordFilesFrom(loc, f -> true).getLast();
             final var lastSignatureFile = lastRecordFile.replace(".gz", "_sig");
-            conditionFuture(() -> {
-                final boolean exists = new File(lastSignatureFile).exists();
-                log.info("Signature file {} exists? {}", lastSignatureFile, exists);
-                return exists;
-            }, () -> 500L).orTimeout(5, TimeUnit.SECONDS).join();
+            conditionFuture(
+                            () -> {
+                                final boolean exists = new File(lastSignatureFile).exists();
+                                log.info("Signature file {} exists? {}", lastSignatureFile, exists);
+                                return exists;
+                            },
+                            () -> 500L)
+                    .orTimeout(5, TimeUnit.SECONDS)
+                    .join();
             final var data = STREAM_FILE_ACCESS.readStreamDataFrom(loc, "sidecar");
             final var entries = data.records().stream()
                     .flatMap(r -> r.recordFile().getRecordStreamItemsList().stream())
@@ -122,7 +118,10 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                     .toList();
             Instant now = null;
             final Set<Instant> timestamps = new HashSet<>();
-            final Set<Long> numbersToDelete = new HashSet<>(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY).boxed().toList());
+            final Set<Long> numbersToDelete =
+                    new HashSet<>(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
+                            .boxed()
+                            .toList());
             for (final var entry : entries) {
                 final var timestamp = entry.consensusTime();
                 if (!timestamps.add(timestamp)) {
@@ -133,7 +132,8 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                 }
                 now = timestamp;
                 if (entry.function() == CryptoDelete) {
-                    final long targetNumber = entry.body().getCryptoDelete().getDeleteAccountID().getAccountNum();
+                    final long targetNumber =
+                            entry.body().getCryptoDelete().getDeleteAccountID().getAccountNum();
                     numbersToDelete.remove(targetNumber);
                 }
             }

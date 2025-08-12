@@ -59,25 +59,28 @@ public class PrivilegesVerifier {
             @NonNull final HederaFunctionality functionality,
             @NonNull final TransactionBody txBody) {
         return switch (functionality) {
-                // Authorization privileges for special transactions
+            // Authorization privileges for special transactions
             case FREEZE -> checkFreeze(payerId);
             case SYSTEM_DELETE -> checkSystemDelete(payerId, txBody.systemDeleteOrThrow());
             case SYSTEM_UNDELETE -> checkSystemUndelete(payerId, txBody.systemUndeleteOrThrow());
             case UNCHECKED_SUBMIT -> checkUncheckedSubmit(payerId);
 
-                // Authorization privileges for file updates and appends
-            case FILE_UPDATE -> checkFileChange(
-                    payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
-            case FILE_APPEND -> checkFileChange(
-                    payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
-                // Authorization for crypto updates
+            // Authorization privileges for file updates and appends
+            case FILE_UPDATE ->
+                checkFileChange(
+                        payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
+            case FILE_APPEND ->
+                checkFileChange(
+                        payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
+            // Authorization for crypto updates
             case CRYPTO_UPDATE -> checkCryptoUpdate(payerId, txBody.cryptoUpdateAccountOrThrow());
 
-                // Authorization for deletes
-            case FILE_DELETE -> checkEntityDelete(
-                    txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
-            case CRYPTO_DELETE -> checkCryptoDelete(
-                    txBody.cryptoDeleteOrThrow().deleteAccountIDOrThrow().accountNumOrThrow());
+            // Authorization for deletes
+            case FILE_DELETE ->
+                checkEntityDelete(txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
+            case CRYPTO_DELETE ->
+                checkCryptoDelete(
+                        txBody.cryptoDeleteOrThrow().deleteAccountIDOrThrow().accountNumOrThrow());
             case NODE_CREATE -> checkNodeCreate(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
@@ -217,7 +220,6 @@ public class PrivilegesVerifier {
     }
 
     private boolean isSystemFile(final long entityNum) {
-        return FIRST_SYSTEM_FILE_ENTITY <= entityNum
-                && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 }

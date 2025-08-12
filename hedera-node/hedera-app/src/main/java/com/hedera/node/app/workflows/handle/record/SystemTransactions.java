@@ -23,8 +23,6 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -43,7 +41,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
-import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -61,7 +58,6 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -84,7 +80,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
@@ -102,7 +97,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -420,7 +414,9 @@ public class SystemTransactions {
         // System context for dispatching CryptoDelete with an onSuccess callback
         // that completely removes the legacy account from state after the dispatch
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {
+                now,
+                state,
+                dispatch -> {
                     if (streamMode != RECORDS) {
                         immediateStateChangeListener.resetKvStateChanges(null);
                     }
@@ -434,9 +430,14 @@ public class SystemTransactions {
                             dispatch.streamBuilder().stateChanges(changes);
                         }
                     }
-                }, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
+                },
+                UseReservedConsensusTimes.YES,
+                TriggerStakePeriodSideEffects.YES);
         long i = FIRST_SYSTEM_FILE_ENTITY;
-        final var feeCollectionId = idFactory.newAccountId(configProvider.getConfiguration().getConfigData(LedgerConfig.class).fundingAccount());
+        final var feeCollectionId = idFactory.newAccountId(configProvider
+                .getConfiguration()
+                .getConfigData(LedgerConfig.class)
+                .fundingAccount());
         final var accountsState = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_KEY);
         for (; i < FIRST_POST_SYSTEM_FILE_ENTITY && systemContext.hasDispatchesRemaining(); i++) {
             final var accountId = idFactory.newAccountId(i);
