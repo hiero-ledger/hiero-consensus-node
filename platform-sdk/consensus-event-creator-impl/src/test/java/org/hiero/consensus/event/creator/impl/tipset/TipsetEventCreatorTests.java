@@ -1174,4 +1174,34 @@ class TipsetEventCreatorTests {
         assertNotNull(lastEvent);
         assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
     }
+
+    /**
+     * This test verifies that the event creator assigns the coin value correctly for a new event.
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("coinValue Test()")
+    void coinValueTest(@ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = random.nextInt(1, 100);
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList);
+
+        var event = eventCreator.maybeCreateEvent(); // the self-parent
+        assertNotNull(event, "An event should have been created");
+        assertTrue(event.getEventCore().coin() >= 0, "Coin value should be non-negative");
+        assertTrue(
+                event.getEventCore().coin() <= networkSize,
+                "The maximum coin value should be equal to the network size");
+    }
 }
