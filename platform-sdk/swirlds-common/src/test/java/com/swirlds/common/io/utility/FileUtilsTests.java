@@ -591,6 +591,23 @@ class FileUtilsTests {
         assertTrue(files.contains(third), "third.foo not found");
     }
 
+    /*
+     Directory layout before:
+     srcTree/
+     ├─ sub1/
+     │  └─ file1.txt ("hello")
+     ├─ sub2/
+     │  └─ file2.txt ("world")
+     └─ file3.txt ("root")
+     destTree/ (does not exist)
+
+     After moveDirectory(srcTree, destTree):
+     destTree/
+     ├─ sub1/file1.txt ("hello")
+     ├─ sub2/file2.txt ("world")
+     └─ file3.txt ("root")
+     srcTree/ (deleted)
+    */
     @Test
     @DisplayName("moveDirectory() moves nested structure and deletes source")
     void moveDirectoryMovesNestedStructureAndDeletesSource() throws IOException {
@@ -618,6 +635,21 @@ class FileUtilsTests {
         assertEquals("root", Files.readString(target.resolve("file3.txt")));
     }
 
+    /*
+     Before:
+     srcExistingTarget/
+     └─ sub/shared.txt ("from-source")
+
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-target-before")  <-- will be replaced
+     └─ targetOnly.txt ("keep-me")             <-- should remain
+
+     After moveDirectory(srcExistingTarget, destExistingTarget):
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-source")  <-- replaced
+     └─ targetOnly.txt ("keep-me")      <-- preserved
+     srcExistingTarget/ (deleted)
+    */
     @Test
     @DisplayName("moveDirectory() replaces conflicting files in existing target and preserves others")
     void moveDirectoryReplacesConflictsAndPreservesOtherTargetFiles() throws IOException {
@@ -648,6 +680,15 @@ class FileUtilsTests {
         assertEquals("keep-me", Files.readString(targetOnly));
     }
 
+    /*
+     Before:
+     no_such_source/ (missing)
+     should_not_be_created/ (missing)
+
+     Expectation:
+     - moveDirectory throws IOException
+     - target directory is not created
+    */
     @Test
     @DisplayName("moveDirectory() throws when source does not exist and does not create target")
     void moveDirectoryThrowsWhenSourceMissing() {

@@ -328,6 +328,8 @@ public final class FileUtils {
      * If the target directory does not exist, it will be created.
      * The method preserves the directory structure during the move operation.
      * After all files and subdirectories are moved, the source directory is deleted.
+     * <br>
+     * <strong>Note:</strong> if a file already exists at the target with the same relative path, it will be overwritten.
      *
      * @param source the path of the directory to be moved, must not be null
      * @param target the path where the directory should be moved, must not be null
