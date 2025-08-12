@@ -40,14 +40,4 @@ public interface ConsensusEngine {
      * @param snapshot the snapshot to adopt
      */
     void outOfBandSnapshotUpdate(@NonNull ConsensusSnapshot snapshot);
-
-    /**
-     * Extract a list of events intended for the consensus events stream
-     *
-     * @return a list of CES events
-     */
-    @NonNull
-    default List<CesEvent> getCesEvents(@NonNull final ConsensusRound round) {
-        return round.getStreamedEvents();
-    }
 }
