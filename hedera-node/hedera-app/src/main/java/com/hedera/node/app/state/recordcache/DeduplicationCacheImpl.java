@@ -103,6 +103,10 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
 
     @Override
     public TxStatus getTxStatus(@NonNull TransactionID transactionID) {
+        // We will prune the set here as well. By pruning before looking up, we are sure that we only return true
+        // if the transactionID is still valid
+        final var epochSeconds = approxEarliestValidStartSecond();
+        removeTransactionsOlderThan(epochSeconds);
         return submittedTxns.get(transactionID);
     }
 
