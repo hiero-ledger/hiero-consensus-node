@@ -30,6 +30,7 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     INSTANCE;
 
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
+    public static final String SWIRLD_NAME = "123";
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time

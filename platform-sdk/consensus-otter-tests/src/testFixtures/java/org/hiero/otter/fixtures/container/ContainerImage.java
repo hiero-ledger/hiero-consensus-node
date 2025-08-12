@@ -19,8 +19,19 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  * containers. It connects the container to the provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
+
+    /**
+     * The port to open to allow connections to the
+     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}
+     */
     public static final int CONTAINER_CONTROL_PORT = 8080;
+
+    /**
+     * The port to open to allow connections to the
+     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     */
     public static final int NODE_COMMUNICATION_PORT = 8081;
+
     private static final int BASE_DEBUG_PORT = 5005;
 
     /**
@@ -43,7 +54,10 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
         final int debugPort = BASE_DEBUG_PORT + (int) selfId.id();
 
-        // Apply the common configuration expected by tests
+        // Apply the common configuration expected by tests.
+        // By default, the container wait for all ports listed, but we only want it to wait for the
+        // container control port, because the node communication service is established later
+        // by the test code with the init request.
         withNetwork(network)
                 .withNetworkAliases(alias)
                 .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)

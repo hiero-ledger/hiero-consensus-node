@@ -14,8 +14,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
@@ -386,8 +384,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
-                APP_NAME,
-                SWIRLD_NAME,
+                OtterApp.APP_NAME,
+                OtterApp.SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
@@ -399,8 +397,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final String eventStreamLoc = selfId.toString();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                        APP_NAME,
-                        SWIRLD_NAME,
+                        OtterApp.APP_NAME,
+                        OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
                         OtterApp.INSTANCE,

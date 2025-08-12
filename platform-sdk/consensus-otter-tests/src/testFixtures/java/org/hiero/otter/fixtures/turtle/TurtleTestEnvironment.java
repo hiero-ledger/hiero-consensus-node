@@ -34,9 +34,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
-    static final String APP_NAME = "otter";
-    static final String SWIRLD_NAME = "123";
-
     static final Duration GRANULARITY = Duration.ofMillis(10);
     static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
     static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);

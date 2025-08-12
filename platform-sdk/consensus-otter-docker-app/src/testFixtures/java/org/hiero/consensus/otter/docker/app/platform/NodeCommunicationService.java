@@ -106,7 +106,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
         log.info("Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
-            log.info("Invalid request: {}", request);
             return;
         }
 
@@ -179,12 +178,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     private static boolean isInvalidRequest(
             final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
         if (!request.hasVersion()) {
+            log.info("Invalid request - version must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("version has to be specified")
                     .asRuntimeException());
             return true;
         }
         if (!request.hasRoster()) {
+            log.info("Invalid request - roster must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("roster has to be specified")
                     .asRuntimeException());

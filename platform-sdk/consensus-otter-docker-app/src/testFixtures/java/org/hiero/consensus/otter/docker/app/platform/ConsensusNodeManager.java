@@ -55,7 +55,6 @@ import org.hiero.otter.fixtures.app.OtterAppState;
  */
 public class ConsensusNodeManager {
 
-    private static final String SWIRLD_NAME = "123";
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
     /** The instance of the platform this consensus node manager runs. */
@@ -124,7 +123,7 @@ public class ConsensusNodeManager {
                 version,
                 () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
                 OtterApp.APP_NAME,
-                SWIRLD_NAME,
+                OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
@@ -136,7 +135,7 @@ public class ConsensusNodeManager {
 
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
-                        SWIRLD_NAME,
+                        OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
                         OtterApp.INSTANCE,
