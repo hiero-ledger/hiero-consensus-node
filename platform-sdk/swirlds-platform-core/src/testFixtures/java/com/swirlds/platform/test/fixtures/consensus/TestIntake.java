@@ -99,9 +99,10 @@ public class TestIntake {
         final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
         splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring.getOutputWire()
+        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
-                        .buildSplitter("consensusRoundsSplitter", "consensusRounds");
+                .buildSplitter("consensusRoundsSplitter", "consensusRounds");
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
         consensusRoundOutputWire.solderTo("consensusOutputTestTool", "round output", output::consensusRound);

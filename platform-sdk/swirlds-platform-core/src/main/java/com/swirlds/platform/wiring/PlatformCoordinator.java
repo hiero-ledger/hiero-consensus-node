@@ -31,7 +31,6 @@ import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 

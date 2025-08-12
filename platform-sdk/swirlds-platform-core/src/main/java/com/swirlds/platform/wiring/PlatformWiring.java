@@ -78,7 +78,6 @@ import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
-import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -174,7 +173,8 @@ public class PlatformWiring {
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator());
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, config.consensusEngine());
-        consensusRoundsOutputWire = consensusEngineWiring.getOutputWire()
+        consensusRoundsOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds);
 
         eventCreationManagerWiring =
@@ -417,12 +417,8 @@ public class PlatformWiring {
         final OutputWire<PlatformEvent> consEngineAddedEvents = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer(
-                        "getPreConsensusEvents",
-                        "consensusEngineOutput",
-                        ConsensusEngineOutput::preConsensusEvents)
-                .buildSplitter(
-                        "preConsensusEventsSplitter",
-                        "preConsensusEvents");
+                        "getPreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("preConsensusEventsSplitter", "preConsensusEvents");
         consEngineAddedEvents.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
                 TransactionPrehandler::prehandleApplicationTransactions));
 
@@ -474,8 +470,8 @@ public class PlatformWiring {
 
         pcesReplayerWiring.eventOutput().solderTo(hasherInputWire);
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusRoundsOutputWire.buildSplitter(
-                "consensusRoundsSplitter", "consensus rounds");
+        final OutputWire<ConsensusRound> consensusRoundOutputWire =
+                consensusRoundsOutputWire.buildSplitter("consensusRoundsSplitter", "consensus rounds");
 
         consensusRoundOutputWire.solderTo(staleEventDetectorWiring.getInputWire(StaleEventDetector::addConsensusRound));
 
@@ -490,10 +486,7 @@ public class PlatformWiring {
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
 
         consensusRoundOutputWire
-                .buildTransformer(
-                        "roundsToCesEvents",
-                        "consensus rounds",
-                        ConsensusRound::getStreamedEvents)
+                .buildTransformer("roundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
