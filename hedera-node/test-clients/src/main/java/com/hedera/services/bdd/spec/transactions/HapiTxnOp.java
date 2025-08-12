@@ -118,8 +118,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     protected List<Condition> conditions = new ArrayList<>();
 
-    protected boolean submitWithPreviousTransaction = false;
-
     /**
      * Serializes a signed transaction from the given {@link Transaction}.
      * @param tx the transaction to serialize
@@ -216,12 +214,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         configureTlsFor(spec);
         int retryCount = 1;
         while (true) {
-            Transaction txn = null;
-            if (submitWithPreviousTransaction) {
-                txn = txnSubmitted;
-            } else {
-                txn = finalizedTxn(spec, opBodyDef(spec));
-            }
+            Transaction txn = finalizedTxn(spec, opBodyDef(spec));
 
             if (!loggingOff) {
                 String message = String.format("%s submitting %s via %s", spec.logPrefix(), this, txnToString(txn));
@@ -895,15 +888,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T hasSuccessReceipt(@NonNull final Consumer<TransactionReceipt> receiptValidator) {
         this.receiptValidator = requireNonNull(receiptValidator);
-        return self();
-    }
-
-    /**
-     * Sets the flag to submit this transaction with the previous transaction.
-     * @return the current instance of the transaction operation
-     */
-    public T submitWithPreviousTransaction() {
-        this.submitWithPreviousTransaction = true;
         return self();
     }
 
