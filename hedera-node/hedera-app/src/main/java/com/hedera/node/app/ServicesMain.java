@@ -362,7 +362,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withSystemTransactionEncoderCallback(hedera::encodeSystemTransaction)
-                .withStaleEventCallback(event -> hedera.staleEventCallback(event));
+                .withStaleEventCallback(hedera::staleEventCallback);
 
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
