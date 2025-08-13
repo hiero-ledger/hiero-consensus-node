@@ -836,4 +836,29 @@ class IngestCheckerTest extends AppTestBase {
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
     }
+
+    @Test
+    @DisplayName("Stale transaction in deduplication cache passes ingest")
+    void testStaleTransactionPassesIngest() throws Exception {
+        // given
+        final var expected = new TransactionInfo(
+                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
+        final var verificationResultFuture = mock(SignatureVerificationFuture.class);
+        final var verificationResult = mock(SignatureVerification.class);
+        when(verificationResult.failed()).thenReturn(false);
+        when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
+        when(signatureVerifier.verify(any(), any()))
+                .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
+
+        deduplicationCache.add(txBody.transactionID());
+        deduplicationCache.markStale(txBody.transactionID());
+
+        // when
+        final var result = new IngestChecker.Result();
+        subject.runAllChecks(state, serializedTx, configuration, result);
+
+        // then
+        assertThat(result.txnInfoOrThrow()).isEqualTo(expected);
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
 }
