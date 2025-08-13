@@ -18,16 +18,15 @@ and remove the need of connections handoff.
 In a very simplistic explanation, the current reconnect logic is implemented in the following way:
 
 Gossip component initiates protocols, which are running continuously, interleaved, and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
-One of those two protocols is SyncProtocol, which is one of our gossip implementations. Syncing nodes compare their current hashgraph status against the peer's, determines if the local node has fallen behind and registers that in a mutable shared class (`FallenBehindManager`)
-
-ReconnectProtocol is another protocol executing internally in gossip, the condition for start executing is whether `FallenBehindManager` tells that the node has fallen behind.
-Depending on which of the nodes has fallen behind, the code will follow the teacher logic or the learner logic.
-There is a part of the logic of each of those protocols that execute for each peer in the system. So, if it is time to execute the part of the logic corresponding to the peer that told the current node that it was falling behind, then the logic is executed.
+SyncProtocol, which is one of our gossip implementations, compares the current hashgraph status against the peer's, and uses a mutable shared class (`FallenBehindManager`) to determine and keep track if the node has fallen behind.
+If it detects that the node has fallen behind it will submit a FallenBehindAction to the platform status machine which in turn will update Gossip's internal state with the new status.
+ReconnectProtocol contains part of the logic of syncing the state, the logic of the reconnect protocol is separated depending upon the node will act as a teacher or learner.
+The different code paths are selected based on which of the node initiated the connection and using the `FallenBehindManager` to reject connections on some scenarios (For example, reject teaching when we are falling behind, or reject learning when we are teaching).
 When acting as learner, the logic consist on sharing the connection using a blocking queue to an external class that will handle the reconnect logic.
 
-When Gossip receives the BEHIND status change, starts the `ReconnectController` logic in on a dedicated thread, which blocks until a connection can be acquired from the previously mentioned blocked queue.
-When a connection is received, the platform is prepared for starting the reconnect process, and using endless number of helper classes and method references to multiple pieces of the system, retrieves the ReservedSignedState from the other peer.
-Platform controller will stop all platform activity in preparation for gossip, and the helpers will validate the state acquired from a peer. If anything on the process goes wrong the code will retry until a configured maximum attempts threshold.
+When Gossip receives the BEHIND status change, it starts the `ReconnectController` logic in on a dedicated thread, which blocks until a connection can be acquired from the previously mentioned blocked queue.
+When a connection is obtained, `ReconnectController` will stop all platform activity in preparation for gossip and using endless number of helper classes and method references to multiple pieces of the system, retrieves and validates the ReservedSignedState from the other peer.
+If anything on the process goes wrong the code will retry until a configured maximum attempts threshold. If the operation succeeded, Gossip is resumed.
 
 ### Simplified interaction sequence:
 
@@ -65,19 +64,21 @@ Platform controller will stop all platform activity in preparation for gossip, a
    Centralize the reconnect lifecycle: pause platform activity → wait to receive a state → validate → load → resume → retry with policy or error handling.
    It will directly coordinate with other components. For example, it calls gossip.pause(), clears wiring pipelines, and loads the new state via its own methods,
    instead of using complex callbacks and atomic references passed through the PlatformBuilder.
-   It absorbs the responsibilities of several now-deleted classes, making responsibility is not scattered all over
+   It absorbs the responsibilities of several to-be-deleted classes, making responsibility somehow less distributed among pieces
 
    * ReconnectController
    * ReconnectStateLoader
    * ReconnectPlatformHelper/ReconnectPlatformHelperImpl
    * ReconnectLearnerThrottle
-   
-   This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes easier to follow.
+
+   This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes clear.
+
 3. Introduction of `FallenBehindMonitor`:
    FallenBehindManager becomes a direct monitor and renamed accordingly.
-   classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
+   Classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
    The class is not used to check if the node is behind anymore, that check is done through the platform status.
    As soon as it detects the node is behind, it updates the platform status and starts the reconnect process invoking `PlatformReconnecter`
+
 4. `ReconnectProtocol` Renaming:
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
    StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through Gossip's new interface.
