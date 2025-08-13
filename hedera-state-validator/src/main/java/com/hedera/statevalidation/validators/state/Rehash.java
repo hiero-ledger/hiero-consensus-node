@@ -116,7 +116,7 @@ public class Rehash {
                 new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
         final CompletableFuture<Hash> fullRehashFuture = new CompletableFuture<>();
         final CompletableFuture<Void> leafFeedFuture = new CompletableFuture<>();
-        // getting a range that is relevant for the data source
+        // getting a range that is relevant for the virtual map
         final long firstLeafPath = virtualMap.getMetadata().getFirstLeafPath();
         final long lastLeafPath = virtualMap.getMetadata().getLastLeafPath();
         if (firstLeafPath < 0 || lastLeafPath < 0) {
