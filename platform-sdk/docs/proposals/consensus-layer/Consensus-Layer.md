@@ -593,12 +593,12 @@ before sending them out through Gossip and so forth.
 The hashgraph module will know which events will never reach consensus and it needs to report "stale" events to the
 Execution layer. A stale event is an event that became ancient without ever coming to consensus. The Hashgraph module
 will only report events as stale if they were previously reported as pre-consensus events and sent
-to [onPreHandleEvent](#onprehandleevent) to the execution layer. If the Hashgraph module receives an event that is 
+to [onPreHandleEvent](#onprehandleevent) to the execution layer. If the Hashgraph module receives an event that is
 already ancient and thus must be stale, it will just discard it.
 
-Once the Hashgraph module determines that an event has become stale, then it will notify the Execution layer. Execution 
-may, for example, look at each transaction within the self-events, and decide that some transactions (such as those that 
-have expired or will soon expire) should be dropped while others (such as those not close to expiration) should be 
+Once the Hashgraph module determines that an event has become stale, then it will notify the Execution layer. Execution
+may, for example, look at each transaction within the self-events, and decide that some transactions (such as those that
+have expired or will soon expire) should be dropped while others (such as those not close to expiration) should be
 resubmitted in the next event.
 
 ### Sheriff Module
@@ -679,7 +679,7 @@ transactions of that stale event, and resubmit those transactions in the next `o
 
 #### onPreHandleEvent
 
-Called by Consensus once for each event emitted in topological order from the Hashgraph module, giving Execution a 
+Called by Consensus once for each event emitted in topological order from the Hashgraph module, giving Execution a
 chance to perform some work before the event even comes to consensus. Each event passed to this method is guaranteed
 to eventually either reach consensus or become stale.
 

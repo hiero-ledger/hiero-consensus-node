@@ -13,8 +13,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * @param preConsensusEvents the list of pre-consensus events that are waiting to reach consensus
  */
 public record ConsensusEngineOutput(
-        @NonNull List<ConsensusRound> consensusRounds,
-        @NonNull List<PlatformEvent> preConsensusEvents) {
+        @NonNull List<ConsensusRound> consensusRounds, @NonNull List<PlatformEvent> preConsensusEvents) {
     /** Empty singleton instance */
     private static final ConsensusEngineOutput EMPTY_INSTANCE = new ConsensusEngineOutput(List.of(), List.of());
 
@@ -23,7 +22,7 @@ public record ConsensusEngineOutput(
      *
      * @return an empty instance
      */
-    public static ConsensusEngineOutput emptyInstance(){
+    public static ConsensusEngineOutput emptyInstance() {
         return EMPTY_INSTANCE;
     }
 }

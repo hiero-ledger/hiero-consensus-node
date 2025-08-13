@@ -107,6 +107,7 @@ public class PlatformWiring {
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     /** Output from the {@link #consensusEngineWiring} where only the consensus rounds are returned */
     private final OutputWire<List<ConsensusRound>> consensusRoundsOutputWire;
+
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
