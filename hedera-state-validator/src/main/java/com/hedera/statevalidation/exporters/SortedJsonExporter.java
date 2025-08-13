@@ -51,7 +51,7 @@ public class SortedJsonExporter {
     private final File resultDir;
     private final MerkleNodeState state;
     private final ExecutorService executorService;
-    private final Map<Integer, Set<Bytes>> keysByExpectedStateIds;
+    private final Map<Integer, Set<Pair<Long, Bytes>>> keysByExpectedStateIds;
     private final Map<Integer, Pair<String, String>> nameByStateId;
 
     public SortedJsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
@@ -66,14 +66,14 @@ public class SortedJsonExporter {
         nameByStateId = new HashMap<>();
         serviceNameStateKeyList.forEach(p -> {
             int stateId = StateUtils.stateIdFor(p.left(), p.right());
-            final Comparator<Bytes> comparator;
+            final Comparator<Pair<Long, Bytes>> comparator;
             if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTIONRECEIPTQUEUE.protoOrdinal()) {
                 comparator = (key1, key2) -> {
-                    ReadableSequentialData keyData1 = key1.toReadableSequentialData();
+                    ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
                     keyData1.readVarInt(false); // read tag
                     keyData1.readVarInt(false); // read value
 
-                    ReadableSequentialData keyData2 = key2.toReadableSequentialData();
+                    ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
                     keyData2.readVarInt(false); // read tag
                     keyData2.readVarInt(false); // read value
 
@@ -83,8 +83,8 @@ public class SortedJsonExporter {
             } else {
                 comparator = (key1, key2) -> {
                     try {
-                        StateKey stateKey1 = StateKey.PROTOBUF.parse(key1);
-                        StateKey stateKey2 = StateKey.PROTOBUF.parse(key2);
+                        StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
+                        StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
                         // queue metadata
                         if (stateKey1.key().value() instanceof SingletonType) {
                             return -1;
@@ -137,20 +137,20 @@ public class SortedJsonExporter {
                         // it's a singleton, additional read is required
                         int singletonStateId = keyData.readVarInt(false);
                         if (keysByExpectedStateIds.containsKey(singletonStateId)) {
-                            keysByExpectedStateIds.get(singletonStateId).add(keyBytes);
+                            keysByExpectedStateIds.get(singletonStateId).add(Pair.of(path, keyBytes));
                         }
                         return;
                     }
                     if (keysByExpectedStateIds.containsKey(actualStateId)) {
-                        keysByExpectedStateIds.get(actualStateId).add(keyBytes);
+                        keysByExpectedStateIds.get(actualStateId).add(Pair.of(path, keyBytes));
                     }
                 });
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel() {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (Map.Entry<Integer, Set<Bytes>> entry : keysByExpectedStateIds.entrySet()) {
-            final List<Bytes> keys = new ArrayList<>(entry.getValue());
+        for (Map.Entry<Integer, Set<Pair<Long, Bytes>>> entry : keysByExpectedStateIds.entrySet()) {
+            final List<Pair<Long, Bytes>> keys = new ArrayList<>(entry.getValue());
             final int writingParallelism = keys.size() / MAX_OBJ_PER_FILE;
             final Pair<String, String> namePair = nameByStateId.get(entry.getKey());
             for (int i = 0; i <= writingParallelism; i++) {
@@ -164,14 +164,15 @@ public class SortedJsonExporter {
         return futures;
     }
 
-    private void processRange(final List<Bytes> keys, String fileName, int start, int end) {
+    private void processRange(final List<Pair<Long, Bytes>> keys, String fileName, int start, int end) {
         VirtualMap vm = (VirtualMap) state.getRoot();
         File file = new File(resultDir, fileName);
         boolean emptyFile = true;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             for (int i = start; i <= end; i++) {
-                final Bytes keyBytes = keys.get(i);
-                final Bytes valueBytes = vm.getBytes(keyBytes);
+                final long path = keys.get(i).left();
+                final Bytes keyBytes = keys.get(i).right();
+                final Bytes valueBytes = vm.getRecords().findLeafRecord(path).valueBytes();
                 final StateKey stateKey;
                 final StateValue stateValue;
                 try {

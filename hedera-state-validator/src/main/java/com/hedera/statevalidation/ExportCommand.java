@@ -53,10 +53,11 @@ public class ExportCommand implements Runnable {
             throw new RuntimeException(e);
         }
 
+        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
+
         final boolean sorted = Boolean.parseBoolean(System.getProperty("sorted", "false"));
         if (sorted) {
             if (serviceName == null) {
-                ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
                 // processing all
                 final SortedJsonExporter exporter =
                         new SortedJsonExporter(resultDir, state, prepareServiceNameAndStateKeys());
