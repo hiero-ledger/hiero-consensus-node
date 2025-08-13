@@ -260,13 +260,15 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
-        // Dispatch transplant updates for the nodes in override network (non-prod environments)
-        if (!checkedForTransplant) {
+        // Dispatch transplant updates for the nodes in override network (non-prod environments);
+        // ensure we don't do this in the same round as externalizing migration state changes to
+        // avoid complicated edge cases in setting consensus times for block items
+        if (migrationStateChanges.isEmpty() && !checkedForTransplant) {
             boolean dispatchedTransplantUpdates = false;
             try {
                 final var now = streamMode == RECORDS
                         ? round.getConsensusTimestamp()
-                        : blockStreamManager.lastUsedConsensusTime().plusNanos(1);
+                        : round.iterator().next().getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
