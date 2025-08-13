@@ -92,6 +92,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus.setPcesMode(platformStatus == REPLAYING_EVENTS);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @NonNull
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
