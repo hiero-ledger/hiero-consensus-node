@@ -107,14 +107,12 @@ public class Rehash {
         final int MAX_FULL_REHASHING_TIMEOUT = 3600; // 1 hour
         final int MAX_REHASHING_BUFFER_SIZE = 10_000_000; // copied from VirtualMap class
         final VirtualMapConfig virtualMapConfig = InitUtils.getConfiguration().getConfigData(VirtualMapConfig.class);
-        final VirtualMapStatistics statistics = new VirtualMapStatistics(virtualMap.getLabel());
         final VirtualDataSource dataSource = virtualMap.getDataSource();
         final RecordAccessor records = virtualMap.getRecords();
         requireNonNull(records, "Records must be initialized before rehashing");
 
         final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
                 new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
-        final CompletableFuture<Hash> fullRehashFuture = new CompletableFuture<>();
         final CompletableFuture<Void> leafFeedFuture = new CompletableFuture<>();
         // getting a range that is relevant for the virtual map
         final long firstLeafPath = virtualMap.getMetadata().getFirstLeafPath();
@@ -124,34 +122,7 @@ public class Rehash {
         }
 
         logger.info("Doing full rehash for the path range: {} - {}  in the VirtualMap", firstLeafPath, lastLeafPath);
-        // Full leaf rehashing has nothing to do with reconnects, but existing reconnect mechanisms,
-        // flusher and hash listener, work just fine in this scenario
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
-        final ReconnectHashListener hashListener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
-
-        // This background thread will be responsible for hashing the tree and sending the
-        // data to the hash listener to flush.
-        new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("virtualmap")
-                .setThreadName("leafRehasher")
-                .setRunnable(() -> fullRehashFuture.complete(hasher.hash(
-                        records::findHash,
-                        rehashIterator,
-                        firstLeafPath,
-                        lastLeafPath,
-                        hashListener,
-                        virtualMapConfig)))
-                .setExceptionHandler((thread, exception) -> {
-                    // Shut down the iterator.
-                    rehashIterator.close();
-                    final var message = "VirtualMap failed to do full rehash";
-                    logger.error(message, exception);
-                    fullRehashFuture.completeExceptionally(new MerkleSynchronizationException(message, exception));
-                })
-                .build()
-                .start();
 
         // This background thread will be responsible for feeding the iterator with data.
         new ThreadConfiguration(getStaticThreadManager())
@@ -201,19 +172,24 @@ public class Rehash {
                 })
                 .build()
                 .start();
-
         try {
             final long start = System.currentTimeMillis();
             leafFeedFuture.get(MAX_FULL_REHASHING_TIMEOUT, SECONDS);
             final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
             logger.info("It took {} seconds to feed all leaves to the hasher for the VirtualMap", secondsSpent);
-            return fullRehashFuture.get(MAX_FULL_REHASHING_TIMEOUT - secondsSpent, SECONDS);
+            return hasher.hash(
+                    records::findHash,
+                    rehashIterator,
+                    firstLeafPath,
+                    lastLeafPath,
+                    null,
+                    virtualMapConfig);
         } catch (ExecutionException e) {
-            final var message = "VirtualMap  failed to get hash during full rehashing";
+            final var message = "VirtualMap failed to get hash during full rehashing";
             throw new MerkleSynchronizationException(message, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            final var message = "VirtualMap  interrupted while full rehashing";
+            final var message = "VirtualMap interrupted while full rehashing";
             throw new MerkleSynchronizationException(message, e);
         } catch (TimeoutException e) {
             final var message = "VirtualMap wasn't able to finish full rehashing in time";
