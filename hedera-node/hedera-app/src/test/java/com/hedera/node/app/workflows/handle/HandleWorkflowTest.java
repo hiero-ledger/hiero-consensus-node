@@ -252,7 +252,7 @@ class HandleWorkflowTest {
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -308,11 +308,10 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -371,7 +370,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -439,7 +438,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -534,7 +533,7 @@ class HandleWorkflowTest {
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
