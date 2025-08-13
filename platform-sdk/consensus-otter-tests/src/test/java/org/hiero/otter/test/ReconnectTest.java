@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Disabled;
  */
 public class ReconnectTest {
 
-    private static final long ROUNDS_NON_ANCIENT = 5L;
-    private static final long ROUNDS_EXPIRED = 10L;
+    private static final long ROUNDS_NON_ANCIENT = 20L;
+    private static final long ROUNDS_EXPIRED = 40L;
 
     @Disabled("Disabled until the container networks are fully supported")
     @OtterTest(requires = Capability.RECONNECT)
@@ -53,9 +53,8 @@ public class ReconnectTest {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.newReconnectResults())
-                .startSuppressingNode(nodeToReconnect)
-                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
+                .doNotEnterAnyStatusesOf(BEHIND);
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
                 .hasMaximumReconnectTime(Duration.ofSeconds(10))

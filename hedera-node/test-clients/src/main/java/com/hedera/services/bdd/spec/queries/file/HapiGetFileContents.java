@@ -204,6 +204,9 @@ public class HapiGetFileContents extends HapiQueryOp<HapiGetFileContents> {
                 throw new IllegalStateException(impossible);
             }
         }
+        if (validator != null) {
+            validator.accept(bytes);
+        }
         if (snapshotPath.isPresent() || readablePath.isPresent()) {
             try {
                 if (snapshotPath.isPresent()) {
@@ -240,20 +243,13 @@ public class HapiGetFileContents extends HapiQueryOp<HapiGetFileContents> {
                             "Saved parsed contents of '%s' to %s", fileName, readableFile.getAbsolutePath());
                     log.info(message);
                 }
-                if (validator != null) {
-                    validator.accept(bytes);
-                }
             } catch (Exception e) {
                 String message = String.format("Couldn't save '%s' snapshot!", fileName);
                 log.error(message, e);
             }
         }
-        if (registryEntry.isPresent()) {
-            spec.registry()
-                    .saveBytes(
-                            registryEntry.get(),
-                            response.getFileGetContents().getFileContents().getContents());
-        }
+        registryEntry.ifPresent(s -> spec.registry()
+                .saveBytes(s, response.getFileGetContents().getFileContents().getContents()));
         contentsCb.ifPresent(cb -> cb.accept(
                 response.getFileGetContents().getFileContents().getContents().toByteArray()));
     }

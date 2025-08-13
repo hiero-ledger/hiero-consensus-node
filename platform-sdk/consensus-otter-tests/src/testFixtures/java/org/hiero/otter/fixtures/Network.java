@@ -174,7 +174,7 @@ public interface Network {
      * @param version the semantic version to set for the network
      * @see Node#version(SemanticVersion)
      */
-    void withVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
      * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next

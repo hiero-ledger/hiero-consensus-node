@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,6 +64,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writeItem(@NonNull byte[] bytes) {
         throw new UnsupportedOperationException("writeItem is not supported in this implementation");
+    }
+
+    @Override
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
+        writePbjItem(item);
     }
 
     /**
