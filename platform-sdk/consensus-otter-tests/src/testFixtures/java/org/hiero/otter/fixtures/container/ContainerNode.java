@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTAINER_CONTROL_PORT;
-import static org.hiero.otter.fixtures.container.ContainerImage.NODE_COMMUNICATION_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -67,6 +57,16 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Implementation of {@link Node} for a container environment.

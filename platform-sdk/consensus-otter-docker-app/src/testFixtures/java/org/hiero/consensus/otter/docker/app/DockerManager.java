@@ -4,9 +4,6 @@ package org.hiero.consensus.otter.docker.app;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -18,6 +15,9 @@ import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -31,8 +31,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
-    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
-    private static final int NODE_COMM_SERVICE_PORT = 8081;
+    private static final String DOCKER_APP_JAR = "/opt/DockerApp/apps/DockerApp.jar";
+    private static final String DOCKER_APP_LIBS = "/opt/DockerApp/lib/*";
+    private static final String CONSENSUS_NODE_MAIN_CLASS =
+            "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
 
     /**
      * The ID of the consensus node in this container. The ID must not be changed even between restarts. In the future,
@@ -40,16 +42,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      */
     private NodeId selfId;
 
-    /** Manages the consensus node and platform lifecycle */
-    @Nullable
-    private NodeCommunicationService nodeCommunicationService;
-
-    /**
-     * Thread that runs the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}. {@code null}
-     * when the service is not running.
-     */
-    @Nullable
-    private Thread nodeManagerThread;
+    private Process process;
 
     /**
      * Initializes the consensus node manager and starts its gRPC server. Once this request has completed, the consensus
@@ -61,41 +54,39 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Override
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        this.selfId = ProtobufConverter.toPbj(request.getSelfId());
-        DockerLogConfigBuilder.configure(Path.of(""), selfId);
-
-        if (nodeManagerThread != null) {
-            log.error(
-                    "Node manager thread is already running. The node must be shutdown with a kill request before starting it again.");
-            responseObserver.onError(new IllegalStateException("Node manager thread is already running."));
+        final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
+        if (attemptingToChangeSelfId(requestSelfId)) {
+            log.error("Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
+                    selfId.id(), requestSelfId.id());
+            responseObserver.onError(new IllegalStateException("Node ID cannot be changed after initialization."));
             return;
         }
 
-        nodeCommunicationService = new NodeCommunicationService(selfId);
-        nodeManagerThread = new Thread(this::startAndRunConsensusNodeService, "ConsensusNodeGrpcServiceThread");
-        nodeManagerThread.start();
+        this.selfId = requestSelfId;
+        DockerLogConfigBuilder.configure(Path.of(""), selfId);
+
+        final ProcessBuilder processBuilder = new ProcessBuilder("java", "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
+                CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id()));
+
+        // Set the debug port for the node communication service in the java environment variable.
+        final int debugPort = getNodeCommunicationDebugPort(selfId);
+        processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
+        processBuilder.inheritIO();
+
+        try {
+            process = processBuilder.start();
+        } catch (final IOException e) {
+            log.error("Failed to start the consensus node process", e);
+            responseObserver.onError(e);
+            return;
+        }
 
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
     }
 
-    private void startAndRunConsensusNodeService() {
-        // Start the consensus node manager gRPC server
-        final Server nodeGrpcServer = ServerBuilder.forPort(NODE_COMM_SERVICE_PORT)
-                .addService(nodeCommunicationService)
-                .build();
-        try {
-            nodeGrpcServer.start();
-            nodeGrpcServer.awaitTermination();
-        } catch (final IOException ie) {
-            log.error("Failed to start the gRPC server for the consensus node manager", ie);
-            throw new RuntimeException("Failed to start the gRPC server", ie);
-        } catch (final InterruptedException e) {
-            // Only warn, because we expect this exception when we interrupt the thread on a kill request
-            log.warn("Interrupted while running the consensus node manager gRPC server", e);
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while running the consensus node manager gRPC server", e);
-        }
+    private boolean attemptingToChangeSelfId(@NonNull final NodeId requestedSelfId) {
+        return this.selfId != null && selfId.id() != requestedSelfId.id();
     }
 
     /**
@@ -109,18 +100,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     public synchronized void killImmediately(
             @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Received kill request: {}", request);
-        try {
-            if (nodeCommunicationService != null) {
-                nodeCommunicationService.destroy();
-            }
-
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
-        } catch (final InterruptedException e) {
-            log.error("Failed to kill the gRPC server for the consensus node manager", e);
-            responseObserver.onError(e);
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+        if (process != null) {
+            process.destroyForcibly();
         }
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
     }
 }

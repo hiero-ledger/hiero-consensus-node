@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
-
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -14,25 +12,19 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
+import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getContainerControlDebugPort;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
+
 /**
  * A small convenience wrapper around {@link GenericContainer} that applies common configuration for Otter test node
  * containers. It connects the container to the provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
 
-    /**
-     * The port to open to allow connections to the
-     * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}
-     */
-    public static final int CONTAINER_CONTROL_PORT = 8080;
-
-    /**
-     * The port to open to allow connections to the
-     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
-     */
-    public static final int NODE_COMMUNICATION_PORT = 8081;
-
-    private static final int BASE_DEBUG_PORT = 5005;
 
     /**
      * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.
@@ -52,7 +44,8 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         super(dockerImage);
 
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
-        final int debugPort = BASE_DEBUG_PORT + (int) selfId.id();
+        final int containerControlDebugPort = getContainerControlDebugPort(selfId);
+        final int nodeCommunicationDebugPort = getNodeCommunicationDebugPort(selfId);
 
         // Apply the common configuration expected by tests.
         // By default, the container wait for all ports listed, but we only want it to wait for the
@@ -61,7 +54,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         withNetwork(network)
                 .withNetworkAliases(alias)
                 .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)
-                .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, debugPort));
+                .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, containerControlDebugPort));
 
         // Create a local directory for saved state directory contents and
         // bind it to the saved state directory for the node in the container
@@ -72,13 +65,8 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
             throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
         }
         withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
-        withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
-        addFixedExposedPort(debugPort, debugPort);
-    }
-
-    private static String getJavaToolOptions(final int debugPort) {
-        return String.format(
-                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:%s -Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener",
-                debugPort);
+        withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(containerControlDebugPort));
+        addFixedExposedPort(containerControlDebugPort, containerControlDebugPort);
+        addFixedExposedPort(nodeCommunicationDebugPort, nodeCommunicationDebugPort);
     }
 }
