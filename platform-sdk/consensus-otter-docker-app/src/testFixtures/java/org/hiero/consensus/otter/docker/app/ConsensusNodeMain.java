@@ -4,6 +4,8 @@ import com.hedera.hapi.platform.state.NodeId;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
@@ -13,6 +15,8 @@ import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
  * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} which runs the consensus node.
  */
 public class ConsensusNodeMain {
+
+    public static final Path STARTED_MARKER_FILE = Path.of("/tmp/consensus-node-started.marker");
 
     /** Port on which the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
     private static final int NODE_COMM_SERVICE_PORT = 8081;
@@ -35,6 +39,7 @@ public class ConsensusNodeMain {
                 .build();
         try {
             nodeGrpcServer.start();
+            writeStartedMarkerFile();
             nodeGrpcServer.awaitTermination();
         } catch (final IOException ie) {
             log.error("Failed to start the gRPC server for the consensus node manager", ie);
@@ -44,6 +49,19 @@ public class ConsensusNodeMain {
             log.warn("Interrupted while running the consensus node manager gRPC server", e);
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interrupted while running the consensus node manager gRPC server", e);
+        }
+    }
+
+    /**
+     * Writes a marker file to indicate that the service has started and can now accept requests.
+     */
+    private static void writeStartedMarkerFile() {
+        try {
+            Files.createFile(STARTED_MARKER_FILE);
+            log.info("Node Communication Service marker file written to {}", STARTED_MARKER_FILE);
+        } catch (final IOException e) {
+            log.error("Failed to write Node Communication Service marker file", e);
+            throw new RuntimeException("Failed to write Node Communication Service marker file", e);
         }
     }
 }

@@ -96,7 +96,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private final NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** An instance of asynchronous actions this node can perform with the default time. */
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
@@ -157,15 +157,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
-
-        final InitRequest initRequest = InitRequest.newBuilder()
-                .setSelfId(ProtobufConverter.fromPbj(selfId))
-                .build();
-        //noinspection ResultOfMethodCallIgnored
-        containerControlBlockingStub.init(initRequest);
-
-        // Blocking stub for communicating with the consensus node
-        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
     }
 
     /**
@@ -212,6 +203,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void start() {
+        final InitRequest initRequest = InitRequest.newBuilder()
+                .setSelfId(ProtobufConverter.fromPbj(selfId))
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        containerControlBlockingStub.init(initRequest);
+
+        // Blocking stub for communicating with the consensus node
+        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
         defaultAsyncAction.start();
     }
 

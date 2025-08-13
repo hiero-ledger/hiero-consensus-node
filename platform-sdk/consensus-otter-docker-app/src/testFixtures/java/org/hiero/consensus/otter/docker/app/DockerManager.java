@@ -6,7 +6,9 @@ import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
@@ -16,6 +18,7 @@ import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 
+import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
@@ -37,6 +40,12 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
 
     /**
+     * The maximum duration to wait for the marker file written by the consensus node main class to indicate it's
+     * service is up and running.
+     */
+    private final Duration MAX_MARKER_FILE_WAIT_TIME = Duration.ofSeconds(10);
+
+    /**
      * The ID of the consensus node in this container. The ID must not be changed even between restarts. In the future,
      * successive init calls should verify that the self ID is the same.
      */
@@ -54,6 +63,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Override
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info("Init request received");
         final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error("Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
@@ -63,7 +73,6 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         }
 
         this.selfId = requestSelfId;
-        DockerLogConfigBuilder.configure(Path.of(""), selfId);
 
         final ProcessBuilder processBuilder = new ProcessBuilder("java", "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id()));
@@ -72,7 +81,9 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         final int debugPort = getNodeCommunicationDebugPort(selfId);
         processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         processBuilder.inheritIO();
+        processBuilder.directory(Path.of(".").toFile());
 
+        log.info("Starting NodeCommunicationService with self ID: {}", selfId.id());
         try {
             process = processBuilder.start();
         } catch (final IOException e) {
@@ -80,9 +91,49 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             responseObserver.onError(e);
             return;
         }
+        log.info("NodeCommunicationService started");
 
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        try {
+            if (waitForStartedMarkerFile()) {
+                responseObserver.onNext(Empty.getDefaultInstance());
+                responseObserver.onCompleted();
+            } else {
+                log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                responseObserver.onError(
+                        new IllegalStateException(
+                                "Consensus node process started, but marker file was not detected in the allowed time"));
+            }
+        } catch (final IOException e) {
+            log.error("Failed to delete the started marker file", e);
+            responseObserver.onError(e);
+        } catch (final InterruptedException e) {
+            log.warn("Interrupted while waiting for the started marker file", e);
+            Thread.currentThread().interrupt();
+            responseObserver.onError(e);
+        }
+    }
+
+    /**
+     * Waits for the marker file to be created by the consensus node main class, indicating that the service is up and
+     * ready to accept requests. Once the file is detected, it deletes the file to prevent it from being read on
+     * subsequent starts of the node.
+     *
+     * @return true if the marker file was found and deleted, false if the wait timed out
+     * @throws IOException if an I/O error occurs while deleting the marker file
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
+        Duration timeWaited = Duration.ZERO;
+        while (timeWaited.compareTo(MAX_MARKER_FILE_WAIT_TIME) < 0) {
+            if (Files.exists(STARTED_MARKER_FILE)) {
+                log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
+                Files.delete(STARTED_MARKER_FILE);
+                return true;
+            }
+            Thread.sleep(500);
+            timeWaited = timeWaited.plusMillis(500);
+        }
+        return false;
     }
 
     private boolean attemptingToChangeSelfId(@NonNull final NodeId requestedSelfId) {

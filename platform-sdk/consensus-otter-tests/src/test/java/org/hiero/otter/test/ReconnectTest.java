@@ -33,7 +33,7 @@ public class ReconnectTest {
     private static final long ROUNDS_NON_ANCIENT = 20L;
     private static final long ROUNDS_EXPIRED = 40L;
 
-    @Disabled("Disabled until the container networks are fully supported")
+//    @Disabled("Disabled until the container networks are fully supported")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) {
         final Network network = env.network();
@@ -82,13 +82,24 @@ public class ReconnectTest {
         // Restart the node that was killed
         nodeToReconnect.start();
 
-        // Wait for thirty seconds to allow the node to reconnect and become active again
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        // First we must wait for the node to come back up and report that it is behind.
+        // If we wait for it to be active, this check will pass immediately because that was the last status it had
+        // and we will check the value before the node has a change to tell us that it is behind.
+        if (!timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30))) {
+            fail("Node did not become active in the time allotted.");
+        }
+
+        // Now we wait for the node to reconnect and become active again.
+        if (!timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(30))) {
+            fail("Node did not become active in the time allotted.");
+        }
 
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
+        assertThat(nodeToReconnect.newReconnectResult())
+                .hasNoFailedReconnects()
+                .hasExactSuccessfulReconnects(1);
 
         assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
