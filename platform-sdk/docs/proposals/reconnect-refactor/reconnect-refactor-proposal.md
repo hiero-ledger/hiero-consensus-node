@@ -17,17 +17,15 @@ and remove the need of connections handoff.
 
 In a very simplistic explanation, the current reconnect logic is implemented in the following way:
 
-Gossip component initiates two protocols, which are running continuously, interleaved (when sync executes reconnect doesn't), and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
-One of those two protocols is sync, which is one of our gossip implementations.
-When syncing nodes compare their current hashgraph status against the peer hashgraph and determines if the local node has fallen behind.
-When sync protocol determines that it is itself the one fallen behind, it registers that into a mutable shared class (`FallenBehindManager`)
+Gossip component initiates protocols, which are running continuously, interleaved, and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
+One of those two protocols is SyncProtocol, which is one of our gossip implementations. Syncing nodes compare their current hashgraph status against the peer's, determines if the local node has fallen behind and registers that in a mutable shared class (`FallenBehindManager`)
 
-ReconnectProtocol is another protocol executing internally in gossip, the condition for start executing depends on what the shared `FallenBehindManager` tells, if it says that the node has fallen behind it will execute the protocol.
-Depending on which of the nodes has fallen behind, the code will follow the teacher logic or the learner logic. The determination of which node has fallen behind is done with `FallenBehindManager`.
+ReconnectProtocol is another protocol executing internally in gossip, the condition for start executing is whether `FallenBehindManager` tells that the node has fallen behind.
+Depending on which of the nodes has fallen behind, the code will follow the teacher logic or the learner logic.
 There is a part of the logic of each of those protocols that execute for each peer in the system. So, if it is time to execute the part of the logic corresponding to the peer that told the current node that it was falling behind, then the logic is executed.
 When acting as learner, the logic consist on sharing the connection using a blocking queue to an external class that will handle the reconnect logic.
 
-As soon as the platform status changes to BEHIND, `PlatformController` logic kicks in on a dedicated thread and starts executing, blocking until a connection can be acquired from the previously mentioned blocked queue.
+When Gossip receives the BEHIND status change, starts the `ReconnectController` logic in on a dedicated thread, which blocks until a connection can be acquired from the previously mentioned blocked queue.
 When a connection is received, the platform is prepared for starting the reconnect process, and using endless number of helper classes and method references to multiple pieces of the system, retrieves the ReservedSignedState from the other peer.
 Platform controller will stop all platform activity in preparation for gossip, and the helpers will validate the state acquired from a peer. If anything on the process goes wrong the code will retry until a configured maximum attempts threshold.
 
@@ -73,7 +71,8 @@ Platform controller will stop all platform activity in preparation for gossip, a
    * ReconnectStateLoader
    * ReconnectPlatformHelper/ReconnectPlatformHelperImpl
    * ReconnectLearnerThrottle
-     This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes easier to follow.
+   
+   This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes easier to follow.
 3. Introduction of `FallenBehindMonitor`:
    FallenBehindManager becomes a direct monitor and renamed accordingly.
    classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
