@@ -100,7 +100,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -617,7 +617,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -802,7 +802,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
