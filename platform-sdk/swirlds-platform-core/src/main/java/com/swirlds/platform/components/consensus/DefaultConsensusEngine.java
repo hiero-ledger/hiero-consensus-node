@@ -99,14 +99,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
-            return ConsensusEngineOutput.EMPTY_INSTANCE;
+            return ConsensusEngineOutput.emptyInstance();
         }
 
         final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
         if (consensusRelevantEvent == null) {
             // The event is either a future event or an ancient event.
             // If it is a future event, it will be added later when the event window is updated.
-            return ConsensusEngineOutput.EMPTY_INSTANCE;
+            return ConsensusEngineOutput.emptyInstance();
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
@@ -124,6 +124,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             }
 
             allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
+            // we only return events we actually add to the graph
             addedEvents.add(linkedEvent.getBaseEvent());
             eventAddedMetrics.eventAdded(linkedEvent);
 

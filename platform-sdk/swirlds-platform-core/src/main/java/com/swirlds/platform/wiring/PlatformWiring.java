@@ -105,6 +105,7 @@ public class PlatformWiring {
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+    /** Output from the {@link #consensusEngineWiring} where only the consensus rounds are returned */
     private final OutputWire<List<ConsensusRound>> consensusRoundsOutputWire;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
@@ -173,9 +174,10 @@ public class PlatformWiring {
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator());
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, config.consensusEngine());
+        // output only consensus rounds
         consensusRoundsOutputWire = consensusEngineWiring
                 .getOutputWire()
-                .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds);
+                .buildTransformer("ConsensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds);
 
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
@@ -414,11 +416,14 @@ public class PlatformWiring {
                     platformPublisherWiring.getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
+        // an output wire that filters out only pre-consensus events from the consensus engine
         final OutputWire<PlatformEvent> consEngineAddedEvents = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer(
-                        "getPreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
-                .buildSplitter("preConsensusEventsSplitter", "preConsensusEvents");
+                        "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("PreConsensusEventsSplitter", "preConsensusEvents");
+        // pre-handle gets pre-consensus events from the consensus engine
+        // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
         consEngineAddedEvents.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
                 TransactionPrehandler::prehandleApplicationTransactions));
 
@@ -471,7 +476,7 @@ public class PlatformWiring {
         pcesReplayerWiring.eventOutput().solderTo(hasherInputWire);
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire =
-                consensusRoundsOutputWire.buildSplitter("consensusRoundsSplitter", "consensus rounds");
+                consensusRoundsOutputWire.buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
 
         consensusRoundOutputWire.solderTo(staleEventDetectorWiring.getInputWire(StaleEventDetector::addConsensusRound));
 
@@ -486,7 +491,7 @@ public class PlatformWiring {
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
 
         consensusRoundOutputWire
-                .buildTransformer("roundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
+                .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.

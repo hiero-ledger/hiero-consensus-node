@@ -22,10 +22,11 @@ public interface ConsensusEngine {
     void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
 
     /**
-     * Add an event to the hashgraph
+     * Add an event to the consensus engine. This event might not be added to the hashgraph immediately, but it will be
+     * processed and will be returned as part of the output if it's a pre-consensus event.
      *
      * @param event an event to be added
-     * @return a list of rounds that came to consensus as a result of adding the event
+     * @return a list of rounds and a list of recent event waiting to reach consensus
      */
     @NonNull
     @InputWireLabel("PlatformEvent")
