@@ -40,7 +40,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,11 +47,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
@@ -117,9 +119,9 @@ public final class PlatformBuilder {
     private WiringModel model;
 
     /**
-     * The source of non-cryptographic randomness for this platform.
+     * The supplier of cryptographically secure random number generators.
      */
-    private RandomBuilder randomBuilder;
+    private Supplier<SecureRandom> secureRandomSupplier;
     /**
      * The platform context for this platform.
      */
@@ -354,15 +356,15 @@ public final class PlatformBuilder {
     }
 
     /**
-     * Provide the source of non-cryptographic randomness for this platform.
+     * Provide a supplier of cryptographically secure random number generators.
      *
-     * @param randomBuilder the source of non-cryptographic randomness
+     * @param secureRandomSupplier supplier of cryptographically secure random number generators
      * @return this
      */
     @NonNull
-    public PlatformBuilder withRandomBuilder(@NonNull final RandomBuilder randomBuilder) {
+    public PlatformBuilder withSecureRandomSupplier(@NonNull final Supplier<SecureRandom> secureRandomSupplier) {
         throwIfAlreadyUsed();
-        this.randomBuilder = Objects.requireNonNull(randomBuilder);
+        this.secureRandomSupplier = Objects.requireNonNull(secureRandomSupplier);
         return this;
     }
 
@@ -475,8 +477,14 @@ public final class PlatformBuilder {
                     .build();
         }
 
-        if (randomBuilder == null) {
-            randomBuilder = new RandomBuilder();
+        if (secureRandomSupplier == null) {
+            secureRandomSupplier = () -> {
+                try {
+                    return SecureRandom.getInstanceStrong();
+                } catch (final NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         }
 
         final PlatformWiring platformWiring = new PlatformWiring(
@@ -500,7 +508,7 @@ public final class PlatformBuilder {
                 preconsensusEventConsumer,
                 snapshotOverrideConsumer,
                 intakeEventCounter,
-                randomBuilder,
+                secureRandomSupplier,
                 transactionPoolNexus,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),

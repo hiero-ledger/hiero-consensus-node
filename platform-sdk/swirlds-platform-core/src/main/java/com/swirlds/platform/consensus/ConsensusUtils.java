@@ -8,6 +8,7 @@ import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.model.event.Event;
 
 /** Various utility methods used by {@link com.swirlds.platform.ConsensusImpl} */
 public final class ConsensusUtils {
@@ -21,13 +22,12 @@ public final class ConsensusUtils {
      * be some epsilon such that the probability of a wrong prediction is always greater than
      * epsilon (and less than 1-epsilon). This result is not memoized.
      *
-     * @param bytes the signature of the event that will vote with a coin flip
+     * @param event the event to get the coin flip from
      * @return true if voting for famous, false if voting for not famous
      */
-    public static boolean coin(@NonNull final Bytes bytes) {
-        // coin is one bit from signature (LSB of second of two middle bytes)
-        final int sigLen = (int) bytes.length();
-        return ((bytes.getByte((sigLen / 2)) & 1) == 1);
+    public static boolean coin(@NonNull final Event event) {
+        // based on the event's coin value, is it even or odd?
+        return event.getEventCore().coin() % 2 == 0;
     }
 
     /**

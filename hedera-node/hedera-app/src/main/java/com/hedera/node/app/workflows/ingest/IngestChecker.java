@@ -26,6 +26,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.SUBMITTED;
 import static com.hedera.node.app.workflows.InnerTransaction.NO;
 import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
@@ -275,8 +276,8 @@ public final class IngestChecker {
         // will convert that to INVALID_TRANSACTION_BODY.
         assert functionality != HederaFunctionality.NONE;
 
-        // 3. Deduplicate
-        if (deduplicationCache.contains(txInfo.transactionID())) {
+        // 3. Deduplicate the transaction and check for staleness
+        if (deduplicationCache.getTxStatus(txInfo.transactionID()) == SUBMITTED) {
             throw new PreCheckException(DUPLICATE_TRANSACTION);
         }
 

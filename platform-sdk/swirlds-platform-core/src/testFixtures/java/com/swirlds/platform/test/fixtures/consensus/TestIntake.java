@@ -17,6 +17,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
@@ -47,7 +48,7 @@ public class TestIntake {
 
     private final ComponentWiring<EventHasher, PlatformEvent> hasherWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
-    private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
+    private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
     private final WiringModel model;
     private final int roundsNonAncient;
@@ -98,7 +99,10 @@ public class TestIntake {
         final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
         splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring.getSplitOutput();
+        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
+                .buildSplitter("consensusRoundsSplitter", "consensusRounds");
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
         consensusRoundOutputWire.solderTo("consensusOutputTestTool", "round output", output::consensusRound);

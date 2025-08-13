@@ -35,11 +35,6 @@ message EventHeader {
     * A list of references to parent events. <br/>
     */
     repeated ParentEventReference parents = 2;
-
-    /**
-     * The middle bit of the node's signature on the event.<br/>
-     */
-    bool signature_middle_bit = 3;
 }
 
 /*

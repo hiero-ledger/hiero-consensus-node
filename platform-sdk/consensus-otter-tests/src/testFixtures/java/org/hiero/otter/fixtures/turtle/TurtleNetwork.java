@@ -160,7 +160,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      */
     @Override
     @NonNull
-    public List<Node> getNodes() {
+    public List<Node> nodes() {
         return publicNodes;
     }
 
