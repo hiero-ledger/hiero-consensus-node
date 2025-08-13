@@ -358,7 +358,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             Files.createDirectories(logPath.resolve("swirlds-hashstream"));
 
             container.copyFileFromContainer(
-                    ContainerImage.APP_ROOT_DIR + "/output/swirlds.log", logPath.resolve("swirlds.log").toString());
+                    ContainerImage.APP_ROOT_DIR + "/output/swirlds.log",
+                    logPath.resolve("swirlds.log").toString());
             container.copyFileFromContainer(
                     ContainerImage.APP_ROOT_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
                     logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
