@@ -85,7 +85,7 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               reconnect, can be removed once reconnect is made compatible with the
  *                                               wiring framework
  * @param platformStateFacade                    the facade to access the platform state
- * @param stateRootFunction                      a function to instantiate the state root object from a Virtual Map
+ * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformWiring platformWiring,
@@ -118,7 +118,7 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
-        @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -148,6 +148,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
-        requireNonNull(stateRootFunction);
+        requireNonNull(createStateFromVirtualMap);
     }
 }
