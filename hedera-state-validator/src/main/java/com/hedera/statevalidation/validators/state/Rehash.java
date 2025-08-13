@@ -117,8 +117,8 @@ public class Rehash {
         final CompletableFuture<Hash> fullRehashFuture = new CompletableFuture<>();
         final CompletableFuture<Void> leafFeedFuture = new CompletableFuture<>();
         // getting a range that is relevant for the data source
-        final long firstLeafPath = dataSource.getFirstLeafPath();
-        final long lastLeafPath = dataSource.getLastLeafPath();
+        final long firstLeafPath = virtualMap.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = virtualMap.getMetadata().getLastLeafPath();
         if (firstLeafPath < 0 || lastLeafPath < 0) {
             throw new IllegalStateException("Paths range is invalid");
         }
