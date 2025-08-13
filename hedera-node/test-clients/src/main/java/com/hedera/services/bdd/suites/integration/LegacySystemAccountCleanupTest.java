@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.orderedRecordFilesFrom;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -25,9 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -67,7 +70,7 @@ import org.junit.jupiter.api.Tag;
 public class LegacySystemAccountCleanupTest implements SavedStateSpec {
     private static final Logger log = LogManager.getLogger(LegacySystemAccountCleanupTest.class);
 
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 100L;
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
     @RestartHapiTest(restartType = UPGRADE_BOUNDARY, savedStateSpec = LegacySystemAccountCleanupTest.class)
@@ -92,6 +95,16 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                             .mapToLong(Account::tinybarBalance)
                             .sum();
                     assertEquals(50 * ONE_BILLION_HBARS, totalHbarBalance, "Wrong HBAR balance after upgrade");
+
+                    // Check the entity counts singleton is decremented to match
+                    final var singleton = spec.embeddedStateOrThrow()
+                            .getReadableStates(EntityIdService.NAME)
+                            .<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
+                    final var expectedAccounts = map.getBackingStore().size();
+                    final var actualCounts = requireNonNull(singleton.get()).numAccounts();
+                    log.info("Counts: {}", requireNonNull(singleton.get()));
+                    assertEquals(expectedAccounts, actualCounts, "Singleton count mismatch after upgrade");
+
                     // And validate the resulting record stream
                     assertRecordStreamsAsExpected(spec.recordStreamsLoc(NodeSelector.byNodeId(0L)));
                 }));
@@ -173,6 +186,18 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                         .tinybarBalance(treasuryAccount.tinybarBalance() - balancesTotal)
                         .build());
         tokenStates.commit();
+
+        final var entityStates = (MapWritableStates) fakeState.getWritableStates(EntityIdService.NAME);
+        final var countsSingleton = entityStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
+        final var oldCounts = requireNonNull(countsSingleton.get());
+        log.info("Old counts: {}", oldCounts);
+        final var newCounts = oldCounts
+                .copyBuilder()
+                .numAccounts(oldCounts.numAccounts() + (FIRST_POST_SYSTEM_FILE_ENTITY - FIRST_SYSTEM_FILE_ENTITY))
+                .build();
+        log.info("New counts: {}", newCounts);
+        countsSingleton.put(newCounts);
+        entityStates.commit();
     }
 
     private LongFunction<AccountID> getIdFactoryFor(@NonNull final AccountID sampleId) {

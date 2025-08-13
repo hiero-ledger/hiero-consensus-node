@@ -28,7 +28,7 @@ import javax.inject.Inject;
  * <p>The checks in this class do not require access to state, and thus can be performed at any time.
  */
 public class PrivilegesVerifier {
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 100L;
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
     private final AccountsConfig accountsConfig;

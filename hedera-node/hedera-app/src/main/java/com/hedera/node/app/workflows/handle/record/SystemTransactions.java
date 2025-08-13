@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
@@ -29,7 +31,6 @@ import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -125,7 +126,7 @@ public class SystemTransactions {
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 100L;
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
@@ -420,6 +421,7 @@ public class SystemTransactions {
                     if (streamMode != RECORDS) {
                         immediateStateChangeListener.resetKvStateChanges(null);
                     }
+                    // On success, actually remove the legacy account from state
                     final var tokenStates = state.getWritableStates(TokenService.NAME);
                     final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
                     accountsState.remove(legacyAccountId.get());
@@ -430,6 +432,11 @@ public class SystemTransactions {
                             dispatch.streamBuilder().stateChanges(changes);
                         }
                     }
+                    // And decrement the entity count for the account type
+                    final var entityStates = state.getWritableStates(EntityIdService.NAME);
+                    final var entityCounters = new WritableEntityIdStore(entityStates);
+                    entityCounters.adjustEntityCount(ACCOUNT, -1);
+                    ((CommittableWritableStates) entityStates).commit();
                 },
                 UseReservedConsensusTimes.YES,
                 TriggerStakePeriodSideEffects.YES);
@@ -860,7 +867,7 @@ public class SystemTransactions {
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
             long prevEntityNum;
-            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
                 prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
@@ -889,7 +896,7 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
                 countsBefore.put(requireNonNull(countsBefore.get())
