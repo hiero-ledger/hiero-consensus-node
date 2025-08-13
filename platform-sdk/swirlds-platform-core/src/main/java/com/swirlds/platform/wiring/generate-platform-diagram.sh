@@ -18,7 +18,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'TransactionPrehandler:futures:🔮' \
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'InlinePcesWriter:events to gossip:📬' \
-    -s 'extractOldestMinimumGenerationOnDisk:minimum identifier to store:📀' \
+    -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
     -s 'StaleEventDetectorRouter:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
@@ -33,8 +33,8 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
     -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
-    -g 'Consensus Engine:ConsensusEngine,ConsensusEngineSplitter,EventWindowManager,getCesEvents' \
-    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumGenerationOnDisk,toStateWrittenToDiskAction,toNotification' \
+    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
+    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toStateWrittenToDiskAction,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
