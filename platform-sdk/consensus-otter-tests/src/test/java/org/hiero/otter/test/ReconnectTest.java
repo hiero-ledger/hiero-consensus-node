@@ -61,7 +61,7 @@ public class ReconnectTest {
                 .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
         network.start();
 
-        // Wait for thirty seconds minutes
+        // Wait for thirty seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Shutdown the node for a period of time so that it falls behind.
@@ -73,7 +73,7 @@ public class ReconnectTest {
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         nodeToReconnectStatusResults.clear();
 
-        // Wait for the node we just killed to fall behind
+        // Wait for the node we just killed to become behind enough to require a reconnect.
         if (!timeManager.waitForCondition(
                 () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(60))) {
             fail("Node did not fall behind in the time allotted.");
