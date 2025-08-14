@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getContainerControlDebugPort;
@@ -20,11 +21,6 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  * containers. It connects the container to the provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
-
-    /**
-     * Working directory of the container
-     */
-    public static final String APP_ROOT_DIR = "/opt/DockerApp";
 
     /**
      * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.
@@ -58,6 +54,6 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         addFixedExposedPort(containerControlDebugPort, containerControlDebugPort);
         addFixedExposedPort(nodeCommunicationDebugPort, nodeCommunicationDebugPort);
 
-        withWorkingDirectory(APP_ROOT_DIR);
+        withWorkingDirectory(CONTAINER_APP_WORKING_DIR);
     }
 }

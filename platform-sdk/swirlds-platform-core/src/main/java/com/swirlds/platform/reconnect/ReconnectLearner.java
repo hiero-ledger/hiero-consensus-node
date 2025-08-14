@@ -51,7 +51,7 @@ public class ReconnectLearner {
     private final ReconnectMetrics statistics;
     private final SignedStateValidationData stateValidationData;
     private final PlatformStateFacade platformStateFacade;
-    private final Function<VirtualMap, MerkleNodeState> stateRootFunction;
+    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     private SigSet sigSet;
     private final PlatformContext platformContext;
@@ -77,8 +77,8 @@ public class ReconnectLearner {
      * 		reconnect metrics
      * @param platformStateFacade
      *      the facade to access the platform state
-     * @param stateRootFunction
-     *      a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap
+     *      a function to instantiate the state object from a Virtual Map
      */
     public ReconnectLearner(
             @NonNull final PlatformContext platformContext,
@@ -89,9 +89,9 @@ public class ReconnectLearner {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
-        this.stateRootFunction = Objects.requireNonNull(stateRootFunction);
+        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
@@ -204,8 +204,8 @@ public class ReconnectLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(stateRootFunction, synchronizer.getRoot(), platformContext.getMetrics());
+        final MerkleNodeState merkleNodeState = initializeMerkleNodeState(
+                createStateFromVirtualMap, synchronizer.getRoot(), platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),

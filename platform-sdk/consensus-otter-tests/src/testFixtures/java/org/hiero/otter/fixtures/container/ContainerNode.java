@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container;
 
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -284,7 +285,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             Files.createDirectories(localPcesDirectory);
 
             // List all files recursively in the container's PCES directory
-            final Path base = Path.of(ContainerImage.APP_ROOT_DIR, databaseDirectory.toString());
+            final Path base = Path.of(CONTAINER_APP_WORKING_DIR, databaseDirectory.toString());
             final ExecResult execResult = container.execInContainer("sh", "-lc", "find '" + base + "' -type f");
             final String stdout = execResult.getStdout();
 
@@ -300,6 +301,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Files.createDirectories(localFile.getParent());
                     container.copyFileFromContainer(containerFile.toString(), localFile.toString());
                 }
+            } else {
+                log.warn("No PCES files found in container");
             }
 
             return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), localPcesDirectory);
@@ -341,10 +344,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             Files.createDirectories(logPath.resolve("swirlds-hashstream"));
 
             container.copyFileFromContainer(
-                    ContainerImage.APP_ROOT_DIR + "/output/swirlds.log",
+                    CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
                     logPath.resolve("swirlds.log").toString());
             container.copyFileFromContainer(
-                    ContainerImage.APP_ROOT_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
+                    CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
                     logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy logs from container", e);

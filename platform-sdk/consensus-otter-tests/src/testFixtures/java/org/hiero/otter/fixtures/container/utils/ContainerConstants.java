@@ -10,6 +10,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class ContainerConstants {
 
     /**
+     * Working directory of the container
+     */
+    public static final String CONTAINER_APP_WORKING_DIR = "/opt/DockerApp";
+
+    /**
      * The port to open to allow connections to the
      * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}
      */
