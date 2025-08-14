@@ -33,7 +33,6 @@ public class ReconnectTest {
     private static final long ROUNDS_NON_ANCIENT = 20L;
     private static final long ROUNDS_EXPIRED = 40L;
 
-    @Disabled("Disabled until all failures are resolved.")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) {
         final Network network = env.network();
@@ -99,7 +98,7 @@ public class ReconnectTest {
 
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect)).haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))

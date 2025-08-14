@@ -138,7 +138,7 @@ public class ConsensusNodeManager {
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade,
-                        (vm) -> state)
+                        OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
