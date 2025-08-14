@@ -130,13 +130,13 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-  tag-sdlt-passing:
-    name: Tag SDLT Passing
+
+  tag-sdlt-result:
+    name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-longevity-nlg-test
       - verify-tag
-    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -167,10 +167,10 @@ jobs:
 
           if [ "$RESULT" == "success" ]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
-            MSG="Single Day Performance Test passed for build-${BUILD_NUM}"
+            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
           elif [ "$RESULT" == "failure" ]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
-            MSG="Single Day Performance Test FAILED for build-${BUILD_NUM}"
+            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
           else
             echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
