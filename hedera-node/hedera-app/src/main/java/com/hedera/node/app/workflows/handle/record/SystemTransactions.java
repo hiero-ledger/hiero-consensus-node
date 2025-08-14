@@ -439,8 +439,9 @@ public class SystemTransactions {
             entityCounters.adjustEntityCount(ACCOUNT, -1);
             ((CommittableWritableStates) entityStates).commit();
         };
-        // System context for dispatching CryptoDelete with an onSuccess callback
+        // System context for dispatching CryptoTransfer with an onSuccess callback
         // that completely removes the legacy account from state after the dispatch
+        // sweeping its dust HBAR into the fee collection account 0.0.98
         final var systemContext = newSystemContext(
                 now,
                 state,
