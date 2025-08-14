@@ -22,7 +22,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -98,7 +97,8 @@ public class ReconnectTest {
 
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect)).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
+                .haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
