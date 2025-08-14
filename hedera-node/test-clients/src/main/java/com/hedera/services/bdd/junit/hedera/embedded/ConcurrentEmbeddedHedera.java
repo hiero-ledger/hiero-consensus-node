@@ -205,7 +205,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                         .map(TransactionWrapperUtils::createAppPayloadWrapper)
                         .map(t -> new FakeEvent(defaultNodeId, now(), t))
                         .forEach(newEvents::add);
-				if (allEventsStale.get()) {
+                if (allEventsStale.get()) {
                     newEvents.clear();
                 }
                 newEvents.forEach(event -> hedera.onPreHandle(event, state, NOOP_STATE_SIG_CALLBACK));
