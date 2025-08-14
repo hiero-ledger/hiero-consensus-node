@@ -535,7 +535,7 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@bfcbad75e0ad6b67993a65b7f8d44a66aebfd832 #v1.0.2-alpha.3
+        uses: pandaswhocode/rootly-incident-action@5b2b22857416272c81863824f5be66bef8992eab #v1.0.2-alpha.4
         with:
           services: "CITR"
           teams: "Platform CI"
@@ -544,6 +544,10 @@ jobs:
           title: "${{ steps.rootly-summary.outputs.title }}"
           summary: "${{ steps.rootly-summary.outputs.summary }}"
           create_alert: "true"
+          alert_service: "CITR"
+          alert_urgency: "Low"
+          alert_external_id: ${{ github.run_id }}
+          alert_external_url: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
           severity: "Triage Event"
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
 
