@@ -61,7 +61,7 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * A test that "picks up" after a simulated restart with legacy system accounts in state, and verifies that they
- * are cleaned up as expected by dispatching synthetic {@link HederaFunctionality#CRYPTO_DELETE} txs.
+ * are cleaned up as expected.
  */
 @Order(10)
 @Tag(INTEGRATION)
