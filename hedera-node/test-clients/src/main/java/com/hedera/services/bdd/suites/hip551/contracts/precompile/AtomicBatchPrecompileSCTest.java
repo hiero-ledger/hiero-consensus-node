@@ -54,7 +54,6 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
@@ -141,24 +140,16 @@ public class AtomicBatchPrecompileSCTest {
     /**
      * MiscTokenTest
      */
-    @Nested
-    class MiscTokenTest {
-
-        @Contract(contract = "InternalCall", creationGas = 1_000_000L)
-        static SpecContract internalCall;
-
-        @FungibleToken(name = "fungibleToken")
-        static SpecFungibleToken fungibleToken;
-
-        @HapiTest
-        @DisplayName("cannot transfer value to HTS")
-        public Stream<DynamicTest> atomicCannotTransferValueToHts() {
-            return hapiTest(internalCall
-                    .call("isATokenWithCall", fungibleToken)
-                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
-                    .sending(100L)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_CONTRACT_ID)));
-        }
+    @HapiTest
+    @DisplayName("cannot transfer value to HTS")
+    public Stream<DynamicTest> atomicCannotTransferValueToHts(
+            @Contract(contract = "InternalCall", creationGas = 1_000_000L) final SpecContract internalCall,
+            @FungibleToken(name = "fungibleToken") final SpecFungibleToken fungibleToken) {
+        return hapiTest(internalCall
+                .call("isATokenWithCall", fungibleToken)
+                .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
+                .sending(100L)
+                .andAssert(txn -> txn.hasKnownStatus(INVALID_CONTRACT_ID)));
     }
 
     @HapiTest
@@ -177,51 +168,41 @@ public class AtomicBatchPrecompileSCTest {
     /**
      * UnknownFunctionSelectorTest
      */
-    @Nested
-    class UnknownFunctionSelectorTest {
+    @HapiTest
+    final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector(
+            @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount account,
+            @Account() final SpecAccount receiver,
+            @Contract(contract = "UnknownFunctionSelectorContract", creationGas = 1_500_000)
+                    final SpecContract contract) {
 
-        @Account(tinybarBalance = ONE_HUNDRED_HBARS)
-        static SpecAccount account;
+        final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
+        final String schedule = "testSchedule";
+        return hapiTest(
+                account.getInfo(),
+                receiver.getInfo(),
+                scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(account.name(), receiver.name(), 1)))
+                        .exposingCreatedIdTo(scheduleID::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contract.call(
+                                        "callScheduleServiceWithFakeSelector",
+                                        mirrorAddrWith(spec, scheduleID.get().getScheduleNum()))
+                                .payingWith(account)
+                                .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
+                                .gas(1_000_000)
+                                .via("txn"))),
+                withOpContext((spec, opLog) -> {
+                    final var txn = getTxnRecord("txn");
+                    allRunFor(spec, txn);
 
-        @Account()
-        static SpecAccount receiver;
-
-        @Contract(contract = "UnknownFunctionSelectorContract", creationGas = 1_500_000)
-        static SpecContract contract;
-
-        @HapiTest
-        final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector() {
-
-            final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
-            final String schedule = "testSchedule";
-            return hapiTest(
-                    account.getInfo(),
-                    receiver.getInfo(),
-                    scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(account.name(), receiver.name(), 1)))
-                            .exposingCreatedIdTo(scheduleID::set),
-                    withOpContext((spec, opLog) -> allRunFor(
-                            spec,
-                            contract.call(
-                                            "callScheduleServiceWithFakeSelector",
-                                            mirrorAddrWith(
-                                                    spec, scheduleID.get().getScheduleNum()))
-                                    .payingWith(account)
-                                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR)
-                                    .gas(1_000_000)
-                                    .via("txn"))),
-                    withOpContext((spec, opLog) -> {
-                        final var txn = getTxnRecord("txn");
-                        allRunFor(spec, txn);
-
-                        final var res = Bytes32.wrap(Arrays.copyOfRange(
-                                txn.getResponseRecord()
-                                        .getContractCallResult()
-                                        .getContractCallResult()
-                                        .toByteArray(),
-                                32,
-                                64));
-                        assertEquals(Bytes32.ZERO, res);
-                    }));
-        }
+                    final var res = Bytes32.wrap(Arrays.copyOfRange(
+                            txn.getResponseRecord()
+                                    .getContractCallResult()
+                                    .getContractCallResult()
+                                    .toByteArray(),
+                            32,
+                            64));
+                    assertEquals(Bytes32.ZERO, res);
+                }));
     }
 }

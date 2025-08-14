@@ -483,13 +483,6 @@ public class AtomicBatchPrecompileTest {
     @Nested
     class AtomicCryptoTransferHtsSuite {
 
-        private List<SpecOperation> deployContractAndUpdateKeys() {
-            return List.of(
-                    contractCreate(ATOMIC_CRYPTO_TRANSFER_CONTRACT),
-                    newKeyNamed(DELEGATE_KEY)
-                            .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ATOMIC_CRYPTO_TRANSFER_CONTRACT))));
-        }
-
         @HapiTest
         final Stream<DynamicTest> atomicCryptoTransferTxn() {
             final var cryptoTransferTxn = "cryptoTransferTxn";
@@ -716,6 +709,13 @@ public class AtomicBatchPrecompileTest {
                             CONTRACT_REVERT_EXECUTED,
                             INSUFFICIENT_ACCOUNT_BALANCE)));
         }
+
+        private List<SpecOperation> deployContractAndUpdateKeys() {
+            return List.of(
+                    contractCreate(ATOMIC_CRYPTO_TRANSFER_CONTRACT),
+                    newKeyNamed(DELEGATE_KEY)
+                            .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ATOMIC_CRYPTO_TRANSFER_CONTRACT))));
+        }
     }
 
     /**
@@ -782,7 +782,7 @@ public class AtomicBatchPrecompileTest {
      * ContractHTSSuite
      */
     @HapiTest
-    final Stream<DynamicTest> atomicTransferDontWorkWithoutTopLevelSignatures() {
+    final Stream<DynamicTest> atomicTransferDoesntWorkWithoutTopLevelSignatures() {
         final var transferTokenTxn = "transferTokenTxn";
         final var transferTokensTxn = "transferTokensTxn";
         final var transferNFTTxn = "transferNFTTxn";
@@ -1757,6 +1757,7 @@ public class AtomicBatchPrecompileTest {
      */
     @Nested
     class GrantRevokeKycSuite {
+
         @HapiTest
         final Stream<DynamicTest> atomicRevokeKycFailWithoutKeyTx() {
             final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -2358,6 +2359,7 @@ public class AtomicBatchPrecompileTest {
      */
     @Nested
     class TokenInfoHTSSuite {
+
         @HapiTest
         final Stream<DynamicTest> atomicHappyPathGetTokenInfo() {
             final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
