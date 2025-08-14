@@ -154,7 +154,6 @@ public class SubmissionManager {
             // or while the system is being shut down. In any event, the user will receive an error code indicating
             // that the transaction was not submitted and they can retry.
 
-            // EXECUTION REVIEWERS: Do we need to make a copy of the payload here? toByteArray() made a copy previously
             final var success = transactionPool.submitApplicationTransaction(payload);
             if (success) {
                 submittedTxns.add(txId);

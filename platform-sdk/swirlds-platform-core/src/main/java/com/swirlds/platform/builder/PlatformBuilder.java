@@ -495,7 +495,6 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
-                transactionPoolNexus,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,

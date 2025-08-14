@@ -168,7 +168,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Submitting the same transaction twice but after first becomes stale is allowed")
         void testSubmittingDuplicateTransactionsCloseTogetherStaleness() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(platform.createTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
             when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(null);
 
             submissionManager.submit(txBody, bytes);
