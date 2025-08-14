@@ -9,7 +9,7 @@
 #ARG UBUNTU_TAG="focal-20220922"
 #ARG UBUNTU_TAG="focal-20221019"
 #ARG UBUNTU_TAG="focal-20221130"
-ARG UBUNTU_TAG="focal-20230605"
+ARG UBUNTU_TAG="bookworm-20250630-slim"
 
 ARG HAVEGED_VERSION="1.9.1-6ubuntu1"
 
@@ -18,7 +18,7 @@ ARG HAVEGED_VERSION="1.9.1-6ubuntu1"
 # Setup Builder Image
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS haveged-builder
+FROM debian:${UBUNTU_TAG} AS haveged-builder
 
 # Define Global Argument Refs
 ARG HAVEGED_VERSION
@@ -45,7 +45,7 @@ RUN sha256sum -c /tmp/checksums/haveged_${HAVEGED_VERSION}_$(dpkg --print-archit
 # Build Final Image
 #
 ########################################################################################################################
-FROM ubuntu:${UBUNTU_TAG} AS network-node-haveged
+FROM debian:${UBUNTU_TAG} AS network-node-haveged
 
 # Define Standard Environment Variables
 ENV LC_ALL=C.UTF-8
