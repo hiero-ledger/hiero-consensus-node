@@ -6,9 +6,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -23,13 +26,15 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * An HSS call that simply dispatches a synthetic transaction body and returns a result that is
- * an encoded {@link ResponseCodeEnum}.
+ * An HSS call that simply dispatches a synthetic transaction body and returns a result that is an encoded
+ * {@link ResponseCodeEnum}.
  */
 public class DispatchForResponseCodeHssCall extends AbstractCall {
 
@@ -42,12 +47,13 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
     private final DispatchGasCalculator dispatchGasCalculator;
     private final Set<Key> authorizingKeys;
     private final DispatchOptions.UsePresetTxnId usePresetTxnId;
+    private final Function<ContractCallStreamBuilder, ByteBuffer> resultEncoder;
 
     /**
      * Convenience overload that slightly eases construction for the most common case.
      *
-     * @param attempt the attempt to translate to a dispatching
-     * @param syntheticBody the synthetic body to dispatch
+     * @param attempt               the attempt to translate to a dispatching
+     * @param syntheticBody         the synthetic body to dispatch
      * @param dispatchGasCalculator the dispatch gas calculator to use
      */
     public DispatchForResponseCodeHssCall(
@@ -62,39 +68,21 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 syntheticBody,
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
-                authorizingKeys);
-    }
-
-    /**
-     * Constructor overload to modify the presetTxnId property.
-     *
-     * @param attempt the attempt to translate to a dispatching
-     * @param syntheticBody the synthetic body to dispatch
-     * @param dispatchGasCalculator the dispatch gas calculator to use
-     */
-    public DispatchForResponseCodeHssCall(
-            @NonNull final HssCallAttempt attempt,
-            @Nullable final TransactionBody syntheticBody,
-            @NonNull final DispatchGasCalculator dispatchGasCalculator,
-            @NonNull final Set<Key> authorizingKeys,
-            @NonNull final DispatchOptions.UsePresetTxnId usePresetTxnId) {
-        super(attempt.systemContractGasCalculator(), attempt.enhancement(), false);
-        this.senderId = attempt.addressIdConverter().convertSender(attempt.senderAddress());
-        this.syntheticBody = syntheticBody;
-        this.verificationStrategy = attempt.defaultVerificationStrategy();
-        this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
-        this.authorizingKeys = authorizingKeys;
-        this.usePresetTxnId = usePresetTxnId;
+                authorizingKeys,
+                e -> encodedRc(e.status()));
     }
 
     /**
      * More general constructor, for cases where perhaps a custom {@link VerificationStrategy} is needed.
      *
-     * @param enhancement the enhancement to use
-     * @param senderId the id of the spender
-     * @param syntheticBody the synthetic body to dispatch
-     * @param verificationStrategy the verification strategy to use
+     * @param enhancement           the enhancement to use
+     * @param gasCalculator         the gas calculator to use
+     * @param senderId              the id of the spender
+     * @param syntheticBody         the synthetic body to dispatch
+     * @param verificationStrategy  the verification strategy to use
      * @param dispatchGasCalculator the dispatch gas calculator to use
+     * @param authorizingKeys       the keys authorizing the dispatch
+     * @param resultEncoder         the encoder to encode ouptup of the result
      */
     // too many parameters
     @SuppressWarnings("java:S107")
@@ -105,14 +93,17 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
             @Nullable final TransactionBody syntheticBody,
             @NonNull final VerificationStrategy verificationStrategy,
             @NonNull final DispatchGasCalculator dispatchGasCalculator,
-            @NonNull final Set<Key> authorizingKeys) {
+            @NonNull final Set<Key> authorizingKeys,
+            @NonNull final Function<ContractCallStreamBuilder, ByteBuffer> resultEncoder) {
         super(gasCalculator, enhancement, false);
         this.senderId = Objects.requireNonNull(senderId);
         this.syntheticBody = syntheticBody;
         this.verificationStrategy = Objects.requireNonNull(verificationStrategy);
         this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
         this.authorizingKeys = authorizingKeys;
-        this.usePresetTxnId = UsePresetTxnId.NO;
+        this.usePresetTxnId =
+                syntheticBody != null && syntheticBody.hasTransactionID() ? UsePresetTxnId.YES : UsePresetTxnId.NO;
+        this.resultEncoder = resultEncoder;
     }
 
     @Override
@@ -139,6 +130,18 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
         if (status != SUCCESS) {
             recordBuilder.status(status);
         }
-        return completionWith(gasRequirement, recordBuilder, encodedRc(recordBuilder.status()));
+        return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
+    }
+
+    /**
+     * Encodes the given {@code ContractCallStreamBuilder.status} and {@code ContractCallStreamBuilder.scheduleID} as a
+     * return value for a schedule create call.
+     *
+     * @param recordBuilder the result of the dispatch to encode
+     * @return the encoded status
+     */
+    public static ByteBuffer scheduleCreateResultEncode(@NonNull final ContractCallStreamBuilder recordBuilder) {
+        return RC_AND_ADDRESS_ENCODER.encode(
+                Tuple.of((long) recordBuilder.status().protoOrdinal(), headlongAddressOf(recordBuilder.scheduleID())));
     }
 }

@@ -215,8 +215,8 @@ public class ReturnTypes {
         + ")";
     // spotless:on
 
-    public static final TupleType RC_AND_ADDRESS_ENCODER = TupleType.parse("(int64,address)");
-    private static final TupleType RC_ENCODER = TupleType.parse(INT_64);
+    public static final TupleType<Tuple> RC_AND_ADDRESS_ENCODER = TupleType.parse(RESPONSE_CODE_ADDRESS);
+    private static final TupleType<Tuple> RC_ENCODER = TupleType.parse(INT_64);
 
     public static Bytes tuweniEncodedRc(@NonNull final ResponseCodeEnum status) {
         return Bytes.wrap(encodedRc(status).array());

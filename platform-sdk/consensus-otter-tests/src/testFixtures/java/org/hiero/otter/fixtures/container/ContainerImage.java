@@ -5,10 +5,6 @@ import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIE
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -32,6 +28,11 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
      */
     public static final int NODE_COMMUNICATION_PORT = 8081;
 
+    /**
+     * Working directory of the container
+     */
+    public static final String APP_ROOT_DIR = "/opt/DockerApp";
+
     private static final int BASE_DEBUG_PORT = 5005;
 
     /**
@@ -40,15 +41,13 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
      * @param dockerImage the Docker image to run
      * @param network the Docker network to attach the container to
      * @param selfId the selfId for the node
-     * @param outputDirectory the local directory to bind to the container's saved state directory
-     * @param savedStateDirectory the name of the directory in the container where saved state will be stored
+     * Note: Previously this class bind-mounted a local saved-state directory into the container. We now copy
+     * files out of the container on demand instead of mounting a directory.
      */
     public ContainerImage(
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Network network,
-            @NonNull final NodeId selfId,
-            @NonNull final Path outputDirectory,
-            @NonNull final String savedStateDirectory) {
+            @NonNull final NodeId selfId) {
         super(dockerImage);
 
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
@@ -63,17 +62,10 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
                 .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)
                 .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, debugPort));
 
-        // Create a local directory for saved state directory contents and
-        // bind it to the saved state directory for the node in the container
-        final Path localSavedStateDirectory = outputDirectory.resolve(savedStateDirectory);
-        try {
-            Files.createDirectories(localSavedStateDirectory);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
-        }
-        withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
         withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         addFixedExposedPort(debugPort, debugPort);
+
+        withWorkingDirectory(APP_ROOT_DIR);
     }
 
     private static String getJavaToolOptions(final int debugPort) {
