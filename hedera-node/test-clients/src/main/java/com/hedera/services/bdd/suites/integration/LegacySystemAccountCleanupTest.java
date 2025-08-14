@@ -54,8 +54,6 @@ import java.util.function.LongFunction;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -69,8 +67,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(INTEGRATION)
 @TargetEmbeddedMode(REPEATABLE)
 public class LegacySystemAccountCleanupTest implements SavedStateSpec {
-    private static final Logger log = LogManager.getLogger(LegacySystemAccountCleanupTest.class);
-
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_BALANCE_TO_SWEEP = 123;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
@@ -104,7 +100,6 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                             .<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
                     final var expectedAccounts = map.getBackingStore().size();
                     final var actualCounts = requireNonNull(singleton.get()).numAccounts();
-                    log.info("Counts: {}", requireNonNull(singleton.get()));
                     assertEquals(expectedAccounts, actualCounts, "Singleton count mismatch after upgrade");
 
                     // And validate the resulting record stream
@@ -117,13 +112,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
             final var loc = path.toAbsolutePath().toString();
             final var lastRecordFile = orderedRecordFilesFrom(loc, f -> true).getLast();
             final var lastSignatureFile = lastRecordFile.replace(".gz", "_sig");
-            conditionFuture(
-                            () -> {
-                                final boolean exists = new File(lastSignatureFile).exists();
-                                log.info("Signature file {} exists? {}", lastSignatureFile, exists);
-                                return exists;
-                            },
-                            () -> 500L)
+            conditionFuture(() -> new File(lastSignatureFile).exists(), () -> 500L)
                     .orTimeout(5, TimeUnit.SECONDS)
                     .join();
             final var data = STREAM_FILE_ACCESS.readStreamDataFrom(loc, "sidecar");
@@ -205,12 +194,10 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
         final var entityStates = (MapWritableStates) fakeState.getWritableStates(EntityIdService.NAME);
         final var countsSingleton = entityStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         final var oldCounts = requireNonNull(countsSingleton.get());
-        log.info("Old counts: {}", oldCounts);
         final var newCounts = oldCounts
                 .copyBuilder()
                 .numAccounts(oldCounts.numAccounts() + (FIRST_POST_SYSTEM_FILE_ENTITY - FIRST_SYSTEM_FILE_ENTITY))
                 .build();
-        log.info("New counts: {}", newCounts);
         countsSingleton.put(newCounts);
         entityStates.commit();
     }
