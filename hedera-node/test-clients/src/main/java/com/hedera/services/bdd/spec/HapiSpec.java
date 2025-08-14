@@ -74,6 +74,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -91,6 +92,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualS
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
@@ -124,6 +126,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -473,6 +476,18 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     /**
+     * Returns a function mapping an entity number to an {@link ContractID} for the target network.
+     * @return the contract ID factory function
+     */
+    public LongFunction<ContractID> contractIdFactory() {
+        return num -> ContractID.newBuilder()
+                .setShardNum(hapiSetup.shard())
+                .setRealmNum(hapiSetup.realm())
+                .setContractNum(num)
+                .build();
+    }
+
+    /**
      * Returns the best-effort representation of the properties in effect on startup of the target network.
      *
      * @return the startup properties
@@ -517,6 +532,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         } else {
             throw new IllegalStateException(embeddedHedera.getClass().getSimpleName() + " is not repeatable");
         }
+    }
+
+    /**
+     * Returns the {@link SubProcessNetwork} if the target network is of that type, or throws.
+     * @return the target subprocess network
+     */
+    public SubProcessNetwork subProcessNetworkOrThrow() {
+        if (!(targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
+            throw new IllegalStateException("Target network is not subprocess");
+        }
+        return network;
     }
 
     /**

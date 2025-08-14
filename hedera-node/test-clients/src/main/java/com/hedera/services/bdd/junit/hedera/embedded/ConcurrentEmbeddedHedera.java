@@ -204,6 +204,9 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                 // Now drain all events that will go in the next round and pre-handle them
                 final List<FakeEvent> newEvents = new ArrayList<>();
                 queue.drainTo(newEvents);
+                if (allEventsStale.get()) {
+                    newEvents.clear();
+                }
                 newEvents.forEach(event -> hedera.onPreHandle(event, state, NOOP_STATE_SIG_CALLBACK));
                 prehandledEvents.addAll(newEvents);
             } catch (Throwable t) {

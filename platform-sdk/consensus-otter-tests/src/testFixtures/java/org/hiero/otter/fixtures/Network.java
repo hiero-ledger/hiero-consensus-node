@@ -75,14 +75,14 @@ public interface Network {
      * @return a list of nodes in the network
      */
     @NonNull
-    List<Node> getNodes();
+    List<Node> nodes();
 
     /**
      * Gets the total weight of the network. Always positive.
      *
      * @return the network weight
      */
-    long getTotalWeight();
+    long totalWeight();
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -92,7 +92,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
-    Network setConfigValue(@NonNull String key, @NonNull String value);
+    Network withConfigValue(@NonNull String key, @NonNull String value);
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -102,7 +102,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
-    Network setConfigValue(@NonNull String key, int value);
+    Network withConfigValue(@NonNull String key, int value);
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -112,7 +112,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
-    Network setConfigValue(@NonNull String key, long value);
+    Network withConfigValue(@NonNull String key, long value);
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -122,7 +122,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
-    Network setConfigValue(@NonNull String key, boolean value);
+    Network withConfigValue(@NonNull String key, boolean value);
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -132,7 +132,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
-    Network setConfigValue(@NonNull String key, @NonNull Path value);
+    Network withConfigValue(@NonNull String key, @NonNull Path value);
 
     /**
      * Freezes the network.
@@ -172,9 +172,9 @@ public interface Network {
      * will become effective only after a node is (re-)started.
      *
      * @param version the semantic version to set for the network
-     * @see Node#setVersion(SemanticVersion)
+     * @see Node#version(SemanticVersion)
      */
-    void setVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
      * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next

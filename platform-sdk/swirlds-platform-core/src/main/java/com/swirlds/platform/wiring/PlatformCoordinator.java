@@ -5,6 +5,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -30,7 +31,6 @@ import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
@@ -49,7 +49,7 @@ public class PlatformCoordinator {
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final GossipWiring gossipWiring;
-    private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
+    private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
@@ -93,7 +93,7 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
             @NonNull final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
             @NonNull final GossipWiring gossipWiring,
-            @NonNull final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring,
+            @NonNull final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring,
             @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
             @NonNull
                     final ComponentWiring<

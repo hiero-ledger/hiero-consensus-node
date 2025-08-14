@@ -588,14 +588,17 @@ When it is time to create a new event, a call is made to Execution to fill the e
 created events are sent to Event Intake, which then validates them, assigns generations, durably persists them, etc.,
 before sending them out through Gossip and so forth.
 
-#### Stale Self-Events
+#### Stale Events
 
-The Event Creator needs to know about the state of the hashgraph for several reasons. If it uses the Tipset algorithm,
-then it needs a way to evict events from its internal caches that are ancient. And it needs to report "stale"
-self-events to the Execution layer. A stale self-event is a self-event that became ancient without ever coming to
-consensus. If the Event Creator determines that a self-event has become stale, then it will notify the Execution layer.
-Execution may look at each transaction within the self-event, and decide that some transactions (such as those that have
-expired or will soon expire) should be dropped while others (such as those not close to expiration) should be
+The hashgraph module will know which events will never reach consensus and it needs to report "stale" events to the
+Execution layer. A stale event is an event that became ancient without ever coming to consensus. The Hashgraph module
+will only report events as stale if they were previously reported as pre-consensus events and sent
+to [onPreHandleEvent](#onprehandleevent) to the execution layer. If the Hashgraph module receives an event that is
+already ancient and thus must be stale, it will just discard it.
+
+Once the Hashgraph module determines that an event has become stale, then it will notify the Execution layer. Execution
+may, for example, look at each transaction within the self-events, and decide that some transactions (such as those that
+have expired or will soon expire) should be dropped while others (such as those not close to expiration) should be
 resubmitted in the next event.
 
 ### Sheriff Module
@@ -676,8 +679,9 @@ transactions of that stale event, and resubmit those transactions in the next `o
 
 #### onPreHandleEvent
 
-Called by Consensus once for each event emitted in topological order from Event Intake, giving Execution a chance to
-perform some work before the event even comes to consensus.
+Called by Consensus once for each event emitted in topological order from the Hashgraph module, giving Execution a
+chance to perform some work before the event even comes to consensus. Each event passed to this method is guaranteed
+to eventually either reach consensus or become stale.
 
 #### onRound
 
