@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
+import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE_NAME;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
@@ -34,10 +42,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = "/opt/DockerApp/apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/DockerApp.jar";
 
     /** The string location of the docker application libraries */
-    private static final String DOCKER_APP_LIBS = "/opt/DockerApp/lib/*";
+    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "/lib/*";
 
     /**
      * The main class in the docker application jar that starts the
@@ -70,7 +78,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Override
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(LogMarker.STARTUP.getMarker(), "Init request received");
+        log.info("Init request received");
         final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
@@ -135,17 +143,22 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
-        Duration timeWaited = Duration.ZERO;
-        while (timeWaited.compareTo(MAX_MARKER_FILE_WAIT_TIME) < 0) {
-            if (Files.exists(STARTED_MARKER_FILE)) {
-                log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
-                Files.delete(STARTED_MARKER_FILE);
-                return true;
+        try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
+            Path.of(CONTAINER_APP_WORKING_DIR).register(watchService, ENTRY_CREATE);
+            final WatchKey watchKey = watchService.poll(MAX_MARKER_FILE_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
+            if (watchKey == null) {
+                return false;
             }
-            Thread.sleep(500);
-            timeWaited = timeWaited.plusMillis(500);
+            for (final WatchEvent<?> event : watchKey.pollEvents()) {
+                if (event.kind() == ENTRY_CREATE
+                        && STARTED_MARKER_FILE_NAME.equals(event.context().toString())) {
+                    log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
+                    Files.delete(STARTED_MARKER_FILE);
+                    return true;
+                }
+            }
+            return false;
         }
-        return false;
     }
 
     private boolean attemptingToChangeSelfId(@NonNull final NodeId requestedSelfId) {

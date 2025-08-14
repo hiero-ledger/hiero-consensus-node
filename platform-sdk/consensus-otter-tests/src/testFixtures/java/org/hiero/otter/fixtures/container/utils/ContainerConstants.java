@@ -68,6 +68,7 @@ public class ContainerConstants {
      * @param debugPort the debug port to expose
      * @return the Java tool options string
      */
+    @NonNull
     public static String getJavaToolOptions(final int debugPort) {
         return String.format(
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:%s -Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener",
