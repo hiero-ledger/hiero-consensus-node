@@ -277,7 +277,7 @@ public class BlockNodeSimulatorController {
             final int port = shutdownSimulatorPorts.get(index);
 
             // Create a new server on the same port
-            final SimulatedBlockNodeServer newServer = new SimulatedBlockNodeServer(port);
+            final SimulatedBlockNodeServer newServer = new SimulatedBlockNodeServer(port, null);
             newServer.start();
 
             // Replace the old server in the list

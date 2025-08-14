@@ -1144,6 +1144,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
             if (blockStreamEnabled) {
                 notifications.unregister(StateHashedListener.class, daggerApp.blockStreamManager());
+                daggerApp.blockBufferService().shutdown();
             }
         }
         if (trigger == RECONNECT) {
@@ -1218,6 +1219,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                                             .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
+            initializeBlockNodeConnections();
         }
     }
 

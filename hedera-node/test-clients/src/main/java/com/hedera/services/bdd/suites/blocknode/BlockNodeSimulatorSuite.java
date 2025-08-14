@@ -110,6 +110,7 @@ public class BlockNodeSimulatorSuite {
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -121,13 +122,48 @@ public class BlockNodeSimulatorSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(2)
+    final Stream<DynamicTest> node0StreamingBufferFull() {
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 2,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(3)
+    final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -169,7 +205,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(3)
+    @Order(5)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -255,7 +291,7 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(20, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -282,35 +318,6 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 2,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
-            })
-    @Order(4)
-    final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
-        return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
@@ -326,7 +333,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(5)
+    @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
@@ -371,7 +378,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
@@ -423,7 +430,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
