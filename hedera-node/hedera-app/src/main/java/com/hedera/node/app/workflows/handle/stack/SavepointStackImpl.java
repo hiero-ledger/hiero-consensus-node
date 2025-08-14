@@ -18,7 +18,6 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -533,7 +532,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 break;
             }
         }
-        List<StateChange> batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
+
         int nextNonceOffset = 1;
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
@@ -594,12 +593,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().transactionIDOrThrow(),
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
-                case BLOCKS ->
+                case BLOCKS -> {
+                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
                             .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, batchStateChanges));
+                }
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
+                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
                             .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, batchStateChanges));
                 }
