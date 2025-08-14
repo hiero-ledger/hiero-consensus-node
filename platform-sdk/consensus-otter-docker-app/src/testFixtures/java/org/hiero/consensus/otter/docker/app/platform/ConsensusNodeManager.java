@@ -6,7 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -34,17 +33,15 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.TransactionFactory;
@@ -57,14 +54,26 @@ import org.hiero.otter.fixtures.app.OtterAppState;
  * submitting transactions and listening for consensus rounds.
  */
 public class ConsensusNodeManager {
-    private static final Logger LOGGER = LogManager.getLogger(ConsensusNodeManager.class);
 
-    private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
-    private static final String SWIRLD_NAME = "123";
+    private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
+    /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
-    private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
+
+    /**
+     * Indicates if the consensus node is running or not. Can be removed in the future when the entire process is
+     * killed.
+     */
+    private boolean running;
+
+    /**
+     * A threadsafe list of consensus round listeners. Written to by the platform, read by listeners on the dispatch
+     * thread.
+     */
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
+
+    /** An optional observer of marker files. {@code null} if writing marker files is not enabled in the platform. */
+    @Nullable
     private final ContainerMarkerFileObserver markerFileObserver;
 
     /**
@@ -72,25 +81,24 @@ public class ConsensusNodeManager {
      * initializes the platform, sets up all necessary parts for the consensus node.
      *
      * @param selfId the unique identifier for this node, must not be {@code null}
-     * @param version the semantic version of the application, must not be {@code null}
+     * @param platformConfig the configuration for the platform, must not be {@code null}
      * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
-     * @param keysAndCerts the keys and certificates for this node, must not be {@code null}
-     * @param overriddenProperties optional properties to override in the configuration, may be {@code null}
+     * @param version the semantic version of the platform, must not be {@code null}
+     * @param keysAndCerts the keys and certificates for this node, must not
      * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
      */
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
-            @NonNull final SemanticVersion version,
+            @NonNull final Configuration platformConfig,
             @NonNull final Roster genesisRoster,
+            @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Map<String, String> overriddenProperties,
             @NonNull final Executor backgroundExecutor) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        final Configuration platformConfig = createConfiguration(overriddenProperties);
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
@@ -100,7 +108,7 @@ public class ConsensusNodeManager {
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        LOGGER.info("Starting node {} with version {}", selfId, version);
+        log.info("Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
@@ -114,8 +122,8 @@ public class ConsensusNodeManager {
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
-                APP_NAME,
-                SWIRLD_NAME,
+                OtterApp.APP_NAME,
+                OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
@@ -126,8 +134,8 @@ public class ConsensusNodeManager {
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
         final PlatformBuilder builder = PlatformBuilder.create(
-                        APP_NAME,
-                        SWIRLD_NAME,
+                        OtterApp.APP_NAME,
+                        OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
                         OtterApp.INSTANCE,
@@ -153,9 +161,7 @@ public class ConsensusNodeManager {
 
         platform = componentBuilder.build();
 
-        platform.getNotificationEngine()
-                .register(PlatformStatusChangeListener.class, newStatus -> status.set(newStatus.getNewStatus()));
-
+        // Setup the marker file observer if the marker files directory is configured
         final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
         markerFileObserver =
@@ -163,23 +169,12 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node. This method starts the consensus node platform and application so that it can start
-     * receiving transactions.
+     * Starts the consensus node. Once complete, transactions can be submitted.
      */
     public void start() {
+        log.info("Starting node");
+        running = true;
         platform.start();
-    }
-
-    /**
-     * Shuts down the consensus node.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
-     */
-    public void destroy() throws InterruptedException {
-        if (markerFileObserver != null) {
-            markerFileObserver.destroy();
-        }
-        platform.destroy();
     }
 
     /**
@@ -211,6 +206,17 @@ public class ConsensusNodeManager {
     }
 
     /**
+     * Checks if the consensus node is currently running.
+     * <p>
+     * In the future, the entire process will be killed and this method can be removed.
+     *
+     * @return {@code true} if the consensus node is running, {@code false} otherwise
+     */
+    public boolean isRunning() {
+        return running;
+    }
+
+    /**
      * Registers a listener to receive notifications about new consensus rounds.
      *
      * @param listener the listener to register, must not be {@code null}
@@ -228,6 +234,21 @@ public class ConsensusNodeManager {
         if (markerFileObserver != null) {
             markerFileObserver.addListener(listener);
         }
+    }
+
+    /**
+     * Shutdowns the platform's inner threads and halts processing. Gossip still continues.
+     * <p>
+     * In the future, the entire process will be killed and this method can be removed.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
+     */
+    public void destroy() throws InterruptedException {
+        if (markerFileObserver != null) {
+            markerFileObserver.destroy();
+        }
+        platform.destroy();
+        running = false;
     }
 
     /**

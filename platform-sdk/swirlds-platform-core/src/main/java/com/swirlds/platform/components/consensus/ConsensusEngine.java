@@ -5,10 +5,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.Consensus;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
-import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -25,14 +22,15 @@ public interface ConsensusEngine {
     void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
 
     /**
-     * Add an event to the hashgraph
+     * Add an event to the consensus engine. This event might not be added to the hashgraph immediately, but it will be
+     * processed and will be returned as part of the output if it's a pre-consensus event.
      *
      * @param event an event to be added
-     * @return a list of rounds that came to consensus as a result of adding the event
+     * @return a list of rounds and a list of recent event waiting to reach consensus
      */
     @NonNull
     @InputWireLabel("PlatformEvent")
-    List<ConsensusRound> addEvent(@NonNull PlatformEvent event);
+    ConsensusEngineOutput addEvent(@NonNull PlatformEvent event);
 
     /**
      * Perform an out-of-band snapshot update. This happens at restart/reconnect boundaries.
@@ -40,14 +38,4 @@ public interface ConsensusEngine {
      * @param snapshot the snapshot to adopt
      */
     void outOfBandSnapshotUpdate(@NonNull ConsensusSnapshot snapshot);
-
-    /**
-     * Extract a list of events intended for the consensus events stream
-     *
-     * @return a list of CES events
-     */
-    @NonNull
-    default List<CesEvent> getCesEvents(@NonNull final ConsensusRound round) {
-        return round.getStreamedEvents();
-    }
 }

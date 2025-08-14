@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNAUTHORIZED;
@@ -8,6 +10,7 @@ import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
@@ -57,73 +60,71 @@ public class PrivilegesVerifier {
             @NonNull final HederaFunctionality functionality,
             @NonNull final TransactionBody txBody) {
         return switch (functionality) {
-                // Authorization privileges for special transactions
+            // Authorization privileges for special transactions
             case FREEZE -> checkFreeze(payerId);
             case SYSTEM_DELETE -> checkSystemDelete(payerId, txBody.systemDeleteOrThrow());
             case SYSTEM_UNDELETE -> checkSystemUndelete(payerId, txBody.systemUndeleteOrThrow());
             case UNCHECKED_SUBMIT -> checkUncheckedSubmit(payerId);
 
-                // Authorization privileges for file updates and appends
-            case FILE_UPDATE -> checkFileChange(
-                    payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
-            case FILE_APPEND -> checkFileChange(
-                    payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
-                // Authorization for crypto updates
+            // Authorization privileges for file updates and appends
+            case FILE_UPDATE ->
+                checkFileChange(
+                        payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
+            case FILE_APPEND ->
+                checkFileChange(
+                        payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
+            // Authorization for crypto updates
             case CRYPTO_UPDATE -> checkCryptoUpdate(payerId, txBody.cryptoUpdateAccountOrThrow());
 
-                // Authorization for deletes
-            case FILE_DELETE -> checkEntityDelete(
-                    txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
-            case CRYPTO_DELETE -> checkEntityDelete(
-                    txBody.cryptoDeleteOrThrow().deleteAccountIDOrThrow().accountNumOrThrow());
+            // Authorization for deletes
+            case FILE_DELETE ->
+                checkEntityDelete(txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
+            case CRYPTO_DELETE ->
+                checkEntityDelete(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT));
             case NODE_CREATE -> checkNodeCreate(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
 
-    private boolean isSystemEntity(final long entityNum) {
-        return 1 <= entityNum && entityNum <= numReservedSystemEntities;
-    }
-
     private boolean isSuperUser(@NonNull final AccountID accountID) {
-        final long accountNum = accountID.accountNumOrThrow();
+        final long accountNum = effectiveNumber(accountID);
         return accountNum == accountsConfig.treasury() || accountNum == accountsConfig.systemAdmin();
     }
 
     private boolean isTreasury(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.treasury();
+        return effectiveNumber(accountID) == accountsConfig.treasury();
     }
 
     private boolean hasSoftwareUpdatePrivilege(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
+        return effectiveNumber(accountID) == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasFreezePrivilege(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.freezeAdmin() || isSuperUser(accountID);
+        return effectiveNumber(accountID) == accountsConfig.freezeAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemDeletePrivilege(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
+        return effectiveNumber(accountID) == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemUndeletePrivilege(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
+        return effectiveNumber(accountID) == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasAddressBookPrivilege(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
-    private boolean hasExchangeRatePrivilige(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
+    private boolean hasExchangeRatePrivilege(@NonNull final AccountID accountID) {
+        return effectiveNumber(accountID) == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
     }
 
-    private boolean hasFeeSchedulePrivilige(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
+    private boolean hasFeeSchedulePrivilege(@NonNull final AccountID accountID) {
+        return effectiveNumber(accountID) == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
     }
 
-    private boolean hasNodeCreatePrivilige(@NonNull final AccountID accountID) {
-        return accountID.accountNumOrThrow() == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+    private boolean hasNodeCreatePrivilege(@NonNull final AccountID accountID) {
+        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
     private SystemPrivilege checkFreeze(@NonNull final AccountID accountID) {
@@ -132,9 +133,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemDelete(
             @NonNull final AccountID accountID, @NonNull final SystemDeleteTransactionBody op) {
-        final var entityNum = op.hasFileID()
-                ? op.fileIDOrThrow().fileNum()
-                : op.contractIDOrThrow().contractNumOrThrow();
+        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -143,9 +142,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemUndelete(
             @NonNull final AccountID accountID, @NonNull final SystemUndeleteTransactionBody op) {
-        final var entityNum = op.hasFileID()
-                ? op.fileIDOrThrow().fileNum()
-                : op.contractIDOrThrow().contractNumOrThrow();
+        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -163,18 +160,18 @@ public class PrivilegesVerifier {
         if (entityNum == filesConfig.addressBook() || entityNum == filesConfig.nodeDetails()) {
             return hasAddressBookPrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.networkProperties() || entityNum == filesConfig.hapiPermissions()) {
-            return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilige(accountID)
+            return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilege(accountID)
                     ? AUTHORIZED
                     : UNAUTHORIZED;
         } else if (entityNum == filesConfig.feeSchedules()) {
-            return hasFeeSchedulePrivilige(accountID) ? AUTHORIZED : UNAUTHORIZED;
+            return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.exchangeRates()) {
-            return hasExchangeRatePrivilige(accountID) ? AUTHORIZED : UNAUTHORIZED;
+            return hasExchangeRatePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (filesConfig.softwareUpdateRange().left() <= entityNum
                 && entityNum <= filesConfig.softwareUpdateRange().right()) {
             return hasSoftwareUpdatePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.throttleDefinitions()) {
-            return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilige(accountID)
+            return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilege(accountID)
                     ? AUTHORIZED
                     : UNAUTHORIZED;
         }
@@ -183,16 +180,14 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkCryptoUpdate(
             @NonNull final AccountID payerId, @NonNull final CryptoUpdateTransactionBody op) {
-        // while dispatching hollow account finalization transaction body, the accountId is set to DEFAULT
+        // When dispatching a hollow account finalization, the target account id is set to DEFAULT
         final var targetId = op.accountIDToUpdateOrElse(AccountID.DEFAULT);
-        final long targetNum = targetId.accountNumOrElse(0L);
-        final var treasury = accountsConfig.treasury();
-        final var payerNum = payerId.accountNumOrElse(0L);
-
+        final long targetNum = effectiveNumber(targetId);
         if (!isSystemEntity(targetNum)) {
             return UNNECESSARY;
         } else {
-            if (payerNum == treasury) {
+            final long payerNum = payerId.accountNumOrElse(0L);
+            if (payerNum == accountsConfig.treasury()) {
                 return AUTHORIZED;
             } else if (payerNum == accountsConfig.systemAdmin()) {
                 return isTreasury(targetId) ? UNAUTHORIZED : AUTHORIZED;
@@ -203,10 +198,65 @@ public class PrivilegesVerifier {
     }
 
     private SystemPrivilege checkNodeCreate(@NonNull final AccountID payerId) {
-        return hasNodeCreatePrivilige(payerId) ? AUTHORIZED : UNAUTHORIZED;
+        return hasNodeCreatePrivilege(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {
         return isSystemEntity(entityNum) ? IMPERMISSIBLE : UNNECESSARY;
+    }
+
+    private SystemPrivilege checkEntityDelete(@NonNull final AccountID accountId) {
+        return isSystemEntity(accountId) ? IMPERMISSIBLE : UNNECESSARY;
+    }
+
+    /**
+     * Returns whether the given account ID is a system entity.
+     * @param accountID the {@link AccountID} to check
+     * @return {@code true} if the account ID is a system entity, otherwise {@code false}
+     */
+    private boolean isSystemEntity(@NonNull final AccountID accountID) {
+        return isSystemEntity(effectiveNumber(accountID));
+    }
+
+    /**
+     * Returns true iff the given entity number refers to an existing system entity.
+     * @param entityNum the entity number to check
+     * @return {@code true} if the entity number is a system entity, otherwise {@code false}
+     */
+    private boolean isSystemEntity(final long entityNum) {
+        return 1 <= entityNum && entityNum <= numReservedSystemEntities;
+    }
+
+    /**
+     * Given account id, returns the effective number for privileges checks.
+     * @param accountID the {@link AccountID} to check
+     * @return the effective number for privileges checks
+     */
+    private long effectiveNumber(@NonNull final AccountID accountID) {
+        if (accountID.hasAlias()) {
+            final var rawAlias = accountID.aliasOrThrow().toByteArray();
+            if (isLongZeroAddress(rawAlias)) {
+                return numberOfLongZero(rawAlias);
+            } else {
+                // Not a system entity, so number is irrelevant for privileges checks
+                return 0L;
+            }
+        } else {
+            return accountID.accountNumOrElse(0L);
+        }
+    }
+
+    private long effectiveNumber(@NonNull final ContractID contractID) {
+        if (contractID.hasEvmAddress()) {
+            final var rawAlias = contractID.evmAddressOrThrow().toByteArray();
+            if (isLongZeroAddress(rawAlias)) {
+                return numberOfLongZero(rawAlias);
+            } else {
+                // Not a system entity, so number is irrelevant for privileges checks
+                return 0L;
+            }
+        } else {
+            return contractID.contractNumOrElse(0L);
+        }
     }
 }

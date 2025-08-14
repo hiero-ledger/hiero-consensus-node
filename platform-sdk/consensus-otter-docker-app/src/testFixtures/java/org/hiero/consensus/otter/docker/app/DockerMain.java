@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 
 /**
@@ -20,11 +17,8 @@ import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
  */
 public final class DockerMain {
 
-    /** Port on which the gRPC service listens. */
-    private static final int GRPC_PORT = 8080;
-
-    /** Default thread name for the gRCP service */
-    private static final String DEFAULT_GRPC_THREAD_NAME = "grpc-outbound-dispatcher";
+    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc} listens. */
+    private static final int CONTAINER_CONTROL_SERVICE_PORT = 8080;
 
     /** The underlying gRPC server instance. */
     private final Server grpcServer;
@@ -36,34 +30,17 @@ public final class DockerMain {
      * @param backgroundExecutor the {@link Executor} to use for background tasks
      * @throws NullPointerException if {@code dispatchExecutor} is {@code null}
      */
-    public DockerMain(@NonNull final ExecutorService dispatchExecutor, @NonNull final Executor backgroundExecutor) {
-        grpcServer = ServerBuilder.forPort(GRPC_PORT)
-                .addService(new DockerManager(dispatchExecutor, backgroundExecutor))
+    public DockerMain() {
+        grpcServer = ServerBuilder.forPort(CONTAINER_CONTROL_SERVICE_PORT)
+                .addService(new DockerManager())
                 .build();
-    }
-
-    /**
-     * Creates the default {@link ExecutorService} for the gRPC server.
-     * <p>
-     * The default executor is a single-threaded executor
-     * </p>
-     *
-     * @return a single-threaded {@link ExecutorService} with custom thread factory
-     */
-    private static ExecutorService createDispatchExecutor() {
-        final ThreadFactory factory = r -> {
-            final Thread t = new Thread(r, DEFAULT_GRPC_THREAD_NAME);
-            t.setDaemon(true);
-            return t;
-        };
-        return Executors.newSingleThreadExecutor(factory);
     }
 
     /**
      * Main method to start the gRPC server.
      * <p>
-     * This method initializes a {@link DockerMain} instance and starts the gRPC server,
-     * blocking until the server is terminated.
+     * This method initializes a {@link DockerMain} instance and starts the gRPC server, blocking until the server is
+     * terminated.
      * </p>
      *
      * @param args command-line arguments (not used)
@@ -72,7 +49,7 @@ public final class DockerMain {
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
         DockerLogConfigBuilder.configure(Path.of(""), null);
-        new DockerMain(createDispatchExecutor(), Executors.newCachedThreadPool()).startGrpcServer();
+        new DockerMain().startGrpcServer();
     }
 
     /**
