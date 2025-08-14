@@ -25,9 +25,13 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
@@ -35,13 +39,14 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -98,6 +103,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -412,32 +418,34 @@ public class SystemTransactions {
         requireNonNull(state);
         requireNonNull(now);
         final AtomicReference<AccountID> legacyAccountId = new AtomicReference<>();
+        final Consumer<Consumer<List<StateChange>>> removeLegacyAccount = cb -> {
+            if (streamMode != RECORDS) {
+                immediateStateChangeListener.resetKvStateChanges(null);
+            }
+            // On success, actually remove the legacy account from state
+            final var tokenStates = state.getWritableStates(TokenService.NAME);
+            final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
+            accountsState.remove(legacyAccountId.get());
+            ((CommittableWritableStates) tokenStates).commit();
+            if (streamMode != RECORDS) {
+                final var changes = immediateStateChangeListener.getKvStateChanges();
+                if (!changes.isEmpty()) {
+                    cb.accept(changes);
+                }
+            }
+            // And decrement the entity count for the account type
+            final var entityStates = state.getWritableStates(EntityIdService.NAME);
+            final var entityCounters = new WritableEntityIdStore(entityStates);
+            entityCounters.adjustEntityCount(ACCOUNT, -1);
+            ((CommittableWritableStates) entityStates).commit();
+        };
         // System context for dispatching CryptoDelete with an onSuccess callback
         // that completely removes the legacy account from state after the dispatch
         final var systemContext = newSystemContext(
                 now,
                 state,
-                dispatch -> {
-                    if (streamMode != RECORDS) {
-                        immediateStateChangeListener.resetKvStateChanges(null);
-                    }
-                    // On success, actually remove the legacy account from state
-                    final var tokenStates = state.getWritableStates(TokenService.NAME);
-                    final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
-                    accountsState.remove(legacyAccountId.get());
-                    ((CommittableWritableStates) tokenStates).commit();
-                    if (streamMode != RECORDS) {
-                        final var changes = immediateStateChangeListener.getKvStateChanges();
-                        if (!changes.isEmpty()) {
-                            dispatch.streamBuilder().stateChanges(changes);
-                        }
-                    }
-                    // And decrement the entity count for the account type
-                    final var entityStates = state.getWritableStates(EntityIdService.NAME);
-                    final var entityCounters = new WritableEntityIdStore(entityStates);
-                    entityCounters.adjustEntityCount(ACCOUNT, -1);
-                    ((CommittableWritableStates) entityStates).commit();
-                },
+                dispatch -> removeLegacyAccount.accept(
+                        changes -> dispatch.streamBuilder().stateChanges(changes)),
                 UseReservedConsensusTimes.YES,
                 TriggerStakePeriodSideEffects.YES);
         long i = FIRST_SYSTEM_FILE_ENTITY;
@@ -451,10 +459,27 @@ public class SystemTransactions {
             final var legacyAccount = accountsState.get(accountId);
             if (legacyAccount != null) {
                 legacyAccountId.set(accountId);
-                log.info("Deleting {} @ {}", accountId, systemContext.now());
-                systemContext.dispatchAdmin(b -> b.cryptoDelete(CryptoDeleteTransactionBody.newBuilder()
-                        .deleteAccountID(accountId)
-                        .transferAccountID(feeCollectionId)));
+                final long balance = legacyAccount.tinybarBalance();
+                if (balance > 0) {
+                    log.info("Sweeping {} tinybars from {} @ {}", balance, accountId, systemContext.now());
+                    systemContext.dispatchAdmin(b -> b.cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder()
+                                    .accountAmounts(List.of(
+                                            AccountAmount.newBuilder()
+                                                    .accountID(accountId)
+                                                    .amount(-balance)
+                                                    .build(),
+                                            AccountAmount.newBuilder()
+                                                    .accountID(feeCollectionId)
+                                                    .amount(+balance)
+                                                    .build()))
+                                    .build())));
+                } else {
+                    log.info("Removing zero-balance legacy account {} @ {}", accountId, systemContext.now());
+                    removeLegacyAccount.accept(changes -> blockStreamManager.writeItem((t) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(t, new ArrayList<>(changes)))
+                            .build()));
+                }
             }
         }
         return i == FIRST_POST_SYSTEM_FILE_ENTITY;

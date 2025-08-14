@@ -481,8 +481,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public LongFunction<ContractID> contractIdFactory() {
         return num -> ContractID.newBuilder()
-                .setShardNum(hapiSetup.shard())
-                .setRealmNum(hapiSetup.realm())
+                .setShardNum(shard())
+                .setRealmNum(realm())
                 .setContractNum(num)
                 .build();
     }
@@ -493,8 +493,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public LongFunction<AccountID> accountIdFactory() {
         return num -> AccountID.newBuilder()
-                .setShardNum(hapiSetup.shard())
-                .setRealmNum(hapiSetup.realm())
+                .setShardNum(shard())
+                .setRealmNum(realm())
                 .setAccountNum(num)
                 .build();
     }

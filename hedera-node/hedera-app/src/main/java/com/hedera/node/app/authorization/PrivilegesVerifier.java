@@ -216,19 +216,6 @@ public class PrivilegesVerifier {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 
-    private SystemPrivilege checkEntityDelete(@NonNull final AccountID accountId) {
-        return isSystemEntity(accountId) ? IMPERMISSIBLE : UNNECESSARY;
-    }
-
-    /**
-     * Returns whether the given account ID is a system entity.
-     * @param accountID the {@link AccountID} to check
-     * @return {@code true} if the account ID is a system entity, otherwise {@code false}
-     */
-    private boolean isSystemEntity(@NonNull final AccountID accountID) {
-        return isSystemEntity(effectiveNumber(accountID));
-    }
-
     /**
      * Returns true iff the given entity number refers to an existing system entity.
      * @param entityNum the entity number to check

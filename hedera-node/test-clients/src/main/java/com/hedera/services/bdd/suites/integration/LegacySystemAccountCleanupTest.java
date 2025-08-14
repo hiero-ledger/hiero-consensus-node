@@ -19,7 +19,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,6 +37,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,6 +72,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
     private static final Logger log = LogManager.getLogger(LegacySystemAccountCleanupTest.class);
 
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
+    private static final long FIRST_BALANCE_TO_SWEEP = 123;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
     @RestartHapiTest(restartType = UPGRADE_BOUNDARY, savedStateSpec = LegacySystemAccountCleanupTest.class)
@@ -131,8 +133,8 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                     .toList();
             Instant now = null;
             final Set<Instant> timestamps = new HashSet<>();
-            final Set<Long> numbersToDelete =
-                    new HashSet<>(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
+            final Set<Long> accountNumbersToSweep =
+                    new HashSet<>(LongStream.range(FIRST_BALANCE_TO_SWEEP, FIRST_POST_SYSTEM_FILE_ENTITY)
                             .boxed()
                             .toList());
             for (final var entry : entries) {
@@ -144,14 +146,27 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                     Assertions.fail("Timestamp " + timestamp + " is not after previous timestamp " + now);
                 }
                 now = timestamp;
-                if (entry.function() == CryptoDelete) {
-                    final long targetNumber =
-                            entry.body().getCryptoDelete().getDeleteAccountID().getAccountNum();
-                    numbersToDelete.remove(targetNumber);
+                AccountAmount match;
+                if (entry.function() == CryptoTransfer
+                        && (match = entry.body().getCryptoTransfer().getTransfers().getAccountAmountsList().stream()
+                                        .filter(aa ->
+                                                isSystemFile(aa.getAccountID().getAccountNum()) && aa.getAmount() < 0L)
+                                        .findAny()
+                                        .orElse(null))
+                                != null) {
+                    final var adjusts =
+                            entry.body().getCryptoTransfer().getTransfers().getAccountAmountsList();
+                    // Sanity check we are exactly sweeping into 0.0.98
+                    assertEquals(2, adjusts.size());
+                    final var feeCollectorAdjust = adjusts.getLast();
+                    assertEquals(98, feeCollectorAdjust.getAccountID().getAccountNum());
+                    assertEquals(Math.abs(match.getAmount()), feeCollectorAdjust.getAmount());
+                    final long targetNumber = match.getAccountID().getAccountNum();
+                    accountNumbersToSweep.remove(targetNumber);
                 }
             }
-            if (!numbersToDelete.isEmpty()) {
-                Assertions.fail("Not all legacy system accounts were deleted: " + numbersToDelete);
+            if (!accountNumbersToSweep.isEmpty()) {
+                Assertions.fail("Not all legacy system accounts were swept: " + accountNumbersToSweep);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -170,7 +185,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
         long balancesTotal = 0L;
         for (long i = FIRST_SYSTEM_FILE_ENTITY; i < FIRST_POST_SYSTEM_FILE_ENTITY; i++) {
             final var id = idFactory.apply(i);
-            final long balanceHere = random.nextLong(ONE_HBAR);
+            final long balanceHere = (i >= FIRST_BALANCE_TO_SWEEP) ? random.nextLong(1, ONE_HBAR) : 0L;
             final var legacyAccount = treasuryAccount
                     .copyBuilder()
                     .accountId(id)
@@ -202,5 +217,9 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
 
     private LongFunction<AccountID> getIdFactoryFor(@NonNull final AccountID sampleId) {
         return num -> sampleId.copyBuilder().accountNum(num).build();
+    }
+
+    private boolean isSystemFile(final long entityNum) {
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 }
