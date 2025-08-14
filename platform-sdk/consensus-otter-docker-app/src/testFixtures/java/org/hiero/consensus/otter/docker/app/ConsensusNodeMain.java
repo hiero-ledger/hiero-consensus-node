@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 
 /**
@@ -17,6 +18,10 @@ import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
  */
 public class ConsensusNodeMain {
 
+    /**
+     * The marker file to write when the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * is ready to accept requests.
+     */
     public static final Path STARTED_MARKER_FILE = Path.of("/tmp/consensus-node-started.marker");
 
     /** Port on which the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
@@ -32,8 +37,11 @@ public class ConsensusNodeMain {
         final long id = Long.parseLong(args[0]);
         final NodeId selfId = NodeId.newBuilder().id(id).build();
 
+        DockerLogConfigBuilder.configure(Path.of(""), selfId);
+
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
+        log.info("Starting ConsensusNodeMain");
         // Start the consensus node manager gRPC server
         final Server nodeGrpcServer = ServerBuilder.forPort(NODE_COMM_SERVICE_PORT)
                 .addService(nodeCommunicationService)

@@ -197,14 +197,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void start() {
-        final InitRequest initRequest = InitRequest.newBuilder()
-                .setSelfId(ProtobufConverter.fromPbj(selfId))
-                .build();
-        //noinspection ResultOfMethodCallIgnored
-        containerControlBlockingStub.init(initRequest);
-
-        // Blocking stub for communicating with the consensus node
-        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
         defaultAsyncAction.start();
     }
 
@@ -417,12 +409,21 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
             log.info("Starting node {}...", selfId);
 
+            final InitRequest initRequest = InitRequest.newBuilder()
+                    .setSelfId(ProtobufConverter.fromPbj(selfId))
+                    .build();
+            //noinspection ResultOfMethodCallIgnored
+            containerControlBlockingStub.init(initRequest);
+
             final StartRequest startRequest = StartRequest.newBuilder()
                     .setRoster(ProtobufConverter.fromPbj(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                     .setVersion(ProtobufConverter.fromPbj(version))
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
+
+            // Blocking stub for communicating with the consensus node
+            nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
             final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
             stub.start(startRequest, new StreamObserver<>() {

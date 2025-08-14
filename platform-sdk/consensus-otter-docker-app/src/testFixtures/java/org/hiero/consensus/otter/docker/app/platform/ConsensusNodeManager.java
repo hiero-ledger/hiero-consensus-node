@@ -42,7 +42,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.TransactionFactory;
@@ -89,8 +88,6 @@ public class ConsensusNodeManager {
             @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Executor backgroundExecutor) {
-
-        DockerLogConfigBuilder.configure(Path.of(""), selfId);
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();

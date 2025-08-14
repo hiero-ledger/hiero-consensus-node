@@ -7,11 +7,11 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNod
 
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,8 +33,16 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
+    /** The string location of the docker application jar */
     private static final String DOCKER_APP_JAR = "/opt/DockerApp/apps/DockerApp.jar";
+
+    /** The string location of the docker application libraries */
     private static final String DOCKER_APP_LIBS = "/opt/DockerApp/lib/*";
+
+    /**
+     * The main class in the docker application jar that starts the
+     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     */
     private static final String CONSENSUS_NODE_MAIN_CLASS = "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
 
     /**
@@ -49,6 +57,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      */
     private NodeId selfId;
 
+    /** The process running the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} */
     private Process process;
 
     /**
@@ -61,7 +70,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     @Override
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info("Init request received");
+        log.info(LogMarker.STARTUP.getMarker(), "Init request received");
         final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
@@ -85,7 +94,6 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         final int debugPort = getNodeCommunicationDebugPort(selfId);
         processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         processBuilder.inheritIO();
-        processBuilder.directory(Path.of(".").toFile());
 
         log.info("Starting NodeCommunicationService with self ID: {}", selfId.id());
         try {
@@ -95,10 +103,11 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             responseObserver.onError(e);
             return;
         }
-        log.info("NodeCommunicationService started");
+        log.info("NodeCommunicationService started. Waiting for gRPC service to initialize...");
 
         try {
             if (waitForStartedMarkerFile()) {
+                log.info("NodeCommunicationService initialized");
                 responseObserver.onNext(Empty.getDefaultInstance());
                 responseObserver.onCompleted();
             } else {
