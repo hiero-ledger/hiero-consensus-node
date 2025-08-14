@@ -23,10 +23,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
-import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
-import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -177,13 +174,7 @@ public class Rehash {
             leafFeedFuture.get(MAX_FULL_REHASHING_TIMEOUT, SECONDS);
             final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
             logger.info("It took {} seconds to feed all leaves to the hasher for the VirtualMap", secondsSpent);
-            return hasher.hash(
-                    records::findHash,
-                    rehashIterator,
-                    firstLeafPath,
-                    lastLeafPath,
-                    null,
-                    virtualMapConfig);
+            return hasher.hash(records::findHash, rehashIterator, firstLeafPath, lastLeafPath, null, virtualMapConfig);
         } catch (ExecutionException e) {
             final var message = "VirtualMap failed to get hash during full rehashing";
             throw new MerkleSynchronizationException(message, e);
