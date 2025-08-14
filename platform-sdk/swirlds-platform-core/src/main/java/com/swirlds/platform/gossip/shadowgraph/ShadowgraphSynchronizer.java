@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -268,7 +269,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
     @Nullable
     private <T> T readWriteParallel(
             @NonNull final Callable<T> readTask,
-            @NonNull final Callable<Void> writeTask,
+            @NonNull final ThrowingRunnable writeTask,
             @NonNull final Connection connection)
             throws ParallelExecutionException {
 
@@ -276,7 +277,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
         Objects.requireNonNull(writeTask);
         Objects.requireNonNull(connection);
 
-        return executor.doParallel(readTask, writeTask, connection::disconnect);
+        return executor.doParallelWithHandler(connection::disconnect, readTask, writeTask);
     }
 
     /**
