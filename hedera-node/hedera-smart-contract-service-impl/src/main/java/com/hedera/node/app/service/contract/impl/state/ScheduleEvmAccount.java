@@ -32,6 +32,8 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
      * in the Hedera Schedule Service system contract
      */
     private static final Set<Integer> SCHEDULE_PROXY_FUNCTION_SELECTOR = Set.of(
+            // deleteSchedule()
+            0xc61dea85,
             // signSchedule()
             0x06d15889,
             // getScheduledTransactionInfo()

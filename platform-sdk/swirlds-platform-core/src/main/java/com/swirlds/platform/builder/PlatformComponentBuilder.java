@@ -483,7 +483,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext().getConfiguration(),
                     blocks.platformContext().getMetrics(),
                     blocks.platformContext().getTime(),
-                    blocks.randomBuilder().buildNonCryptographicRandom(),
+                    blocks.secureRandomSupplier().get(),
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
@@ -933,7 +933,7 @@ public class PlatformComponentBuilder {
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.stateRootFunction());
+                    blocks.createStateFromVirtualMap());
         }
         return gossip;
     }

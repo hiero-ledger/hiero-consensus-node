@@ -47,6 +47,7 @@ public class UnsignedEvent implements Hashable {
      * @param birthRound      the round in which this event was created.
      * @param timeCreated     creation time, as claimed by its creator
      * @param transactions    list of transactions included in this event instance
+     * @param coin            a random number, see {@link EventCore#coin()} for more details
      */
     public UnsignedEvent(
             @NonNull final NodeId creatorId,
@@ -54,13 +55,14 @@ public class UnsignedEvent implements Hashable {
             @NonNull final List<EventDescriptorWrapper> otherParents,
             final long birthRound,
             @NonNull final Instant timeCreated,
-            @NonNull final List<Bytes> transactions) {
+            @NonNull final List<Bytes> transactions,
+            final long coin) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
         this.parents = this.metadata.getAllParents().stream()
                 .map(EventDescriptorWrapper::eventDescriptor)
                 .toList();
-        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), null);
+        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
     }
 
     /**

@@ -14,8 +14,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
@@ -38,7 +36,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,6 +68,7 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -389,8 +387,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
-                APP_NAME,
-                SWIRLD_NAME,
+                OtterApp.APP_NAME,
+                OtterApp.SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
@@ -404,8 +402,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                        APP_NAME,
-                        SWIRLD_NAME,
+                        OtterApp.APP_NAME,
+                        OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
                         OtterApp.INSTANCE,
@@ -419,7 +417,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(executionLayer)
                 .withModel(model)
-                .withRandomBuilder(new RandomBuilder(randotron.nextLong()));
+                .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();

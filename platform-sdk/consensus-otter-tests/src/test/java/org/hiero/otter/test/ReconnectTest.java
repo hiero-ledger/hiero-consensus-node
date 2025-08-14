@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Disabled;
  */
 public class ReconnectTest {
 
-    private static final long ROUNDS_NON_ANCIENT = 5L;
-    private static final long ROUNDS_EXPIRED = 10L;
+    private static final long ROUNDS_NON_ANCIENT = 20L;
+    private static final long ROUNDS_EXPIRED = 40L;
 
     @Disabled("Disabled until the container networks are fully supported")
     @OtterTest(requires = Capability.RECONNECT)
@@ -45,20 +45,16 @@ public class ReconnectTest {
         network.addNodes(4, WeightGenerators.BALANCED);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.getNodes().forEach(node -> {
-            node.configuration()
-                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
-                    .set(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
-        });
+        network.withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
         // Set the node we will force to reconnect
-        final Node nodeToReconnect = network.getNodes().getLast();
+        final Node nodeToReconnect = network.nodes().getLast();
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.newReconnectResults())
-                .startSuppressingNode(nodeToReconnect)
-                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
+                .doNotEnterAnyStatusesOf(BEHIND);
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
                 .hasMaximumReconnectTime(Duration.ofSeconds(10))
@@ -79,7 +75,7 @@ public class ReconnectTest {
 
         // Wait for the node we just killed to fall behind
         if (!timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30))) {
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(60))) {
             fail("Node did not fall behind in the time allotted.");
         }
 

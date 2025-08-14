@@ -97,21 +97,23 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     @NonNull
-    public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
+    public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
-            return List.of();
+            return ConsensusEngineOutput.emptyInstance();
         }
 
         final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
         if (consensusRelevantEvent == null) {
-            // The event is a future event and cannot be added to consensus yet.
-            return List.of();
+            // The event is either a future event or an ancient event.
+            // If it is a future event, it will be added later when the event window is updated.
+            return ConsensusEngineOutput.emptyInstance();
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
+        final List<PlatformEvent> addedEvents = new ArrayList<>();
         eventsToAdd.add(consensusRelevantEvent);
 
         final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
@@ -125,6 +127,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             }
 
             allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
+            // we only return events we actually add to the graph
+            addedEvents.add(linkedEvent.getBaseEvent());
             eventAddedMetrics.eventAdded(linkedEvent);
 
             if (allConsensusRounds.isEmpty()) {
@@ -140,7 +144,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
-        return freezeRoundController.filterAndModify(allConsensusRounds);
+        final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
+        return new ConsensusEngineOutput(modifiedRounds, addedEvents);
     }
 
     /**

@@ -20,11 +20,11 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,7 +56,7 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               not been enabled
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
- * @param randomBuilder                          a builder for creating random number generators
+ * @param secureRandomSupplier                   a source of secure random number generator instances
  * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
  *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
@@ -85,7 +85,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param platformStateFacade                    the facade to access the platform state
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
- * @param stateRootFunction                      a function to instantiate the state root object from a Virtual Map
+ * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformWiring platformWiring,
@@ -102,7 +102,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull RandomBuilder randomBuilder,
+        @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
@@ -118,7 +118,7 @@ public record PlatformBuildingBlocks(
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -133,7 +133,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(rosterHistory);
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
-        requireNonNull(randomBuilder);
+        requireNonNull(secureRandomSupplier);
         requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
@@ -148,6 +148,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
         requireNonNull(execution);
-        requireNonNull(stateRootFunction);
+        requireNonNull(createStateFromVirtualMap);
     }
 }

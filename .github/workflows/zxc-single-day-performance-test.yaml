@@ -100,7 +100,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -617,7 +617,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -802,7 +802,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
@@ -1142,6 +1142,24 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Clean branch or tag name from input.ref
+        id: clean-branch-name
+        run: |
+          raw_ref="${{ inputs.ref }}"
+          echo "Raw input ref: $raw_ref"
+          clean_ref=""
+
+          if [[ "{$raw_ref}" == refs/heads/* ]]; then
+            clean_ref="${raw_ref#refs/heads/}"
+          elif [[ "$raw_ref" == refs/tags/* ]]; then
+            clean_ref="${raw_ref#refs/tags/}"
+          elif [[ "$raw_ref" == refs/pull/*/merge ]]; then
+            clean_ref="PR-${raw_ref#refs/pull/}"
+            clean_ref="${clean_ref%/merge}"
+          fi
+
+          echo "clean_ref=$clean_ref" >> "${GITHUB_OUTPUT}"
+
       - name: Build Slack Payload Message
         id: payload
         run: |
@@ -1168,7 +1186,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "CITR Network Load Test report",
+                      "text": "NLG Performance Test Report (SDPT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
                       "emoji": true
                     }
                   },

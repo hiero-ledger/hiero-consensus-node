@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
+name: "ZXF: [CITR] Single Day Longevity Test Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -77,6 +77,7 @@ jobs:
       add-settings: ""
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
   tag-sdlt-passing:
     name: Tag SDLT Passing
     runs-on: hiero-citr-linux-medium
@@ -134,8 +135,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: "0"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -147,7 +149,7 @@ jobs:
           # Extract the commit and user information from the build tag
           COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
-          AUTHOR=$(git log -1 --pretty=format:'%an')
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
             -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
             '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')

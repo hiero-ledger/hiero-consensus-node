@@ -79,7 +79,8 @@ public class RandomEventUtils {
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
                 birthRound,
                 timestamp,
-                convertedTransactions);
+                convertedTransactions,
+                random.nextLong(0, Long.MAX_VALUE));
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));

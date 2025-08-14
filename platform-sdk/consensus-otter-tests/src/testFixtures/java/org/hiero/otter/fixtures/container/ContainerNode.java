@@ -3,7 +3,8 @@ package org.hiero.otter.fixtures.container;
 
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.ContainerImage.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -40,14 +41,15 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
-import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
-import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
@@ -63,6 +65,7 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.jetbrains.annotations.NotNull;
+import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -73,19 +76,42 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    public static final int GOSSIP_PORT = 5777;
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
-    private final ContainerImage container;
-    private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
-    private final ManagedChannel channel;
-    private final TestControlGrpc.TestControlBlockingStub blockingStub;
+
+    /** The image used to run the consensus node. */
+    private final ContainerImage container;
+
+    /** The local base directory where artifacts copied from the container will be stored. */
+    private final Path localOutputDirectory;
+
+    private final Path remoteSavedStateDirectory;
+
+    /** The channel used for the {@link ContainerControlServiceGrpc} */
+    private final ManagedChannel containerControlChannel;
+
+    /** The channel used for the {@link NodeCommunicationServiceGrpc} */
+    private final ManagedChannel nodeCommChannel;
+
+    /** The gRPC service used to initialize and stop the consensus node */
+    private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
+
+    /** The gRPC service used to communicate with the consensus node */
+    private final NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+
+    /** An instance of asynchronous actions this node can perform with the default time. */
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
+
+    /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
-    private final NodeResultsCollector resultsCollector;
+
+    /** A queue of all test run related events as they occur, such as log message and status changes. */
     private final BlockingQueue<EventMessage> receivedEvents = new LinkedBlockingQueue<>();
+
+    /** A collector of the various test run related events stored as strongly typed objects use for assertions. */
+    private final NodeResultsCollector resultsCollector;
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -108,36 +134,52 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
-        this.mountedDir = requireNonNull(outputDirectory, "outputDirectory must not be null");
+        this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
-        final String savedStateDirectory = nodeConfiguration
+        this.remoteSavedStateDirectory = nodeConfiguration
                 .current()
                 .getConfigData(StateCommonConfig.class)
-                .savedStateDirectory()
-                .toString();
+                .savedStateDirectory();
 
-        container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
+        container = new ContainerImage(dockerImage, network, selfId);
         container.start();
-        channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
+        containerControlChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
+                .maxInboundMessageSize(32 * 1024 * 1024)
+                .usePlaintext()
+                .build();
+        nodeCommChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
 
-        blockingStub = TestControlGrpc.newBlockingStub(channel);
+        // Blocking stub for initializing and killing the consensus node
+        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.fromPbj(selfId))
                 .build();
         //noinspection ResultOfMethodCallIgnored
-        blockingStub.init(initRequest);
+        containerControlBlockingStub.init(initRequest);
+
+        // Blocking stub for communicating with the consensus node
+        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
     }
 
-    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+    /**
+     * Utility method that calculated the weight of the node based in the specified roster.
+     *
+     * @param roster the roster to use for the lookup
+     * @param nodeId the id of the node whose weight to lookup
+     * @return the node's weight
+     */
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
         return roster.rosterEntries().stream()
-                .filter(entry -> entry.nodeId() == selfId.id())
+                .filter(entry -> entry.nodeId() == nodeId.id())
                 .findFirst()
                 .map(RosterEntry::weight)
                 .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
@@ -151,11 +193,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         defaultAsyncAction.killImmediately();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
         defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void stopSyntheticBottleneck() {
         defaultAsyncAction.stopSyntheticBottleneck();
@@ -191,7 +239,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .setPayload(ByteString.copyFrom(transaction))
                     .build();
 
-            final TransactionRequestAnswer answer = blockingStub.submitTransaction(request);
+            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
             if (!answer.getResult()) {
                 fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
             }
@@ -248,10 +296,37 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         try {
             final Path databaseDirectory =
                     getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
-            final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
-            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
+            final Path localPcesDirectory = localOutputDirectory.resolve(databaseDirectory);
+
+            Files.createDirectories(localPcesDirectory);
+
+            // List all files recursively in the container's PCES directory
+            final Path base = Path.of(ContainerImage.APP_ROOT_DIR, databaseDirectory.toString());
+            final ExecResult execResult = container.execInContainer("sh", "-lc", "find '" + base + "' -type f");
+            final String stdout = execResult.getStdout();
+
+            if (stdout != null && !stdout.isBlank()) {
+                final String[] files = stdout.split("\n");
+                for (final String file : files) {
+                    if (file == null || file.isBlank()) {
+                        continue;
+                    }
+                    final Path containerFile = Path.of(file).normalize();
+                    final Path relative = base.relativize(containerFile);
+                    final Path localFile = localPcesDirectory.resolve(relative);
+                    Files.createDirectories(localFile.getParent());
+                    container.copyFileFromContainer(containerFile.toString(), localFile.toString());
+                }
+            } else {
+                log.warn("No PCES files found in container");
+            }
+
+            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), localPcesDirectory);
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to resolve directory of PCES files", e);
+            throw new UncheckedIOException("Failed to copy PCES files from container", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while copying PCES files from container", e);
         }
     }
 
@@ -285,9 +360,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             Files.createDirectories(logPath.resolve("swirlds-hashstream"));
 
             container.copyFileFromContainer(
-                    "output/swirlds.log", logPath.resolve("swirlds.log").toString());
+                    ContainerImage.APP_ROOT_DIR + "/output/swirlds.log",
+                    logPath.resolve("swirlds.log").toString());
             container.copyFileFromContainer(
-                    "output/swirlds-hashstream/swirlds-hashstream.log",
+                    ContainerImage.APP_ROOT_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
                     logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy logs from container", e);
@@ -295,7 +371,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
-            channel.shutdownNow();
+            containerControlChannel.shutdownNow();
             container.stop();
         }
         resultsCollector.destroy();
@@ -356,7 +432,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
 
-            final TestControlStub stub = TestControlGrpc.newStub(channel);
+            final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
@@ -409,7 +485,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
                 final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
                 // Unary call – will throw if server returns an error.
-                blockingStub.killImmediately(request);
+                containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
@@ -423,9 +499,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
             log.info("Starting synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                    .setSleepMillisPerRound(delayPerRound.toMillis())
-                    .build());
+            nodeCommBlockingStub
+                    .withDeadlineAfter(timeout)
+                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                            .setSleepMillisPerRound(delayPerRound.toMillis())
+                            .build());
         }
 
         /**
@@ -436,9 +514,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         public void stopSyntheticBottleneck() {
             log.info("Stopping synthetic bottleneck on node {}", selfId);
             //noinspection ResultOfMethodCallIgnored
-            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                    .setSleepMillisPerRound(0)
-                    .build());
+            nodeCommBlockingStub
+                    .withDeadlineAfter(timeout)
+                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                            .setSleepMillisPerRound(0)
+                            .build());
         }
     }
 

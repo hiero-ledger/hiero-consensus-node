@@ -91,7 +91,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 16.4.12
+          version: 18.1.4
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -450,31 +450,31 @@ jobs:
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
-          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of HeliSwapLoadTest test
         id: HeliSwapLoadTestLogs
         run: |
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of CryptoTransferLoadTest test
         id: CryptoTransferLoadTestLogs
         run: |
-          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of HCSLoadTest test
         id: HCSLoadTestLogs
         run: |
-          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of SmartContractLoadTest test
         id: SmartContractLoadTestLogs
         run: |
-          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
@@ -524,20 +524,24 @@ jobs:
 
       - name: Set output
         id: sdlt-status
-        env:
-          nft_transfer_load_result: ${{ needs.performance-LongevityLoadTest-report.result }}
-
         run: |
-          # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
           RESULT="failure"
-          if [[ "${nft_transfer_load_result}" == "success" ]]; then
-              RESULT="success"
-          fi
+          NFT="${{ needs.performance-tests-start.outputs.NFTscore }}"
+          HELI="${{ needs.performance-tests-start.outputs.Heliscore }}"
+          CRYPTO="${{ needs.performance-tests-start.outputs.Cryptoscore }}"
+          HCS="${{ needs.performance-tests-start.outputs.HCSscore }}"
+          SMART="${{ needs.performance-tests-start.outputs.Smartscore }}"
 
-          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
+          # Check if any variable is empty. If it is, we set the result to failure.
+          if [ -z "${NFT}" ] || [ -z "${HELI}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
+            RESULT="failure"
+          else
+            RESULT="success"
+          fi
 
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
   performance-report-to-Slack:
     runs-on: hiero-citr-linux-medium
@@ -549,6 +553,24 @@ jobs:
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
+
+      - name: Clean branch or tag name from input.ref
+        id: clean-branch-name
+        run: |
+          raw_ref="${{ inputs.ref }}"
+          echo "Raw input ref: $raw_ref"
+          clean_ref=""
+
+          if [[ "{$raw_ref}" == refs/heads/* ]]; then
+            clean_ref="${raw_ref#refs/heads/}"
+          elif [[ "$raw_ref" == refs/tags/* ]]; then
+            clean_ref="${raw_ref#refs/tags/}"
+          elif [[ "$raw_ref" == refs/pull/*/merge ]]; then
+            clean_ref="PR-${raw_ref#refs/pull/}"
+            clean_ref="${clean_ref%/merge}"
+          fi
+
+          echo "clean_ref=$clean_ref" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -574,7 +596,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "CITR Longevity (Network Load Test) report",
+                      "text": "NLG Longevity Test Report (SDLT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
                       "emoji": true
                     }
                   },

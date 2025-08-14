@@ -66,12 +66,6 @@ class SwirldsStateManagerTests {
         if (!swirldStateManager.getConsensusState().isDestroyed()) {
             swirldStateManager.getConsensusState().release();
         }
-        if (!initialState.isDestroyed()) {
-            initialState.release();
-        }
-        if (!swirldStateManager.getConsensusState().isDestroyed()) {
-            swirldStateManager.getConsensusState().release();
-        }
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 

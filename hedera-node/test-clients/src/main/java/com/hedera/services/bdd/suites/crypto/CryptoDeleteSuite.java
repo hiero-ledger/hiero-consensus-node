@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -29,6 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
+import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -50,6 +52,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -91,6 +94,19 @@ public class CryptoDeleteSuite {
                 getAccountBalance(submittingNodeAccount)
                         .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
                         .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> missingAliasDeletionFailsAtConsensus() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER),
+                cryptoDelete((spec, b) -> b.setTransferAccountID(spec.registry().getAccountID(CIVILIAN_PAYER))
+                                .setDeleteAccountID(AccountID.newBuilder()
+                                        .setAlias(ByteString.copyFrom(randomUtf8Bytes(20)))
+                                        .build()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     @HapiTest
