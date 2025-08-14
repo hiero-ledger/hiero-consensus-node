@@ -27,7 +27,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -123,8 +122,6 @@ class ReconnectPeerProtocolTests {
 
     @BeforeEach
     void setup() {
-        MerkleDb.resetDefaultInstancePath();
-
         reconnectNetworkHelper = mock(ReconnectSyncHelper.class);
         when(reconnectNetworkHelper.blockLearnerPermit()).thenReturn(true);
 

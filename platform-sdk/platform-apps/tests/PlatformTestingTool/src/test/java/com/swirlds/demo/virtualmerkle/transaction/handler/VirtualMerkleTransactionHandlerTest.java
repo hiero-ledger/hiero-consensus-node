@@ -8,13 +8,11 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.platform.fs.stresstest.proto.CreateSmartContract;
 import com.swirlds.demo.platform.fs.stresstest.proto.VirtualMerkleTransaction;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.time.Instant;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -33,20 +31,17 @@ public class VirtualMerkleTransactionHandlerTest {
 
     @BeforeAll
     public static void beforeAll() {
-        // Should storage dir be set to a certain value?
-
         final long maximumNumberOfKeyValuePairsCreation = 28750;
-        final MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, maximumNumberOfKeyValuePairsCreation, 0);
-        final MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        final MerkleDbDataSourceBuilder dataSourceBuilder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, maximumNumberOfKeyValuePairsCreation, 0);
 
         smartContract = new VirtualMap("smartContracts", dataSourceBuilder, CONFIGURATION);
 
         final long totalSmartContractCreations = 23;
 
-        final MerkleDbTableConfig tableConfig2 =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, totalSmartContractCreations, 0);
-        final MerkleDbDataSourceBuilder dataSourceBuilder2 = new MerkleDbDataSourceBuilder(tableConfig2, CONFIGURATION);
+        final MerkleDbDataSourceBuilder dataSourceBuilder2 =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, totalSmartContractCreations, 0);
+
         smartContractByteCodeVM = new VirtualMap("smartContractByteCode", dataSourceBuilder2, CONFIGURATION);
     }
 

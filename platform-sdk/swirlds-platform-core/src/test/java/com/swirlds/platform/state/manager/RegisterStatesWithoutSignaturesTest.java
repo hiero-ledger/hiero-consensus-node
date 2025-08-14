@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
@@ -19,7 +18,6 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.HashMap;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -60,11 +58,6 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
         };
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -87,7 +80,6 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
         // Create a series of signed states. Don't add any signatures. Self signatures will be automatically added.
         final int count = 100;
         for (int round = 0; round < count; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setCalculateHash(true)

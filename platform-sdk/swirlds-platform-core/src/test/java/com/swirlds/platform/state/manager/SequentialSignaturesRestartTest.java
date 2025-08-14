@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
@@ -30,7 +29,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -72,11 +70,6 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
             highestCompleteRound.accumulateAndGet(ss.getRound(), Math::max);
             stateHasEnoughSignaturesCount.getAndIncrement();
         };
-    }
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @AfterEach
@@ -124,7 +117,6 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
         // Create a series of signed states.
         final int count = 100;
         for (int round = (int) firstRound + 1; round < count + firstRound; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setRound(round)

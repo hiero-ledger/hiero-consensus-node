@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.config.StateConfig;
@@ -26,7 +25,6 @@ import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -67,11 +65,6 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         };
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -96,7 +89,6 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // Create a series of signed states.
         final List<SignedState> states = new ArrayList<>();
         for (int round = 0; round < count; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setCalculateHash(true)

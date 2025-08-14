@@ -7,22 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class StateGarbageCollectorTests {
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
 
     @AfterEach
     void tearDown() {
@@ -45,7 +38,6 @@ class StateGarbageCollectorTests {
             // Generate a few states.
             final int statesToCreate = random.nextInt(3);
             for (int j = 0; j < statesToCreate; j++) {
-                MerkleDb.resetDefaultInstancePath();
                 final SignedState signedState = new RandomSignedStateGenerator(random)
                         .setDeleteOnBackgroundThread(true)
                         .build();

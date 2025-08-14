@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
@@ -28,7 +27,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -59,11 +57,6 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
      */
     private StateHasEnoughSignaturesConsumer stateHasEnoughSignaturesConsumer() {
         return ss -> highestCompleteRound.accumulateAndGet(ss.getRound(), Math::max);
-    }
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @AfterEach
@@ -115,7 +108,6 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
         // and doesn't produce OOMs.
         final int count = roundsToKeepForSigning * 5;
         for (int round = 1; round < count; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setCalculateHash(true)

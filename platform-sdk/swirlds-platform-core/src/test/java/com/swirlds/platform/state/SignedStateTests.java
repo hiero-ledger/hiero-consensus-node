@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -32,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,11 +45,6 @@ class SignedStateTests {
                 .setState(state)
                 .buildWithFacade()
                 .left();
-    }
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @AfterEach

@@ -7,7 +7,6 @@ import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import java.io.File;
-import java.io.IOException;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "export", description = "Exports the state")
@@ -43,7 +42,7 @@ public class ExportCommand implements Runnable {
         try {
             DeserializedSignedState deserializedSignedState = StateResolver.initState();
             state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
