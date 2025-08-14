@@ -521,6 +521,7 @@ jobs:
             echo "Commit information:"
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo "------------------------------------"
             echo "Commit List:"
             echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
@@ -536,18 +537,18 @@ jobs:
       - name: Report failure (rootly)
         uses: pandaswhocode/rootly-incident-action@85d19d9065f04d7a5d1d72d20981b8a98865bc66 #v1.0.2-alpha.5
         with:
-          services: "CITR"
-          teams: "Platform CI"
-          environments: "CITR"
-          incident_types: "Platform-CI"
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          create_alert: "true"
           alert_service: "CITR"
-          alert_urgency: "Low"
           alert_external_id: ${{ github.run_id }}
-          alert_external_url: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+          alert_external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          alert_urgency: "Low"
+          create_alert: "true"
+          environments: "CITR"
+          teams: "Platform CI"
+          incident_types: "Platform-CI"
+          services: "CITR"
           severity: "Triage Event"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          title: "${{ steps.rootly-summary.outputs.title }}"
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
 
       - name: Verify Rootly Incident
