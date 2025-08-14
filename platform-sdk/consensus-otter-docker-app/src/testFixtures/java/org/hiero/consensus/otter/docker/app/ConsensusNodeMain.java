@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
 import com.hedera.hapi.platform.state.NodeId;

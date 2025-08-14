@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
+
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,16 +15,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
-
-import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -36,8 +35,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
     private static final String DOCKER_APP_JAR = "/opt/DockerApp/apps/DockerApp.jar";
     private static final String DOCKER_APP_LIBS = "/opt/DockerApp/lib/*";
-    private static final String CONSENSUS_NODE_MAIN_CLASS =
-            "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
+    private static final String CONSENSUS_NODE_MAIN_CLASS = "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
 
     /**
      * The maximum duration to wait for the marker file written by the consensus node main class to indicate it's
@@ -66,16 +64,22 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         log.info("Init request received");
         final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
         if (attemptingToChangeSelfId(requestSelfId)) {
-            log.error("Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
-                    selfId.id(), requestSelfId.id());
+            log.error(
+                    "Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
+                    selfId.id(),
+                    requestSelfId.id());
             responseObserver.onError(new IllegalStateException("Node ID cannot be changed after initialization."));
             return;
         }
 
         this.selfId = requestSelfId;
 
-        final ProcessBuilder processBuilder = new ProcessBuilder("java", "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
-                CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id()));
+        final ProcessBuilder processBuilder = new ProcessBuilder(
+                "java",
+                "-cp",
+                DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
+                CONSENSUS_NODE_MAIN_CLASS,
+                String.valueOf(selfId.id()));
 
         // Set the debug port for the node communication service in the java environment variable.
         final int debugPort = getNodeCommunicationDebugPort(selfId);
@@ -99,9 +103,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 responseObserver.onCompleted();
             } else {
                 log.error("Consensus node process started, but marker file was not detected in the allowed time");
-                responseObserver.onError(
-                        new IllegalStateException(
-                                "Consensus node process started, but marker file was not detected in the allowed time"));
+                responseObserver.onError(new IllegalStateException(
+                        "Consensus node process started, but marker file was not detected in the allowed time"));
             }
         } catch (final IOException e) {
             log.error("Failed to delete the started marker file", e);

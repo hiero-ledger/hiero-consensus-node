@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import com.hedera.hapi.platform.state.NodeId;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
-
 import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
@@ -19,12 +8,23 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getCon
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
+import com.hedera.hapi.platform.state.NodeId;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
+
 /**
  * A small convenience wrapper around {@link GenericContainer} that applies common configuration for Otter test node
  * containers. It connects the container to the provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
 
+    /**
+     * Working directory of the container
+     */
+    public static final String APP_ROOT_DIR = "/opt/DockerApp";
 
     /**
      * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.
@@ -32,15 +32,13 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
      * @param dockerImage the Docker image to run
      * @param network the Docker network to attach the container to
      * @param selfId the selfId for the node
-     * @param outputDirectory the local directory to bind to the container's saved state directory
-     * @param savedStateDirectory the name of the directory in the container where saved state will be stored
+     * Note: Previously this class bind-mounted a local saved-state directory into the container. We now copy
+     * files out of the container on demand instead of mounting a directory.
      */
     public ContainerImage(
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Network network,
-            @NonNull final NodeId selfId,
-            @NonNull final Path outputDirectory,
-            @NonNull final String savedStateDirectory) {
+            @NonNull final NodeId selfId) {
         super(dockerImage);
 
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
@@ -56,17 +54,10 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
                 .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)
                 .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, containerControlDebugPort));
 
-        // Create a local directory for saved state directory contents and
-        // bind it to the saved state directory for the node in the container
-        final Path localSavedStateDirectory = outputDirectory.resolve(savedStateDirectory);
-        try {
-            Files.createDirectories(localSavedStateDirectory);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to create directory " + localSavedStateDirectory, e);
-        }
-        withFileSystemBind(localSavedStateDirectory.toAbsolutePath().toString(), "/" + savedStateDirectory);
         withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(containerControlDebugPort));
         addFixedExposedPort(containerControlDebugPort, containerControlDebugPort);
         addFixedExposedPort(nodeCommunicationDebugPort, nodeCommunicationDebugPort);
+
+        withWorkingDirectory(APP_ROOT_DIR);
     }
 }
