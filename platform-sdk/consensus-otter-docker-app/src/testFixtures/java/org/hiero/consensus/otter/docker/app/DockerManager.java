@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import static org.hiero.consensus.otter.docker.app.DockerMain.WORKING_DIR;
+
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,7 +11,6 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
@@ -62,7 +63,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         this.selfId = ProtobufConverter.toPbj(request.getSelfId());
-        DockerLogConfigBuilder.configure(Path.of(""), selfId);
+        DockerLogConfigBuilder.configure(WORKING_DIR, selfId);
 
         if (nodeManagerThread != null) {
             log.error(

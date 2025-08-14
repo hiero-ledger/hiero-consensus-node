@@ -317,6 +317,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Files.createDirectories(localFile.getParent());
                     container.copyFileFromContainer(containerFile.toString(), localFile.toString());
                 }
+            } else {
+                log.warn("No PCES files found in container");
             }
 
             return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), localPcesDirectory);
