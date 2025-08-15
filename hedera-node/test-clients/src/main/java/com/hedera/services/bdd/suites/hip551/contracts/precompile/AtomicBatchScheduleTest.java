@@ -63,6 +63,8 @@ public class AtomicBatchScheduleTest {
             final var callOp = contract.call(
                             GET_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
                     .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
+                    // Assert contract call was reverted and has child precompile call with status RECORD_NOT_FOUND
+                    // Note: GetScheduledFungibleTokenCreateCall returns RECORD_NOT_FOUND instead of INVALID_SCHEDULE_ID
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
