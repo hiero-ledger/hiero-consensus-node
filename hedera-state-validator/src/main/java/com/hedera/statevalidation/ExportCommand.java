@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporters.JsonExporter;
 import com.hedera.statevalidation.exporters.SortedJsonExporter;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "export", description = "Exports the state")
@@ -47,13 +53,46 @@ public class ExportCommand implements Runnable {
             throw new RuntimeException(e);
         }
 
-        boolean sorted = Boolean.parseBoolean(System.getProperty("sorted", "false"));
+        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
+
+        final boolean sorted = Boolean.parseBoolean(System.getProperty("sorted", "false"));
         if (sorted) {
-            final SortedJsonExporter exporter = new SortedJsonExporter(resultDir, state, serviceName, stateName);
-            exporter.export();
+            if (serviceName == null) {
+                // processing all
+                final SortedJsonExporter exporter =
+                        new SortedJsonExporter(resultDir, state, prepareServiceNameAndStateKeys());
+                exporter.export();
+            } else {
+                final SortedJsonExporter exporter = new SortedJsonExporter(resultDir, state, serviceName, stateName);
+                exporter.export();
+            }
         } else {
             final JsonExporter exporter = new JsonExporter(resultDir, state, serviceName, stateName);
             exporter.export();
+        }
+    }
+
+    private List<Pair<String, String>> prepareServiceNameAndStateKeys() {
+        List<Pair<String, String>> serviceNameAndStateKeys = new ArrayList<>();
+        for (StateKey.KeyOneOfType value : StateKey.KeyOneOfType.values()) {
+            extractStateName(value.protoName(), serviceNameAndStateKeys);
+        }
+        for (SingletonType singletonType : SingletonType.values()) {
+            extractStateName(singletonType.protoName(), serviceNameAndStateKeys);
+        }
+
+        return serviceNameAndStateKeys;
+    }
+
+    private static void extractStateName(String value, List<Pair<String, String>> serviceNameAndStateKeys) {
+        String[] serviceNameStateKey = value.split("_I_");
+        if (serviceNameStateKey[0].equals("FileService") && serviceNameStateKey[1].startsWith("UPGRADE_DATA_")) {
+            // UPGRADE_DATA_<num>
+            int num = Integer.parseInt(serviceNameStateKey[1].replace("UPGRADE_DATA_", ""));
+            serviceNameStateKey[1] = "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=%s]]".formatted(num);
+        }
+        if (serviceNameStateKey.length == 2) {
+            serviceNameAndStateKeys.add(Pair.of(serviceNameStateKey[0], serviceNameStateKey[1]));
         }
     }
 }

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 
@@ -17,21 +19,14 @@ import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
  */
 public final class DockerMain {
 
-    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc} listens. */
-    private static final int CONTAINER_CONTROL_SERVICE_PORT = 8080;
-
     /** The underlying gRPC server instance. */
     private final Server grpcServer;
 
     /**
      * Constructs a {@link DockerMain} instance with a custom {@link ExecutorService}.
-     *
-     * @param dispatchExecutor the {@link ExecutorService} to use for managing threads in the gRPC server
-     * @param backgroundExecutor the {@link Executor} to use for background tasks
-     * @throws NullPointerException if {@code dispatchExecutor} is {@code null}
      */
     public DockerMain() {
-        grpcServer = ServerBuilder.forPort(CONTAINER_CONTROL_SERVICE_PORT)
+        grpcServer = ServerBuilder.forPort(CONTAINER_CONTROL_PORT)
                 .addService(new DockerManager())
                 .build();
     }
@@ -48,7 +43,7 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
-        DockerLogConfigBuilder.configure(Path.of(""), null);
+        DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), null);
         new DockerMain().startGrpcServer();
     }
 

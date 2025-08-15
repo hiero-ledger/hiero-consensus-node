@@ -964,7 +964,7 @@ public class PlatformComponentBuilder {
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.stateRootFunction());
+                    blocks.createStateFromVirtualMap());
         }
         return gossip;
     }

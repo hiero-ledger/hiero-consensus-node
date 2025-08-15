@@ -4,7 +4,6 @@ package com.hedera.statevalidation.exporters;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.ExportCommand.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.exporters.JsonExporter.write;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
@@ -14,6 +13,7 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.virtualmap.VirtualMap;
@@ -25,12 +25,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.LongStream;
@@ -48,62 +50,83 @@ public class SortedJsonExporter {
 
     private final File resultDir;
     private final MerkleNodeState state;
-    private final String serviceName;
-    private final String stateKeyName;
     private final ExecutorService executorService;
-    private final int expectedStateId;
+    private final Map<Integer, Set<Pair<Long, Bytes>>> keysByExpectedStateIds;
+    private final Map<Integer, Pair<String, String>> nameByStateId;
 
     public SortedJsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
+        this(resultDir, state, List.of(Pair.of(serviceName, stateKeyName)));
+    }
+
+    public SortedJsonExporter(
+            File resultDir, MerkleNodeState state, List<Pair<String, String>> serviceNameStateKeyList) {
         this.resultDir = resultDir;
         this.state = state;
-        this.serviceName = requireNonNull(serviceName);
-        this.stateKeyName = requireNonNull(stateKeyName);
-        expectedStateId = StateUtils.stateIdFor(serviceName, stateKeyName);
+        keysByExpectedStateIds = new HashMap<>();
+        nameByStateId = new HashMap<>();
+        serviceNameStateKeyList.forEach(p -> {
+            int stateId = StateUtils.stateIdFor(p.left(), p.right());
+            final Comparator<Pair<Long, Bytes>> comparator;
+            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTIONRECEIPTQUEUE.protoOrdinal()) {
+                comparator = (key1, key2) -> {
+                    ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
+                    keyData1.readVarInt(false); // read tag
+                    keyData1.readVarInt(false); // read value
+
+                    ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
+                    keyData2.readVarInt(false); // read tag
+                    keyData2.readVarInt(false); // read value
+
+                    return keyData1.readBytes((int) keyData1.remaining())
+                            .compareTo(keyData2.readBytes((int) keyData2.remaining()));
+                };
+            } else {
+                comparator = (key1, key2) -> {
+                    try {
+                        StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
+                        StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
+                        // queue metadata
+                        if (stateKey1.key().value() instanceof SingletonType) {
+                            return -1;
+                        }
+                        if (stateKey2.key().value() instanceof SingletonType) {
+                            return 1;
+                        }
+                        Long index1 = (Long) stateKey1.key().value();
+                        Long index2 = (Long) stateKey2.key().value();
+                        return index1.compareTo(index2);
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+            }
+            keysByExpectedStateIds.computeIfAbsent(stateId, k -> new ConcurrentSkipListSet<>(comparator));
+            nameByStateId.put(stateId, p);
+        });
         executorService = Executors.newVirtualThreadPerTaskExecutor();
     }
 
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
-        ArrayList<Bytes> keys = collectKeys(vm);
-        if (keys.isEmpty()) {
-            throw new RuntimeException(String.format("No valid keys found in state %s_%s", serviceName, stateKeyName));
-        }
+        collectKeys(vm);
+        keysByExpectedStateIds.forEach((key, values) -> {
+            if (values.isEmpty()) {
+                Pair<String, String> namePair = nameByStateId.get(key);
+                System.out.printf("No valid keys found in state %s_%s%n", namePair.left(), namePair.right());
+            }
+        });
 
-        // do not sort queues
-        if (expectedStateId < StateKey.KeyOneOfType.RECORD_CACHE_TRANSACTION_RECEIPT_QUEUE.protoOrdinal()) {
-            parallelSort(keys, Comparator.naturalOrder());
-        } else {
-            parallelSort(keys, (key1, key2) -> {
-                try {
-                    StateKey stateKey1 = StateKey.PROTOBUF.parse(key1);
-                    StateKey stateKey2 = StateKey.PROTOBUF.parse(key2);
-                    // queue metadata
-                    if (stateKey1.key().value() instanceof SingletonType) {
-                        return -1;
-                    }
-                    if (stateKey2.key().value() instanceof SingletonType) {
-                        return 1;
-                    }
-                    Long index1 = (Long) stateKey1.key().value();
-                    Long index2 = (Long) stateKey2.key().value();
-                    return index1.compareTo(index2);
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        List<CompletableFuture<Void>> futures = traverseVmInParallel(keys);
+        List<CompletableFuture<Void>> futures = traverseVmInParallel();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         System.out.println("Export time: " + (System.currentTimeMillis() - startTimestamp) + "ms");
         executorService.close();
     }
 
-    private ArrayList<Bytes> collectKeys(final VirtualMap vm) {
+    private void collectKeys(final VirtualMap vm) {
         final VirtualMapMetadata metadata = vm.getMetadata();
-        final ArrayList<Bytes> keys = new ArrayList<>();
         LongStream.range(metadata.getFirstLeafPath(), metadata.getLastLeafPath() + 1)
+                .parallel()
                 .forEach(path -> {
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
                     final Bytes keyBytes = leafRecord.keyBytes();
@@ -113,50 +136,43 @@ public class SortedJsonExporter {
                     if (actualStateId == 1) {
                         // it's a singleton, additional read is required
                         int singletonStateId = keyData.readVarInt(false);
-                        if (singletonStateId == expectedStateId) {
-                            keys.add(keyBytes);
+                        if (keysByExpectedStateIds.containsKey(singletonStateId)) {
+                            keysByExpectedStateIds.get(singletonStateId).add(Pair.of(path, keyBytes));
                         }
                         return;
                     }
-
-                    if (expectedStateId != -1 && expectedStateId != actualStateId) {
-                        return;
+                    if (keysByExpectedStateIds.containsKey(actualStateId)) {
+                        keysByExpectedStateIds.get(actualStateId).add(Pair.of(path, keyBytes));
                     }
-                    keys.add(keyBytes);
                 });
-        return keys;
     }
 
-    private static <T extends Comparable<? super T>> void parallelSort(ArrayList<T> list, Comparator<T> comparator) {
-        // falling back to a regular parallel sort which will create a copy of the array
-        T[] array = list.toArray((T[]) new Comparable[list.size()]);
-        Arrays.parallelSort(array, comparator);
-        for (int i = 0; i < list.size(); i++) {
-            list.set(i, array[i]);
-        }
-    }
-
-    private List<CompletableFuture<Void>> traverseVmInParallel(final List<Bytes> keys) {
+    private List<CompletableFuture<Void>> traverseVmInParallel() {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        int writingParallelism = keys.size() / MAX_OBJ_PER_FILE;
-        for (int i = 0; i <= writingParallelism; i++) {
-            String fileName;
-            fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKeyName, i + 1);
-            int firstBatchIndex = i * MAX_OBJ_PER_FILE;
-            int lastBatchIndex = Math.min((i + 1) * MAX_OBJ_PER_FILE, keys.size() - 1);
-            futures.add(CompletableFuture.runAsync(
-                    () -> processRange(keys, fileName, firstBatchIndex, lastBatchIndex), executorService));
+        for (Map.Entry<Integer, Set<Pair<Long, Bytes>>> entry : keysByExpectedStateIds.entrySet()) {
+            final List<Pair<Long, Bytes>> keys = new ArrayList<>(entry.getValue());
+            final int writingParallelism = keys.size() / MAX_OBJ_PER_FILE;
+            final Pair<String, String> namePair = nameByStateId.get(entry.getKey());
+            for (int i = 0; i <= writingParallelism; i++) {
+                String fileName = String.format(SINGLE_STATE_TMPL, namePair.left(), namePair.right(), i + 1);
+                int firstBatchIndex = i * MAX_OBJ_PER_FILE;
+                int lastBatchIndex = Math.min((i + 1) * MAX_OBJ_PER_FILE, keys.size() - 1);
+                futures.add(CompletableFuture.runAsync(
+                        () -> processRange(keys, fileName, firstBatchIndex, lastBatchIndex), executorService));
+            }
         }
         return futures;
     }
 
-    private void processRange(final List<Bytes> keys, String fileName, int start, int end) {
+    private void processRange(final List<Pair<Long, Bytes>> keys, String fileName, int start, int end) {
         VirtualMap vm = (VirtualMap) state.getRoot();
         File file = new File(resultDir, fileName);
+        boolean emptyFile = true;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             for (int i = start; i <= end; i++) {
-                final Bytes keyBytes = keys.get(i);
-                final Bytes valueBytes = vm.getBytes(keyBytes);
+                final long path = keys.get(i).left();
+                final Bytes keyBytes = keys.get(i).right();
+                final Bytes valueBytes = vm.getRecords().findLeafRecord(path).valueBytes();
                 final StateKey stateKey;
                 final StateValue stateValue;
                 try {
@@ -175,12 +191,17 @@ public class SortedJsonExporter {
                                 "{\"k\":\"%s\", \"v\":%s}\n"
                                         .formatted(keyToJson(stateKey.key()), valueToJson(stateValue.value())));
                     }
+                    emptyFile = false;
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+        if (emptyFile) {
+            file.delete();
         }
     }
 

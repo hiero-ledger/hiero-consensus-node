@@ -61,12 +61,6 @@ public class ConsensusNodeManager {
     private final Platform platform;
 
     /**
-     * Indicates if the consensus node is running or not. Can be removed in the future when the entire process is
-     * killed.
-     */
-    private boolean running;
-
-    /**
      * A threadsafe list of consensus round listeners. Written to by the platform, read by listeners on the dispatch
      * thread.
      */
@@ -94,6 +88,7 @@ public class ConsensusNodeManager {
             @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Executor backgroundExecutor) {
+
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
@@ -173,7 +168,6 @@ public class ConsensusNodeManager {
      */
     public void start() {
         log.info("Starting node");
-        running = true;
         platform.start();
     }
 
@@ -206,17 +200,6 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Checks if the consensus node is currently running.
-     * <p>
-     * In the future, the entire process will be killed and this method can be removed.
-     *
-     * @return {@code true} if the consensus node is running, {@code false} otherwise
-     */
-    public boolean isRunning() {
-        return running;
-    }
-
-    /**
      * Registers a listener to receive notifications about new consensus rounds.
      *
      * @param listener the listener to register, must not be {@code null}
@@ -234,21 +217,6 @@ public class ConsensusNodeManager {
         if (markerFileObserver != null) {
             markerFileObserver.addListener(listener);
         }
-    }
-
-    /**
-     * Shutdowns the platform's inner threads and halts processing. Gossip still continues.
-     * <p>
-     * In the future, the entire process will be killed and this method can be removed.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
-     */
-    public void destroy() throws InterruptedException {
-        if (markerFileObserver != null) {
-            markerFileObserver.destroy();
-        }
-        platform.destroy();
-        running = false;
     }
 
     /**
