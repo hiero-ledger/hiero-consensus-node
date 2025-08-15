@@ -80,13 +80,12 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  tag-sdpt-passing:
-    name: Tag SDPT Passing
+  tag-sdpt-result:
+    name: Tag SDPT Result
     runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-performance-test
       - verify-tag
-    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -110,14 +109,27 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDPT Passing
+      - name: Tag SDPT Result
         run: |
-          TAG_NAME="sdpt-pass-${{ needs.verify-tag.outputs.build-number }}"
-          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          RESULT="${{ needs.run-single-day-performance-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          if [ "$RESULT" == "success" ]; then
+            TAG_NAME="sdpt-pass-${BUILD_NUM}"
+            MSG="Single Day Performance Test passed for build-${BUILD_NUM}"
+          elif [ "$RESULT" == "failure" ]; then
+            TAG_NAME="sdpt-fail-${BUILD_NUM}"
+            MSG="Single Day Performance Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
           git push --set-upstream origin --tags
 
-          echo "### SDPT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDPT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### SDPT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDPT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
