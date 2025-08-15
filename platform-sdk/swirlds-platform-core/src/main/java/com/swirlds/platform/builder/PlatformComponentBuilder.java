@@ -78,8 +78,6 @@ import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.pool.DefaultTransactionPool;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
@@ -128,7 +126,6 @@ public class PlatformComponentBuilder {
     private Gossip gossip;
     private StaleEventDetector staleEventDetector;
     private TransactionResubmitter transactionResubmitter;
-    private TransactionPool transactionPool;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -279,7 +276,10 @@ public class PlatformComponentBuilder {
             final boolean singleNodeNetwork =
                     blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
-                    blocks.platformContext(), singleNodeNetwork, blocks.intakeEventCounter());
+                    blocks.platformContext(),
+                    singleNodeNetwork,
+                    blocks.intakeEventCounter(),
+                    blocks.execution().getTransactionLimits());
         }
         return internalEventValidator;
     }
@@ -487,13 +487,13 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.transactionPoolNexus());
+                    blocks.execution());
 
             eventCreationManager = new DefaultEventCreationManager(
                     blocks.platformContext().getConfiguration(),
                     blocks.platformContext().getMetrics(),
                     blocks.platformContext().getTime(),
-                    blocks.transactionPoolNexus(),
+                    blocks.execution(),
                     eventCreator);
         }
         return eventCreationManager;
@@ -894,37 +894,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a transaction pool in place of the platform's default transaction pool.
-     *
-     * @param transactionPool the transaction pool to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionPool(@NonNull final TransactionPool transactionPool) {
-        throwIfAlreadyUsed();
-        if (this.transactionPool != null) {
-            throw new IllegalStateException("Transaction pool has already been set");
-        }
-        this.transactionPool = Objects.requireNonNull(transactionPool);
-        return this;
-    }
-
-    /**
-     * Build the transaction pool if it has not yet been built. If one has been provided via
-     * {@link #withTransactionPool(TransactionPool)}, that pool will be used. If this method is called more than once,
-     * only the first call will build the transaction pool. Otherwise, the default pool will be created and returned.
-     *
-     * @return the transaction pool
-     */
-    @NonNull
-    public TransactionPool buildTransactionPool() {
-        if (transactionPool == null) {
-            transactionPool = new DefaultTransactionPool(blocks.transactionPoolNexus());
-        }
-        return transactionPool;
-    }
-
-    /**
      * Provide a gossip in place of the platform's default gossip.
      *
      * @param gossip the gossip to use
@@ -964,7 +933,7 @@ public class PlatformComponentBuilder {
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.stateRootFunction());
+                    blocks.createStateFromVirtualMap());
         }
         return gossip;
     }

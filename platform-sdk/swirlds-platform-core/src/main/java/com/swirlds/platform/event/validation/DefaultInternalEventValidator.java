@@ -22,10 +22,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.SignatureType;
-import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
  * A default implementation of the {@link InternalEventValidator} interface.
@@ -48,7 +48,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      */
     private final IntakeEventCounter intakeEventCounter;
 
-    private final TransactionConfig transactionConfig;
+    private final TransactionLimits transactionLimits;
 
     private final RateLimitedLogger nullFieldLogger;
     private final RateLimitedLogger fieldLengthLogger;
@@ -68,16 +68,18 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @param platformContext    the platform context
      * @param singleNodeNetwork  true if this node is in a single-node network, otherwise false
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
+     * @param transactionLimits  transaction size limits for validation
      */
     public DefaultInternalEventValidator(
             @NonNull final PlatformContext platformContext,
             final boolean singleNodeNetwork,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final TransactionLimits transactionLimits) {
 
         this.singleNodeNetwork = singleNodeNetwork;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
-        this.transactionConfig = platformContext.getConfiguration().getConfigData(TransactionConfig.class);
+        this.transactionLimits = Objects.requireNonNull(transactionLimits);
 
         this.nullFieldLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
@@ -189,7 +191,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             totalTransactionBytes += iterator.next().getSize();
         }
 
-        if (totalTransactionBytes > transactionConfig.maxTransactionBytesPerEvent()) {
+        if (totalTransactionBytes > transactionLimits.maxTransactionBytesPerEvent()) {
             tooManyTransactionBytesLogger.error(
                     EXCEPTION.getMarker(),
                     "Event %s has %s transaction bytes, which is more than permitted"

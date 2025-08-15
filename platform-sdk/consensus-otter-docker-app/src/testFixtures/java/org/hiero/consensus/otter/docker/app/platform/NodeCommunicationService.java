@@ -109,23 +109,21 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
             return;
         }
 
-        if (consensusNodeManager != null && consensusNodeManager.isRunning()) {
+        if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             log.info("Invalid request, platform already started: {}", request);
             return;
         }
 
-        if (consensusNodeManager == null) {
-            final Configuration platformConfig = createConfiguration(request.getOverriddenPropertiesMap());
-            final Roster genesisRoster = ProtobufConverter.toPbj(request.getRoster());
-            final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
-            final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
+        final Configuration platformConfig = createConfiguration(request.getOverriddenPropertiesMap());
+        final Roster genesisRoster = ProtobufConverter.toPbj(request.getRoster());
+        final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
+        final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-            consensusNodeManager = new ConsensusNodeManager(
-                    selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+        consensusNodeManager = new ConsensusNodeManager(
+                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-            setupStreamingEventDispatcher(responseObserver);
-        }
+        setupStreamingEventDispatcher(responseObserver);
 
         consensusNodeManager.start();
     }
@@ -154,15 +152,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
             dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
             return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
         });
-    }
-
-    /**
-     * Attempts to destroy the platform and clean up resources.
-     * <p>
-     * In the future, the entire process will be killed and this method can be removed.
-     */
-    public void destroy() throws InterruptedException {
-        consensusNodeManager.destroy();
     }
 
     /**
@@ -208,7 +197,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
         log.debug("Received submit transaction request: {}", request);
-        if (consensusNodeManager == null || !consensusNodeManager.isRunning()) {
+        if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
@@ -236,7 +225,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Received synthetic bottleneck request: {}", request);
-        if (consensusNodeManager == null || !consensusNodeManager.isRunning()) {
+        if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
