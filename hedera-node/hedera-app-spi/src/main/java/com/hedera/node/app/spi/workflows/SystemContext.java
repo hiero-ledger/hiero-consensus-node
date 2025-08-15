@@ -63,4 +63,10 @@ public interface SystemContext {
      */
     @NonNull
     Instant now();
+
+    /**
+     * Checks if there are any dispatches remaining in the current context.
+     * @return true if there are dispatches remaining, false otherwise
+     */
+    boolean hasDispatchesRemaining();
 }

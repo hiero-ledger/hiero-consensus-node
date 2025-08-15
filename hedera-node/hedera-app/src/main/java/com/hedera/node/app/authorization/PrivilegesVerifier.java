@@ -31,6 +31,8 @@ import javax.inject.Inject;
  * <p>The checks in this class do not require access to state, and thus can be performed at any time.
  */
 public class PrivilegesVerifier {
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
+    private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
@@ -80,7 +82,8 @@ public class PrivilegesVerifier {
             case FILE_DELETE ->
                 checkEntityDelete(txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
             case CRYPTO_DELETE ->
-                checkEntityDelete(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT));
+                checkCryptoDelete(
+                        effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
@@ -205,17 +208,12 @@ public class PrivilegesVerifier {
         return isSystemEntity(entityNum) ? IMPERMISSIBLE : UNNECESSARY;
     }
 
-    private SystemPrivilege checkEntityDelete(@NonNull final AccountID accountId) {
-        return isSystemEntity(accountId) ? IMPERMISSIBLE : UNNECESSARY;
+    private SystemPrivilege checkCryptoDelete(final long entityNum) {
+        return (isSystemEntity(entityNum) && !isSystemFile(entityNum)) ? IMPERMISSIBLE : UNNECESSARY;
     }
 
-    /**
-     * Returns whether the given account ID is a system entity.
-     * @param accountID the {@link AccountID} to check
-     * @return {@code true} if the account ID is a system entity, otherwise {@code false}
-     */
-    private boolean isSystemEntity(@NonNull final AccountID accountID) {
-        return isSystemEntity(effectiveNumber(accountID));
+    private boolean isSystemFile(final long entityNum) {
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 
     /**

@@ -94,7 +94,7 @@ public class NaturalDispatchOrderingTest {
     static void setUp(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(withOpContext((spec, opLog) -> {
             unsubscribe = STREAM_FILE_ACCESS.subscribe(
-                    guaranteedExtantDir(spec.streamsLoc(byNodeId(0))), new StreamDataListener() {});
+                    guaranteedExtantDir(spec.recordStreamsLoc(byNodeId(0))), new StreamDataListener() {});
             triggerAndCloseAtLeastOneFile(spec);
         }));
     }
