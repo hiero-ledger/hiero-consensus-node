@@ -10,8 +10,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
