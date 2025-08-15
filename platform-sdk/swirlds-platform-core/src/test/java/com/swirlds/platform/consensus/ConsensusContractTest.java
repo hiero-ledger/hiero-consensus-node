@@ -93,4 +93,6 @@ public class ConsensusContractTest {
                     "every consensus event hash should have been returned as a pre-consensus event");
         }
     }
+
+    //TODO add test with changing roster
 }

@@ -18,6 +18,8 @@ public interface Consensus {
      */
     void setPcesMode(final boolean pcesMode);
 
+    List<EventImpl> getPreconsensusEvents();
+
     /**
      * Adds an event to the consensus object. This should be the only public method that modifies the state of the
      * object.
@@ -35,6 +37,11 @@ public interface Consensus {
      * events are provided. This method is called at restart and reconnect boundaries.
      */
     void loadSnapshot(@NonNull ConsensusSnapshot snapshot);
+
+    /**
+     * @return true if there are no init judges missing
+     */
+    boolean noInitJudgesMissing();
 
     /**
      * Return the max round number for which we have an event. If there are none yet, return {@link

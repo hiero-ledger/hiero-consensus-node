@@ -126,10 +126,27 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 continue;
             }
 
+            final boolean judgesFoundBeforeAdd = consensus.noInitJudgesMissing();
             allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
-            // we only return events we actually add to the graph
-            addedEvents.add(linkedEvent.getBaseEvent());
+            final boolean judgesFoundAfterAdd = consensus.noInitJudgesMissing();
+
             eventAddedMetrics.eventAdded(linkedEvent);
+
+            if (!judgesFoundAfterAdd) {
+                // Nothing needs to return if we haven't found judges yet
+                return ConsensusEngineOutput.emptyInstance();
+            }
+            if (!judgesFoundBeforeAdd) {
+                // This means that we have just found the last init judge.
+
+                consensus.getPreconsensusEvents().stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
+                if(!allConsensusRounds.isEmpty()){
+                    throw new RuntimeException("this is unexpected");
+                }
+            }else {
+                // we only return events we actually add to the graph
+                addedEvents.add(linkedEvent.getBaseEvent());
+            }
 
             if (allConsensusRounds.isEmpty()) {
                 continue;

@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -265,6 +266,11 @@ public class ConsensusImpl implements Consensus {
         this.pcesMode = pcesMode;
     }
 
+    @Override
+    public List<EventImpl> getPreconsensusEvents() {
+        return Collections.unmodifiableList(recentEvents);
+    }
+
     /**
      * Add an event to consensus. It must already have been instantiated, checked for being a
      * duplicate of an existing event, had its signature created or checked. It must also be linked
@@ -430,10 +436,8 @@ public class ConsensusImpl implements Consensus {
         return null;
     }
 
-    /**
-     * @return true if there are no init judges missing
-     */
-    private boolean noInitJudgesMissing() {
+    @Override
+    public boolean noInitJudgesMissing() {
         return initJudges == null || initJudges.allJudgesFound();
     }
 
