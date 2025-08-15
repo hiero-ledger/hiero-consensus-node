@@ -271,10 +271,10 @@ sequenceDiagram
     deactivate Platform
 ```
 
-When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. A `ContainerNode` creates a new
+When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. The `ContainerNode` creates a new
 Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which
 initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing
-it to send requests and receive events.
+it to send requests to start and stop the second process.
 
 This process ensures each container runs an independent consensus node with real network communication.
 
