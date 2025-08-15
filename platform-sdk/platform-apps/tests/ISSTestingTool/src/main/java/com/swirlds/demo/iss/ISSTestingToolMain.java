@@ -5,11 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
@@ -34,7 +32,7 @@ import org.hiero.consensus.model.notification.IssNotification;
  * peers stop gossiping. Therefore, we can validate that a scheduled log error doesn't occur, due to consensus coming to
  * a halt, even if an ISS isn't detected.
  */
-public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
+public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 
@@ -72,7 +70,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public void init(final Platform platform, final NodeId id) {
         this.platform = platform;
-
         platform.getNotificationEngine().register(IssListener.class, this::issListener);
     }
 
@@ -91,7 +88,9 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, testingToolConfig.transactionsPerSecond()).start();
+        new TransactionGenerator(
+                        new Random(), platform, getTransactionPool(), testingToolConfig.transactionsPerSecond())
+                .start();
     }
 
     /**
@@ -136,10 +135,5 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ISSTestingToolConfig.class);
-    }
-
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }
