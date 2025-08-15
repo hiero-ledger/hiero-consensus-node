@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -62,6 +61,8 @@ import org.junit.jupiter.api.Tag;
 /**
  * A test that "picks up" after a simulated restart with legacy system accounts in state, and verifies that they
  * are cleaned up as expected.
+ * <p>
+ * <i>(FUTURE)</i> Remove this after release 0.66; it is a one-time only validation.
  */
 @Order(10)
 @Tag(INTEGRATION)

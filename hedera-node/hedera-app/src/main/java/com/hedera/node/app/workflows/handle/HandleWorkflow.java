@@ -529,7 +529,7 @@ public class HandleWorkflow {
         } else {
             if (!systemAccountCleanupDone) {
                 // Ensure the system account cleanup is finished post-upgrade
-                systemAccountCleanupDone = systemTransactions.do065SystemAccountCleanup(consensusNow, state);
+                systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
             }
         }
         final var userTxn =

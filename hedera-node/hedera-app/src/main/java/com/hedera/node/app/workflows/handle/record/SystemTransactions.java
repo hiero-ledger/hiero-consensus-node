@@ -414,7 +414,7 @@ public class SystemTransactions {
      * @param state the state to clean up
      * @return true if the cleanup was finished, false otherwise
      */
-    public boolean do065SystemAccountCleanup(@NonNull final Instant now, @NonNull final State state) {
+    public boolean do066SystemAccountCleanup(@NonNull final Instant now, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(now);
         final AtomicReference<AccountID> legacyAccountId = new AtomicReference<>();
