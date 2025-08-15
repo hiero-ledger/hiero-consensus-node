@@ -65,15 +65,43 @@ public class SignatureMapUtils {
     public static boolean validChainId(final byte[] ecSig, final long chainId) {
         if (ecSig.length <= 64) throw new IllegalArgumentException("signature needs to be at least 65 bytes");
         try {
-            long v = new BigInteger(+1, ecSig, 64, ecSig.length - 64).longValueExact();
+            final long v = new BigInteger(+1, ecSig, 64, ecSig.length - 64).longValueExact();
             if (v >= 35) {
                 // See EIP 155 - https://eips.ethereum.org/EIPS/eip-155
                 final var chainIdParityZero = 35 + (chainId * 2L);
                 return v == chainIdParityZero || v == chainIdParityZero + 1;
             }
             return true;
-        } catch (ArithmeticException e) {
+        } catch (final ArithmeticException e) {
             throw new IllegalArgumentException("EIP-155 encoded chain id too large (longer than long)");
         }
+    }
+
+    /**
+     * The Ethereum world uses 65+ byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
+     * difference is the addition of an extra "parity" field at the end of the 64 byte signature (used so that
+     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.  And, the chain id can
+     * be encoded in that field (per EIP-155) and if the chain id is large enough (like Hedera mainnet/testnet
+     * chain ids) that last field can be more than one byte.
+     * <p>
+     * This method is a shim for that mismatch. It strips the extra bytes off any 65+ byte EC signatures it finds.
+     *
+     * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
+     * @return Signature map with only 64 byte EC signatures (and all else unchanged)
+     */
+    public static @NonNull SignatureMap stripRecoveryIdFromEcdsaSignatures(@NonNull final SignatureMap sigMap) {
+        final List<SignaturePair> newPairs = new ArrayList<>();
+        for (var spair : sigMap.sigPair()) {
+            if (spair.hasEcdsaSecp256k1()) {
+                final var ecSig = requireNonNull(spair.ecdsaSecp256k1());
+                if (ecSig.length() > 64) {
+                    spair = new SignaturePair(
+                            spair.pubKeyPrefix(),
+                            new OneOf<>(SignaturePair.SignatureOneOfType.ECDSA_SECP256K1, ecSig.slice(0, 64)));
+                }
+            }
+            newPairs.add(spair);
+        }
+        return new SignatureMap(newPairs);
     }
 }
