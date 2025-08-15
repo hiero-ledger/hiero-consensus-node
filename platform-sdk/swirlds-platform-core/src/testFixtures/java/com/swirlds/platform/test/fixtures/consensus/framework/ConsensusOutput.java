@@ -106,8 +106,14 @@ public class ConsensusOutput implements Clearable {
         return sortedEvents;
     }
 
-    public LinkedList<PlatformEvent> getPreConsensusEvents() {
+    public List<PlatformEvent> getPreConsensusEvents() {
         return preConsensusEvents;
+    }
+
+    public Set<Hash> getPreConsensusEventHashes() {
+        return preConsensusEvents.stream()
+                .map(PlatformEvent::getHash)
+                .collect(Collectors.toSet());
     }
 
     public Set<Hash> consensusEventHashes() {
@@ -116,6 +122,13 @@ public class ConsensusOutput implements Clearable {
                 .flatMap(List::stream)
                 .map(PlatformEvent::getHash)
                 .collect(Collectors.toSet());
+    }
+
+    public List<PlatformEvent> getConsensusEvents() {
+        return consensusRounds.stream()
+                .map(ConsensusRound::getConsensusEvents)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
     }
 
     /**
