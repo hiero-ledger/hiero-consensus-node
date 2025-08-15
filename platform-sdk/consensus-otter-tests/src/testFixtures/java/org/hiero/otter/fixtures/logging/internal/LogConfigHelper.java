@@ -54,7 +54,8 @@ public final class LogConfigHelper {
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT);
 
     /** Ignoring marker used from threads without correct ThreadContext */
-    private static final Set<LogMarker> IGNORED_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
+    private static final Set<LogMarker> IGNORED_MARKERS =
+            Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS, STATE_HASH, STATE_TO_DISK, PLATFORM_STATUS);
 
     /** Default pattern for text-based appenders. */
     public static final String DEFAULT_PATTERN =
