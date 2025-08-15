@@ -1842,14 +1842,4 @@ enum ResponseCodeEnum {
      * The LambdaSStore tried to update too many storage slots in a single transaction.
      */
     TOO_MANY_LAMBDA_STORAGE_UPDATES = 513;
-
-    /**
-     * The transaction was included in an event that has become stale and will never reach consensus.
-     * The transaction will not be executed and should be resubmitted if desired.
-     *
-     * This status indicates the transaction was valid and properly formed, but network conditions
-     * prevented the containing event from progressing through consensus. This is distinct from
-     * other failure modes as the transaction itself was not rejected for validation reasons.
-     */
-    STALE = 514;
 }
