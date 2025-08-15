@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.lifecycle.info;
+package com.hedera.node.app.spi.info;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
