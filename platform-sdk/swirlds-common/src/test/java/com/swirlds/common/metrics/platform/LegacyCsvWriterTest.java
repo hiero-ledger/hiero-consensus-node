@@ -26,8 +26,7 @@ import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.metrics.api.snapshot.Snapshot;
-import com.swirlds.metrics.api.snapshot.SnapshotableMetric;
+import com.swirlds.metrics.api.Snapshot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -89,10 +88,7 @@ class LegacyCsvWriterTest {
         Files.delete(parentPath);
         Files.delete(grandParentPath);
         final List<Metric> metrics = createShortList();
-        final List<Snapshot> snapshots = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification = new SnapshotEvent(NODE_ID, snapshots);
 
         // when
@@ -110,10 +106,7 @@ class LegacyCsvWriterTest {
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
         final List<Metric> metrics = createCompleteList();
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
 
         // when
@@ -129,10 +122,7 @@ class LegacyCsvWriterTest {
         ((LongGauge) metrics.get(7)).set(4711L);
         ((RunningAverageMetric) metrics.get(8)).update(1000.0);
         ((SpeedometerMetric) metrics.get(9)).update(10);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
 
         // when
@@ -173,24 +163,15 @@ class LegacyCsvWriterTest {
 
         // when
         gauge.set(Double.NaN);
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
         writer.handleSnapshots(notification1);
         gauge.set(Double.POSITIVE_INFINITY);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
         writer.handleSnapshots(notification2);
         gauge.set(Double.NEGATIVE_INFINITY);
-        final List<Snapshot> snapshots3 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots3 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification3 = new SnapshotEvent(NODE_ID, snapshots3);
         writer.handleSnapshots(notification3);
 
@@ -213,10 +194,7 @@ class LegacyCsvWriterTest {
         final Path csvFilePath = writer.getCsvFilePath();
         Files.writeString(csvFilePath, "Hello World");
         final List<Metric> metrics = createShortList();
-        final List<Snapshot> snapshots = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification = new SnapshotEvent(NODE_ID, snapshots);
 
         // when
@@ -259,10 +237,7 @@ class LegacyCsvWriterTest {
                         ,,11,12.0,
                         """);
         final List<Metric> metrics = createShortList();
-        final List<Snapshot> snapshots = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification = new SnapshotEvent(NODE_ID, snapshots);
 
         // when
@@ -298,10 +273,7 @@ class LegacyCsvWriterTest {
         final Path csvFilePath = writer.getCsvFilePath();
         Files.deleteIfExists(csvFilePath);
         final List<Metric> metrics = createShortList();
-        final List<Snapshot> snapshots = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification = new SnapshotEvent(NODE_ID, snapshots);
 
         // when
@@ -328,10 +300,7 @@ class LegacyCsvWriterTest {
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
         final List<Metric> metrics = createListWithInternals();
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
 
         // when
@@ -342,10 +311,7 @@ class LegacyCsvWriterTest {
         ((Counter) metrics.get(1)).add(3);
         ((DoubleGauge) metrics.get(2)).set(Math.PI);
         ((DoubleGauge) metrics.get(3)).set(Math.E);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
 
         // when
@@ -376,10 +342,7 @@ class LegacyCsvWriterTest {
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
         final List<Metric> metrics = createListWithInternals();
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
 
         // when
@@ -390,10 +353,7 @@ class LegacyCsvWriterTest {
         ((Counter) metrics.get(1)).add(3);
         ((DoubleGauge) metrics.get(2)).set(Math.PI);
         ((DoubleGauge) metrics.get(3)).set(Math.E);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
 
         // when
@@ -423,10 +383,7 @@ class LegacyCsvWriterTest {
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
         final List<Metric> metrics = createListWithSecondaryValues();
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
 
         // when
@@ -437,10 +394,7 @@ class LegacyCsvWriterTest {
         ((SpeedometerMetric) metrics.get(1)).update(2000.0);
         ((RunningAverageMetric) metrics.get(2)).update(3000.0);
         ((SpeedometerMetric) metrics.get(3)).update(4000.0);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
 
         // when
@@ -473,10 +427,7 @@ class LegacyCsvWriterTest {
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
         final List<Metric> metrics = createListWithSecondaryValues();
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
 
         // when
@@ -487,10 +438,7 @@ class LegacyCsvWriterTest {
         ((SpeedometerMetric) metrics.get(1)).update(2000.0);
         ((RunningAverageMetric) metrics.get(2)).update(3000.0);
         ((SpeedometerMetric) metrics.get(3)).update(4000.0);
-        final List<Snapshot> snapshots2 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots2 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
 
         // when
@@ -522,7 +470,7 @@ class LegacyCsvWriterTest {
         final DoubleGauge gauge = metrics.getOrCreate(new DoubleGauge.Config(Metrics.PLATFORM_CATEGORY, "DoubleGauge")
                 .withFormat("%d")
                 .withInitialValue(Math.PI));
-        final Snapshot snapshot = Snapshot.of((SnapshotableMetric) gauge);
+        final Snapshot snapshot = Snapshot.of(gauge);
         final SnapshotEvent notification = new SnapshotEvent(NODE_ID, List.of(snapshot));
 
         // when
@@ -550,18 +498,14 @@ class LegacyCsvWriterTest {
         ((Counter) metrics.get(2)).add(2L);
         ((Counter) metrics.get(3)).add(3L);
         ((Counter) metrics.get(4)).add(4L);
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
         writer.handleSnapshots(notification1);
 
         // second row
         ((Counter) metrics.get(1)).add(10L);
         ((Counter) metrics.get(3)).add(30L);
-        final List<Snapshot> snapshots2 = List.of(
-                Snapshot.of((SnapshotableMetric) metrics.get(3)), Snapshot.of((SnapshotableMetric) metrics.get(1)));
+        final List<Snapshot> snapshots2 = List.of(Snapshot.of(metrics.get(3)), Snapshot.of(metrics.get(1)));
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
         writer.handleSnapshots(notification2);
 
@@ -598,18 +542,14 @@ class LegacyCsvWriterTest {
         ((RunningAverageMetric) metrics.get(2)).update(2000.0);
         ((RunningAverageMetric) metrics.get(3)).update(3000.0);
         ((RunningAverageMetric) metrics.get(4)).update(4000.0);
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
         writer.handleSnapshots(notification1);
 
         // second row
         ((RunningAverageMetric) metrics.get(1)).update(10000.0);
         ((RunningAverageMetric) metrics.get(3)).update(30000.0);
-        final List<Snapshot> snapshots2 = List.of(
-                Snapshot.of((SnapshotableMetric) metrics.get(3)), Snapshot.of((SnapshotableMetric) metrics.get(1)));
+        final List<Snapshot> snapshots2 = List.of(Snapshot.of(metrics.get(3)), Snapshot.of(metrics.get(1)));
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
         writer.handleSnapshots(notification2);
 
@@ -649,18 +589,14 @@ class LegacyCsvWriterTest {
         ((RunningAverageMetric) metrics.get(2)).update(2000.0);
         ((RunningAverageMetric) metrics.get(3)).update(3000.0);
         ((RunningAverageMetric) metrics.get(4)).update(4000.0);
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         final SnapshotEvent notification1 = new SnapshotEvent(NODE_ID, snapshots1);
         writer.handleSnapshots(notification1);
 
         // second row
         ((RunningAverageMetric) metrics.get(1)).update(10000.0);
         ((RunningAverageMetric) metrics.get(3)).update(30000.0);
-        final List<Snapshot> snapshots2 = List.of(
-                Snapshot.of((SnapshotableMetric) metrics.get(3)), Snapshot.of((SnapshotableMetric) metrics.get(1)));
+        final List<Snapshot> snapshots2 = List.of(Snapshot.of(metrics.get(3)), Snapshot.of(metrics.get(1)));
         final SnapshotEvent notification2 = new SnapshotEvent(NODE_ID, snapshots2);
         writer.handleSnapshots(notification2);
 
@@ -691,14 +627,11 @@ class LegacyCsvWriterTest {
         final List<Metric> metrics = createSimpleList();
 
         // when
-        final List<Snapshot> snapshots1 = metrics.stream()
-                .map(SnapshotableMetric.class::cast)
-                .map(Snapshot::of)
-                .toList();
+        final List<Snapshot> snapshots1 = metrics.stream().map(Snapshot::of).toList();
         writer.handleSnapshots(new SnapshotEvent(NODE_ID, snapshots1));
 
-        final List<Snapshot> snapshots = List.of(
-                Snapshot.of((SnapshotableMetric) this.metrics.getOrCreate(new Config("NewCategory", "NewCounter"))));
+        final List<Snapshot> snapshots =
+                List.of(Snapshot.of(this.metrics.getOrCreate(new Config("NewCategory", "NewCounter"))));
         writer.handleSnapshots(new SnapshotEvent(NODE_ID, snapshots));
 
         // then
