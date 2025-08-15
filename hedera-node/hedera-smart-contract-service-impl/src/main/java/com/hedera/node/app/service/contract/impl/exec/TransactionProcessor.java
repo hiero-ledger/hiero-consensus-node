@@ -35,6 +35,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -49,6 +50,7 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
+    private final CodeFactory codeFactory;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -56,13 +58,15 @@ public class TransactionProcessor {
             @NonNull final CustomGasCharging gasCharging,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -131,7 +135,8 @@ public class TransactionProcessor {
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
-                gasCharges.intrinsicGas());
+                gasCharges.intrinsicGas(),
+                codeFactory);
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
@@ -157,9 +162,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         try {
             return computeInvolvedParties(transaction, updater, config);
-        } catch (HandleException e) {
+        } catch (final HandleException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -179,7 +184,7 @@ public class TransactionProcessor {
                 }
             }
             return result;
-        } catch (ResourceExhaustedException e) {
+        } catch (final ResourceExhaustedException e) {
             updater.revert();
             final var sender = updater.getHederaAccount(transaction.senderId());
             return resourceExhaustionFrom(

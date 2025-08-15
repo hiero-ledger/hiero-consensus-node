@@ -57,13 +57,14 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
     }
 
     @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector) {
+    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
         // Check to see if the account needs to return the proxy redirect for schedule bytecode
         final int selector = functionSelector.size() >= FUNCTION_SELECTOR_LENGTH ? functionSelector.getInt(0) : 0;
+
         if (!SCHEDULE_PROXY_FUNCTION_SELECTOR.contains(selector)) {
-            return CodeFactory.createCode(Bytes.EMPTY, 0, false);
+            return codeFactory.createCode(Bytes.EMPTY, false);
         }
-        return CodeFactory.createCode(getCode(), 0, false);
+        return codeFactory.createCode(getCode(), false);
     }
 
     @Override

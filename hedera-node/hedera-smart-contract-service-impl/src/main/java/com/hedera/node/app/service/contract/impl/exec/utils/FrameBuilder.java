@@ -66,14 +66,16 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction the transaction
+     * @param transaction  the transaction
      * @param worldUpdater the world updater for the transaction
-     * @param context the Hedera EVM context (gas price, block values, etc.)
-     * @param config the active Hedera configuration
+     * @param context      the Hedera EVM context (gas price, block values, etc.)
+     * @param config       the active Hedera configuration
      * @param featureFlags the feature flag currently used
-     * @param from the sender of the transaction
-     * @param to the recipient of the transaction
+     * @param from         the sender of the transaction
+     * @param to           the recipient of the transaction
      * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
+     * @param codeFactory  the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
+     *      *                    from raw bytecode.
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -86,7 +88,8 @@ public class FrameBuilder {
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
-            final long intrinsicGas) {
+            final long intrinsicGas,
+            @NonNull final CodeFactory codeFactory) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -108,10 +111,16 @@ public class FrameBuilder {
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
         if (transaction.isCreate()) {
-            return finishedAsCreate(to, builder, transaction);
+            return finishedAsCreate(to, builder, transaction, codeFactory);
         } else {
             return finishedAsCall(
-                    to, worldUpdater, builder, transaction, featureFlags, config.getConfigData(ContractsConfig.class));
+                    to,
+                    worldUpdater,
+                    builder,
+                    transaction,
+                    featureFlags,
+                    config.getConfigData(ContractsConfig.class),
+                    codeFactory);
         }
     }
 
@@ -150,12 +159,13 @@ public class FrameBuilder {
     private MessageFrame finishedAsCreate(
             @NonNull final Address to,
             @NonNull final MessageFrame.Builder builder,
-            @NonNull final HederaEvmTransaction transaction) {
+            @NonNull final HederaEvmTransaction transaction,
+            final CodeFactory codeFactory) {
         return builder.type(MessageFrame.Type.CONTRACT_CREATION)
                 .address(to)
                 .contract(to)
                 .inputData(Bytes.EMPTY)
-                .code(CodeFactory.createCode(transaction.evmPayload(), 0, false))
+                .code(codeFactory.createCode(transaction.evmPayload(), false))
                 .build();
     }
 
@@ -165,7 +175,8 @@ public class FrameBuilder {
             @NonNull final MessageFrame.Builder builder,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final ContractsConfig config) {
+            @NonNull final ContractsConfig config,
+            @NonNull final CodeFactory codeFactory) {
         Code code = CodeV0.EMPTY_CODE;
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
@@ -186,7 +197,7 @@ public class FrameBuilder {
         final var account = worldUpdater.getHederaAccount(contractId);
         if (account != null) {
             // Hedera account for contract is present, get the byte code
-            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()));
+            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()), codeFactory);
 
             // If after getting the code, it is empty, then check if this is allowed
             if (code.equals(CodeV0.EMPTY_CODE)) {

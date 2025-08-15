@@ -113,4 +113,9 @@ public abstract class AbstractEvmEntityAccount extends AbstractMutableEvmAccount
     public @NonNull ContractID hederaContractId() {
         return state.entityIdFactory().newContractId(numberOfLongZero(address));
     }
+
+    @Override
+    public boolean isStorageEmpty() {
+        return true;
+    }
 }
