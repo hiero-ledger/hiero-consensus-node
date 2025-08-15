@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.stream.Stream;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -139,11 +140,16 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             if (!judgesFoundBeforeAdd) {
                 // This means that we have just found the last init judge.
 
-                consensus.getPreconsensusEvents().stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
-                if(!allConsensusRounds.isEmpty()){
-                    throw new RuntimeException("this is unexpected");
+                final List<EventImpl> preconsensusEvents = consensus.getPreconsensusEvents();
+
+                if (allConsensusRounds.isEmpty()) {
+                    preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
+                } else {
+                    preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
+                    allConsensusRounds.stream().map(ConsensusRound::getConsensusEvents).flatMap(List::stream)
+                            .forEach(addedEvents::add);
                 }
-            }else {
+            } else {
                 // we only return events we actually add to the graph
                 addedEvents.add(linkedEvent.getBaseEvent());
             }

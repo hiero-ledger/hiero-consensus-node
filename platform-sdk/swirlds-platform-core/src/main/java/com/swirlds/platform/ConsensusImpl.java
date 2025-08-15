@@ -268,7 +268,8 @@ public class ConsensusImpl implements Consensus {
 
     @Override
     public List<EventImpl> getPreconsensusEvents() {
-        return Collections.unmodifiableList(recentEvents);
+        //return Collections.unmodifiableList(recentEvents);
+        return recentEvents.stream().filter(e->!e.isConsensus()).toList();
     }
 
     /**

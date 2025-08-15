@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -14,6 +15,7 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -21,7 +23,10 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class ConsensusContractTest {
     @Test
@@ -29,7 +34,7 @@ public class ConsensusContractTest {
         // parameters
         final int numEvents = 10_000;
         final int minNodes = 2;
-        final int maxNodes = 10;
+        final int maxNodes = 15;
 
         // setup
         final Randotron random = Randotron.create();
@@ -68,6 +73,59 @@ public class ConsensusContractTest {
 
     }
 
+    @Test
+    void testDynamicRoster(){
+        // parameters
+        final int numEvents = 10_000;
+        final int numNodes = 15;
+
+        // setup
+        final Randotron random = Randotron.create();
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withSize(numNodes)
+                .build();
+        final PlatformContext context = TestPlatformContextBuilder.create().build();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(context, random, roster).newStandardEmitter();
+        final List<PlatformEvent> generatedEvents = eventEmitter
+                .emitEvents(numEvents)
+                .stream()
+                .map(EventImpl::getBaseEvent)
+                .toList();
+
+
+        // first part
+        final TestIntake genesisIntake = new TestIntake(context, roster);
+        final List<PlatformEvent> genesisEvents = copyShuffle(generatedEvents, random);
+        genesisEvents.forEach(genesisIntake::addEvent);
+        validate(genesisIntake.getOutput());
+
+        // change roster
+        final List<RosterEntry> originalEntries = roster.rosterEntries();
+        final List<RosterEntry> modifiedEntries = new ArrayList<>();
+        modifiedEntries.add(
+                originalEntries.getFirst().copyBuilder().weight(1).build()
+        );
+        for (int i = 1; i < originalEntries.size(); i++) {
+            modifiedEntries.add(
+                    originalEntries.get(i).copyBuilder().weight(0).build()
+            );
+        }
+        final Roster modifiedRoster = roster.copyBuilder()
+                .rosterEntries(modifiedEntries)
+                .build();
+
+
+        // second part
+        final ConsensusSnapshot snapshot = genesisIntake.getConsensusRounds()
+                .get(genesisIntake.getConsensusRounds().size() / 2).getSnapshot();
+        final TestIntake restartIntake = new TestIntake(context, modifiedRoster);
+        restartIntake.loadSnapshot(snapshot);
+        final List<PlatformEvent> restartEvents = copyShuffle(generatedEvents, random);
+        restartEvents.forEach(restartIntake::addEvent);
+        validate(restartIntake.getOutput());
+
+    }
+
     private List<PlatformEvent> copyShuffle(final List<PlatformEvent> events, final Randotron random) {
         final List<PlatformEvent> copiedEvents = events.stream()
                 .map(PlatformEvent::copyGossipedData)
@@ -82,9 +140,11 @@ public class ConsensusContractTest {
         final Set<Hash> preConsensusHashes = output.getPreConsensusEventHashes();
 
         for (final PlatformEvent preConsensusEvent : output.getPreConsensusEvents()) {
-            if(eventWindow.isAncient(preConsensusEvent)){
-               assertTrue(consensusHashes.contains(preConsensusEvent.getHash()),
-                       "every ancient pre-consensus event added should have reached consensus");
+            if (eventWindow.isAncient(preConsensusEvent)) {
+                assertTrue(consensusHashes.contains(preConsensusEvent.getHash()),
+                        "Event %s is an ancient pre-consensus event, but has not been returned as a consensus event. "
+                                .formatted(preConsensusEvent.getDescriptor().shortString())
+                                + "Every ancient pre-consensus event added should have reached consensus.");
             }
         }
 
@@ -93,6 +153,4 @@ public class ConsensusContractTest {
                     "every consensus event hash should have been returned as a pre-consensus event");
         }
     }
-
-    //TODO add test with changing roster
 }
