@@ -30,7 +30,9 @@ public interface BlockStreamModule {
     @Singleton
     static BlockBufferService provideBlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockBufferService(configProvider, blockStreamMetrics);
+        final BlockBufferService bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        bufferService.start();
+        return bufferService;
     }
 
     @Provides

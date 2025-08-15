@@ -233,6 +233,10 @@ public class BlockState {
         }
     }
 
+    public void closeBlock(final Instant timestamp) {
+        closedTimestamp.set(timestamp);
+    }
+
     /**
      * Get the completion time of the block.
      *
@@ -325,6 +329,7 @@ public class BlockState {
                 BlockItemSet.newBuilder().blockItems(blockItems).build();
         final PublishStreamRequest psr =
                 PublishStreamRequest.newBuilder().blockItems(bis).build();
+
         final RequestWrapper rs = new RequestWrapper(index, psr, new AtomicBoolean(false));
         requestsByIndex.put(index, rs);
 
