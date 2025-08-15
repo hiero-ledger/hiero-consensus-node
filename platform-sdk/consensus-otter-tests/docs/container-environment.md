@@ -200,10 +200,10 @@ CMD ["java", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]
 
 ### Container Startup Process
 
-There are two processes and APIs the `ContainerNode` interacts with:
+There are two processes, each with their own API, that the `ContainerNode` interacts with:
 
-1. **DockerApp**: The application running inside the Docker container that initializes a gRPC service for starting and
-   stoping the consensus node process.
+1. **DockerApp**: The application running inside the Docker container that starts and stops the second process via a
+   gRPC API.
 2. **NodeCommunicationService**: The application running inside the Docker container that provides a second gRPC API for
    communicating with the consensus node.
 
@@ -229,6 +229,8 @@ sequenceDiagram
     participant Container as Docker Container
     participant DockerMain
     participant DockerManager
+    participant ConsensusNodeMain
+    participant NodeCommunicationService
     participant ConsensusNodeManager
     participant Platform
     Test ->> ContainerNetwork: addNodes(4)
@@ -241,16 +243,22 @@ sequenceDiagram
         Container ->>+ DockerMain: java -jar DockerApp.jar
         DockerMain ->>+ DockerManager: Initialize gRPC server
         ContainerNode ->> DockerManager: Establish gRPC connection
-        ContainerNode ->> DockerManager: Send InitRequest
     end
 
     Test ->> ContainerNetwork: start()
+    ContainerNetwork ->> ContainerNode: start()
 
     loop For each node
-        ContainerNetwork ->> ContainerNode: start()
-        ContainerNode ->> DockerManager: Send StartRequest
-        DockerManager ->>+ ConsensusNodeManager: new ConsensusNodeManager()
-        ConsensusNodeManager ->>+ Platform: Initialize Platform
+        ContainerNode ->> DockerManager: Send InitRequest
+        DockerManager ->> ConsensusNodeMain: java -cp DockerApp.jar
+        ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
+        ContainerNode ->> NodeCommunicationService: Establish gRPC connection
+        ContainerNode ->> NodeCommunicationService: Send StartRequest
+        NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+        ConsensusNodeManager ->>+ Platform: Initialize
+        ContainerNode ->> NodeCommunicationService: Send StartRequest
+        NodeCommunicationService ->> ConsensusNodeManager: start
+        ConsensusNodeManager ->>+ Platform: start
         Note over ContainerNode, Platform: 🔄 Ongoing consensus and event streaming
     end
 
@@ -291,6 +299,7 @@ message InitRequest {...}
 // Request to kill the application immediately.
 message KillImmediatelyRequest {...}
 ```
+
 ```protobuf
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
