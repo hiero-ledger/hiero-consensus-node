@@ -601,6 +601,83 @@ class HevmTransactionFactoryTest {
         assertEquals(expectedCreation, transaction.hapiCreation());
     }
 
+    @Test
+    void fromContractTxExceptionWithEthereumTransaction() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+        final var sig = EthTxSigs.extractSignatures(ethTxData);
+        given(ethereumSignatures.computeIfAbsent(ethTxData)).willReturn(sig);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE);
+
+        final var result = subject.fromContractTxException(transactionBody, exception);
+
+        final var expectedSenderId =
+                AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();
+        assertEquals(expectedSenderId, result.senderId());
+        assertEquals(RELAYER_ID, result.relayerId());
+        assertNull(result.contractId());
+        assertFalse(result.hasExpectedNonce());
+        assertEquals(Bytes.EMPTY, result.payload());
+        assertNull(result.chainId());
+        assertEquals(0L, result.value());
+        assertEquals(ethTxData.gasLimit(), result.gasLimit());
+        assertFalse(result.hasOfferedGasPrice());
+        assertFalse(result.hasMaxGasAllowance());
+        assertNull(result.hapiCreation());
+        assertEquals(exception, result.exception());
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionValidationError() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithWrongChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.WRONG_CHAIN_ID);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionNegativeAllowance() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(-1)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionInvalidData() {
+        final var ethTxData = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]);
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
     private void assertCreateFailsWith(
             @NonNull final ResponseCodeEnum status,
             @NonNull final Consumer<ContractCreateTransactionBody.Builder> spec) {
@@ -675,6 +752,16 @@ class HevmTransactionFactoryTest {
                         .contractCall(callWith(spec))
                         .build(),
                 new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+    }
+
+    private HederaEvmTransaction getManufacturedRelayedCallException(
+            @NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
+        return subject.fromContractTxException(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                        .ethereumTransaction(ethTxWith(spec))
+                        .build(),
+                new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
     }
 
     private ContractCreateTransactionBody createWith(final Consumer<ContractCreateTransactionBody.Builder> spec) {
