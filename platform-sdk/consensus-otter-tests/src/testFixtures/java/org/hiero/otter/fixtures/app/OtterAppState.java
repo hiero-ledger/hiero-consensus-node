@@ -40,7 +40,6 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     /**
      * Creates an initialized {@code TurtleAppState}.
      *
-     * @param configuration the configuration used during initialization
      * @param roster        the initial roster stored in the state
      * @param metrics       the metrics to be registered with virtual map
      * @param version       the software version to set in the state
@@ -48,11 +47,8 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
      */
     @NonNull
     public static OtterAppState createGenesisState(
-            @NonNull final Configuration configuration,
-            @NonNull final Roster roster,
-            @NonNull final Metrics metrics,
-            @NonNull final SemanticVersion version) {
-        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
+            @NonNull final Roster roster, @NonNull final Metrics metrics, @NonNull final SemanticVersion version) {
+        final TestingAppStateInitializer initializer = new TestingAppStateInitializer();
         final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
         initializer.initStates(state);
         RosterUtils.setActiveRoster(state, roster, 0L);

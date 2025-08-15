@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
@@ -12,6 +11,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -73,8 +73,10 @@ public final class SignedStateFileReader {
                     return in.readSerializable();
                 });
 
-        final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(createStateFromVirtualMap, data.stateRoot(), platformContext.getMetrics());
+        final VirtualMap virtualMap = (VirtualMap) data.stateRoot();
+        final Metrics metrics = platformContext.getMetrics();
+        virtualMap.registerMetrics(metrics);
+        final MerkleNodeState merkleNodeState = createStateFromVirtualMap.apply(virtualMap);
 
         final SignedState newSignedState = new SignedState(
                 conf,
@@ -166,22 +168,7 @@ public final class SignedStateFileReader {
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, schema, def);
                     if (def.singleton() || def.onDisk()) {
-                        try {
-                            // Production case
-                            // Attempt to initialize the state if it is a VirtualMapState
-                            state.initializeState(md);
-                        } catch (UnsupportedOperationException e) {
-                            // Non production case (testing tools)
-                            // Otherwise assume it is a MerkleStateRoot
-
-                            // This branch should be removed once the MerkleStateRoot is removed along with
-                            // putServiceStateIfAbsent method in the MerkleNodeState interface
-                            state.putServiceStateIfAbsent(md, () -> {
-                                throw new IllegalStateException(
-                                        "State nodes " + md.stateDefinition().stateKey() + " for service " + name
-                                                + " are supposed to exist in the state snapshot already.");
-                            });
-                        }
+                        state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
                                 "Only singletons and onDisk virtual maps are supported as stub states");

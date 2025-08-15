@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.logging;
+package com.swirlds.state.test.fixtures.merkle.logging;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
@@ -8,12 +8,20 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.fcqueue.FCQueue;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
+import com.swirlds.state.test.fixtures.merkle.memory.InMemoryValue;
+import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.ValueLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,15 +32,37 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * This utility class provides convenient methods for logging state operations for different types of state types.
+ * Contains duplicated code from {@code StateLogger}, but this class is intended for text fixtures only,
+ * so it is conscious choice for convenience, and anyway this class will be deleted soon.
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
-public class StateLogger {
+@Deprecated
+public class TestStateLogger {
     /** The logger we are using for the State log */
-    private static final Logger logger = LogManager.getLogger(StateLogger.class);
+    private static final Logger logger = LogManager.getLogger(TestStateLogger.class);
 
     /**
      * The name of the thread that handles transactions. For the sake of the app, to allow logging.
      */
     private static final String TRANSACTION_HANDLING_THREAD_NAME = "<scheduler TransactionHandler>";
+
+    /**
+     * Log the read of a singleton.
+     *
+     * @deprecated This method is only used in {@link SingletonNode}
+     * and can be removed if that class is deleted.
+     *
+     * @param label The label of the singleton
+     * @param value The value of the singleton
+     * @param <T> The type of the singleton
+     */
+    @SuppressWarnings("LoggingSimilarMessage")
+    @Deprecated
+    public static <T> void logSingletonRead(@NonNull final String label, @Nullable final ValueLeaf<T> value) {
+        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
+            logger.debug("      READ singleton {} value {}", label, value == null ? "null" : value.getValue());
+        }
+    }
 
     /**
      * Log the read of a singleton.
@@ -115,6 +145,33 @@ public class StateLogger {
     /**
      * Log the iteration over a queue.
      *
+     * @deprecated This method is only used in {@link QueueNode}
+     * and can be removed if that class is deleted.
+     *
+     * @param label The label of the queue
+     * @param queue The queue that was iterated
+     * @param <K> The type of the queue values
+     */
+    @Deprecated
+    public static <K> void logQueueIterate(@NonNull final String label, @NonNull final FCQueue<ValueLeaf<K>> queue) {
+        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
+            if (queue.isEmpty()) {
+                logger.debug("      ITERATE queue {} size 0 values:EMPTY", label);
+            } else {
+                logger.debug(
+                        "      ITERATE queue {} size {} values:\n{}",
+                        label,
+                        queue.size(),
+                        queue.stream()
+                                .map(leaf -> leaf == null ? "null" : leaf.toString())
+                                .collect(Collectors.joining(",\n")));
+            }
+        }
+    }
+
+    /**
+     * Log the iteration over a queue.
+     *
      * @param label The label of the queue
      * @param size The queue size
      * @param it The queue elements iterator
@@ -151,6 +208,26 @@ public class StateLogger {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug(
                     "      PUT into map {} key {} value {}",
+                    label,
+                    formatKey(key),
+                    value == null ? "null" : value.toString());
+        }
+    }
+
+    /**
+     * Log the removal of an entry from a map.
+     *
+     * @param label The label of the map
+     * @param key The key removed to the map
+     * @param value The value removed to the map
+     * @param <K> The type of the key
+     * @param <V> The type of the value
+     */
+    public static <K, V> void logMapRemove(
+            @NonNull final String label, @NonNull final K key, @Nullable final InMemoryValue<K, V> value) {
+        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
+            logger.debug(
+                    "      REMOVE from map {} key {} removed value {}",
                     label,
                     formatKey(key),
                     value == null ? "null" : value.toString());
@@ -208,6 +285,31 @@ public class StateLogger {
     }
 
     /**
+     * Log the iteration of keys of a map.
+     *
+     * @param label The label of the map
+     * @param keySet The set of keys of the map
+     * @param <K> The type of the key
+     */
+    public static <K> void logMapIterate(@NonNull final String label, @NonNull final Set<InMemoryKey<K>> keySet) {
+        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
+            final long size = keySet.size();
+            if (size == 0) {
+                logger.debug("      ITERATE map {} size 0 keys:EMPTY", label);
+            } else {
+                logger.debug(
+                        "      ITERATE map {} size {} keys:\n{}",
+                        label,
+                        size,
+                        keySet.stream()
+                                .map(InMemoryKey::key)
+                                .map(TestStateLogger::formatKey)
+                                .collect(Collectors.joining(",\n")));
+            }
+        }
+    }
+
+    /**
      * Log the iteration of values of a map.
      *
      * @param virtualMap The map that was iterated
@@ -222,8 +324,8 @@ public class StateLogger {
             if (size == 0) {
                 logger.debug("      ITERATE keys of {} state size 0 keys:EMPTY", label);
             } else {
-                AtomicInteger count = new AtomicInteger(0);
-                String keys = StreamSupport.stream(spliterator, false)
+                final AtomicInteger count = new AtomicInteger(0);
+                final String keys = StreamSupport.stream(spliterator, false)
                         .map(merkleNode -> {
                             if (merkleNode instanceof VirtualLeafNode leaf) {
                                 final var k = leaf.getKey();

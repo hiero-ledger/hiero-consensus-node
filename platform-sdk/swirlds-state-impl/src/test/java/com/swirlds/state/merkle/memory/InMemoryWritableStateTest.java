@@ -6,6 +6,8 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
+import com.swirlds.state.test.fixtures.merkle.memory.InMemoryWritableKVState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
