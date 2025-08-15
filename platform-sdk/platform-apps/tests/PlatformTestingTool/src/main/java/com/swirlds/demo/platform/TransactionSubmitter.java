@@ -4,6 +4,7 @@ package com.swirlds.demo.platform;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.utility.throttle.MultiThrottle;
 import com.swirlds.common.utility.throttle.Throttle;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 public class TransactionSubmitter {
 
@@ -55,7 +57,7 @@ public class TransactionSubmitter {
     private static AtomicBoolean forcePauseCanSubmitMore;
 
     /**
-     * If set to true will prevent future transactions from being submitted by the {@link #trySubmit(Platform, Pair)}
+     * If set to true will prevent future transactions from being submitted by the {@link #trySubmit(Platform, TransactionPoolNexus, Pair)}
      * method.
      */
     private final AtomicBoolean paused = new AtomicBoolean(false);
@@ -170,9 +172,9 @@ public class TransactionSubmitter {
         accumulatedBytes += length;
     }
 
-    public void sendTransaction(Platform platform, byte[] data) {
+    public void sendTransaction(TransactionPoolNexus transactionPool, byte[] data) {
         // send start pause message to all others, keep trying until it go through
-        while (!platform.createTransaction(data))
+        while (!transactionPool.submitApplicationTransaction(Bytes.wrap(data)))
             ;
     }
 
@@ -180,7 +182,7 @@ public class TransactionSubmitter {
      * if submit successfully return true, other false,
      * called may retry to submit the same data next time
      */
-    public boolean trySubmit(Platform platform, Pair<byte[], PAYLOAD_TYPE> data) {
+    public boolean trySubmit(Platform platform, TransactionPoolNexus transactionPool, Pair<byte[], PAYLOAD_TYPE> data) {
         if (controlQuorum.hasQuorum(ControlAction.of(ControlType.EXIT_VALIDATION))) {
             logger.info(
                     LOGM_DEMO_INFO,
@@ -242,7 +244,7 @@ public class TransactionSubmitter {
                     }
                 }
             }
-            if (!platform.createTransaction(data.key())) {
+            if (!transactionPool.submitApplicationTransaction(Bytes.wrap(data.key()))) {
                 logger.info(
                         LOGM_SUBMIT_DETAIL,
                         "Submitter will not submit this transaction because platform failed to createTransaction");
@@ -393,11 +395,11 @@ public class TransactionSubmitter {
         return result;
     }
 
-    public boolean sendFreezeTran(Platform platform, byte[] data) {
+    public boolean sendFreezeTran(TransactionPoolNexus transactionPool, byte[] data) {
         logger.info(LOGM_DEMO_INFO, "Sending Freeze Transaction...");
         // Try N times to successfully submit waiting X milliseconds between each attempt
         int attemptCount = 0;
-        while (!platform.createTransaction(data)) {
+        while (!transactionPool.submitApplicationTransaction(Bytes.wrap(data))) {
             try {
                 attemptCount++;
 

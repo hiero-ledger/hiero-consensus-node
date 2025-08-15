@@ -5,10 +5,8 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -18,13 +16,10 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.FallenBehindManagerImpl;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.network.topology.StaticTopology;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -41,7 +36,6 @@ class SyncManagerTest {
     private static class SyncManagerTestData {
         public Roster roster;
         public NodeId selfId;
-        public TransactionPoolNexus transactionPoolNexus;
         public SyncManagerImpl syncManager;
         public Configuration configuration;
 
@@ -51,9 +45,6 @@ class SyncManagerTest {
                     .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, "0.25")
                     .getOrCreateConfig();
             final Metrics metrics = new NoOpMetrics();
-            final Time time = Time.getCurrent();
-
-            transactionPoolNexus = spy(new TransactionPoolNexus(configuration, metrics, time));
 
             this.roster = RandomRosterBuilder.create(random).withSize(41).build();
             this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -61,7 +52,6 @@ class SyncManagerTest {
             final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
-            final NetworkTopology topology = new StaticTopology(peers, selfId);
 
             syncManager = new SyncManagerImpl(
                     metrics,
