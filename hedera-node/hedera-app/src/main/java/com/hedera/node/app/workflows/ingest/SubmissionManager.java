@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -144,9 +143,7 @@ public class SubmissionManager {
             // before we got here. But if it ever does happen, for any reason, we want it to happen BEFORE we submit,
             // and BEFORE we record the transaction as a duplicate.
             final var txId = txBody.transactionIDOrThrow();
-            TxStatus txStatus = submittedTxns.getTxStatus(txId);
-            if (txStatus == TxStatus.SUBMITTED) {
-                // If the transaction is already submitted, we do not want to submit it again.
+            if (submittedTxns.contains(txId)) {
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
             }
 

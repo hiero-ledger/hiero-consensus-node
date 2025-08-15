@@ -891,14 +891,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    /**
-     * Returns the transaction that was submitted by this operation.
-     * @return the submitted transaction
-     */
-    public Transaction getSubmittedTransaction() {
-        return txnSubmitted;
-    }
-
     public TransactionReceipt getLastReceipt() {
         return lastReceipt;
     }

@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
 import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 import static java.util.Spliterators.spliteratorUnknownSize;
 import static java.util.stream.Collectors.toMap;
@@ -17,7 +16,6 @@ import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
@@ -30,11 +28,9 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.AbstractFakePlatform;
-import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeEvent;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeHintsService;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeHistoryService;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.LapsingBlockHashSigner;
-import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.Response;
@@ -57,18 +53,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 
@@ -114,8 +107,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected Hedera hedera;
     protected SemanticVersion version;
     protected boolean blockStreamEnabled;
-
-    protected AtomicBoolean allEventsStale = new AtomicBoolean(false);
 
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.HintsServiceFactory} lambda we give the
@@ -376,23 +367,5 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         return new AddressBook(stream(spliteratorUnknownSize(addressBook.iterator(), 0), false)
                 .map(address -> address.copySetSigCert(sigCert))
                 .toList());
-    }
-
-    @Override
-    public void triggerStaleEventCallbackForTransaction(@NonNull Transaction transaction) {
-        requireNonNull(transaction);
-        final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
-        final FakeEvent fakeStaleEvent =
-                new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(serializedSignedTx));
-        hedera.staleEventCallback(new PlatformEvent(new GossipEvent(
-                fakeStaleEvent.getEventCore(),
-                fakeStaleEvent.getSignature(),
-                List.of(Bytes.wrap(serializedSignedTx)),
-                List.of())));
-    }
-
-    @Override
-    public void considerAllEventsStale(boolean considerAllEventsStale) {
-        allEventsStale.set(considerAllEventsStale);
     }
 }
