@@ -16,6 +16,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -32,6 +33,7 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -44,6 +46,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.function.Function;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -369,6 +372,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
+        final Function<State, Long> extractRoundFromState = virtualMapState -> {
+            final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(virtualMapState);
+            return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        };
 
         platformContext = TestPlatformContextBuilder.create()
                 .withTime(time)
@@ -386,13 +393,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(roster, metrics, version),
+                () -> OtterAppState.createGenesisState(platformContext, roster, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
-                OtterAppState::new);
+                virtualMap -> new OtterAppState(virtualMap, platformContext, extractRoundFromState::apply));
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
@@ -411,7 +418,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         eventStreamLoc,
                         rosterHistory,
                         platformStateFacade,
-                        OtterAppState::new)
+                        virtualMap -> new OtterAppState(virtualMap, platformContext, extractRoundFromState::apply))
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)

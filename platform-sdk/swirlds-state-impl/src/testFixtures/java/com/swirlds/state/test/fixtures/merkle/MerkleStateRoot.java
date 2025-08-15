@@ -9,6 +9,7 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -18,9 +19,7 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -64,7 +63,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -107,23 +106,17 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     // indices globally, assuming these indices do not change that often. We need to re-think index lookup,
     // but at this point all major rewrites seem to risky.
     private static final Map<String, Integer> INDEX_LOOKUP = new ConcurrentHashMap<>();
-    private LongSupplier roundSupplier;
 
-    private MerkleCryptography merkleCryptography;
-    private Time time;
+    private final MerkleCryptography merkleCryptography;
 
     public Map<String, Map<String, StateMetadata<?, ?>>> getServices() {
         return services;
     }
 
-    private Configuration configuration;
-
-    private Metrics metrics;
-
     /**
      * Metrics for the snapshot creation process
      */
-    private MerkleRootSnapshotMetrics snapshotMetrics = new MerkleRootSnapshotMetrics();
+    private final MerkleRootSnapshotMetrics snapshotMetrics;
 
     /**
      * Maintains information about each service, and each state of each service, known by this
@@ -150,26 +143,21 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     private final RuntimeObjectRecord registryRecord;
 
+    private final PlatformContext platformContext;
+
+    private final Function<MerkleStateRoot<T>, Long> extractRoundFromState;
+
     /**
      * Create a new instance. This constructor must be used for all creations of this class.
-     *
      */
-    public MerkleStateRoot() {
+    public MerkleStateRoot(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<MerkleStateRoot<T>, Long> extractRoundFromState) {
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
-    }
-
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
-        this.time = time;
-        this.configuration = configuration;
-        this.metrics = metrics;
-        this.merkleCryptography = merkleCryptography;
-        this.roundSupplier = roundSupplier;
-        snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
+        this.platformContext = platformContext;
+        this.extractRoundFromState = extractRoundFromState;
+        this.merkleCryptography = platformContext.getMerkleCryptography();
+        this.snapshotMetrics = new MerkleRootSnapshotMetrics(platformContext.getMetrics());
     }
 
     /**
@@ -181,8 +169,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
+        this.platformContext = from.platformContext;
+        this.extractRoundFromState = from.extractRoundFromState;
+        this.merkleCryptography = from.merkleCryptography;
+        this.snapshotMetrics = new MerkleRootSnapshotMetrics(from.platformContext.getMetrics());
         this.listeners.addAll(from.listeners);
-        this.roundSupplier = from.roundSupplier;
 
         // Copy over the metadata
         for (final var entry : from.services.entrySet()) {
@@ -309,14 +300,14 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         throwIfImmutable();
         throwIfDestroyed();
         setImmutable(true);
-        return copyingConstructor();
+        return copyingConstructor(platformContext);
     }
 
     /**
      * Creates a copy of the instance.
      * @return a copy of the instance
      */
-    protected abstract T copyingConstructor();
+    protected abstract T copyingConstructor(@NonNull final PlatformContext platformContext);
 
     /**
      * Puts the defined service state and its associated node into the merkle tree. The precondition
@@ -881,12 +872,14 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     @Override
     public void createSnapshot(@NonNull final Path targetPath) {
+        final Time time = platformContext.getTime();
+        final Long round = extractRoundFromState.apply(this);
         requireNonNull(time);
         requireNonNull(snapshotMetrics);
         throwIfMutable();
         throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, roundSupplier.getAsLong());
+        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, round);
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 
@@ -896,7 +889,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @SuppressWarnings("unchecked")
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
+        return (T) MerkleTreeSnapshotReader.readStateFileData(platformContext.getConfiguration(), targetPath)
                 .stateRoot();
     }
 }

@@ -188,7 +188,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
         // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
@@ -367,7 +366,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         return signedState.reserve("initial reservation on genesis state");
     }
 
@@ -452,7 +450,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
             return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);

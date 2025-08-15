@@ -17,6 +17,7 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.platform.ParameterProvider;
@@ -25,6 +26,7 @@ import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
@@ -125,7 +127,9 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
 
     @NonNull
     @Override
-    public StatsDemoState newStateRoot() {
+    public StatsDemoState newStateRoot(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<State, Long> extractRoundFromState) {
         final StatsDemoState state = new StatsDemoState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
@@ -138,7 +142,9 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      * </p>
      */
     @Override
-    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<State, Long> extractRoundFromState) {
         throw new UnsupportedOperationException();
     }
 

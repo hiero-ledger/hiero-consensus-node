@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -358,7 +359,8 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
-                .setState(new TestVirtualMapState())
+                .setState(new TestVirtualMapState(
+                        TestPlatformContextBuilder.create().build(), state -> PlatformStateAccessor.GENESIS_ROUND))
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -67,10 +68,13 @@ class StateTest {
     private static SignedState randomSignedState(boolean isSupposedToBeHashed) {
         Random random = new Random(0);
         final String virtualMapLabel = "vm-" + StateTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState merkleNodeState = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final MerkleNodeState merkleNodeState = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabel, platformContext, state -> PlatformStateAccessor.GENESIS_ROUND);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
-                TestPlatformContextBuilder.create().build().getConfiguration(),
+                platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,
                 merkleNodeState,
                 "test",

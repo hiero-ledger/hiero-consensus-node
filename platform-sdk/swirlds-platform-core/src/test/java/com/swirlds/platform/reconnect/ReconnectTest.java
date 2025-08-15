@@ -22,6 +22,7 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -117,7 +118,8 @@ final class ReconnectTest {
             final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(new TestVirtualMapState())
+                    .setState(new TestVirtualMapState(
+                            TestPlatformContextBuilder.create().build(), state -> PlatformStateAccessor.GENESIS_ROUND))
                     .buildWithFacade();
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
@@ -190,9 +192,10 @@ final class ReconnectTest {
             final PlatformStateFacade platformStateFacade) {
         final Roster roster =
                 RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
-
+        final PlatformContext testPlatformContext =
+                TestPlatformContextBuilder.create().build();
         return new ReconnectLearner(
-                TestPlatformContextBuilder.create().build(),
+                testPlatformContext,
                 getStaticThreadManager(),
                 connection,
                 roster,
@@ -200,6 +203,7 @@ final class ReconnectTest {
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
                 platformStateFacade,
-                TestVirtualMapState::new);
+                virtualMap -> new TestVirtualMapState(
+                        virtualMap, testPlatformContext, s -> PlatformStateAccessor.GENESIS_ROUND));
     }
 }

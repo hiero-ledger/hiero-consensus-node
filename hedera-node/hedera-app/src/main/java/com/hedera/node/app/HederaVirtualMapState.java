@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
@@ -19,17 +19,30 @@ import org.hiero.base.constructable.ConstructableIgnored;
 @ConstructableIgnored
 public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState> implements MerkleNodeState {
 
-    public HederaVirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        super(configuration, metrics);
+    /**
+     * Constructs a {@link HederaVirtualMapState}.
+     *
+     * @param platformContext       the platform context
+     * @param extractRoundFromState function which extracts round from the state
+     */
+    public HederaVirtualMapState(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<VirtualMapState<HederaVirtualMapState>, Long> extractRoundFromState) {
+        super(platformContext, extractRoundFromState);
     }
 
     /**
      * Constructs a {@link HederaVirtualMapState} using the specified {@link VirtualMap}.
      *
-     * @param virtualMap the virtual map whose metrics must already be registered
+     * @param virtualMap            the virtual map whose metrics must already be registered
+     * @param platformContext       the platform context
+     * @param extractRoundFromState function which extracts round from the state
      */
-    public HederaVirtualMapState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public HederaVirtualMapState(
+            @NonNull final VirtualMap virtualMap,
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<VirtualMapState<HederaVirtualMapState>, Long> extractRoundFromState) {
+        super(virtualMap, platformContext, extractRoundFromState);
     }
 
     protected HederaVirtualMapState(@NonNull final HederaVirtualMapState from) {
@@ -46,11 +59,16 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     /**
      * Creates a new instance of {@link HederaVirtualMapState} with the specified {@link VirtualMap}.
      *
-     * @param virtualMap the virtual map whose metrics must already be registered
+     * @param virtualMap            the virtual map whose metrics must already be registered
+     * @param platformContext       the platform context
+     * @param extractRoundFromState function which extracts round from the state
      * @return a new instance of {@link HederaVirtualMapState}
      */
     @Override
-    protected HederaVirtualMapState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new HederaVirtualMapState(virtualMap);
+    protected HederaVirtualMapState newInstance(
+            @NonNull final VirtualMap virtualMap,
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Function<VirtualMapState<HederaVirtualMapState>, Long> extractRoundFromState) {
+        return new HederaVirtualMapState(virtualMap, platformContext, extractRoundFromState);
     }
 }

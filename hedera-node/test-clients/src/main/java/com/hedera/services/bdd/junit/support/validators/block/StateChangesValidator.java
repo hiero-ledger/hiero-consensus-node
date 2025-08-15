@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.junit.support.validators.block.RootHashUti
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
+import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,13 +67,19 @@ import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -99,6 +106,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -278,8 +286,19 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
-        this.state = hedera.newStateRoot();
+        final var fileSystemManager = FileSystemManager.create(platformConfig);
+        final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
+        final RecycleBin recycleBin = RecycleBin.create(
+                metrics, platformConfig, getStaticThreadManager(), Time.getCurrent(), fileSystemManager, NodeId.of(0));
+        final var platformContext = PlatformContext.create(
+                platformConfig,
+                Time.getCurrent(),
+                metrics,
+                FileSystemManager.create(platformConfig),
+                recycleBin,
+                merkleCryptography);
+        final var hedera = ServicesMain.newHedera(platformContext, new PlatformStateFacade());
+        this.state = hedera.newStateRoot(platformContext, state -> PlatformStateAccessor.GENESIS_ROUND);
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();

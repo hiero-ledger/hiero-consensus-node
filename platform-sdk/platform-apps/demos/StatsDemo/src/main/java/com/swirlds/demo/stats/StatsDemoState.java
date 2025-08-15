@@ -11,7 +11,10 @@ package com.swirlds.demo.stats;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -47,6 +50,10 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
 
     public StatsDemoState() {
         // no op
+        super(
+                PlatformContext.create(
+                        ConfigurationBuilder.create().autoDiscoverExtensions().build()),
+                state -> PlatformStateAccessor.GENESIS_ROUND);
     }
 
     private StatsDemoState(final StatsDemoState sourceState) {
@@ -89,7 +96,7 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     }
 
     @Override
-    protected StatsDemoState copyingConstructor() {
+    protected StatsDemoState copyingConstructor(@NonNull final PlatformContext platformContext) {
         return new StatsDemoState(this);
     }
 }

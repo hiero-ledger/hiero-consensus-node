@@ -2,13 +2,17 @@
 package com.swirlds.demo.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -22,6 +26,7 @@ import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,6 +97,14 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     private NodeId selfId;
 
     public PlatformTestingToolState() {
+        super(
+                PlatformContext.create(
+                        ConfigurationBuilder.create().autoDiscoverExtensions().build()),
+                state -> {
+                    final ConsensusSnapshot consensusSnapshot =
+                            DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state);
+                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+                });
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -482,7 +495,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     }
 
     @Override
-    protected PlatformTestingToolState copyingConstructor() {
+    protected PlatformTestingToolState copyingConstructor(@NonNull final PlatformContext platformContext) {
         return new PlatformTestingToolState(this);
     }
 

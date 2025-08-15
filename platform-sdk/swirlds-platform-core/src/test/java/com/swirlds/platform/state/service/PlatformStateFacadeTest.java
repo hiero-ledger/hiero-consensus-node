@@ -15,8 +15,10 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
@@ -41,11 +43,17 @@ class PlatformStateFacadeTest {
     void beforeEach() {
         final String virtualMapLabelForState =
                 "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
+        state = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabelForState,
+                TestPlatformContextBuilder.create().build(),
+                state -> PlatformStateAccessor.GENESIS_ROUND);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
                 "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        emptyState = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
+        emptyState = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabelForEmptyState,
+                TestPlatformContextBuilder.create().build(),
+                state -> PlatformStateAccessor.GENESIS_ROUND);
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
     }
@@ -109,8 +117,10 @@ class PlatformStateFacadeTest {
     void testPlatformStateOf_noPlatformState() {
         final var virtualMapLabel =
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final TestVirtualMapState noPlatformState =
-                TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final TestVirtualMapState noPlatformState = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabel,
+                TestPlatformContextBuilder.create().build(),
+                state -> PlatformStateAccessor.GENESIS_ROUND);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
         noPlatformState.release();
@@ -182,7 +192,10 @@ class PlatformStateFacadeTest {
     void testSetSnapshotTo() {
         final String virtualMapLabel =
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final TestVirtualMapState randomState = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final TestVirtualMapState randomState = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabel,
+                TestPlatformContextBuilder.create().build(),
+                state -> PlatformStateAccessor.GENESIS_ROUND);
         TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();

@@ -24,6 +24,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.BasicConfig;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -81,7 +82,8 @@ public class StateResolver implements ParameterResolver {
         final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
-                HederaVirtualMapState::new,
+                virtualMap -> new HederaVirtualMapState(
+                        virtualMap, platformContext, state -> PlatformStateAccessor.GENESIS_ROUND),
                 platformStateFacade,
                 platformContext);
 

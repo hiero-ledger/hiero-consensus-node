@@ -3,14 +3,19 @@ package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -83,6 +88,14 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
      * Constructor
      */
     public ConsistencyTestingToolState() {
+        super(
+                PlatformContext.create(
+                        ConfigurationBuilder.create().autoDiscoverExtensions().build()),
+                state -> {
+                    final ConsensusSnapshot consensusSnapshot =
+                            DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state);
+                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+                });
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -261,7 +274,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     }
 
     @Override
-    protected ConsistencyTestingToolState copyingConstructor() {
+    protected ConsistencyTestingToolState copyingConstructor(@NonNull final PlatformContext platformContext) {
         return new ConsistencyTestingToolState(this);
     }
 

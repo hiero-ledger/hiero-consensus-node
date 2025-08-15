@@ -9,6 +9,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -24,6 +25,7 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -31,12 +33,14 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -114,16 +118,21 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
+        final Function<State, Long> extractRoundFromState = virtualMapState -> {
+            final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(virtualMapState);
+            return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        };
+
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(platformContext, genesisRoster, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
-                OtterAppState::new);
+                virtualMap -> new OtterAppState(virtualMap, platformContext, extractRoundFromState::apply));
         final ReservedSignedState initialState = reservedState.state();
 
         final MerkleNodeState state = initialState.get().getState();
