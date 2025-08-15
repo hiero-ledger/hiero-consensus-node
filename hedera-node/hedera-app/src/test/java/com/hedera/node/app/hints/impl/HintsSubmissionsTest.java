@@ -17,8 +17,8 @@ import com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBo
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactionBody;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 
 import com.hedera.node.app.fees.congestion.ThrottleMultiplier;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.app.throttle.annotations.CryptoTransferThrottleMultiplier;
@@ -13,7 +14,6 @@ import com.hedera.node.app.throttle.annotations.IngestThrottle;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;

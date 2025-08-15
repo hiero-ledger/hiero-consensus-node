@@ -45,11 +45,11 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
