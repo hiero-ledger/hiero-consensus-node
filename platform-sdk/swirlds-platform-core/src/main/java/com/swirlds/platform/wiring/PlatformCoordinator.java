@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -58,7 +57,6 @@ public class PlatformCoordinator {
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
-    private final ComponentWiring<TransactionPool, Void> transactionPoolWiring;
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
@@ -80,7 +78,6 @@ public class PlatformCoordinator {
      * @param transactionHandlerWiring               the transaction handler wiring
      * @param stateHasherWiring                      the state hasher wiring
      * @param staleEventDetectorWiring               the stale event detector wiring
-     * @param transactionPoolWiring                  the transaction pool wiring
      * @param statusStateMachineWiring               the status state machine wiring
      * @param branchDetectorWiring                   the branch detector wiring
      * @param branchReporterWiring                   the branch reporter wiring
@@ -107,7 +104,6 @@ public class PlatformCoordinator {
             @NonNull
                     final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
                             staleEventDetectorWiring,
-            @NonNull final ComponentWiring<TransactionPool, Void> transactionPoolWiring,
             @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
@@ -126,7 +122,6 @@ public class PlatformCoordinator {
         this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
         this.stateHasherWiring = Objects.requireNonNull(stateHasherWiring);
         this.staleEventDetectorWiring = Objects.requireNonNull(staleEventDetectorWiring);
-        this.transactionPoolWiring = Objects.requireNonNull(transactionPoolWiring);
         this.statusStateMachineWiring = Objects.requireNonNull(statusStateMachineWiring);
         this.branchDetectorWiring = Objects.requireNonNull(branchDetectorWiring);
         this.branchReporterWiring = Objects.requireNonNull(branchReporterWiring);
@@ -215,7 +210,6 @@ public class PlatformCoordinator {
                 .inject(NoInput.getInstance());
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear).inject(NoInput.getInstance());
-        transactionPoolWiring.getInputWire(TransactionPool::clear).inject(NoInput.getInstance());
         branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         branchReporterWiring.getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }

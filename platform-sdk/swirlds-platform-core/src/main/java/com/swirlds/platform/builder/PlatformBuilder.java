@@ -12,7 +12,6 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -61,7 +60,6 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -130,7 +128,7 @@ public final class PlatformBuilder {
     private Consumer<PlatformEvent> preconsensusEventConsumer;
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
-    private Function<StateSignatureTransaction, Bytes> systemTransactionEncoder;
+    private ExecutionLayer execution;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -301,18 +299,10 @@ public final class PlatformBuilder {
         return this;
     }
 
-    /**
-     * Register a callback that is called when the platform creates a {@link StateSignatureTransaction} and wants
-     * to encode it to {@link Bytes}, using a logic specific to the application that uses the platform.
-     *
-     * @param systemTransactionEncoder the callback to register
-     * @return this
-     */
     @NonNull
-    public PlatformBuilder withSystemTransactionEncoderCallback(
-            @NonNull final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {
+    public PlatformBuilder withExecutionLayer(@NonNull final ExecutionLayer execution) {
         throwIfAlreadyUsed();
-        this.systemTransactionEncoder = Objects.requireNonNull(systemTransactionEncoder);
+        this.execution = Objects.requireNonNull(execution);
         return this;
     }
 
@@ -441,8 +431,8 @@ public final class PlatformBuilder {
                 Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(
-                preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer, systemTransactionEncoder);
+        final ApplicationCallbacks callbacks =
+                new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
         final SwirldStateManager swirldStateManager = new SwirldStateManager(
@@ -487,11 +477,7 @@ public final class PlatformBuilder {
             };
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(
-                platformContext, model, callbacks, initialState.get().isGenesisState());
-
-        final TransactionPoolNexus transactionPoolNexus = new TransactionPoolNexus(
-                platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
@@ -509,7 +495,6 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
-                transactionPoolNexus,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,
@@ -524,6 +509,7 @@ public final class PlatformBuilder {
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
+                execution,
                 createStateFromVirtualMap);
 
         return new PlatformComponentBuilder(buildingBlocks);
