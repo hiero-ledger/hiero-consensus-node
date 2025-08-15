@@ -134,7 +134,12 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
 
     private void exposeItems(final File file) {
         final var contents = StreamFileAccess.ensurePresentRecordFile(file.getAbsolutePath());
-        contents.getRecordStreamItemsList().forEach(item -> listeners.forEach(l -> l.onNewItem(item)));
+        contents.getRecordStreamItemsList()
+                .forEach(item -> listeners.forEach(l -> {
+                    //            if(l.isSubscribed()) {
+                    l.onNewItem(item);
+                    //            }
+                }));
     }
 
     public int numListeners() {

@@ -178,7 +178,7 @@ public class CryptoUpdateSuite {
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
-                                accountsToHaveKeysRotated.toArray(new String[0])),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
@@ -224,7 +224,7 @@ public class CryptoUpdateSuite {
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
-                                accountsToHaveKeysRotated.toArray(new String[0])),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
@@ -289,7 +289,7 @@ public class CryptoUpdateSuite {
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
-                                accountsToHaveKeysRotated.toArray(new String[0])),
+                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the

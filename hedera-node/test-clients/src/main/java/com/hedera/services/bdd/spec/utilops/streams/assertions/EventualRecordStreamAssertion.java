@@ -135,6 +135,10 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                     try {
                         if (assertion.test(item)) {
                             result.pass();
+                            // if pass, unsubscribe!
+                            if (unsubscribe != null) {
+                                unsubscribe.run();
+                            }
                         }
                     } catch (final AssertionError e) {
                         result.fail(e.getMessage());
