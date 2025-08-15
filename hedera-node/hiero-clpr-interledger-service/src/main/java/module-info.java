@@ -7,6 +7,5 @@ module org.hiero.interledger.clpr {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.state.api;
     requires static transitive com.github.spotbugs.annotations;
 }
