@@ -18,6 +18,7 @@ import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
+import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
@@ -25,6 +26,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -68,6 +70,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param executor             for executing read/write tasks in parallel
+     * @param syncLagHandler       callback for reporting median sync lag
      */
     public ShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -77,7 +80,8 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final ParallelExecutor executor) {
+            @NonNull final ParallelExecutor executor,
+            @NonNull final Consumer<Double> syncLagHandler) {
 
         super(
                 platformContext,
@@ -86,24 +90,27 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                 syncMetrics,
                 receivedEventHandler,
                 fallenBehindManager,
-                intakeEventCounter);
+                intakeEventCounter,
+                syncLagHandler);
         this.executor = Objects.requireNonNull(executor);
-
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
     }
 
     /**
      * Executes a sync using the supplied connection.
      *
-     * @param platformContext the platform context
-     * @param connection      the connection to use
+     * @param platformContext      the platform context
+     * @param connection           the connection to use
+     * @param ignoreIncomingEvents we should ignore events coming from peer
      * @return true if the sync was successful, false if it was aborted
      */
-    public boolean synchronize(@NonNull final PlatformContext platformContext, @NonNull final Connection connection)
+    public boolean synchronize(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Connection connection,
+            final boolean ignoreIncomingEvents)
             throws IOException, ParallelExecutionException, SyncException, InterruptedException {
         logger.info(SYNC_INFO.getMarker(), "{} sync start", connection.getDescription());
         try {
-            return reserveSynchronize(platformContext, connection);
+            return reserveSynchronize(platformContext, connection, ignoreIncomingEvents);
         } finally {
             logger.info(SYNC_INFO.getMarker(), "{} sync end", connection.getDescription());
         }
@@ -112,12 +119,15 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
     /**
      * Executes a sync using the supplied connection.
      *
-     * @param platformContext the platform context
-     * @param connection      the connection to use
+     * @param platformContext      the platform context
+     * @param connection           the connection to use
+     * @param ignoreIncomingEvents we should ignore events coming from peer
      * @return true if the sync was successful, false if it was aborted
      */
     private boolean reserveSynchronize(
-            @NonNull final PlatformContext platformContext, @NonNull final Connection connection)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Connection connection,
+            final boolean ignoreIncomingEvents)
             throws IOException, ParallelExecutionException, SyncException {
 
         // accumulates time points for each step in the execution of a single gossip session, used for stats
@@ -143,6 +153,8 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
+            reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+
             if (hasFallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
                     != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
@@ -165,37 +177,47 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             // Step 2: each peer tells the other which of the other's tips it already has.
 
             timing.setTimePoint(2);
-            final List<Boolean> theirBooleans = readWriteParallel(
+            final TipsInfo tipsInfo = readWriteParallel(
                     readMyTipsTheyHave(connection, myTips.size()),
-                    writeTheirTipsIHave(connection, theirTipsIHave),
+                    writeTheirTipsIHave(connection, theirTipsIHave, ignoreIncomingEvents),
                     connection);
             timing.setTimePoint(3);
 
             // Add each tip they know to the known set
-            final List<ShadowEvent> knownTips = getMyTipsTheyKnow(connection, myTips, theirBooleans);
+            final List<ShadowEvent> knownTips = getMyTipsTheyKnow(connection, myTips, tipsInfo.theirTips());
             eventsTheyHave.addAll(knownTips);
 
-            // create a send list based on the known set
-            sendList = createSendList(
-                    connection.getSelfId(), eventsTheyHave, myWindow, theirTipsAndEventWindow.eventWindow());
+            if (tipsInfo.dontSentEvents()) {
+                sendList = Collections.emptyList();
+            } else {
+                // create a send list based on the known set
+                sendList = createSendList(
+                        connection.getSelfId(), eventsTheyHave, myWindow, theirTipsAndEventWindow.eventWindow());
+            }
         }
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         return sendAndReceiveEvents(
-                connection, timing, sendList, syncConfig.syncKeepalivePeriod(), syncConfig.maxSyncTime());
+                connection,
+                timing,
+                sendList,
+                syncConfig.syncKeepalivePeriod(),
+                syncConfig.maxSyncTime(),
+                ignoreIncomingEvents);
     }
 
     /**
      * By this point in time, we have figured out which events we want to send the peer, and the peer has figured out
      * which events it wants to send us. In parallel, send and receive those events.
      *
-     * @param connection          the connection to use
-     * @param timing              metrics that track sync timing
-     * @param sendList            the events to send
-     * @param syncKeepAlivePeriod the period at which the reading thread should send keepalive messages
-     * @param maxSyncTime         the maximum amount of time to spend syncing with a peer, syncs that take longer than
-     *                            this will be aborted
+     * @param connection           the connection to use
+     * @param timing               metrics that track sync timing
+     * @param sendList             the events to send
+     * @param syncKeepAlivePeriod  the period at which the reading thread should send keepalive messages
+     * @param maxSyncTime          the maximum amount of time to spend syncing with a peer, syncs that take longer than
+     *                             this will be aborted
+     * @param ignoreIncomingEvents discard incoming events because we are unhealthy
      * @return true if the phase was successful, false if it was aborted
      * @throws ParallelExecutionException if anything goes wrong
      */
@@ -204,7 +226,8 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             @NonNull final SyncTiming timing,
             @NonNull final List<PlatformEvent> sendList,
             @NonNull final Duration syncKeepAlivePeriod,
-            @NonNull final Duration maxSyncTime)
+            @NonNull final Duration maxSyncTime,
+            final boolean ignoreIncomingEvents)
             throws ParallelExecutionException {
 
         Objects.requireNonNull(connection);
@@ -223,7 +246,8 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                         syncMetrics,
                         eventReadingDone,
                         intakeEventCounter,
-                        maxSyncTime),
+                        maxSyncTime,
+                        ignoreIncomingEvents),
                 sendEventsTheyNeed(connection, sendList, eventReadingDone, writeAborted, syncKeepAlivePeriod),
                 connection);
         if (eventsRead < 0 || writeAborted.get()) {

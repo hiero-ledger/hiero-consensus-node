@@ -32,6 +32,12 @@ public enum EventCreationStatus {
      */
     OVERLOADED,
     /**
+     * Event creation is not permitted because this node is currently lagging behind median latest round of peers by
+     * more than configured amount of rounds
+     * {@link org.hiero.consensus.event.creator.impl.config.EventCreationConfig#maxAllowedSyncLag()}
+     */
+    ROUND_LAG,
+    /**
      * Event creation has not yet been started.
      */
     IDLE
