@@ -134,7 +134,8 @@ class PlatformWiringTests {
                         stopInput,
                         clearInput,
                         systemHealthInput,
-                        platformStatusInput) -> {
+                        platformStatusInput,
+                        syncLagOutput) -> {
                     eventInput.bindConsumer(event -> {});
                     eventWindowInput.bindConsumer(eventWindow -> {});
                     startInput.bindConsumer(noInput -> {});

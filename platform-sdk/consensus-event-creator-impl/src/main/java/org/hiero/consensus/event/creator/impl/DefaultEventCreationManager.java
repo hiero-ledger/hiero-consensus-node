@@ -26,6 +26,7 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
+import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -62,6 +63,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
     private final FutureEventBuffer futureEventBuffer;
 
+    private double syncRoundLag;
+
     /**
      * Constructor.
      *
@@ -86,6 +89,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
+        rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -173,6 +177,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
         unhealthyDuration = Objects.requireNonNull(duration);
     }
 
+    @Override
+    public void reportSyncRoundLag(@NonNull final Double lag) {
+        syncRoundLag = lag;
+    }
+
     /**
      * Get the current platform status.
      *
@@ -190,5 +199,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration getUnhealthyDuration() {
         return unhealthyDuration;
+    }
+
+    public double getSyncRoundLag() {
+        return syncRoundLag;
     }
 }

@@ -268,7 +268,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         }
         final EventWindow remoteEventWindow = state.remoteSyncData.eventWindow();
 
-        this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
+        this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow, peerId);
+
+        this.sharedShadowgraphSynchronizer.reportRoundDifference(
+                state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
         final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
                 state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);

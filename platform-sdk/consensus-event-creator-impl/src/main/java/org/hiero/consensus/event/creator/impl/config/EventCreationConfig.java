@@ -29,6 +29,8 @@ import java.time.Duration;
  *                                            not permit the creation of new self events.
  * @param maximumPermissibleUnhealthyDuration the maximum amount of time that the system can be unhealthy before event
  *                                            creation stops
+ * @param maxAllowedSyncLag                   if we are lagging more than this amount of rounds behind rest of the
+ *                                            network on average, stop creating events
  */
 @ConfigData("event.creation")
 public record EventCreationConfig(
@@ -37,4 +39,5 @@ public record EventCreationConfig(
         @ConfigProperty(defaultValue = "10") double antiSelfishnessFactor,
         @ConfigProperty(defaultValue = "10") int tipsetSnapshotHistorySize,
         @ConfigProperty(defaultValue = "1024") int eventIntakeThrottle,
-        @ConfigProperty(defaultValue = "1s") Duration maximumPermissibleUnhealthyDuration) {}
+        @ConfigProperty(defaultValue = "1s") Duration maximumPermissibleUnhealthyDuration,
+        @ConfigProperty(defaultValue = "15") int maxAllowedSyncLag) {}

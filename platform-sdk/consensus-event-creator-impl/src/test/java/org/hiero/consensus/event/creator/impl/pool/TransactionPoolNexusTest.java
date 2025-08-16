@@ -37,7 +37,7 @@ class TransactionPoolNexusTest {
         final TransactionConfig txConfig =
                 new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, 245_760, 100_000);
         final EventCreationConfig eventCreationConfig =
-                new EventCreationConfig(20, 100, 10, 10, 1024, Duration.ofSeconds(1));
+                new EventCreationConfig(20, 100, 10, 10, 1024, Duration.ofSeconds(1), 1000);
         final Configuration configuration = mock(Configuration.class);
         when(configuration.getConfigData(TransactionConfig.class)).thenReturn(txConfig);
         when(configuration.getConfigData(EventCreationConfig.class)).thenReturn(eventCreationConfig);
