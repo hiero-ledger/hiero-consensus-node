@@ -459,7 +459,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         when(stateManager.getBlockState(10L)).thenReturn(null);
 
         connection.onNext(response);
-
         verify(metrics).incrementResendBlockCount();
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
