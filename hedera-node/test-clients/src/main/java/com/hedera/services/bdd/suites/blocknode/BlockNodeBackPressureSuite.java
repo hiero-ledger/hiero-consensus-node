@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(BLOCK_NODE_SIMULATOR)
 @OrderedInIsolation
-public class BlockNodeBackpressureSuite {
+public class BlockNodeBackPressureSuite {
 
     @HapiTest
     @HapiBlockNode(

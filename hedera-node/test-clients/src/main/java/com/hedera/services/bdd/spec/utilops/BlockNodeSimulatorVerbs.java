@@ -3,7 +3,7 @@ package com.hedera.services.bdd.spec.utilops;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 
 /**
  * Utility verbs for interacting with block node simulators.

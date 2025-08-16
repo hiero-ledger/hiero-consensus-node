@@ -9,7 +9,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 
 /**
  * A utility class to control simulated block node servers in a SubProcessNetwork.
@@ -222,6 +222,7 @@ public class BlockNodeSimulatorController {
             final int port = server.getPort();
             shutdownSimulatorPorts.put(nodeId, port);
             server.stop();
+            server.markAsBeingShutdown();
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
     }
@@ -238,6 +239,7 @@ public class BlockNodeSimulatorController {
             final int port = server.getPort();
             shutdownSimulatorPorts.put(index, port);
             server.stop();
+            server.markAsBeingShutdown();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", index, port);
         } else {
             log.error("Invalid simulator index: {}, valid range is 0-{}", index, simulatedBlockNodes.size() - 1);

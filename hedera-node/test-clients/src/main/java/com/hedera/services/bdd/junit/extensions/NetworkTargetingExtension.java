@@ -177,6 +177,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                             "StreamValidation",
                             new com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp[] {streamValidationOp});
                     validationSpec.setTargetNetwork(SHARED_NETWORK.get());
+                    validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
                     // Execute the validation spec
                     try {
                         validationSpec.execute();

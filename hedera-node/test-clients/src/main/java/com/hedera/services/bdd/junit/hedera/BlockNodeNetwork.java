@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -118,18 +119,22 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                // Find an available port
-                int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                try {
-                    server.start();
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to start simulated block node on port " + port, e);
-                }
-                logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                addSimulatorNode(entry.getKey());
             }
         }
+    }
+
+    public void addSimulatorNode(Long id) {
+        // Find an available port
+        int port = findAvailablePort();
+        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+        }
+        logger.info("Started shared simulated block node @ localhost:{}", port);
+        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
@@ -167,6 +172,10 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    public Set<Long> nodeIds() {
+        return getBlockNodeModeById().keySet();
     }
 
     public Map<Long, SimulatedBlockNodeServer> getSimulatedBlockNodeById() {
