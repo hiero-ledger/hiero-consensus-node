@@ -4,10 +4,13 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_OversizeException;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
@@ -314,6 +317,37 @@ class ContextTransactionProcessorTest {
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(INVALID_CONTRACT_ID, outcome.status());
+    }
+
+    @Test
+    void stillChargesGasFeesOnRelayedHevmException() {
+        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
+        final var subject = new ContextTransactionProcessor(
+                null,
+                context,
+                contractsConfig,
+                CONFIGURATION,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        given(context.body()).willReturn(transactionBody);
+        given(context.payer()).willReturn(RELAYER_ID);
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, RELAYER_ID))
+                .willReturn(HEVM_OversizeException);
+        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
+        given(transactionID.accountIDOrThrow()).willReturn(RELAYER_ID);
+
+        final var outcome = subject.call();
+
+        verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
+        verify(rootProxyWorldUpdater).commit();
+        assertEquals(TRANSACTION_OVERSIZE, outcome.status());
     }
 
     @Test
