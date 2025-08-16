@@ -11,14 +11,13 @@ import java.time.Instant;
 
 /**
  * Main class responsible for throttling transactions by gasLimit. Keeps track of the instance the
- * last decision was made and calculates the time elapsed since then. Uses a {@link
- * LeakyBucketThrottle} under the hood.
+ * last decision was made and calculates the time elapsed since then.
+ * Uses a {@link LeakyBucketThrottle} under the hood.
  */
 public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;
     private final LeakyBucketThrottle delegate;
     private Timestamp lastDecisionTime;
-    private final long capacity;
 
     /**
      * Creates a new instance of the throttle with capacity - the total amount of gas allowed per
@@ -28,7 +27,6 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      */
     public LeakyBucketDeterministicThrottle(final long capacity, final String name, final int burstSeconds) {
         this.throttleName = name;
-        this.capacity = capacity;
         this.delegate = new LeakyBucketThrottle(capacity, burstSeconds);
     }
 
@@ -114,14 +112,14 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      */
     @Override
     public long capacity() {
-        return capacity;
+        return delegate.bucket().nominalCapacity();
     }
 
     @Override
     @SuppressWarnings("java:S125")
     public long mtps() {
         // We treat the "milli-TPS" of the throttle bucket as 1000x its gas/sec;
-        return capacity * 1_000;
+        return capacity() * 1_000;
     }
 
     @Override

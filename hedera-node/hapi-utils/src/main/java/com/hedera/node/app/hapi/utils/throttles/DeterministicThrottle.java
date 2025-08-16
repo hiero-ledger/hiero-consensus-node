@@ -92,7 +92,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
 
     public long clampedCapacityRequiredFor(final int nTransactions) {
         final var nominal = capacityRequiredFor(nTransactions);
-        final var limit = delegate.bucket().totalCapacity();
+        final var limit = delegate.bucket().brimfulCapacity();
         return (nominal >= 0) ? Math.min(nominal, limit) : limit;
     }
 
@@ -174,11 +174,11 @@ public class DeterministicThrottle implements CongestibleThrottle {
 
     @Override
     public long capacity() {
-        return delegate.bucket().totalCapacity();
+        return delegate.bucket().brimfulCapacity();
     }
 
     public long capacityFree() {
-        return delegate.bucket().capacityFree();
+        return delegate.bucket().brimfulCapacityFree();
     }
 
     public ThrottleUsageSnapshot usageSnapshot() {
@@ -244,13 +244,14 @@ public class DeterministicThrottle implements CongestibleThrottle {
 
         final var that = (DeterministicThrottle) obj;
 
-        return this.delegate.bucket().totalCapacity() == that.delegate.bucket().totalCapacity()
+        return this.delegate.bucket().brimfulCapacity()
+                        == that.delegate.bucket().brimfulCapacity()
                 && this.delegate.mtps() == that.delegate.mtps();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(delegate.bucket().totalCapacity(), delegate.mtps(), name, lastDecisionTime);
+        return Objects.hash(delegate.bucket().brimfulCapacity(), delegate.mtps(), name, lastDecisionTime);
     }
 
     @Override

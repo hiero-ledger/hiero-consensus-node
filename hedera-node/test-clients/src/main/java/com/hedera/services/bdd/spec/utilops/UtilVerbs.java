@@ -2803,19 +2803,14 @@ public class UtilVerbs {
         });
     }
 
-    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
+    public static CustomSpecAssert valueIsInRange(
+            final double value, final double lowerBoundInclusive, final double upperBoundExclusive) {
         return assertionsHold((spec, opLog) -> {
             assertTrue(
-                    amount < threshold,
-                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
-        });
-    }
-
-    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
-        return assertionsHold((spec, opLog) -> {
-            assertTrue(
-                    (pre + delta) < post,
-                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
+                    value >= lowerBoundInclusive && value < upperBoundExclusive,
+                    String.format(
+                            "A value of %s was expected to be in range <%s, %s), but it wasn't.",
+                            value, lowerBoundInclusive, upperBoundExclusive));
         });
     }
 
