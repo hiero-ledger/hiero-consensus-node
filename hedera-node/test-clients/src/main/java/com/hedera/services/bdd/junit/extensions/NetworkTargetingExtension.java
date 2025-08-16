@@ -292,8 +292,8 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         doTargetSpec(spec, targetNetwork);
         try {
             spec.execute();
-        } catch (Throwable e) {
-            throw new IllegalStateException(e);
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
         }
         final SavedStateSpec savedStateSpec;
         try {

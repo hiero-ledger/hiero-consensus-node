@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
@@ -13,6 +12,7 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -51,7 +51,7 @@ public class ReconnectLearner {
     private final ReconnectMetrics statistics;
     private final SignedStateValidationData stateValidationData;
     private final PlatformStateFacade platformStateFacade;
-    private final Function<VirtualMap, MerkleNodeState> stateRootFunction;
+    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     private SigSet sigSet;
     private final PlatformContext platformContext;
@@ -77,8 +77,8 @@ public class ReconnectLearner {
      * 		reconnect metrics
      * @param platformStateFacade
      *      the facade to access the platform state
-     * @param stateRootFunction
-     *      a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap
+     *      a function to instantiate the state object from a Virtual Map
      */
     public ReconnectLearner(
             @NonNull final PlatformContext platformContext,
@@ -89,9 +89,9 @@ public class ReconnectLearner {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
-        this.stateRootFunction = Objects.requireNonNull(stateRootFunction);
+        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
@@ -193,6 +193,10 @@ public class ReconnectLearner {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+
+        // Ensures the state is hashed by calling getHash, which hashes the state if it hasn't been hashed yet.
+        currentState.getRoot().getHash();
+
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,
@@ -204,8 +208,10 @@ public class ReconnectLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(stateRootFunction, synchronizer.getRoot(), platformContext.getMetrics());
+        final VirtualMap virtualMap = (VirtualMap) synchronizer.getRoot();
+        final Metrics metrics = platformContext.getMetrics();
+        virtualMap.registerMetrics(metrics);
+        final MerkleNodeState merkleNodeState = createStateFromVirtualMap.apply(virtualMap);
 
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),

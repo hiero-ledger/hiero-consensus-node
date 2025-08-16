@@ -25,6 +25,7 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.platform.fs.stresstest.proto.RandomBytesTransaction;
@@ -157,38 +158,6 @@ class PlatformTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
-    void handleConsensusRoundWithDisabledAppendSig() {
-        // Given
-        givenInitState(CONFIG_WITHOUT_APPEND_SIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
     void handleConsensusRoundWithMultipleSystemTransaction() {
         // Given
         givenInitState(DEFAULT_CONFIG);
@@ -205,7 +174,9 @@ class PlatformTestingToolStateTest {
                 .thenReturn(List.of(transaction, secondConsensusTransaction, thirdConsensusTransaction)
                         .iterator());
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -257,7 +228,9 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -278,7 +251,9 @@ class PlatformTestingToolStateTest {
         // Given
         givenInitState(DEFAULT_CONFIG);
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
@@ -378,6 +353,7 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
+        when(platformContext.getConfiguration()).thenReturn(new TestConfigBuilder().getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {

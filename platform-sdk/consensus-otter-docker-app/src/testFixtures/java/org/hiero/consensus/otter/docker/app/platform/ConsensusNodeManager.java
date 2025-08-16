@@ -10,7 +10,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -44,9 +43,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -60,11 +59,7 @@ public class ConsensusNodeManager {
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
-    /**
-     * Indicates if the consensus node is running or not. Can be removed in the future when the entire process is
-     * killed.
-     */
-    private boolean running;
+    private final OtterExecutionLayer executionCallback;
 
     /**
      * A threadsafe list of consensus round listeners. Written to by the platform, read by listeners on the dispatch
@@ -94,6 +89,7 @@ public class ConsensusNodeManager {
             @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Executor backgroundExecutor) {
+
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
@@ -121,7 +117,7 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(genesisRoster, metrics, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -132,7 +128,7 @@ public class ConsensusNodeManager {
 
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-
+        executionCallback = new OtterExecutionLayer(metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
@@ -143,12 +139,11 @@ public class ConsensusNodeManager {
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade,
-                        (vm) -> state)
+                        OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
-                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
+                .withExecutionLayer(executionCallback);
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
@@ -173,7 +168,6 @@ public class ConsensusNodeManager {
      */
     public void start() {
         log.info("Starting node");
-        running = true;
         platform.start();
     }
 
@@ -202,18 +196,7 @@ public class ConsensusNodeManager {
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
     public boolean submitTransaction(@NonNull final byte[] transaction) {
-        return platform.createTransaction(transaction);
-    }
-
-    /**
-     * Checks if the consensus node is currently running.
-     * <p>
-     * In the future, the entire process will be killed and this method can be removed.
-     *
-     * @return {@code true} if the consensus node is running, {@code false} otherwise
-     */
-    public boolean isRunning() {
-        return running;
+        return executionCallback.submitApplicationTransaction(transaction);
     }
 
     /**
@@ -234,21 +217,6 @@ public class ConsensusNodeManager {
         if (markerFileObserver != null) {
             markerFileObserver.addListener(listener);
         }
-    }
-
-    /**
-     * Shutdowns the platform's inner threads and halts processing. Gossip still continues.
-     * <p>
-     * In the future, the entire process will be killed and this method can be removed.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
-     */
-    public void destroy() throws InterruptedException {
-        if (markerFileObserver != null) {
-            markerFileObserver.destroy();
-        }
-        platform.destroy();
-        running = false;
     }
 
     /**

@@ -178,10 +178,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     public void start() {
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
-        hedera.onStateInitialized(state, fakePlatform(), GENESIS);
+        hedera.onStateInitialized(state, fakePlatform(), trigger);
         hedera.init(fakePlatform(), defaultNodeId);
         fakePlatform().start();
         fakePlatform().notifyListeners(ACTIVE_NOTIFICATION);
+        hedera.newPlatformStatus(ACTIVE_NOTIFICATION.getNewStatus());
         if (trigger == GENESIS) {
             // Trigger creation of system entities
             handleRoundWith(mockStateSignatureTxn());
@@ -201,6 +202,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     @Override
     public void stop() {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
+        hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
     }
 
