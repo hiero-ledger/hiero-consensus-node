@@ -54,9 +54,18 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ## Proposed Design (After)
 
+### Constraints of the design
+
+1. (Lazar) Gossip component will become our network layer whose responsibilities should be getting events from the network and getting a new state for reconnect.
+2. Protocols cannot return a value to callers, they can share information outside their scope by associating them with consumers.
+3. Obtaining a state from the network is an async blocking activity. We do not control when the "reconnection protocol" will execute and the caller will have to wait until the state is retrieved.
+4. All the reconnect logic needs to be reworked when we connect to block nodes instead of consensus nodes.
+
+### Changes
+
 1. Refactoring Gossip:
    The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
-   Its constructor is much simpler. It no longer takes dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines. It now receives the FallenBehindMonitor directly.
+   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines. It now works with the FallenBehindMonitor directly.
    The Gossip interface now extends a new GossipController interface and includes pause(), resume(), and receiveSignedState() methods. The PlatformReconnecter uses these methods to control gossip flow and retrieve the state.
 
 2. Introduction of PlatformReconnecter:
@@ -83,18 +92,24 @@ If anything on the process goes wrong the code will retry until a configured max
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
    StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through Gossip's new interface.
 
+### Class diagram
+
+![final-class-diagram-after.svg](final-class-diagram-after.svg)
+
+### Interaction sequence diagram
+
+![sequence-final.svg](sequence-final.svg)
+
+### Creation sequence diagram
+
+![creation-sequence.png](creation-sequence.png)
+
 ### Benefits
 
 * Simplified Gossip component instantiation:  It no longer requires dependencies for loading state, submitting status actions, or clearing pipelines.
 * Clear dependencies: moving away from indirect references (through lambdas, callbacks and atomic references) to direct object dependencies makes relationship between classes easier to follow.
 * Simplify Lerner logic by removing helper classes and reorganizing code: Responsibility is not scattered all over, the steps of the process becomes more clear.
 * Provide better refactor capabilities: This change enables the future plan of making the gossip component our network layer.
-
-### New classes relationships after modification
-
-![final-class-diagram-after.svg](final-class-diagram-after.svg)
-
-![sequence-final.svg](sequence-final.svg)
 
 ## Impact
 
