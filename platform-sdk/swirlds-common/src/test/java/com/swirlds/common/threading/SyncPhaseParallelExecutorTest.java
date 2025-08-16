@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.common.test.fixtures.threading.SyncPhaseParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -96,15 +96,12 @@ class SyncPhaseParallelExecutorTest {
 
     private static class ThreadTask {
         private final AtomicInteger numberCompleted;
-        private final Callable<Void> doTask;
+        private final ThrowingRunnable doTask;
         private final Runnable threadRun;
 
         public ThreadTask(final Supplier<SyncPhaseParallelExecutor> phaseExecutorRef) {
             numberCompleted = new AtomicInteger(0);
-            doTask = () -> {
-                numberCompleted.incrementAndGet();
-                return null;
-            };
+            doTask = numberCompleted::incrementAndGet;
             threadRun = () -> {
                 try {
                     // execute 3 phases

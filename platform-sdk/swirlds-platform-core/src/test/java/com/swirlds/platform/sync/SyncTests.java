@@ -375,7 +375,7 @@ public class SyncTests {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
         final ParallelExecutor callerExecutor =
-                new ReplaceSyncPhaseParallelExecutor(getStaticThreadManager(), 2, 1, () -> null);
+                new ReplaceSyncPhaseParallelExecutor(getStaticThreadManager(), 2, 1, () -> {});
         final ParallelExecutor listenerExecutor = new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node");
         listenerExecutor.start();
 
