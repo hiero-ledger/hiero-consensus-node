@@ -81,10 +81,11 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
 
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
-                        visibleNonSyntheticItems(
-                                ecAccountsValidator(evmAddresses, accountsToCreate),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
+                                visibleNonSyntheticItems(
+                                        ecAccountsValidator(evmAddresses, accountsToCreate),
+                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
+                                Duration.ofSeconds(15))
+                        .stopAfterFirstSuccess(),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
@@ -108,7 +109,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
       Test that auto and hollow EVM address has the expected value before and after
       key rotation, and that hte record stream does not imply anything different.
     */
-    @Order(1)
+    @Order(2)
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
@@ -131,10 +132,11 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
 
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
-                        visibleNonSyntheticItems(
-                                ecAccountsValidator(evmAddresses, accountsToCreate),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
+                                visibleNonSyntheticItems(
+                                        ecAccountsValidator(evmAddresses, accountsToCreate),
+                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
+                                Duration.ofSeconds(15))
+                        .stopAfterFirstSuccess(),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
@@ -178,7 +180,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
     Test that explicit alias EVM address has the expected value before and after
     key rotation, and that hte record stream does not imply anything different.
      */
-    @Order(2)
+    @Order(3)
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
@@ -198,10 +200,11 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
 
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
-                        visibleNonSyntheticItems(
-                                ecAccountsValidator(evmAddresses, accountsToCreate),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
+                                visibleNonSyntheticItems(
+                                        ecAccountsValidator(evmAddresses, accountsToCreate),
+                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
+                                Duration.ofSeconds(15))
+                        .stopAfterFirstSuccess(),
 
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
