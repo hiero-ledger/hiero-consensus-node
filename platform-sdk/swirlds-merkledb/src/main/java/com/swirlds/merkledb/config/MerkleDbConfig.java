@@ -70,7 +70,7 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  */
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
-        @Positive @ConfigProperty(defaultValue = "4000000000") long maxNumOfKeys,
+        @Positive @ConfigProperty(defaultValue = "1000000000") long maxNumOfKeys,
         @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
