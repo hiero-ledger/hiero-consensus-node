@@ -65,14 +65,14 @@ If anything on the process goes wrong the code will retry until a configured max
 
 1. Refactoring Gossip:
    The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
-   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines. It now works with the FallenBehindMonitor directly.
-   The Gossip interface now extends a new GossipController interface and includes pause(), resume(), and receiveSignedState() methods. The PlatformReconnecter uses these methods to control gossip flow and retrieve the state.
+   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
+   It now works with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
 
 2. Introduction of PlatformReconnecter:
    PlatformReconnecter will be the central authority for handling the entire reconnect process. It will live outside the Gossip component and will be a first class citizen for the platform.
    Centralize the reconnect lifecycle: pause platform activity → wait to receive a state → validate → load → resume → retry with policy or error handling.
-   It will directly coordinate with other components. For example, it calls gossip.pause(), clears wiring pipelines, and loads the new state via its own methods,
-   instead of using complex callbacks and atomic references passed through the PlatformBuilder.
+   It will directly coordinate platform action (for example, it calls gossip.pause(), clears wiring pipelines, and loads the new state via its own methods),
+   through the `platformCoordinator` instead of using complex callbacks and atomic references passed through the PlatformBuilder.
    It absorbs the responsibilities of several to-be-deleted classes, making responsibility somehow less distributed among pieces
 
    * ReconnectController
@@ -81,18 +81,26 @@ If anything on the process goes wrong the code will retry until a configured max
    * ReconnectLearnerThrottle
 
    This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes clear.
+   This class can't be a component given that it will interact with other components (enabling and disabling them)
 
 3. Introduction of `FallenBehindMonitor`:
    FallenBehindManager becomes a direct monitor and renamed accordingly.
    Classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
    The class is not used to check if the node is behind anymore, that check is done through the platform status.
    As soon as it detects the node is behind, it updates the platform status and starts the reconnect process invoking `PlatformReconnecter`
+   Making this class a component would remove the possibility that the learner logic can query it
 
-4. `ReconnectProtocol` Renaming:
+4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class,
+   , another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected.
+   PlatformReconnecter will uses an instance of this class and signal the need to obtain a ReservedSignedState, the state sync protocol will read that signal and provide with a reservedSignedState once obtained from a peer.
+
+5. `ReconnectProtocol` Renaming:
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
    StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through Gossip's new interface.
 
 ### Class diagram
+
+![img.png](img.png)
 
 ![final-class-diagram-after.svg](final-class-diagram-after.svg)
 
@@ -102,7 +110,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Creation sequence diagram
 
-![creation-sequence.png](creation-sequence.png)
+![creation-sequence.svg](creation-sequence.svg)![sequence-final.svg](sequence-final.svg)
 
 ### Benefits
 
