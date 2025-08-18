@@ -18,16 +18,16 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -78,7 +78,8 @@ public abstract class AbstractNetwork implements Network {
 
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
-    private final Map<NodeId, Partition> partitions = new HashMap<>();
+    private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
+    private PartitionImpl remainingPartition;
 
     private final AsyncNetworkActions defaultStartAction;
     private final AsyncNetworkActions defaultFreezeAction;
@@ -140,6 +141,10 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
+        if (!getNodes().isEmpty()) {
+            throw new IllegalStateException(
+                    "Cannot set weight generator after nodes have been added to the network.");
+        }
         this.weightGenerator = requireNonNull(weightGenerator);
     }
 
@@ -157,16 +162,27 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Partition createPartition(@NonNull final Collection<Node> nodes) {
-        if (nodes.isEmpty()) {
+    public Partition createPartition(@NonNull final Collection<Node> partitionNodes) {
+        if (partitionNodes.isEmpty()) {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
-        if (nodes.stream().anyMatch(node -> partitions.containsKey(node.selfId()))) {
-            throw new IllegalArgumentException("Cannot create a partition with nodes that are already in a partition.");
+        final PartitionImpl partition = new PartitionImpl(partitionNodes);
+        final List<Node> allNodes = getNodes();
+        if (partition.size() == allNodes.size()) {
+            throw new IllegalArgumentException("Cannot create a partition with all nodes.");
         }
-        final Partition partition = Partition.of(nodes);
-        for (final Node node : nodes) {
-            partitions.put(node.selfId(), partition);
+        for (final Node node : partitionNodes) {
+            final PartitionImpl oldPartition = partitions.put(node.selfId(), partition);
+            if (oldPartition != null) {
+                oldPartition.nodes.remove(node);
+            }
+        }
+        if (remainingPartition == null) {
+            final List<Node> remainingNodes = allNodes.stream().filter(node -> !partitionNodes.contains(node)).toList();
+            remainingPartition = new PartitionImpl(remainingNodes);
+            for (final Node node : remainingNodes) {
+                partitions.put(node.selfId(), remainingPartition);
+            }
         }
         updateConnections();
         return partition;
@@ -177,8 +193,19 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void removePartition(@NonNull final Partition partition) {
-        for (final Node node : partition.nodes()) {
-            partitions.remove(node.selfId());
+        final Set<Partition> allPartitions = partitions();
+        if (! allPartitions.contains(partition)) {
+            throw new IllegalArgumentException("Partition does not exist in the network: " + partition);
+        }
+        if (allPartitions.size() == 2) {
+            // If only two partitions exist, clear all
+            partitions.clear();
+            remainingPartition = null;
+        } else {
+            for (final Node node : partition.nodes()) {
+                partitions.put(node.selfId(), remainingPartition);
+                remainingPartition.nodes.add(node);
+            }
         }
         updateConnections();
     }
@@ -442,17 +469,6 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given
-     * {@link PlatformStatus}.
-     *
-     * @param status the status to check
-     * @return the {@link BooleanSupplier}
-     */
-    protected BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> getNodes().stream().allMatch(node -> node.platformStatus() == status);
-    }
-
-    /**
      * Throws an {@link IllegalStateException} if the network is in the given state.
      *
      * @param expected the state that will cause the exception to be thrown
@@ -518,7 +534,7 @@ public abstract class AbstractNetwork implements Network {
             transactionGenerator().start();
 
             log.debug("Waiting for nodes to become active...");
-            if (!timeManager().waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
+            if (!timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout)) {
                 fail("Timeout while waiting for nodes to become active.");
             }
         }
@@ -541,7 +557,7 @@ public abstract class AbstractNetwork implements Network {
                     .submitTransaction(freezeTransaction);
 
             log.debug("Waiting for nodes to freeze...");
-            if (!timeManager().waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
+            if (!timeManager().waitForCondition(() -> allNodesInStatus(FREEZE_COMPLETE), timeout)) {
                 fail("Timeout while waiting for all nodes to freeze.");
             }
 
@@ -564,6 +580,51 @@ public abstract class AbstractNetwork implements Network {
             state = State.SHUTDOWN;
 
             transactionGenerator().stop();
+        }
+    }
+
+    private static class PartitionImpl implements Partition {
+
+        private final Set<Node> nodes = new HashSet<>();
+
+        /**
+         * Creates a partition from a collection of nodes.
+         *
+         * @param nodes the nodes to include in the partition
+         */
+        public PartitionImpl(@NonNull final Collection<? extends Node> nodes) {
+            this.nodes.addAll(nodes);
+        }
+
+        /**
+         * Gets the nodes in this partition.
+         *
+         * <p>Note: While the returned set is unmodifiable, the {@link Set} can still change if the partitions are changed
+         *
+         * @return an unmodifiable set of nodes in this partition
+         */
+        @NonNull
+        public Set<Node> nodes() {
+            return Collections.unmodifiableSet(nodes);
+        }
+
+        /**
+         * Checks if the partition contains the specified node.
+         *
+         * @param node the node to check
+         * @return true if the node is in this partition
+         */
+        public boolean contains(@NonNull final Node node) {
+            return nodes.contains(requireNonNull(node));
+        }
+
+        /**
+         * Gets the number of nodes in this partition.
+         *
+         * @return the size of the partition
+         */
+        public int size() {
+            return nodes.size();
         }
     }
 }

@@ -11,6 +11,8 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -95,7 +97,10 @@ public interface Network {
      *
      * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
      *
+     * <p>Note that the weight generator can only be set before any nodes are added to the network.
+     *
      * @param weightGenerator the weight generator to use
+     * @throws IllegalStateException if nodes have already been added to the network
      */
     void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
 
@@ -122,16 +127,33 @@ public interface Network {
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
      * each other, but are disconnected from all nodes outside the partition.
      *
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     *
      * @param nodes the nodes to include in the partition
      * @return the created Partition object
-     * @throws IllegalArgumentException if the nodes are empty or contain nodes that are already in a partition
+     * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
     Partition createPartition(@NonNull Collection<Node> nodes);
 
     /**
-     * Removes a partition and restores connectivity for its nodes. Only restores changes that were made by creating the
-     * partition.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
+     * each other, but are disconnected from all nodes outside the partition.
+     *
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     *
+     * @param node0 the first node to include in the partition (mandatory)
+     * @param nodes additional nodes to include in the partition (optional)
+     * @return the created Partition object
+     * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
+     */
+    @NonNull
+    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {;
+        return createPartition(Utils.collect(node0, nodes));
+    }
+
+    /**
+     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the partition.
      *
      * @param partition the partition to remove
      */
@@ -158,7 +180,7 @@ public interface Network {
      * Isolates a node from the network. Disconnects all connections to and from this node.
      *
      * <p>This is equivalent to creating a partition with a single node. Consequently, a node that is part of a
-     * partition cannot be isolated again until the partition is removed.
+     * partition will be removed from the old partition before being isolated.
      *
      * @param node the node to isolate
      * @return the created partition containing only the isolated node
@@ -357,4 +379,14 @@ public interface Network {
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
+
+    /**
+     * Checks if all nodes in the network are in the specified {@link PlatformStatus}.
+     *
+     * @param status the status to check against
+     * @return {@code true} if all nodes are in the specified status, {@code false} otherwise
+     */
+    default boolean allNodesInStatus(@NonNull final PlatformStatus status) {
+        return getNodes().stream().allMatch(node -> node.platformStatus() == status);
+    }
 }
