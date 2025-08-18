@@ -40,13 +40,6 @@ public class ContainerMarkerFileObserver {
         listeners.add(listener);
     }
 
-    /**
-     * Stops observing the file system for marker files.
-     */
-    public void destroy() {
-        MarkerFileUtils.stopObserving(watchService);
-    }
-
     private void watchLoop() {
         boolean valid;
         do {

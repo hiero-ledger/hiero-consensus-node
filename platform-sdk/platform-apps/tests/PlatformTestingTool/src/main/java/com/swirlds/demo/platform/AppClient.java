@@ -7,6 +7,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /*
  * Simulate Hedera Client to access file or map without going through
@@ -27,6 +28,7 @@ public class AppClient extends Thread {
 
     AppClient(
             @NonNull final Platform platform,
+            @NonNull final TransactionPoolNexus transactionPool,
             @NonNull final NodeId selfId,
             @NonNull final SuperConfig currentConfig,
             @NonNull final String myName,
@@ -59,6 +61,7 @@ public class AppClient extends Thread {
 
         pttTransactionPool = new PttTransactionPool(
                 platform,
+                transactionPool,
                 platform.getSelfId().id(),
                 payloadConfig,
                 myName,

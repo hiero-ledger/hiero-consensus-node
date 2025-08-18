@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerNode.GOSSIP_PORT;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -48,6 +47,7 @@ public class ContainerNetwork extends AbstractNetwork {
     /** The format for node identifiers in the network. */
     public static final String NODE_IDENTIFIER_FORMAT = "node-%d";
 
+    private static final int GOSSIP_PORT = 5777;
     private static final Logger log = LogManager.getLogger();
 
     private static final Duration DEFAULT_START_TIMEOUT = Duration.ofMinutes(2);

@@ -158,7 +158,7 @@ public class CryptoUpdateSuite {
       Test that long-zero EVM address has the expected value before and after
       key rotation, and that hte record stream does not imply anything different.
     */
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForLongZero() {
         final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(ECKind.LONG_ZERO, ECKind.LONG_ZERO.name());
@@ -174,16 +174,16 @@ public class CryptoUpdateSuite {
                                 rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
                                 accountsToHaveKeysRotated.toArray(new String[0])),
                         Duration.ofSeconds(15)),
+
+                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
+                // first couple of creations, so wait for a new record file boundary
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
 
                 // Create the account with a long-zero EVM address
                 cryptoCreate(accountsToCreate.get(ECKind.LONG_ZERO))
@@ -203,7 +203,7 @@ public class CryptoUpdateSuite {
       Test that auto and hollow EVM address has the expected value before and after
       key rotation, and that hte record stream does not imply anything different.
     */
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
         final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(ECKind.AUTO, ECKind.AUTO.name().toLowerCase());
@@ -220,16 +220,16 @@ public class CryptoUpdateSuite {
                                 rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
                                 accountsToHaveKeysRotated.toArray(new String[0])),
                         Duration.ofSeconds(15)),
+
+                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
+                // first couple of creations, so wait for a new record file boundary
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
 
                 // Auto-create an account with an ECDSA key alias
                 createHip32Auto(1, KeyShape.SECP256K1, i -> accountsToCreate.get(ECKind.AUTO)),
@@ -269,7 +269,7 @@ public class CryptoUpdateSuite {
     Test that explicit alias EVM address has the expected value before and after
     key rotation, and that hte record stream does not imply anything different.
      */
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
         final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(ECKind.EXPLICIT_ALIAS, ECKind.EXPLICIT_ALIAS.name());
@@ -285,16 +285,16 @@ public class CryptoUpdateSuite {
                                 rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
                         Duration.ofSeconds(15)),
 
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-
                 // Validate (after all ops executed) that our accounts did get created
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate),
                                 accountsToHaveKeysRotated.toArray(new String[0])),
                         Duration.ofSeconds(15)),
+
+                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
+                // first couple of creations, so wait for a new record file boundary
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
 
                 // Create an account with an explicit EVM address
                 newKeyNamed(accountsToCreate.get(ECKind.EXPLICIT_ALIAS)).shape(KeyShape.SECP256K1),

@@ -10,7 +10,6 @@ import static org.hiero.consensus.model.event.StaleEventDetectorOutput.STALE_SEL
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -23,6 +22,7 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -30,6 +30,7 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -71,11 +72,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.Function;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -103,7 +102,10 @@ public class PlatformWiring {
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
-    private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
+    private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+    /** Output from the {@link #consensusEngineWiring} where only the consensus rounds are returned */
+    private final OutputWire<List<ConsensusRound>> consensusRoundsOutputWire;
+
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
@@ -134,11 +136,10 @@ public class PlatformWiring {
     private final boolean publishPreconsensusEvents;
     private final boolean publishSnapshotOverrides;
     private final boolean publishStaleEvents;
-    private final ApplicationCallbacks applicationCallbacks;
+    private final ExecutionLayer execution;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionResubmitter, List<TransactionWrapper>> transactionResubmitterWiring;
-    private final ComponentWiring<TransactionPool, Void> transactionPoolWiring;
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
@@ -150,15 +151,17 @@ public class PlatformWiring {
      * @param model                the wiring model
      * @param applicationCallbacks the application callbacks (some wires are only created if the application wants a
      *                             callback for something)
+     * @param execution            the execution layer instance
      */
     public PlatformWiring(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final ApplicationCallbacks applicationCallbacks,
-            final boolean isGenesis) {
+            @NonNull final ExecutionLayer execution) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.model = Objects.requireNonNull(model);
+        this.execution = Objects.requireNonNull(execution);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
@@ -171,6 +174,10 @@ public class PlatformWiring {
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator());
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, config.consensusEngine());
+        // output only consensus rounds
+        consensusRoundsOutputWire = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer("ConsensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds);
 
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
@@ -227,7 +234,6 @@ public class PlatformWiring {
         this.publishPreconsensusEvents = applicationCallbacks.preconsensusEventConsumer() != null;
         this.publishSnapshotOverrides = applicationCallbacks.snapshotOverrideConsumer() != null;
         this.publishStaleEvents = applicationCallbacks.staleEventConsumer() != null;
-        this.applicationCallbacks = applicationCallbacks;
 
         final TaskSchedulerConfiguration publisherConfiguration;
         if (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents) {
@@ -246,7 +252,6 @@ public class PlatformWiring {
         staleEventDetectorWiring = new ComponentWiring<>(model, StaleEventDetector.class, config.staleEventDetector());
         transactionResubmitterWiring =
                 new ComponentWiring<>(model, TransactionResubmitter.class, config.transactionResubmitter());
-        transactionPoolWiring = new ComponentWiring<>(model, TransactionPool.class, config.transactionPool());
         branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
         branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
 
@@ -264,7 +269,6 @@ public class PlatformWiring {
                 transactionHandlerWiring,
                 stateHasherWiring,
                 staleEventDetectorWiring,
-                transactionPoolWiring,
                 statusStateMachineWiring,
                 branchDetectorWiring,
                 branchReporterWiring,
@@ -368,9 +372,6 @@ public class PlatformWiring {
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
 
-        model.getHealthMonitorWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::reportUnhealthyDuration));
-
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
 
@@ -401,15 +402,20 @@ public class PlatformWiring {
         staleEventsFromStaleEventDetector.solderTo(
                 transactionResubmitterWiring.getInputWire(TransactionResubmitter::resubmitStaleTransactions));
 
-        final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder =
-                applicationCallbacks.systemTransactionEncoder();
-
         if (publishStaleEvents) {
             staleEventsFromStaleEventDetector.solderTo(
                     platformPublisherWiring.getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
-        splitOrphanBufferOutput.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
+        // an output wire that filters out only pre-consensus events from the consensus engine
+        final OutputWire<PlatformEvent> consEngineAddedEvents = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer(
+                        "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("PreConsensusEventsSplitter", "preConsensusEvents");
+        // pre-handle gets pre-consensus events from the consensus engine
+        // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
+        consEngineAddedEvents.solderTo(applicationTransactionPrehandlerWiring.getInputWire(
                 TransactionPrehandler::prehandleApplicationTransactions));
 
         applicationTransactionPrehandlerWiring
@@ -460,7 +466,8 @@ public class PlatformWiring {
 
         pcesReplayerWiring.eventOutput().solderTo(hasherInputWire);
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring.getSplitOutput();
+        final OutputWire<ConsensusRound> consensusRoundOutputWire =
+                consensusRoundsOutputWire.buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
 
         consensusRoundOutputWire.solderTo(staleEventDetectorWiring.getInputWire(StaleEventDetector::addConsensusRound));
 
@@ -474,8 +481,8 @@ public class PlatformWiring {
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
 
-        consensusEngineWiring
-                .getSplitAndTransformedOutput(ConsensusEngine::getCesEvents)
+        consensusRoundOutputWire
+                .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
@@ -532,14 +539,10 @@ public class PlatformWiring {
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendStateHashedNotification));
 
-        final OutputWire<Bytes> systemTransactionEncoderOutputWireForStateSigner = stateSignerWiring
+        // send state signatures to execution
+        stateSignerWiring
                 .getOutputWire()
-                .buildTransformer(
-                        "postSigner_encode_systemTransactions",
-                        "system transactions from signer",
-                        systemTransactionEncoder);
-        systemTransactionEncoderOutputWireForStateSigner.solderTo(
-                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+                .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -582,7 +585,7 @@ public class PlatformWiring {
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
         statusStateMachineWiring
                 .getOutputWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
+                .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
@@ -618,7 +621,6 @@ public class PlatformWiring {
         issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::setInitialEventWindow);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear);
-        transactionPoolWiring.getInputWire(TransactionPool::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
         branchDetectorWiring.getInputWire(BranchDetector::clear);
         branchReporterWiring.getInputWire(BranchReporter::clear);
@@ -684,7 +686,6 @@ public class PlatformWiring {
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         staleEventDetectorWiring.bind(builder::buildStaleEventDetector);
         transactionResubmitterWiring.bind(builder::buildTransactionResubmitter);
-        transactionPoolWiring.bind(builder::buildTransactionPool);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);
@@ -813,7 +814,7 @@ public class PlatformWiring {
      */
     @NonNull
     public OutputWire<List<ConsensusRound>> getConsensusEngineOutputWire() {
-        return consensusEngineWiring.getOutputWire();
+        return consensusRoundsOutputWire;
     }
 
     /**

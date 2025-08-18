@@ -38,7 +38,6 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.TransactionConfig;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
@@ -113,7 +112,6 @@ public class StateResolver implements ParameterResolver {
 
             private final Configuration platformConfig = ConfigurationBuilder.create()
                     .withConfigDataType(MetricsConfig.class)
-                    .withConfigDataType(TransactionConfig.class)
                     .withConfigDataType(CryptoConfig.class)
                     .withConfigDataType(BasicConfig.class)
                     .build();

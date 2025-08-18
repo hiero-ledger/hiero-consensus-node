@@ -15,7 +15,6 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.consensus.ConsensusUtils.coin;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
@@ -56,6 +55,8 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
@@ -85,8 +86,6 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -159,6 +158,8 @@ public class HandleWorkflow {
     private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag whether the 0.65 system account cleanup has been done; can be removed after that release
+    private boolean systemAccountCleanupDone;
 
     @Inject
     public HandleWorkflow(
@@ -259,13 +260,15 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
-        // Dispatch transplant updates for the nodes in override network (non-prod environments)
-        if (!checkedForTransplant) {
+        // Dispatch transplant updates for the nodes in override network (non-prod environments);
+        // ensure we don't do this in the same round as externalizing migration state changes to
+        // avoid complicated edge cases in setting consensus times for block items
+        if (migrationStateChanges.isEmpty() && !checkedForTransplant) {
             boolean dispatchedTransplantUpdates = false;
             try {
                 final var now = streamMode == RECORDS
                         ? round.getConsensusTimestamp()
-                        : blockStreamManager.lastUsedConsensusTime().plusNanos(1);
+                        : round.iterator().next().getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
@@ -458,7 +461,7 @@ public class HandleWorkflow {
             }
         }
         final var headerItem = BlockItem.newBuilder()
-                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
+                .eventHeader(new EventHeader(event.getEventCore(), parents))
                 .build();
         blockStreamManager.writeItem(headerItem);
     }
@@ -522,6 +525,11 @@ public class HandleWorkflow {
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
+            }
+        } else {
+            if (!systemAccountCleanupDone) {
+                // Ensure the system account cleanup is finished post-upgrade
+                systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
             }
         }
         final var userTxn =

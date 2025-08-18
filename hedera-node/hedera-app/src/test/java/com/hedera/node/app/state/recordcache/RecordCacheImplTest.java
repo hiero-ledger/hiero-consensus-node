@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.STALE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
@@ -27,6 +28,8 @@ import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
@@ -36,8 +39,6 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -735,5 +736,62 @@ final class RecordCacheImplTest extends AppTestBase {
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, currentNodeId)).isEqualTo(SAME_NODE);
         }
+    }
+
+    @Test
+    @DisplayName("getReceipts returns STALE_RECEIPT_SOURCE for stale transactions")
+    void getReceiptsForStaleTransaction() {
+        final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+        // Given a transaction marked as stale
+        final var now = Instant.now();
+        final var txnId = TransactionID.newBuilder()
+                .transactionValidStart(
+                        Timestamp.newBuilder().seconds(now.getEpochSecond()).build())
+                .build();
+        dedupeCache.add(txnId);
+        dedupeCache.markStale(txnId);
+
+        // When getting receipts
+        final var result = cache.getReceipts(txnId);
+
+        // Then it returns the STALE_RECEIPT_SOURCE
+        assertThat(result.priorityReceipt(txnId).status() == STALE).isTrue();
+    }
+
+    @Test
+    @DisplayName("getReceipts returns EMPTY_HISTORY_SOURCE for submitted transactions")
+    void getReceiptsForSubmittedTransaction() {
+        final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+        // Given a transaction marked as stale
+        final var now = Instant.now();
+        final var txnId = TransactionID.newBuilder()
+                .transactionValidStart(
+                        Timestamp.newBuilder().seconds(now.getEpochSecond()).build())
+                .build();
+        dedupeCache.add(txnId);
+
+        // When getting receipts
+        final var result = cache.getReceipts(txnId);
+
+        // Then it returns the EMPTY_HISTORY_SOURCE
+        assertThat(result.priorityReceipt(txnId).status() == UNKNOWN).isTrue();
+    }
+
+    @Test
+    @DisplayName("getReceipts returns null for unknown transactions")
+    void getReceiptsForUnknownTransaction() {
+        final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+        // Given a transaction marked as stale
+        final var now = Instant.now();
+        final var txnId = TransactionID.newBuilder()
+                .transactionValidStart(
+                        Timestamp.newBuilder().seconds(now.getEpochSecond()).build())
+                .build();
+
+        // When getting receipts
+        final var result = cache.getReceipts(txnId);
+
+        // Then it returns null
+        assertThat(result).isNull();
     }
 }

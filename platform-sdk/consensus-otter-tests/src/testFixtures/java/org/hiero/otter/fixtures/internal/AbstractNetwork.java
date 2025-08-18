@@ -279,10 +279,17 @@ public abstract class AbstractNetwork implements Network {
     /**
      * {@inheritDoc}
      */
+    public long totalWeight() {
+        return nodes().stream().mapToLong(Node::weight).sum();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @NonNull
-    public Network setConfigValue(@NonNull final String key, @NonNull final String value) {
-        getNodes().forEach(node -> node.configuration().set(key, value));
+    public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
+        nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
 
@@ -291,8 +298,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Network setConfigValue(@NonNull final String key, final int value) {
-        getNodes().forEach(node -> node.configuration().set(key, value));
+    public Network withConfigValue(@NonNull final String key, final int value) {
+        nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
 
@@ -301,8 +308,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Network setConfigValue(@NonNull final String key, final long value) {
-        getNodes().forEach(node -> node.configuration().set(key, value));
+    public Network withConfigValue(@NonNull final String key, final long value) {
+        nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
 
@@ -311,8 +318,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Network setConfigValue(@NonNull final String key, @NonNull final Path value) {
-        getNodes().forEach(node -> node.configuration().set(key, value));
+    public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
+        nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
 
@@ -321,8 +328,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Network setConfigValue(@NonNull final String key, final boolean value) {
-        getNodes().forEach(node -> node.configuration().set(key, value));
+    public Network withConfigValue(@NonNull final String key, final boolean value) {
+        nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
 
@@ -338,8 +345,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setVersion(@NonNull final SemanticVersion version) {
-        getNodes().forEach(node -> node.setVersion(version));
+    public void version(@NonNull final SemanticVersion version) {
+        nodes().forEach(node -> node.version(version));
     }
 
     /**
@@ -347,7 +354,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        getNodes().forEach(Node::bumpConfigVersion);
+        nodes().forEach(Node::bumpConfigVersion);
     }
 
     /**
@@ -357,7 +364,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeConsensusResults newConsensusResults() {
         final List<SingleNodeConsensusResult> results =
-                getNodes().stream().map(Node::newConsensusResult).toList();
+                nodes().stream().map(Node::newConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
     }
 
@@ -368,7 +375,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public MultipleNodeLogResults newLogResults() {
         final List<SingleNodeLogResult> results =
-                getNodes().stream().map(Node::newLogResult).toList();
+                nodes().stream().map(Node::newLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
     }
@@ -380,7 +387,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePlatformStatusResults newPlatformStatusResults() {
         final List<SingleNodePlatformStatusResult> statusProgressions =
-                getNodes().stream().map(Node::newPlatformStatusResult).toList();
+                nodes().stream().map(Node::newPlatformStatusResult).toList();
         return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
     }
 
@@ -391,7 +398,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeReconnectResults newReconnectResults() {
         final List<SingleNodeReconnectResult> reconnectResults =
-                getNodes().stream().map(Node::newReconnectResult).toList();
+                nodes().stream().map(Node::newReconnectResult).toList();
         return new MultipleNodeReconnectResultsImpl(reconnectResults);
     }
 
@@ -402,7 +409,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodePcesResults newPcesResults() {
         final List<SingleNodePcesResult> results =
-                getNodes().stream().map(Node::newPcesResult).toList();
+                nodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
     }
 
@@ -413,7 +420,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public MultipleNodeMarkerFileResults newMarkerFileResults() {
         final List<SingleNodeMarkerFileResult> results =
-                getNodes().stream().map(Node::newMarkerFileResult).toList();
+                nodes().stream().map(Node::newMarkerFileResult).toList();
         return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
@@ -422,7 +429,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
-        final Set<Node> otherNodes = getNodes().stream()
+        final Set<Node> otherNodes = nodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -440,7 +447,7 @@ public abstract class AbstractNetwork implements Network {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
-        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getTotalWeight());
+        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, totalWeight());
     }
 
     /**
@@ -448,7 +455,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = getNodes().stream()
+        final Set<Node> otherNodes = nodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
@@ -528,7 +535,7 @@ public abstract class AbstractNetwork implements Network {
 
             log.info("Starting network...");
             state = State.RUNNING;
-            for (final Node node : getNodes()) {
+            for (final Node node : nodes()) {
                 node.start();
             }
 
@@ -551,7 +558,7 @@ public abstract class AbstractNetwork implements Network {
             log.info("Sending freeze transaction...");
             final byte[] freezeTransaction =
                     createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
-            getNodes().stream()
+            nodes().stream()
                     .filter(Node::isActive)
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
@@ -574,7 +581,7 @@ public abstract class AbstractNetwork implements Network {
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
             log.info("Killing nodes immediately...");
-            for (final Node node : getNodes()) {
+            for (final Node node : nodes()) {
                 node.killImmediately();
             }
 
