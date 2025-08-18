@@ -141,7 +141,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
-        if (!getNodes().isEmpty()) {
+        if (!nodes().isEmpty()) {
             throw new IllegalStateException("Cannot set weight generator after nodes have been added to the network.");
         }
         this.weightGenerator = requireNonNull(weightGenerator);
@@ -166,7 +166,7 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
         final PartitionImpl partition = new PartitionImpl(partitionNodes);
-        final List<Node> allNodes = getNodes();
+        final List<Node> allNodes = nodes();
         if (partition.size() == allNodes.size()) {
             throw new IllegalArgumentException("Cannot create a partition with all nodes.");
         }
@@ -491,8 +491,8 @@ public abstract class AbstractNetwork implements Network {
 
     private void updateConnections() {
         final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
-        for (final Node sender : getNodes()) {
-            for (final Node receiver : getNodes()) {
+        for (final Node sender : nodes()) {
+            for (final Node receiver : nodes()) {
                 if (sender.selfId().equals(receiver.selfId())) {
                     continue; // Skip self-connections
                 }

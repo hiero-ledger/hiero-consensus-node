@@ -115,7 +115,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private List<TurtleNode> createTurtleNodes(final int count) {
         throwIfInState(State.RUNNING, "Cannot add nodes after the network has been started.");
         throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
-        if (!getNodes().isEmpty()) {
+        if (!nodes().isEmpty()) {
             throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
         }
 

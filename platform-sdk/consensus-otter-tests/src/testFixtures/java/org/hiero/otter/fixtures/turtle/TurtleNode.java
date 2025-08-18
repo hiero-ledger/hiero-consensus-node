@@ -77,6 +77,7 @@ import org.hiero.otter.fixtures.util.SecureRandomBuilder;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    /** The thread context key for the node ID. */
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
     private final Randotron randotron;

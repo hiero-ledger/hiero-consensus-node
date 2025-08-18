@@ -110,7 +110,7 @@ public interface Network {
      * @return the network weight
      */
     default long totalWeight() {
-        return getNodes().stream().mapToLong(Node::weight).sum();
+        return nodes().stream().mapToLong(Node::weight).sum();
     }
 
     /**
@@ -387,6 +387,6 @@ public interface Network {
      * @return {@code true} if all nodes are in the specified status, {@code false} otherwise
      */
     default boolean allNodesInStatus(@NonNull final PlatformStatus status) {
-        return getNodes().stream().allMatch(node -> node.platformStatus() == status);
+        return nodes().stream().allMatch(node -> node.platformStatus() == status);
     }
 }
