@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -20,7 +19,7 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -321,8 +320,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-
-        final Hash stateHash = randomHash();
+        final TestVirtualMapState state = new TestVirtualMapState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid
@@ -330,16 +328,16 @@ class DefaultSignedStateValidatorTests {
             if (signature.getByte(0) == 0) {
                 return false;
             }
+            final Hash stateHash = state.getHash();
             final Hash hash = new Hash(data, stateHash.getDigestType());
 
             return hash.equals(stateHash);
         };
 
         return new RandomSignedStateGenerator()
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                .setState(state)
                 .setRound(ROUND)
                 .setRoster(roster)
-                .setStateHash(stateHash)
                 .setSignatures(nodeSigs(signingNodes))
                 .setSignatureVerifier(signatureVerifier)
                 .build();

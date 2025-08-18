@@ -241,11 +241,11 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - tag-sdpt-passing
+      - tag-sdpt-result
       - run-single-day-performance-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdpt-passing.result == 'success' &&
+      needs.tag-sdpt-result.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       inputs.disable-notifications != true && !cancelled() }}
@@ -307,7 +307,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.tag-sdpt-passing.result }}"
+                          "text": "${{ needs.tag-sdpt-result.result }}"
                         }
                       ]
                     },
@@ -366,10 +366,10 @@ jobs:
     needs:
       - verify-tag
       - run-single-day-performance-test
-      - tag-sdpt-passing
+      - tag-sdpt-result
       - get-commit-info
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdpt-passing.result != 'success' ||
+      needs.tag-sdpt-result.result != 'success' ||
       needs.run-single-day-performance-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success') &&
       inputs.disable-notifications != true && !cancelled() && always() }}
@@ -460,7 +460,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.tag-sdpt-passing.result }}"
+                        "text": "${{ needs.tag-sdpt-result.result }}"
                       },
                       {
                         "type": "plain_text",

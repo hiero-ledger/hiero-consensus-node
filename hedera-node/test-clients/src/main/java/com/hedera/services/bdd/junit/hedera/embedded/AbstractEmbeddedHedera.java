@@ -178,7 +178,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     public void start() {
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
-        hedera.onStateInitialized(state, fakePlatform(), GENESIS);
+        hedera.onStateInitialized(state, fakePlatform(), trigger);
         hedera.init(fakePlatform(), defaultNodeId);
         fakePlatform().start();
         fakePlatform().notifyListeners(ACTIVE_NOTIFICATION);
