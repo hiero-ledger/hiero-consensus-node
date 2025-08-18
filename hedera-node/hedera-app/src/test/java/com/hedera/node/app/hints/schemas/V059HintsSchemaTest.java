@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.impl.HintsContext;
-import com.swirlds.state.lifecycle.MigrationContext;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;

@@ -4,7 +4,7 @@ package com.hedera.node.app.tss.schemas;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
-import com.swirlds.state.lifecycle.Schema;
+import com.hedera.node.app.spi.schemas.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;

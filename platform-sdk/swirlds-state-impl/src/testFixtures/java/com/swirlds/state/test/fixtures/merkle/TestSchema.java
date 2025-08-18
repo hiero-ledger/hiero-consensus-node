@@ -2,8 +2,8 @@
 package com.swirlds.state.test.fixtures.merkle;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.Schema;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

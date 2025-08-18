@@ -12,7 +12,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
-import com.swirlds.state.lifecycle.MigrationContext;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import java.util.Comparator;
 import org.assertj.core.api.Assertions;

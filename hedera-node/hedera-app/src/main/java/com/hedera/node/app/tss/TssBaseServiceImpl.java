@@ -3,10 +3,10 @@ package com.hedera.node.app.tss;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import com.hedera.node.app.tss.schemas.V0560TssBaseSchema;
 import com.hedera.node.app.tss.schemas.V0580TssBaseSchema;
 import com.hedera.node.app.tss.schemas.V059TssBaseSchema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

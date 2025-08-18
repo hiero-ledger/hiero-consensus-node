@@ -5,8 +5,8 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_I
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.Schema;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.services.MigrationContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class V0560BlockRecordSchema extends Schema {

@@ -2,8 +2,8 @@
 package com.hedera.node.app.fees;
 
 import com.hedera.node.app.fees.schemas.V0490FeeSchema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.Service;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
+import com.hedera.node.app.spi.services.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class FeeService implements Service {

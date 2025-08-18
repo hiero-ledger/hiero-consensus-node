@@ -12,14 +12,14 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.hedera.node.app.spi.info.StartupNetworks;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
+import com.hedera.node.app.spi.services.MigrationContext;
+import com.hedera.node.app.spi.services.Service;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;
@@ -237,7 +237,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                         return;
                     }
                     logger.info("  Ensuring {} has state {}", serviceName, stateKey);
-                    final var md = new StateMetadata<>(serviceName, schema, def);
+                    final var md = new StateMetadata<>(serviceName, def);
                     stateRoot.initializeState(md);
                 });
 

@@ -8,9 +8,6 @@ import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.StateTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryValue;
 import com.swirlds.virtualmap.VirtualMap;
 
 /**
@@ -51,9 +48,7 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected void setupFruitMerkleMap() {
         super.setupFruitMerkleMap();
         fruitMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE, StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
     }
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
@@ -61,9 +56,7 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected void setupFruitVirtualMap() {
         super.setupFruitVirtualMap();
         fruitVirtualMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.onDisk(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
+                FIRST_SERVICE, StateDefinition.onDisk(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
     }
 
     /** Sets up the "Animal" merkle map, label, and metadata. */
@@ -71,9 +64,15 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected void setupAnimalMerkleMap() {
         super.setupAnimalMerkleMap();
         animalMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE, StateDefinition.inMemory(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+    }
+
+    /** Sets up the "Animal" virtual map, label, and metadata. */
+    @Override
+    protected void setupAnimalVirtualMap() {
+        super.setupAnimalVirtualMap();
+        animalMetadata = new StateMetadata<>(
+                FIRST_SERVICE, StateDefinition.onDisk(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
     }
 
     /** Sets up the "Space" merkle map, label, and metadata. */
@@ -81,33 +80,20 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected void setupSpaceMerkleMap() {
         super.setupSpaceMerkleMap();
         spaceMetadata = new StateMetadata<>(
-                SECOND_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(SPACE_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+                SECOND_SERVICE, StateDefinition.inMemory(SPACE_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
     }
 
     @Override
     protected void setupSingletonCountry() {
         super.setupSingletonCountry();
-        countryMetadata = new StateMetadata<>(
-                FIRST_SERVICE, new TestSchema(1), StateDefinition.singleton(COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
+        countryMetadata =
+                new StateMetadata<>(FIRST_SERVICE, StateDefinition.singleton(COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     @Override
     protected void setupSteamQueue() {
         super.setupSteamQueue();
-        steamMetadata = new StateMetadata<>(
-                FIRST_SERVICE, new TestSchema(1), StateDefinition.queue(STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
-    }
-
-    /** A convenience method for adding a k/v state to a merkle map */
-    protected void addKvState(
-            MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> map,
-            StateMetadata<ProtoBytes, ProtoBytes> md,
-            ProtoBytes key,
-            ProtoBytes value) {
-        final var def = md.stateDefinition();
-        super.addKvState(map, md.inMemoryValueClassId(), def.keyCodec(), def.valueCodec(), key, value);
+        steamMetadata = new StateMetadata<>(FIRST_SERVICE, StateDefinition.queue(STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     /** A convenience method for adding a singleton state to a virtual map */

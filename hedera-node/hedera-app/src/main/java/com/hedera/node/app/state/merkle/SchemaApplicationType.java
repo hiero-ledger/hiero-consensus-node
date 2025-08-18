@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
+import com.hedera.node.app.spi.schemas.Schema;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.lifecycle.Schema;
 
 /**
  * Enumerates the ways the {@link MerkleSchemaRegistry} may apply a {@link Schema}

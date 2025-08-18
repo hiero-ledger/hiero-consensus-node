@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss;
 
-import com.swirlds.state.lifecycle.Service;
+import com.hedera.node.app.spi.services.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

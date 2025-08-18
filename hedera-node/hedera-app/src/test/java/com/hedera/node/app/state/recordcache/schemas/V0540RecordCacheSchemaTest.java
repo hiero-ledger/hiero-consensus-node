@@ -19,7 +19,7 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionRecordEntry;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.swirlds.state.lifecycle.MigrationContext;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableStates;

@@ -42,7 +42,6 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.time.Duration;
@@ -161,7 +160,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // metadata,
             final var fruitMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
-                    new TestSchema(1),
                     StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
 
             virtualMapState.initializeState(fruitMetadata);
@@ -278,7 +276,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
+            setupAnimalVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
 
@@ -439,9 +437,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(animalMerkleMap, animalMetadata, D_KEY, DOG);
-            addKvState(animalMerkleMap, animalMetadata, F_KEY, FOX);
+            addKvState(animalVirtualMap, animalMetadata, C_KEY, CUTTLEFISH);
+            addKvState(animalVirtualMap, animalMetadata, D_KEY, DOG);
+            addKvState(animalVirtualMap, animalMetadata, F_KEY, FOX);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
@@ -509,7 +507,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
+            setupAnimalVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
 
@@ -713,14 +711,14 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
+            setupAnimalVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitVirtualMetadata, C_KEY, CHERRY);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
+            addKvState(animalVirtualMap, animalMetadata, C_KEY, CUTTLEFISH);
             addSingletonState(virtualMap, countryMetadata, FRANCE);
 
             // adding queue state via State API, to init the QueueState
@@ -785,7 +783,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
+            setupAnimalVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
 
@@ -793,9 +791,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(animalMerkleMap, animalMetadata, D_KEY, DOG);
-            addKvState(animalMerkleMap, animalMetadata, F_KEY, FOX);
+            addKvState(animalVirtualMap, animalMetadata, C_KEY, CUTTLEFISH);
+            addKvState(animalVirtualMap, animalMetadata, D_KEY, DOG);
+            addKvState(animalVirtualMap, animalMetadata, F_KEY, FOX);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
@@ -856,6 +854,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
         }
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
             fruitVirtualMap.release();
+        }
+        if (animalVirtualMap != null && animalVirtualMap.getReservationCount() >= 0) {
+            animalVirtualMap.release();
         }
         assertAllDatabasesClosed();
         assertEventuallyDoesNotThrow(

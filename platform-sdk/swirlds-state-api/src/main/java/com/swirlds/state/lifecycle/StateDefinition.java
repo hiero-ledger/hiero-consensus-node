@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * @param stateKey The "state key" that uniquely identifies this {@link ReadableKVState} within the
- *     {@link Schema} which are scoped to the service implementation. The key is therefore not
+ *     {@code Schema} which are scoped to the service implementation. The key is therefore not
  *     globally unique, only unique within the service implementation itself.
  * @param keyCodec The {@link Codec} to use for parsing and writing keys in the registered state
  * @param valueCodec The {@link Codec} to use for parsing and writing values in the registered

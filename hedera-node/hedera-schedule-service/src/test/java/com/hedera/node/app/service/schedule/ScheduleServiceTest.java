@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.schedule;
 
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;

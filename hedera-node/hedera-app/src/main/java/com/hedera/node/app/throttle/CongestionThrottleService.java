@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
+import com.hedera.node.app.spi.services.Service;
 import com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
 

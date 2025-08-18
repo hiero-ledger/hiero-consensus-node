@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0640PlatformStateSchema;
-import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

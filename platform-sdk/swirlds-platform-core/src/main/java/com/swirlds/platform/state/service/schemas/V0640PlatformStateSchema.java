@@ -3,9 +3,9 @@ package com.swirlds.platform.state.service.schemas;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

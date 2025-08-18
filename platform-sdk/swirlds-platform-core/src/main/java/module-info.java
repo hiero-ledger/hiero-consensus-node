@@ -110,6 +110,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
 
+    requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

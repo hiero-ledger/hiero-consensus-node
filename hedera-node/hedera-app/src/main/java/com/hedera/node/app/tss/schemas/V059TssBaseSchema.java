@@ -2,7 +2,7 @@
 package com.hedera.node.app.tss.schemas;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.state.lifecycle.Schema;
+import com.hedera.node.app.spi.schemas.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 

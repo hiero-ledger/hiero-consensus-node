@@ -3,8 +3,8 @@ package com.hedera.node.app.ids;
 
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.Service;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
+import com.hedera.node.app.spi.services.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

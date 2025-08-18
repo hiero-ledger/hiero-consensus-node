@@ -11,10 +11,10 @@ import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_T
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6.VERSION_6;
 import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWriterV6.writeSignatureFile;
+import static com.hedera.node.app.spi.hapi.HapiUtils.asAccountString;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;

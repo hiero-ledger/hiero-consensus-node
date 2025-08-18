@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.demo.migration {
+    requires com.hedera.node.app.spi;
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;

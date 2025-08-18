@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
-import static com.swirlds.state.lifecycle.StateMetadata.hashString;
 import static com.swirlds.state.lifecycle.StateMetadata.validateIdentifier;
 import static com.swirlds.state.lifecycle.StateMetadata.validateServiceName;
 import static com.swirlds.state.lifecycle.StateMetadata.validateStateKey;
@@ -10,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.swirlds.state.test.fixtures.StateTestBase;
-import java.util.HashSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -129,61 +126,5 @@ public class StateMetadataTest extends StateTestBase {
     void computeLabel() {
         assertThat(StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY))
                 .isEqualTo(FIRST_SERVICE + "." + FRUIT_STATE_KEY);
-    }
-    /**
-     * NOTE: This test may look silly, because it literally does what is in the source code. But
-     * this is actually very important! This computation MUST NOT CHANGE. If any change is made in
-     * the sources, it will cause this test to fail. That will cause the engineer to look at this
-     * test and SEE THIS NOTE. And then realize, they CANNOT MAKE THIS CHANGE.
-     */
-    @Test
-    @DisplayName("`computeClassId` is always {serviceName}:{stateKey}:v{version}:{extra}")
-    void testComputeClassId() {
-        final var classId = hashString("A:B:v1.0.0:C");
-        assertThat(computeClassId("A", "B", version(1, 0, 0), "C")).isEqualTo(classId);
-    }
-
-    /**
-     * NOTE: This test may look silly, because it literally does what is in the source code. But
-     * this is actually very important! This computation MUST NOT CHANGE. If any change is made in
-     * the sources, it will cause this test to fail. That will cause the engineer to look at this
-     * test and SEE THIS NOTE. And then realize, they CANNOT MAKE THIS CHANGE.
-     */
-    @Test
-    @DisplayName("`computeClassId` with metadata is always {serviceName}:{stateKey}:v{version}:{extra}")
-    void computeClassId_withMetadata() {
-        final var classId = hashString(FIRST_SERVICE
-                + ":"
-                + StateTestBase.FRUIT_STATE_KEY
-                + ":v"
-                + TEST_VERSION.major()
-                + "."
-                + TEST_VERSION.minor()
-                + "."
-                + TEST_VERSION.patch()
-                + ":C");
-        assertThat(computeClassId(FIRST_SERVICE, StateTestBase.FRUIT_STATE_KEY, TEST_VERSION, "C"))
-                .isEqualTo(classId);
-    }
-
-    @Test
-    @DisplayName("Verifies the hashing algorithm of computeValueClassId produces reasonably unique" + " values")
-    void uniqueHashing() {
-        // Given a set of serviceName and stateKey pairs
-        final var numWords = 1000;
-        final var hashes = new HashSet<Long>();
-        final var fakeServiceNames = randomWords(numWords);
-        final var fakeStateKeys = randomWords(numWords);
-
-        // When I call computeValueClassId with those and collect the resulting hash
-        for (final var serviceName : fakeServiceNames) {
-            for (final var stateKey : fakeStateKeys) {
-                final var hash = computeClassId(serviceName, stateKey, TEST_VERSION, "extra string");
-                hashes.add(hash);
-            }
-        }
-
-        // Then each hash is highly probabilistically unique (and for our test, definitely unique)
-        assertThat(hashes).hasSize(numWords * numWords);
     }
 }

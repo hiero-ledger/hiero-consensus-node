@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 open module com.swirlds.state.impl.test.fixtures {
+    requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

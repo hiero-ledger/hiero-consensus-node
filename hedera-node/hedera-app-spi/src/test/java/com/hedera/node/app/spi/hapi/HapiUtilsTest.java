@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.impl;
+package com.hedera.node.app.spi.hapi;
 
-import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.hedera.node.app.spi.hapi.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;

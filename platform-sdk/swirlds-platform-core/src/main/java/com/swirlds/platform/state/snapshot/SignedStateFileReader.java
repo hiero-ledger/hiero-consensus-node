@@ -7,6 +7,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.spi.schemas.Schema;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
@@ -20,7 +21,6 @@ import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.virtualmap.VirtualMap;
@@ -166,7 +166,7 @@ public final class SignedStateFileReader {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(name, schema, def);
+                    final var md = new StateMetadata<>(name, def);
                     if (def.singleton() || def.onDisk()) {
                         state.initializeState(md);
                     } else {

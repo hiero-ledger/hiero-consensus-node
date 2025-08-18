@@ -4,9 +4,9 @@ package com.hedera.node.app.blocks;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
+import com.hedera.node.app.spi.services.Service;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;

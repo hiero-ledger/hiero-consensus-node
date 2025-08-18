@@ -9,8 +9,8 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
-import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

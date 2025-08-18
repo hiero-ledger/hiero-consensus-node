@@ -9,8 +9,8 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.node.app.spi.schemas.Schema;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

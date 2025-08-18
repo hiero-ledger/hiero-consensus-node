@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.spi.schemas.Schema;
+import com.hedera.node.app.spi.services.MigrationContext;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
@@ -22,12 +24,11 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.test.fixtures.TestStateMetadata;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
@@ -90,7 +91,7 @@ public class TestingAppStateInitializer {
             @NonNull final ConstructableRegistry registry, @NonNull final Schema schema, @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
-                .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));
+                .forEach(def -> registerWithSystem(new TestStateMetadata<>(name, schema, def), registry));
     }
 
     /**
@@ -120,7 +121,7 @@ public class TestingAppStateInitializer {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(PlatformStateService.NAME, schema, def);
+                    final var md = new TestStateMetadata<>(PlatformStateService.NAME, schema, def);
                     if (def.singleton()) {
                         initializeServiceState(
                                 state,
@@ -158,7 +159,7 @@ public class TestingAppStateInitializer {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(RosterStateId.NAME, schema, def);
+                    final var md = new TestStateMetadata<>(RosterStateId.NAME, schema, def);
                     if (def.singleton()) {
                         initializeServiceState(
                                 state,
@@ -173,10 +174,9 @@ public class TestingAppStateInitializer {
                         initializeServiceState(state, md, () -> {
                             final var tableConfig =
                                     new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
-                            final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
+                            final var label = TestStateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
-                            final var virtualMap = new VirtualMap(label, dsBuilder, CONFIGURATION);
-                            return virtualMap;
+                            return new VirtualMap(label, dsBuilder, CONFIGURATION);
                         });
                     } else {
                         throw new IllegalStateException(
@@ -196,11 +196,12 @@ public class TestingAppStateInitializer {
     // MerkleNodeState interface
     @Deprecated
     private static void initializeServiceState(
-            MerkleNodeState state, StateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
+            MerkleNodeState state, TestStateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
         switch (state) {
             case MerkleStateRoot<?> ignored ->
                 ((MerkleStateRoot) state).putServiceStateIfAbsent(md, nodeSupplier, n -> {});
-            case VirtualMapState<?> ignored -> state.initializeState(md);
+            case VirtualMapState<?> ignored ->
+                state.initializeState(new StateMetadata<>(md.serviceName(), md.stateDefinition()));
             default ->
                 throw new IllegalStateException(
                         "Expecting MerkleStateRoot or VirtualMapState instance to be used for state initialization");

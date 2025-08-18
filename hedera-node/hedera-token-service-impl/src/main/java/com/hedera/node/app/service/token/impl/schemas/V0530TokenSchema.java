@@ -4,7 +4,7 @@ package com.hedera.node.app.service.token.impl.schemas;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
-import com.swirlds.state.lifecycle.Schema;
+import com.hedera.node.app.spi.schemas.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;

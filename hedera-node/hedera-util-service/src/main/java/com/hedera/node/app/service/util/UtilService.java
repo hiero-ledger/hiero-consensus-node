@@ -3,8 +3,8 @@ package com.hedera.node.app.service.util;
 
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
 import java.util.Set;

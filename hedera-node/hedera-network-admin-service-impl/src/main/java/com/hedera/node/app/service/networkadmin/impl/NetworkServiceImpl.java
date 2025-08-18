@@ -4,7 +4,7 @@ package com.hedera.node.app.service.networkadmin.impl;
 import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.networkadmin.impl.schemas.V0490NetworkSchema;
 import com.hedera.node.app.spi.RpcService;
-import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi;
 
+import com.hedera.node.app.spi.services.Service;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 

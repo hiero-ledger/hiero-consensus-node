@@ -5,8 +5,8 @@ import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 

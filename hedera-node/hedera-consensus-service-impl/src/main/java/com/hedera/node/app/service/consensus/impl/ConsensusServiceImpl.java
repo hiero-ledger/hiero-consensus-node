@@ -4,7 +4,7 @@ package com.hedera.node.app.service.consensus.impl;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.spi.RpcService;
-import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

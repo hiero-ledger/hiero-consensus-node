@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle;
+package com.hedera.node.app.spi.schemas;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;

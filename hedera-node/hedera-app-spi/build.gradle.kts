@@ -14,4 +14,6 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("com.swirlds.state.api.test.fixtures")
+    requires("com.swirlds.state.impl.test.fixtures")
 }

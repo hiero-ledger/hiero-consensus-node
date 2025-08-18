@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.lifecycle;
+package com.hedera.node.app.spi.info;
 
 import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;

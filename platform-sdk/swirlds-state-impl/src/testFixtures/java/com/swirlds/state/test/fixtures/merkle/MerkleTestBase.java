@@ -8,10 +8,10 @@ import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.SCHEDULESERVI
 import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.SINGLETON;
 import static com.hedera.hapi.platform.state.StateKey.KeyOneOfType.TOKENSERVICE_I_ALIASES;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
-import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValue;
+import static com.swirlds.state.test.fixtures.TestStateMetadata.computeClassId;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -151,6 +151,10 @@ public class MerkleTestBase extends StateTestBase {
     // The "ANIMAL" map is part of FIRST_SERVICE
     protected String animalLabel;
     protected MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> animalMerkleMap;
+
+    // An alternative "ANIMAL" Map that is also part of FIRST_SERVICE, but based on VirtualMap
+    protected String animalVirtualLabel;
+    protected VirtualMap animalVirtualMap;
 
     // The "SPACE" map is part of SECOND_SERVICE and uses the long-based keys
     protected String spaceLabel;
@@ -386,6 +390,12 @@ public class MerkleTestBase extends StateTestBase {
     protected void setupAnimalMerkleMap() {
         animalLabel = StateMetadata.computeLabel(FIRST_SERVICE, ANIMAL_STATE_KEY);
         animalMerkleMap = createMerkleMap(animalLabel);
+    }
+
+    /** Sets up the "Animal" virtual map, label, and metadata. */
+    protected void setupAnimalVirtualMap() {
+        animalVirtualLabel = StateMetadata.computeLabel(FIRST_SERVICE, ANIMAL_STATE_KEY);
+        animalVirtualMap = createVirtualMap(animalVirtualLabel);
     }
 
     /** Sets up the "Space" merkle map, label, and metadata. */

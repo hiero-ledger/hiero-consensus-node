@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.lifecycle;
+package com.hedera.node.app.spi.schemas;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.spi.hapi.HapiUtils;
+import com.hedera.node.app.spi.services.MigrationContext;
+import com.hedera.node.app.spi.services.Service;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

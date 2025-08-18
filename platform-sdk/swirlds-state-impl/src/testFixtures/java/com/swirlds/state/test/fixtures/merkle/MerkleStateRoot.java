@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.test.fixtures.TestStateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
@@ -23,7 +23,6 @@ import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleRootSnapshotMetrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
@@ -40,6 +39,7 @@ import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.TestStateMetadata;
 import com.swirlds.state.test.fixtures.merkle.disk.BackedReadableKVState;
 import com.swirlds.state.test.fixtures.merkle.disk.BackedWritableKVState;
 import com.swirlds.state.test.fixtures.merkle.memory.InMemoryReadableKVState;
@@ -112,7 +112,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private MerkleCryptography merkleCryptography;
     private Time time;
 
-    public Map<String, Map<String, StateMetadata<?, ?>>> getServices() {
+    public Map<String, Map<String, TestStateMetadata<?, ?>>> getServices() {
         return services;
     }
 
@@ -129,7 +129,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      * Maintains information about each service, and each state of each service, known by this
      * instance. The key is the "service-name.state-key".
      */
-    private final Map<String, Map<String, StateMetadata<?, ?>>> services = new HashMap<>();
+    private final Map<String, Map<String, TestStateMetadata<?, ?>>> services = new HashMap<>();
 
     /**
      * Cache of used {@link ReadableStates}.
@@ -331,7 +331,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      * it doesn't have a label, or if the label isn't right.
      */
     public <T extends MerkleNode> void putServiceStateIfAbsent(
-            @NonNull final StateMetadata<?, ?> md,
+            @NonNull final TestStateMetadata<?, ?> md,
             @NonNull final Supplier<T> nodeSupplier,
             @NonNull final Consumer<T> nodeInitializer) {
 
@@ -486,7 +486,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private abstract class MerkleStates implements ReadableStates {
-        protected final Map<String, StateMetadata<?, ?>> stateMetadata;
+        protected final Map<String, TestStateMetadata<?, ?>> stateMetadata;
         protected final Map<String, ReadableKVState<?, ?>> kvInstances;
         protected final Map<String, ReadableSingletonState<?>> singletonInstances;
         protected final Map<String, ReadableQueueState<?>> queueInstances;
@@ -497,7 +497,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
          *
          * @param stateMetadata cannot be null
          */
-        MerkleStates(@NonNull final Map<String, StateMetadata<?, ?>> stateMetadata) {
+        MerkleStates(@NonNull final Map<String, TestStateMetadata<?, ?>> stateMetadata) {
             this.stateMetadata = requireNonNull(stateMetadata);
             this.stateKeys = Collections.unmodifiableSet(stateMetadata.keySet());
             this.kvInstances = new HashMap<>();
@@ -593,18 +593,18 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         }
 
         @NonNull
-        protected abstract ReadableKVState createReadableKVState(@NonNull StateMetadata md, @NonNull VirtualMap v);
+        protected abstract ReadableKVState createReadableKVState(@NonNull TestStateMetadata md, @NonNull VirtualMap v);
 
         @NonNull
-        protected abstract ReadableKVState createReadableKVState(@NonNull StateMetadata md, @NonNull MerkleMap m);
+        protected abstract ReadableKVState createReadableKVState(@NonNull TestStateMetadata md, @NonNull MerkleMap m);
 
         @NonNull
         protected abstract ReadableSingletonState createReadableSingletonState(
-                @NonNull StateMetadata md, @NonNull SingletonNode<?> s);
+                @NonNull TestStateMetadata md, @NonNull SingletonNode<?> s);
 
         @NonNull
         protected abstract ReadableQueueState createReadableQueueState(
-                @NonNull StateMetadata md, @NonNull QueueNode<?> q);
+                @NonNull TestStateMetadata md, @NonNull QueueNode<?> q);
 
         /**
          * Utility method for finding and returning the given node. Will throw an ISE if such a node
@@ -614,7 +614,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
          * @return The found node
          */
         @NonNull
-        MerkleNode findNode(@NonNull final StateMetadata<?, ?> md) {
+        MerkleNode findNode(@NonNull final TestStateMetadata<?, ?> md) {
             final var index = findNodeIndex(md.serviceName(), extractStateKey(md));
             if (index == -1) {
                 // This can only happen if there WAS a node here, and it was removed!
@@ -639,14 +639,14 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
          *
          * @param stateMetadata cannot be null
          */
-        MerkleReadableStates(@NonNull final Map<String, StateMetadata<?, ?>> stateMetadata) {
+        MerkleReadableStates(@NonNull final Map<String, TestStateMetadata<?, ?>> stateMetadata) {
             super(stateMetadata);
         }
 
         @Override
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(
-                @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
+                @NonNull final TestStateMetadata md, @NonNull final VirtualMap v) {
             return new BackedReadableKVState<>(
                     md.serviceName(),
                     extractStateKey(md),
@@ -658,20 +658,20 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @Override
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(
-                @NonNull final StateMetadata md, @NonNull final MerkleMap m) {
+                @NonNull final TestStateMetadata md, @NonNull final MerkleMap m) {
             return new InMemoryReadableKVState<>(md.serviceName(), extractStateKey(md), m);
         }
 
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(
-                @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
+                @NonNull final TestStateMetadata md, @NonNull final SingletonNode<?> s) {
             return new BackedReadableSingletonState<>(md.serviceName(), extractStateKey(md), s);
         }
 
         @NonNull
         @Override
-        protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md, @NonNull QueueNode<?> q) {
+        protected ReadableQueueState createReadableQueueState(@NonNull TestStateMetadata md, @NonNull QueueNode<?> q) {
             return new BackedReadableQueueState<>(md.serviceName(), extractStateKey(md), q);
         }
     }
@@ -690,7 +690,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
          * @param stateMetadata cannot be null
          */
         MerkleWritableStates(
-                @NonNull final String serviceName, @NonNull final Map<String, StateMetadata<?, ?>> stateMetadata) {
+                @NonNull final String serviceName, @NonNull final Map<String, TestStateMetadata<?, ?>> stateMetadata) {
             super(stateMetadata);
             this.serviceName = requireNonNull(serviceName);
         }
@@ -716,7 +716,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @Override
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(
-                @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
+                @NonNull final TestStateMetadata md, @NonNull final VirtualMap v) {
             final var state = new BackedWritableKVState<>(
                     serviceName,
                     extractStateKey(md),
@@ -734,7 +734,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @Override
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(
-                @NonNull final StateMetadata md, @NonNull final MerkleMap m) {
+                @NonNull final TestStateMetadata md, @NonNull final MerkleMap m) {
             final var state = new InMemoryWritableKVState<>(
                     md.serviceName(),
                     extractStateKey(md),
@@ -753,7 +753,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @Override
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(
-                @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
+                @NonNull final TestStateMetadata md, @NonNull final SingletonNode<?> s) {
             final var state = new BackedWritableSingletonState<>(md.serviceName(), extractStateKey(md), s);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
@@ -766,7 +766,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         @Override
         protected WritableQueueState<?> createReadableQueueState(
-                @NonNull final StateMetadata md, @NonNull final QueueNode<?> q) {
+                @NonNull final TestStateMetadata md, @NonNull final QueueNode<?> q) {
             final var state = new BackedWritableQueueState<>(md.serviceName(), extractStateKey(md), q);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
@@ -849,7 +849,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     @NonNull
-    private static String extractStateKey(@NonNull final StateMetadata<?, ?> md) {
+    private static String extractStateKey(@NonNull final TestStateMetadata<?, ?> md) {
         return md.stateDefinition().stateKey();
     }
 

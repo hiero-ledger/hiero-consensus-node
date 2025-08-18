@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.test.fixtures.TestStateMetadata;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskKey;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskValue;
@@ -37,7 +37,7 @@ public class TestStateUtils {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Deprecated
     public static void registerWithSystem(
-            @NonNull final StateMetadata md, @NonNull final ConstructableRegistry constructableRegistry) {
+            @NonNull final TestStateMetadata md, @NonNull final ConstructableRegistry constructableRegistry) {
         // Register with the system the uniqueId as the "classId" of an InMemoryValue. There can be
         // multiple id's associated with InMemoryValue. The secret is that the supplier captures the
         // various delegate writers and parsers, and so can parse/write different types of data

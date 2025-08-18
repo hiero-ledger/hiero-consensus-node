@@ -9,7 +9,7 @@ import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.hedera.node.app.spi.schemas.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.ZoneId;
 
