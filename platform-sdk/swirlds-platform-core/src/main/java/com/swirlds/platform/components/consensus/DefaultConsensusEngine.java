@@ -23,7 +23,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.stream.Stream;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -146,7 +145,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                     preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
                 } else {
                     preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
-                    allConsensusRounds.stream().map(ConsensusRound::getConsensusEvents).flatMap(List::stream)
+                    allConsensusRounds.stream()
+                            .map(ConsensusRound::getConsensusEvents)
+                            .flatMap(List::stream)
                             .forEach(addedEvents::add);
                 }
             } else {

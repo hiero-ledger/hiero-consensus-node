@@ -111,9 +111,7 @@ public class ConsensusOutput implements Clearable {
     }
 
     public Set<Hash> getPreConsensusEventHashes() {
-        return preConsensusEvents.stream()
-                .map(PlatformEvent::getHash)
-                .collect(Collectors.toSet());
+        return preConsensusEvents.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }
 
     public Set<Hash> consensusEventHashes() {
