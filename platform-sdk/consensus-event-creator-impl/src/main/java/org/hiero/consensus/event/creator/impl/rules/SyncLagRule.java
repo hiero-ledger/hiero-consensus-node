@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static org.hiero.consensus.event.creator.impl.EventCreationStatus.OVERLOADED;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ROUND_LAG;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 
+/**
+ * Do not create events if we are behind median of latest rounds of peers by at least configured amount of rounds
+ */
 public class SyncLagRule implements EventCreationRule {
 
     private final int maxAllowedSyncLag;
@@ -39,6 +42,6 @@ public class SyncLagRule implements EventCreationRule {
     @NonNull
     @Override
     public EventCreationStatus getEventCreationStatus() {
-        return OVERLOADED;
+        return ROUND_LAG;
     }
 }

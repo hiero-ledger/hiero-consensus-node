@@ -30,7 +30,8 @@ import java.time.Duration;
  * @param maximumPermissibleUnhealthyDuration the maximum amount of time that the system can be unhealthy before event
  *                                            creation stops
  * @param maxAllowedSyncLag                   if we are lagging more than this amount of rounds behind rest of the
- *                                            network on average, stop creating events
+ *                                            network on average, stop creating events; negative number disables the
+ *                                            rule
  */
 @ConfigData("event.creation")
 public record EventCreationConfig(

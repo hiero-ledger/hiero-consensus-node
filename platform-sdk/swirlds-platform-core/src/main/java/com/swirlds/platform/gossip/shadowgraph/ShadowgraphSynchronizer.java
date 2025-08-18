@@ -150,7 +150,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                     connection);
             timing.setTimePoint(1);
 
-            syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
             reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 

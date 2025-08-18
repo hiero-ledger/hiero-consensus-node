@@ -89,7 +89,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
-        rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+        if (config.maxAllowedSyncLag() >= 0) {
+            rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+        }
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -179,7 +181,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
-        syncRoundLag = lag;
+        syncRoundLag = Objects.requireNonNull(lag);
     }
 
     /**

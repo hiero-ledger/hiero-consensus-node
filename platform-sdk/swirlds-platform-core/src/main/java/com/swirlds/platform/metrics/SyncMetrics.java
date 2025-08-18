@@ -332,9 +332,8 @@ public class SyncMetrics {
      *
      * @param self   event window of our graph at the start of the sync
      * @param other  event window of their graph at the start of the sync
-     * @param peerId id of peer for which other event window is reported
      */
-    public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other, final NodeId peerId) {
+    public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
     }
 
