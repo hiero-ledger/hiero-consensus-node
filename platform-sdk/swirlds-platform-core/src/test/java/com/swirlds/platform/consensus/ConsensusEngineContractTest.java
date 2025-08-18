@@ -37,7 +37,8 @@ import org.junit.jupiter.api.Test;
  */
 public class ConsensusEngineContractTest {
     private static final int NUMBER_OF_EVENTS_PER_TEST = 10_000;
-    private static final PlatformContext CONTEXT = TestPlatformContextBuilder.create().build();
+    private static final PlatformContext CONTEXT =
+            TestPlatformContextBuilder.create().build();
 
     /**
      * Tests that the consensus engine can restart from a snapshot and still fulfill its event contract.
@@ -88,7 +89,8 @@ public class ConsensusEngineContractTest {
 
         // setup
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(numNodes).build();
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // first part
@@ -118,9 +120,19 @@ public class ConsensusEngineContractTest {
     @NonNull
     private static Roster allWeightToOneNode(@NonNull final Roster originalRoster) {
         final List<RosterEntry> modifiedEntries = new ArrayList<>();
-        modifiedEntries.add(originalRoster.rosterEntries().getFirst().copyBuilder().weight(1).build());
+        modifiedEntries.add(originalRoster
+                .rosterEntries()
+                .getFirst()
+                .copyBuilder()
+                .weight(1)
+                .build());
         for (int i = 1; i < originalRoster.rosterEntries().size(); i++) {
-            modifiedEntries.add(originalRoster.rosterEntries().get(i).copyBuilder().weight(0).build());
+            modifiedEntries.add(originalRoster
+                    .rosterEntries()
+                    .get(i)
+                    .copyBuilder()
+                    .weight(0)
+                    .build());
         }
         return originalRoster.copyBuilder().rosterEntries(modifiedEntries).build();
     }
@@ -160,8 +172,8 @@ public class ConsensusEngineContractTest {
      * @param random  the random number generator
      * @param intake  the test intake to add events to
      */
-    private static void addToIntake(@NonNull final List<PlatformEvent> events, @NonNull final Random random,
-            @NonNull final TestIntake intake) {
+    private static void addToIntake(
+            @NonNull final List<PlatformEvent> events, @NonNull final Random random, @NonNull final TestIntake intake) {
         final List<PlatformEvent> copiedEvents =
                 events.stream().map(PlatformEvent::copyGossipedData).collect(Collectors.toList());
         Collections.shuffle(copiedEvents, random);
@@ -189,9 +201,9 @@ public class ConsensusEngineContractTest {
                 assertTrue(
                         consensusHashes.contains(preConsensusEvent.getHash()),
                         "Event %s is an ancient pre-consensus event, but has not been returned as a consensus event. "
-                                .formatted(preConsensusEvent
-                                        .getDescriptor()
-                                        .shortString())
+                                        .formatted(preConsensusEvent
+                                                .getDescriptor()
+                                                .shortString())
                                 + "Every ancient pre-consensus event added should have reached consensus.");
             }
         }

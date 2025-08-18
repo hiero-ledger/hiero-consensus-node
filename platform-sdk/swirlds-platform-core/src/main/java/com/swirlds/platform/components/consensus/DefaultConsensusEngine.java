@@ -157,7 +157,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
                 // Also add all pre-consensus events now that we can identify them.
                 // This will include the event we just added.
-                consensus.getPreConsensusEvents().stream().map(EventImpl::getBaseEvent).forEach(preConsensusEvents::add);
+                consensus.getPreConsensusEvents().stream()
+                        .map(EventImpl::getBaseEvent)
+                        .forEach(preConsensusEvents::add);
             } else {
                 // Return the event we just added as a pre-consensus event.
                 preConsensusEvents.add(linkedEvent.getBaseEvent());
