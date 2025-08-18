@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import static java.util.Comparator.comparingLong;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.event.legacy.EventConsensusData;
-import com.hedera.hapi.platform.event.legacy.EventCore;
-import com.hedera.hapi.platform.event.legacy.EventDescriptor;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,9 +15,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
-
-import static java.util.Comparator.comparingLong;
-import static java.util.Objects.requireNonNull;
 
 public class ProtobufConverter {
     private ProtobufConverter() {}
@@ -251,8 +249,8 @@ public class ProtobufConverter {
     @NonNull
     public static org.hiero.consensus.model.event.PlatformEvent toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent sourcePlatformEvent) {
-        final org.hiero.consensus.model.event.PlatformEvent platformEvent = new org.hiero.consensus.model.event.PlatformEvent(
-                toPbj(sourcePlatformEvent.getGossipEvent()));
+        final org.hiero.consensus.model.event.PlatformEvent platformEvent =
+                new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourcePlatformEvent.getGossipEvent()));
         new PbjStreamHasher().hashEvent(platformEvent);
         platformEvent.setConsensusData(toPbj(sourcePlatformEvent.getConsensusData()));
         return platformEvent;
@@ -583,8 +581,7 @@ public class ProtobufConverter {
 
     private static Iterable<com.hedera.hapi.platform.event.legacy.EventDescriptor> fromPbj(
             final List<com.hedera.hapi.platform.event.EventDescriptor> parents) {
-        return parents.stream().map(ProtobufConverter::fromPbj)
-                .toList();
+        return parents.stream().map(ProtobufConverter::fromPbj).toList();
     }
 
     private static EventConsensusData toPbj(final com.hedera.hapi.platform.event.EventConsensusData consensusData) {

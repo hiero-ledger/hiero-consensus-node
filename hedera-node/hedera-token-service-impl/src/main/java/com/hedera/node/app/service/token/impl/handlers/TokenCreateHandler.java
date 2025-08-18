@@ -33,6 +33,7 @@ import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
 import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -42,7 +43,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -444,12 +444,10 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     public static SubType tokenSubTypeFrom(final TokenType tokenType, boolean hasCustomFees) {
         return switch (tokenType) {
-            case FUNGIBLE_COMMON -> hasCustomFees
-                    ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_FUNGIBLE_COMMON;
-            case NON_FUNGIBLE_UNIQUE -> hasCustomFees
-                    ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+            case FUNGIBLE_COMMON ->
+                hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.TOKEN_FUNGIBLE_COMMON;
+            case NON_FUNGIBLE_UNIQUE ->
+                hasCustomFees ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
         };
     }
 }

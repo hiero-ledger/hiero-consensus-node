@@ -69,6 +69,11 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     }
 
     @Override
+    public Duration restartOffset() {
+        return Duration.ofSeconds(0);
+    }
+
+    @Override
     public void tick(@NonNull final Duration duration) {
         try {
             Thread.sleep(duration.toMillis());

@@ -38,6 +38,8 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -55,8 +57,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -252,7 +252,7 @@ class HandleWorkflowTest {
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -308,11 +308,10 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -371,7 +370,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -439,7 +438,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -534,7 +533,7 @@ class HandleWorkflowTest {
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());

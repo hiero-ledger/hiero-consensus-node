@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static java.util.Comparator.comparingInt;
-
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -104,7 +100,8 @@ public class MultipleNodeConsensusResultsAssert
             return this;
         }
 
-        // Validate that each node that produced a consensus round for a given round number produced the same round as the others.
+        // Validate that each node that produced a consensus round for a given round number produced the same round as
+        // the others.
         for (final long roundNum : roundMap.keySet()) {
             final List<NodeRound> rounds = roundMap.get(roundNum);
             if (rounds.size() <= 1) {
@@ -158,9 +155,7 @@ public class MultipleNodeConsensusResultsAssert
         return this;
     }
 
-    private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {
-
-    }
+    private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
     private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {

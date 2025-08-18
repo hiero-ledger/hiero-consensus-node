@@ -196,7 +196,7 @@ From a high level, either Execution or Consensus can be the primary bottleneck i
 ##### Consensus Bottlenecks
 
 Let us suppose that we have a node, Alice. Perhaps initially Alice is able to receive and process events at the same
-speed as other nodes in the network. Perhaps the network load increases past some point that Alice can handle.  At this
+speed as other nodes in the network. Perhaps the network load increases past some point that Alice can handle. At this
 point, other nodes are receiving, creating, gossiping, and coming to consensus on rounds faster than Alice. Remember:
 
 1. Birth-round filtering limits the number of events received by Alice to coincide with the pace at which Alice is
@@ -424,7 +424,8 @@ to that round.
 
 Each event must be validated using the roster associated with its birth-round. If Alice is far behind Bob, and she
 receives an event for a birth-round she doesn't have the roster for, then she cannot validate the event. If the Event
-Intake module receives a far-future event which cannot be validated, then the event will be dropped.
+Intake module receives a far future event, then the event will be dropped. Far future events are described in more
+detail in [Birth-Round Filtering](#birth-round-filtering).
 
 #### Self Events
 
@@ -646,7 +647,8 @@ network connections held by Gossip, but could be used to stop executors, backgro
 #### onBehind
 
 Called by Consensus to notify Execution that the Consensus system is very far behind in processing relative to its
-neighbors (most likely because it cannot find a neighbor that contains any of the events needed for advancing consensus).
+neighbors (most likely because it cannot find a neighbor that contains any of the events needed for advancing
+consensus).
 Execution will use this call to initiate a reconnect procedure.
 
 #### onBadNode

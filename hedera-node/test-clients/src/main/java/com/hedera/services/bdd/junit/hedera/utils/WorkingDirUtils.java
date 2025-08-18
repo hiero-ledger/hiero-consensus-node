@@ -187,7 +187,7 @@ public class WorkingDirUtils {
     public @NonNull static SemanticVersion workingDirVersion() {
         final var loc = Paths.get(System.getProperty("user.dir")).endsWith("hedera-services")
                 ? "version.txt"
-                : "../version.txt";
+                : "../../version.txt";
         final var versionLiteral = readStringUnchecked(Paths.get(loc)).trim();
         return requireNonNull(new SemanticVersionConverter().convert(versionLiteral));
     }
