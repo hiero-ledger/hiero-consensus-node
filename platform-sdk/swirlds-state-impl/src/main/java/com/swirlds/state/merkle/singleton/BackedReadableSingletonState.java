@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.singleton;
+package com.swirlds.state.merkle.singleton;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logSingletonRead;
+import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

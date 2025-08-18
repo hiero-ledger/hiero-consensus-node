@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -19,7 +20,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -37,6 +38,7 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,7 +71,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         // We don't need a real registry, and the unit tests are much
         // faster if we use a mocked one
         registry = mock(ConstructableRegistry.class);
-        schemaRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
+        schemaRegistry = new MerkleSchemaRegistry(registry, FIRST_SERVICE, DEFAULT_CONFIG, new SchemaApplications());
         config = mock(Configuration.class);
         networkInfo = mock(NetworkInfo.class);
         final var hederaConfig = mock(HederaConfig.class);
@@ -94,12 +96,20 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
     @Nested
     @DisplayName("Constructor Tests")
     class ConstructorTest {
+        @Test
+        @DisplayName("A null ConstructableRegistry throws")
+        void nullRegistryThrows() {
+            //noinspection ConstantConditions
+            assertThatThrownBy(() ->
+                            new MerkleSchemaRegistry(null, FIRST_SERVICE, DEFAULT_CONFIG, new SchemaApplications()))
+                    .isInstanceOf(NullPointerException.class);
+        }
 
         @Test
         @DisplayName("A null serviceName throws")
         void nullServiceNameThrows() {
             //noinspection ConstantConditions
-            assertThatThrownBy(() -> new MerkleSchemaRegistry(null, new SchemaApplications()))
+            assertThatThrownBy(() -> new MerkleSchemaRegistry(registry, null, DEFAULT_CONFIG, new SchemaApplications()))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -107,7 +117,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         @DisplayName("A null schemaUseAnalysis throws")
         void nullSchemaUseAnalysisBuilderThrows() {
             //noinspection ConstantConditions
-            assertThatThrownBy(() -> new MerkleSchemaRegistry(FIRST_SERVICE, null))
+            assertThatThrownBy(() -> new MerkleSchemaRegistry(registry, FIRST_SERVICE, DEFAULT_CONFIG, null))
                     .isInstanceOf(NullPointerException.class);
         }
     }
@@ -177,7 +187,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    new TestVirtualMapState(virtualMap),
+                    new TestHederaVirtualMapState(virtualMap),
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -206,7 +216,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
             final var virtualMapLabel =
                     "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            merkleTree = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+            merkleTree = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         }
 
         @AfterEach
@@ -688,6 +698,22 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
 
                 // And we should see that schemaV2Called is false because it was never called
                 assertThat(schemaV2Called).isFalse();
+            }
+
+            @Test
+            @DisplayName("If something unexpected fails with the ConstructableRegistry, migration fails")
+            void badRegistry() throws ConstructableRegistryException {
+                // Given a bad registry
+                Mockito.doThrow(new ConstructableRegistryException("Blew Up In Test"))
+                        .when(registry)
+                        .registerConstructable(Mockito.any());
+
+                // When we register, then we must fail if the constructable registry fails.
+                final var schemaV1 = createV1Schema();
+                assertThatThrownBy(() -> schemaRegistry.register(schemaV1))
+                        .isInstanceOf(RuntimeException.class)
+                        .hasMessageStartingWith("Failed to register with the system")
+                        .hasCauseInstanceOf(ConstructableRegistryException.class);
             }
         }
     }

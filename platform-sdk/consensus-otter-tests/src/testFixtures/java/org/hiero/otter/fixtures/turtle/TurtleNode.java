@@ -386,7 +386,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(roster, metrics, version),
+                () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacyNodeId,

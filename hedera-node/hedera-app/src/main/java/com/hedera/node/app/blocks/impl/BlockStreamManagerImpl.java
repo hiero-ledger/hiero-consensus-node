@@ -29,6 +29,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -407,6 +408,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lifecycle.onCloseBlock(state);
             if (state instanceof HederaVirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
+            } else if (state instanceof HederaStateRoot hederaStateRoot) {
+                // Non production case (testing tools)
+                // Otherwise assume it is a MerkleStateRoot
+                // This branch should be removed once the MerkleStateRoot is removed
+                hederaStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
 
