@@ -374,7 +374,7 @@ sequenceDiagram
 
     loop For each node
         ContainerNode ->> DockerManager: Send InitRequest
-        DockerManager ->> ConsensusNodeMain: java -cp DockerApp.jar
+        DockerManager ->> ConsensusNodeMain: Start DockerMain
         ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
         ContainerNode ->> NodeCommunicationService: Send StartRequest
         NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
