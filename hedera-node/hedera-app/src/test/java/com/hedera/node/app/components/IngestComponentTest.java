@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,6 +72,9 @@ class IngestComponentTest {
 
     @Mock
     private Platform platform;
+
+    @Mock
+    private TransactionPoolNexus transactionPool;
 
     @Mock
     private Throttle.Factory throttleFactory;
@@ -140,6 +144,7 @@ class IngestComponentTest {
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
+                .transactionPool(transactionPool)
                 .self(selfNodeInfo)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)
                 .servicesRegistry(mock(ServicesRegistry.class))

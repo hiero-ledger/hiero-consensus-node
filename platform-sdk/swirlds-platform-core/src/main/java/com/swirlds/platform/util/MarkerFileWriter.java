@@ -93,7 +93,9 @@ public class MarkerFileWriter {
             final Path markerFile = markerFileDirectory.resolve(filename);
             try {
                 if (Files.exists(markerFile)) {
-                    failedToWriteMarkerFileLogger.error(
+                    // Log at a warn level because there may be cases, like with coin rounds,
+                    // where there is already the same marker file on disk.
+                    failedToWriteMarkerFileLogger.warn(
                             LogMarker.ERROR.getMarker(), "Marker file already exists: {}", markerFile);
                     return true;
                 }

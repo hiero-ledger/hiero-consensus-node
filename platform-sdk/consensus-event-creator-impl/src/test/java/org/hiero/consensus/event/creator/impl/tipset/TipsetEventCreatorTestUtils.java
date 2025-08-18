@@ -38,7 +38,6 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
@@ -47,6 +46,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -61,7 +61,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -92,7 +92,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
