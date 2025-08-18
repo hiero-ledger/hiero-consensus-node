@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -86,6 +87,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoCreateHandler extends BaseCryptoHandler implements TransactionHandler {
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
+    private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final TransactionBody UPDATE_TXN_BODY_BUILDER = TransactionBody.newBuilder()
             .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
                     .key(Key.newBuilder().ecdsaSecp256k1(Bytes.EMPTY).build()))
@@ -258,6 +261,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
         final var accountCreated = buildAccount(op, context);
+        // As an extra guardrail, ensure it's impossible to programmatically create a system file account
+        validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
 
         final var createdAccountID = accountCreated.accountIdOrThrow();
@@ -470,5 +475,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             return fee.calculate().plus(lazyCreationFee);
         }
         return fee.calculate();
+    }
+
+    private boolean isSystemFile(final long entityNum) {
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 }

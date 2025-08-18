@@ -113,7 +113,13 @@ public class EmbeddedNetwork extends AbstractNetwork {
      */
     public void restart(@NonNull final FakeState state, @NonNull final Map<String, String> bootstrapOverrides) {
         requireNonNull(state);
-        startVia(hedera -> hedera.restart(state), bootstrapOverrides);
+        final var restartOffset = requireNonNull(embeddedHedera).restartOffset();
+        startVia(
+                hedera -> {
+                    hedera.tick(restartOffset);
+                    hedera.restart(state);
+                },
+                bootstrapOverrides);
     }
 
     @Override

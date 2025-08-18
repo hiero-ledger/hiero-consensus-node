@@ -541,7 +541,7 @@ public class ConsensusImpl implements Consensus {
                         "coin-" + (countingVote.isSupermajority() ? "counting" : "sig"),
                         diff);
                 markerFileWriter.writeMarkerFile(COIN_ROUND_MARKER_FILE);
-                coinRoundLogger.error(
+                coinRoundLogger.warn(
                         LogMarker.ERROR.getMarker(),
                         "Coin round {}, voting witness: {}",
                         roundElections.getRound(),

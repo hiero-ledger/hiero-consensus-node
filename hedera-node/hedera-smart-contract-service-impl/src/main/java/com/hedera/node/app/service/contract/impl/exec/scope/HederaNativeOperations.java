@@ -24,9 +24,9 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
@@ -248,8 +248,8 @@ public interface HederaNativeOperations {
     TransactionID getTransactionID();
 
     /**
-     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
-     * @return the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     * Returns the {@link EntityIdFactory}
+     * @return the {@link EntityIdFactory}
      */
     EntityIdFactory entityIdFactory();
 
