@@ -153,15 +153,6 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
      * {@inheritDoc}
      */
     @Override
-    public boolean createTransaction(@NonNull final byte[] transaction) {
-        // Transaction creation always fails
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         immutableState.clear();
         notificationEngine.shutdown();

@@ -10,7 +10,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -44,9 +43,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -59,6 +58,8 @@ public class ConsensusNodeManager {
 
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
+
+    private final OtterExecutionLayer executionCallback;
 
     /**
      * A threadsafe list of consensus round listeners. Written to by the platform, read by listeners on the dispatch
@@ -116,7 +117,7 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(genesisRoster, metrics, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -127,7 +128,7 @@ public class ConsensusNodeManager {
 
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-
+        executionCallback = new OtterExecutionLayer(metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
@@ -138,12 +139,11 @@ public class ConsensusNodeManager {
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade,
-                        (vm) -> state)
+                        OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
-                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
+                .withExecutionLayer(executionCallback);
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
@@ -196,7 +196,7 @@ public class ConsensusNodeManager {
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
     public boolean submitTransaction(@NonNull final byte[] transaction) {
-        return platform.createTransaction(transaction);
+        return executionCallback.submitApplicationTransaction(transaction);
     }
 
     /**

@@ -82,7 +82,7 @@ class OnDiskTest extends MerkleTestBase {
         final var copy = map.copy();
 
         // Hash the now immutable map
-        CRYPTO.digestTreeSync(map);
+        map.getHash();
 
         // Flush to disk
         map.enableFlush();
@@ -120,14 +120,14 @@ class OnDiskTest extends MerkleTestBase {
         // release the immutable copy.
         VirtualMap copy = virtualMap.copy(); // throw away the copy, we won't use it
         copy.release();
-        CRYPTO.digestTreeSync(virtualMap);
+        virtualMap.getHash();
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
         final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
-        final var r = new MerkleSchemaRegistry(registry, TokenService.NAME, CONFIGURATION, new SchemaApplications());
+        final var r = new MerkleSchemaRegistry(TokenService.NAME, new SchemaApplications());
         r.register(schema);
 
         virtualMap.release();

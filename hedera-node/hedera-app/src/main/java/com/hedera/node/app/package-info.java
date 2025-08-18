@@ -4,7 +4,7 @@
  *
  * <p>The Hashgraph Platform today follows a "container-managed" model, where applications extend from
  * {@link com.swirlds.platform.system.SwirldMain} to define their main entry point, much like a Java Applet would extend
- * from {@code Applet}. An application also extends from {@link com.swirlds.state.merkle.MerkleStateRoot} to define its
+ * from {@code Applet}. An application also extends from {@link com.swirlds.state.merkle.VirtualMapState} to define its
  * Merkle tree for holding state. The platform then dynamically looks up and creates these objects. The platform is thus
  * in charge of lifecycle management.
  *

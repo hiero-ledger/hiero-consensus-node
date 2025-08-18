@@ -16,15 +16,14 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,7 +39,7 @@ import org.hiero.consensus.model.node.NodeId;
  * screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction is 100
  * random bytes. So StatsDemoState.handleTransaction doesn't actually do anything.
  */
-public class StatsDemoMain implements SwirldMain<StatsDemoState> {
+public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
 
     /** bytes in each transaction */
@@ -51,7 +50,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     /** the app is run by this */
     private Platform platform;
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
-    private final Random random = new java.util.Random();
+    private Random random = new java.util.Random();
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -101,7 +100,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
                 break; // don't create too many transactions per second
             }
             random.nextBytes(transaction); // random, so it's non-compressible
-            if (!platform.createTransaction(transaction)) {
+            if (!getTransactionPool().submitApplicationTransaction(Bytes.wrap(transaction))) {
                 break; // if the queue is full, the stop adding to it
             }
             toCreate--;
@@ -155,10 +154,5 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
-    }
-
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

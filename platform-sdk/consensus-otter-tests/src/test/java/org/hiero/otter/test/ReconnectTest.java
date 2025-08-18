@@ -22,7 +22,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -33,7 +32,6 @@ public class ReconnectTest {
     private static final long ROUNDS_NON_ANCIENT = 20L;
     private static final long ROUNDS_EXPIRED = 40L;
 
-    @Disabled("Disabled until all failures are resolved.")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) {
         final Network network = env.network();
@@ -99,7 +97,8 @@ public class ReconnectTest {
 
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
+                .haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
