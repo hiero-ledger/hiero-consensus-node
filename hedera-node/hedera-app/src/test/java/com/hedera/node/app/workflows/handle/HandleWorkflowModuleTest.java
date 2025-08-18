@@ -77,6 +77,8 @@ import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+
+import org.hiero.interledger.clpr.impl.handlers.ClprHandlers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -280,6 +282,9 @@ class HandleWorkflowModuleTest {
     @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
 
+    @Mock
+    private ClprHandlers clprHandlers;
+    @Mock
     @TempDir
     java.nio.file.Path tempDir;
 
@@ -360,7 +365,8 @@ class HandleWorkflowModuleTest {
                 utilHandlers,
                 addressBookHandlers,
                 hintsHandlers,
-                historyHandlers);
+                historyHandlers,
+                clprHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

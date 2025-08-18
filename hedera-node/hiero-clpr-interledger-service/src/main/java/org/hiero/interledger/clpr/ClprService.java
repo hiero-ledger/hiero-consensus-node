@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
 import java.util.Set;
+import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 
 /**
  * Implements the HAPI <a
@@ -17,7 +18,7 @@ public interface ClprService extends RpcService {
     /**
      * The name of the service.
      */
-    String NAME = "ClprService";
+    String NAME = ClprServiceInterface.SERVICE_NAME;
 
     @NonNull
     @Override

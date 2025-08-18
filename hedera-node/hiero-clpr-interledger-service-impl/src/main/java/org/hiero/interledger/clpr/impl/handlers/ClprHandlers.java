@@ -11,13 +11,13 @@ import javax.inject.Singleton;
  * Bundles the handlers for the {@link org.hiero.interledger.clpr.ClprService}.
  */
 @Singleton
-public class ClprLedgerConfigurationHandlers {
+public class ClprHandlers {
 
     private final ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
     private final ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler;
 
     @Inject
-    public ClprLedgerConfigurationHandlers(
+    public ClprHandlers(
             @NonNull final ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler,
             @NonNull final ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler) {
         this.clprGetLedgerConfigurationHandler = requireNonNull(clprGetLedgerConfigurationHandler);

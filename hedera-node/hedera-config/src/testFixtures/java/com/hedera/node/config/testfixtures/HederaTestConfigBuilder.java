@@ -22,43 +22,7 @@ import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.converter.PermissionedAccountsRangeConverter;
 import com.hedera.node.config.converter.ScaleFactorConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.ApiPermissionConfig;
-import com.hedera.node.config.data.AtomicBatchConfig;
-import com.hedera.node.config.data.AutoRenew2Config;
-import com.hedera.node.config.data.AutoRenewConfig;
-import com.hedera.node.config.data.BalancesConfig;
-import com.hedera.node.config.data.BlockBufferConfig;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.BootstrapConfig;
-import com.hedera.node.config.data.CacheConfig;
-import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.ExpiryConfig;
-import com.hedera.node.config.data.FeesConfig;
-import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.GrpcConfig;
-import com.hedera.node.config.data.GrpcUsageTrackerConfig;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.HooksConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.NettyConfig;
-import com.hedera.node.config.data.NetworkAdminConfig;
-import com.hedera.node.config.data.NodesConfig;
-import com.hedera.node.config.data.OpsDurationConfig;
-import com.hedera.node.config.data.RatesConfig;
-import com.hedera.node.config.data.SchedulingConfig;
-import com.hedera.node.config.data.StakingConfig;
-import com.hedera.node.config.data.StatsConfig;
-import com.hedera.node.config.data.TokensConfig;
-import com.hedera.node.config.data.TopicsConfig;
-import com.hedera.node.config.data.TraceabilityConfig;
-import com.hedera.node.config.data.TssConfig;
-import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.data.*;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.HederaFunctionalitySet;
@@ -139,6 +103,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(UptimeConfig.class)
                  */
                 .withConfigDataType(VirtualMapConfig.class)
+                .withConfigDataType(ClprConfig.class)
 
                 // These data types, converters, and validators are defined by services.
                 .withConfigDataType(AccountsConfig.class)

@@ -33,7 +33,7 @@ import java.time.InstantSource;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
-import org.hiero.interledger.clpr.impl.handlers.ClprLedgerConfigurationHandlers;
+import org.hiero.interledger.clpr.impl.handlers.ClprHandlers;
 
 /**
  * Module for Query processing.
@@ -130,9 +130,9 @@ public interface QueryWorkflowInjectionModule {
             @NonNull final ScheduleHandlers scheduleHandlers,
             @NonNull final TokenHandlers tokenHandlers,
             @NonNull final AddressBookHandlers addressBookHandlers,
-            @NonNull final ClprLedgerConfigurationHandlers clprLedgerConfigurationHandlers) {
+            @NonNull final ClprHandlers clprHandlers) {
         return new QueryHandlers(
-                clprLedgerConfigurationHandlers.clprGetLedgerConfigurationHandler(),
+                clprHandlers.clprGetLedgerConfigurationHandler(),
                 consensusHandlers.consensusGetTopicInfoHandler(),
                 contractHandlers.get().contractGetBySolidityIDHandler(),
                 contractHandlers.get().contractCallLocalHandler(),
