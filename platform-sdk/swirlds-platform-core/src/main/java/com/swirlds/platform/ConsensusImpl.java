@@ -266,8 +266,9 @@ public class ConsensusImpl implements Consensus {
     }
 
     @Override
-    public List<EventImpl> getPreconsensusEvents() {
-        // return Collections.unmodifiableList(recentEvents);
+    public List<EventImpl> getPreConsensusEvents() {
+        // recentEvents will usually only contain pre-consensus events,
+        // but if the most recent judge reaches consensus, it will be in this list too, so it needs to be filtered out
         return recentEvents.stream().filter(e -> !e.isConsensus()).toList();
     }
 

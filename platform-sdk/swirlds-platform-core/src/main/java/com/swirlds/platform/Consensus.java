@@ -18,7 +18,12 @@ public interface Consensus {
      */
     void setPcesMode(final boolean pcesMode);
 
-    List<EventImpl> getPreconsensusEvents();
+    /**
+     * Get a list of events that were added to consensus that have not yet reached consensus. This list will not be
+     * accurate if consensus is still waiting for init judges ({@link #noInitJudgesMissing()} returns false).
+     * @return a list of pre-consensus events
+     */
+    List<EventImpl> getPreConsensusEvents();
 
     /**
      * Adds an event to the consensus object. This should be the only public method that modifies the state of the
@@ -39,6 +44,10 @@ public interface Consensus {
     void loadSnapshot(@NonNull ConsensusSnapshot snapshot);
 
     /**
+     * When loading consensus from a snapshot (via {@link #loadSnapshot(ConsensusSnapshot)}), consensus has to receive
+     * all init judges before it can proceed with consensus calculation. The method allows to check whether all init
+     * judges have been received.
+     *
      * @return true if there are no init judges missing
      */
     boolean noInitJudgesMissing();

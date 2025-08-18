@@ -53,6 +53,10 @@ public class ConsensusOutput implements Clearable {
         nonAncientEvents.add(event);
     }
 
+    /**
+     * Processes the output of the consensus engine.
+     * @param output the output of the consensus engine
+     */
     public void consensusEngineOutput(@NonNull final ConsensusEngineOutput output) {
         output.consensusRounds().forEach(this::consensusRound);
         preConsensusEvents.addAll(output.preConsensusEvents());
@@ -90,7 +94,13 @@ public class ConsensusOutput implements Clearable {
         return consensusRounds;
     }
 
-    public ConsensusRound getLastConsensusRound() {
+    /**
+     * Get the last consensus round if it exists.
+     *
+     * @return the last consensus round
+     * @throws java.util.NoSuchElementException if there are no consensus rounds
+     */
+    public @NonNull ConsensusRound getLastConsensusRound() {
         return consensusRounds.getLast();
     }
 
@@ -106,15 +116,30 @@ public class ConsensusOutput implements Clearable {
         return sortedEvents;
     }
 
-    public List<PlatformEvent> getPreConsensusEvents() {
+    /**
+     * Get the pre-consensus events that have been returned by consensus.
+     *
+     * @return a list of pre-consensus events
+     */
+    public @NonNull List<PlatformEvent> getPreConsensusEvents() {
         return preConsensusEvents;
     }
 
-    public Set<Hash> getPreConsensusEventHashes() {
+    /**
+     * Get the hashes of the pre-consensus events that have been returned by consensus.
+     *
+     * @return a set of hashes of pre-consensus events
+     */
+    public @NonNull Set<Hash> getPreConsensusEventHashes() {
         return preConsensusEvents.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }
 
-    public Set<Hash> consensusEventHashes() {
+    /**
+     * Get the hashes of the consensus events that have been returned by consensus.
+     *
+     * @return a set of hashes of consensus events
+     */
+    public @NonNull Set<Hash> consensusEventHashes() {
         return consensusRounds.stream()
                 .map(ConsensusRound::getConsensusEvents)
                 .flatMap(List::stream)
@@ -122,7 +147,12 @@ public class ConsensusOutput implements Clearable {
                 .collect(Collectors.toSet());
     }
 
-    public List<PlatformEvent> getConsensusEvents() {
+    /**
+     * Get all consensus events that have been returned by consensus.
+     *
+     * @return a list of consensus events
+     */
+    public @NonNull List<PlatformEvent> getConsensusEvents() {
         return consensusRounds.stream()
                 .map(ConsensusRound::getConsensusEvents)
                 .flatMap(List::stream)

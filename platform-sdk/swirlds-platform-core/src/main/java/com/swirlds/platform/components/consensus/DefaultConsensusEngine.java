@@ -113,7 +113,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
-        final List<PlatformEvent> addedEvents = new ArrayList<>();
+        final List<PlatformEvent> preConsensusEvents = new ArrayList<>();
         eventsToAdd.add(consensusRelevantEvent);
 
         final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
@@ -126,33 +126,41 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 continue;
             }
 
+            // check if we have found init judges before adding the event
             final boolean judgesFoundBeforeAdd = consensus.noInitJudgesMissing();
+            // add the event to the consensus algorithm
             allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
+            // check if we have found init judges after adding the event
             final boolean judgesFoundAfterAdd = consensus.noInitJudgesMissing();
 
             eventAddedMetrics.eventAdded(linkedEvent);
 
             if (!judgesFoundAfterAdd) {
-                // Nothing needs to return if we haven't found judges yet
+                // If we haven't found all the init judges yet, we should return an empty output.
+                // We should not return the event we just added, since we are not sure if it will be a pre-consensus
+                // event. It may be that it has reached consensus previously, but we cannot know that until we found
+                // all the init judges.
                 return ConsensusEngineOutput.emptyInstance();
             }
             if (!judgesFoundBeforeAdd) {
                 // This means that we have just found the last init judge.
 
-                final List<EventImpl> preconsensusEvents = consensus.getPreconsensusEvents();
+                // Most of the time, when we find the last init judge, we will not have any consensus rounds yet.
+                // But there is a possibility that this could happen. The most likely scenario is that there has been
+                // a major change in the roster.
+                // If this happens, we need to add all events that just reached consensus to the list of pre-consensus
+                // events. This is to ensure that all consensus events are returned as pre-consensus events.
+                allConsensusRounds.stream()
+                        .map(ConsensusRound::getConsensusEvents)
+                        .flatMap(List::stream)
+                        .forEach(preConsensusEvents::add);
 
-                if (allConsensusRounds.isEmpty()) {
-                    preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
-                } else {
-                    preconsensusEvents.stream().map(EventImpl::getBaseEvent).forEach(addedEvents::add);
-                    allConsensusRounds.stream()
-                            .map(ConsensusRound::getConsensusEvents)
-                            .flatMap(List::stream)
-                            .forEach(addedEvents::add);
-                }
+                // Also add all pre-consensus events now that we can identify them.
+                // This will include the event we just added.
+                consensus.getPreConsensusEvents().stream().map(EventImpl::getBaseEvent).forEach(preConsensusEvents::add);
             } else {
-                // we only return events we actually add to the graph
-                addedEvents.add(linkedEvent.getBaseEvent());
+                // Return the event we just added as a pre-consensus event.
+                preConsensusEvents.add(linkedEvent.getBaseEvent());
             }
 
             if (allConsensusRounds.isEmpty()) {
@@ -169,7 +177,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        return new ConsensusEngineOutput(modifiedRounds, addedEvents);
+        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents);
     }
 
     /**
