@@ -7,11 +7,11 @@ Comprehensive guide to Docker-based testing with the Container environment for r
 - [🎯 Overview](#-overview)
 - [🏗️ Network and Node Management](#-network-and-node-management)
 - [🐳 Docker Integration](#-docker-integration)
-    - [Image Building](#image-building)
-    - [Container Startup Process](#container-startup-process)
-    - [gRPC Protocol](#grpc-protocol)
-    - [Event Streaming Flow](#event-streaming-flow)
-    - [Debugging Container Tests](#debugging-container-tests)
+  - [Image Building](#image-building)
+  - [Container Startup Process](#container-startup-process)
+  - [gRPC Protocol](#grpc-protocol)
+  - [Event Streaming Flow](#event-streaming-flow)
+  - [Debugging Container Tests](#debugging-container-tests)
 
 ## 🎯 Overview
 
@@ -203,9 +203,11 @@ CMD ["java", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]
 There are two processes, each with their own API, that the `ContainerNode` interacts with:
 
 1. **DockerApp**: The application running inside the Docker container that starts and stops the second process via a
-   gRPC API.
+   gRPC API. It is initialized when the node is created in the test and runs until the container is killed at test
+   teardown.
 2. **NodeCommunicationService**: The application running inside the Docker container that provides a second gRPC API for
-   communicating with the consensus node.
+   communicating with the consensus node. It is initialized when the consensus node is started and is kill when the
+   consensus node is killed.
 
 These two applications are run in separate processes within the same Docker container so that the consensus node process
 can be killed and restarted without having to restart the entire container. This setup allows for more flexible testing
@@ -250,7 +252,7 @@ sequenceDiagram
 
     loop For each node
         ContainerNode ->> DockerManager: Send InitRequest
-        DockerManager ->> ConsensusNodeMain: java -cp DockerApp.jar
+        DockerManager ->> ConsensusNodeMain: Start `ConsensusNodeMain` in new process
         ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
         ContainerNode ->> NodeCommunicationService: Establish gRPC connection
         ContainerNode ->> NodeCommunicationService: Send StartRequest
@@ -399,6 +401,34 @@ Once the `Platform` is started, the `ContainerNode` can receive events. The `Pla
 `ConsensusNodeManager` then relays these events to the `NodeCommunicationService`, which streams them back to the
 `ContainerNode` as `EventMessage` objects.
 
+## 📁 File System Structure
+
+All application files, data, and logs are stored under `/opt/DockerApp`. The owner of all files is a user named
+`appuser`, which is created during the Docker image build process. Using a defined user who owns all files ensures that
+we do not run into permission issues when accessing files from other containers as is done when tests are run as GitHub
+actions.
+
+### Layout
+
+```
+/opt/DockerApp
+├── lib/                 # All .jar dependencies
+├── apps/
+│   └── DockerApp.jar    # Main application executable
+├── data/
+│   ├── saved/           # Persisted state
+│   ├── tmp/             # Temporary files
+│   └── stats/           # CSV statistics
+├── output/
+│   ├── swirlds.log      # Main log file
+│   └── swirlds-hashstream/
+│       └── swirlds-hashstream.log  # Hashstream logs
+├── hgcapp/              # Event stream data (currently unused)
+└── settingsUsed.txt     # Runtime configuration summary
+```
+
+Note: All persistent data must remain inside `/opt/DockerApp`.
+
 ## ⏱️ Time Management
 
 The continuous assertions have to be evaluated on the main thread of the test, because otherwise JUnit would not be
@@ -464,7 +494,7 @@ docker inspect <container_name>
 
 ## 🔗 Related Documentation
 
-| Guide                                                | Description               |
+|                        Guide                         |        Description        |
 |------------------------------------------------------|---------------------------|
 | [🏁 Getting Started](getting-started.md)             | Setup and your first test |
 | [🏛️ Architecture](architecture.md)                  | Framework design overview |
