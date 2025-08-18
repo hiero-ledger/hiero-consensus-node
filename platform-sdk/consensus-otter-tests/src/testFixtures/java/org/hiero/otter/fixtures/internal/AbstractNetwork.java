@@ -142,8 +142,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
         if (!getNodes().isEmpty()) {
-            throw new IllegalStateException(
-                    "Cannot set weight generator after nodes have been added to the network.");
+            throw new IllegalStateException("Cannot set weight generator after nodes have been added to the network.");
         }
         this.weightGenerator = requireNonNull(weightGenerator);
     }
@@ -178,7 +177,9 @@ public abstract class AbstractNetwork implements Network {
             }
         }
         if (remainingPartition == null) {
-            final List<Node> remainingNodes = allNodes.stream().filter(node -> !partitionNodes.contains(node)).toList();
+            final List<Node> remainingNodes = allNodes.stream()
+                    .filter(node -> !partitionNodes.contains(node))
+                    .toList();
             remainingPartition = new PartitionImpl(remainingNodes);
             for (final Node node : remainingNodes) {
                 partitions.put(node.selfId(), remainingPartition);
@@ -194,7 +195,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void removePartition(@NonNull final Partition partition) {
         final Set<Partition> allPartitions = partitions();
-        if (! allPartitions.contains(partition)) {
+        if (!allPartitions.contains(partition)) {
             throw new IllegalArgumentException("Partition does not exist in the network: " + partition);
         }
         if (allPartitions.size() == 2) {

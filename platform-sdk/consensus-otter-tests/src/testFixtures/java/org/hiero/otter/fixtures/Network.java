@@ -148,7 +148,7 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {;
+    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
         return createPartition(Utils.collect(node0, nodes));
     }
 
