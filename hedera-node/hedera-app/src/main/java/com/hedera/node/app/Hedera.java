@@ -174,6 +174,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.interledger.clpr.impl.ClprServiceImpl;
 
 /*
  ****************        ****************************************************************************************
@@ -554,7 +555,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                                 this::onAdoptRoster,
                                 () -> requireNonNull(initState),
                                 platformStateFacade),
-                        PLATFORM_STATE_SERVICE)
+                        PLATFORM_STATE_SERVICE,
+                        new ClprServiceImpl())
                 .forEach(servicesRegistry::register);
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
         final var blockStreamsEnabled = isBlockStreamEnabled();

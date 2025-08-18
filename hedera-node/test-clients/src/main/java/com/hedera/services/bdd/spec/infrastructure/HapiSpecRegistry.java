@@ -49,6 +49,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hiero.hapi.interledger.clpr.protoc.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerId;
 
 public class HapiSpecRegistry {
     private final Map<String, Object> registry = new HashMap<>();
@@ -345,6 +348,27 @@ public class HapiSpecRegistry {
         put(name, meta.build());
         if (txn.hasExpirationTime()) {
             put(name, txn.getExpirationTime().getSeconds());
+        }
+    }
+
+    public ClprSetRemoteLedgerConfigurationTransactionBody getRemoteLedgerConfig(String ledgerId) {
+        return get(ledgerId, ClprSetRemoteLedgerConfigurationTransactionBody.class);
+    }
+
+    public void saveRemoteLedgerConfig(ClprSetRemoteLedgerConfigurationTransactionBody txBody) {
+        ClprSetRemoteLedgerConfigurationTransactionBody.Builder builder =
+                ClprSetRemoteLedgerConfigurationTransactionBody.newBuilder();
+        if (txBody.hasLedgerConfiguration()) {
+            final var ledgerConfig = txBody.getLedgerConfiguration();
+            final var ledgerIdBytes = ledgerConfig.getLedgerId().getLedgerId().toByteArray();
+            builder.setLedgerConfiguration(ClprLedgerConfiguration.newBuilder()
+                    .setLedgerId(ClprLedgerId.newBuilder()
+                            .setLedgerId(ByteString.copyFrom(ledgerIdBytes))
+                            .build())
+                    .setTimestamp(ledgerConfig.getTimestamp())
+                    .addAllEndpoints(ledgerConfig.getEndpointsList())
+                    .build());
+            put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
         }
     }
 

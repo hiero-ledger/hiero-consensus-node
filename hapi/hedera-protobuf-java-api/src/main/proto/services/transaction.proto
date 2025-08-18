@@ -666,7 +666,7 @@ message TransactionBody {
         /**
          * A transaction body for setting remote CLPR Ledger Configuration.
          */
-        org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody clpr_ledger_configuration = 77;
+        org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody ClprSetRemoteConfiguration = 77;
     }
 
     /**
