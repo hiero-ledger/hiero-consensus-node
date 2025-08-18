@@ -106,7 +106,7 @@ public class SyncGossipModular implements Gossip {
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
      * @param platformStateFacade           the facade to access the platform state
-     * @param stateRootFunction             a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -122,7 +122,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -211,7 +211,7 @@ public class SyncGossipModular implements Gossip {
                         selfId,
                         this.syncProtocol,
                         platformStateFacade,
-                        stateRootFunction),
+                        createStateFromVirtualMap),
                 syncProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
@@ -235,7 +235,7 @@ public class SyncGossipModular implements Gossip {
      * @param selfId                        this node's ID
      * @param gossipController              way to pause/resume gossip while reconnect is in progress
      * @param platformStateFacade           the facade to access the platform state
-     * @param stateRootFunction             a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap     a function to instantiate the state root object from a Virtual Map
      * @return constructed ReconnectProtocol
      */
     public ReconnectProtocol createReconnectProtocol(
@@ -250,7 +250,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -284,7 +284,7 @@ public class SyncGossipModular implements Gossip {
                         reconnectConfig.asyncStreamTimeout(),
                         reconnectMetrics,
                         platformStateFacade,
-                        stateRootFunction),
+                        createStateFromVirtualMap),
                 stateConfig,
                 platformStateFacade);
 

@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
+import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -20,6 +21,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The {@code SubmissionManager} submits transactions to the platform. As this is an honest node, it makes a strong
@@ -61,8 +63,8 @@ public class SubmissionManager {
 
     // FUTURE Consider adding a metric to keep track of the number of duplicate transactions submitted by users.
 
-    /** The {@link Platform} to which transactions will be submitted */
-    private final Platform platform;
+    /** The transaction pool to which transactions will be submitted */
+    private final TransactionPoolNexus transactionPool;
 
     /** Metrics related to submissions */
     private final SpeedometerMetric platformTxnRejections;
@@ -74,18 +76,18 @@ public class SubmissionManager {
     /**
      * Create a new {@code SubmissionManager} instance.
      *
-     * @param platform the {@link Platform} to which transactions will be submitted
+     * @param transactionPool transaction pool which transactions will be submitted
      * @param deduplicationCache used to prevent submission of duplicate transactions
      * @param configProvider the {@link ConfigProvider}
      * @param metrics             metrics related to submissions
      */
     @Inject
     public SubmissionManager(
-            @NonNull final Platform platform,
+            @NonNull final TransactionPoolNexus transactionPool,
             @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
-        this.platform = requireNonNull(platform);
+        this.transactionPool = requireNonNull(transactionPool);
         this.submittedTxns = requireNonNull(deduplicationCache);
         this.configProvider = requireNonNull(configProvider);
 
@@ -142,14 +144,17 @@ public class SubmissionManager {
             // before we got here. But if it ever does happen, for any reason, we want it to happen BEFORE we submit,
             // and BEFORE we record the transaction as a duplicate.
             final var txId = txBody.transactionIDOrThrow();
-            if (submittedTxns.contains(txId)) {
+            TxStatus txStatus = submittedTxns.getTxStatus(txId);
+            if (txStatus == TxStatus.SUBMITTED) {
+                // If the transaction is already submitted, we do not want to submit it again.
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
             }
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
             // or while the system is being shut down. In any event, the user will receive an error code indicating
             // that the transaction was not submitted and they can retry.
-            final var success = platform.createTransaction(payload.toByteArray());
+
+            final var success = transactionPool.submitApplicationTransaction(payload);
             if (success) {
                 submittedTxns.add(txId);
             } else {

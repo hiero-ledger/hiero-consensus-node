@@ -92,6 +92,7 @@ import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hedera.services.bdd.spec.transactions.util.HapiUtilPrng;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
+import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
 import com.hederahashgraph.api.proto.java.PendingAirdropId;
@@ -120,6 +121,11 @@ public class TxnVerbs {
 
     public static HapiCryptoDelete cryptoDelete(String account) {
         return new HapiCryptoDelete(account);
+    }
+
+    public static HapiCryptoDelete cryptoDelete(
+            @NonNull final BiConsumer<HapiSpec, CryptoDeleteTransactionBody.Builder> explicitDef) {
+        return new HapiCryptoDelete(explicitDef);
     }
 
     public static HapiCryptoDelete cryptoDeleteAliased(final String alias) {

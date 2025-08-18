@@ -207,7 +207,8 @@ public class TestHelpers {
             .evmAddress(Bytes.fromHex("1234123412341234123412341234123412341234"))
             .build();
     public static final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
-    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("dac17f958d2ee523a2206206994597c13d831ec7");
+    public static final String NON_LONG_ZERO_ADDRESS = "dac17f958d2ee523a2206206994597c13d831ec7";
+    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex(NON_LONG_ZERO_ADDRESS);
     public static final ContractID LONG_ZERO_CONTRACT_ID =
             ContractID.newBuilder().evmAddress(LONG_ZERO_ADDRESS_BYTES).build();
 
@@ -725,6 +726,7 @@ public class TestHelpers {
     public static final Bytes APPROVED_ADDRESS = Bytes.fromHex("aa1e6a49898ea7a44e81599a7c0deeeaa969e990");
     public static final com.esaulpaugh.headlong.abi.Address APPROVED_HEADLONG_ADDRESS =
             asHeadlongAddress(APPROVED_ADDRESS.toByteArray());
+    public static final Address APPROVED_BESU_ADDRESS = Address.fromHexString(APPROVED_ADDRESS.toHex());
 
     public static final AccountID RECEIVER_ID =
             AccountID.newBuilder().accountNum(7773777L).build(); // 7773777L == 0x769e51

@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 public abstract class AbstractCall implements Call {
     protected final SystemContractGasCalculator gasCalculator;
     protected final HederaWorldUpdater.Enhancement enhancement;
-    private final boolean isViewCall;
+    protected final boolean isViewCall;
     private SystemContractMethod systemContractMethod;
 
     protected AbstractCall(

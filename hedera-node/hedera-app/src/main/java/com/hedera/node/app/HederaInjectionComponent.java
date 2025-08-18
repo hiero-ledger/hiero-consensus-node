@@ -37,6 +37,7 @@ import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -71,6 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -151,6 +153,8 @@ public interface HederaInjectionComponent {
 
     CurrentPlatformStatus currentPlatformStatus();
 
+    DeduplicationCache deduplicationCache();
+
     @Component.Builder
     interface Builder {
         @BindsInstance
@@ -185,6 +189,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder transactionPool(TransactionPoolNexus transactionPool);
 
         @BindsInstance
         Builder self(NodeInfo self);

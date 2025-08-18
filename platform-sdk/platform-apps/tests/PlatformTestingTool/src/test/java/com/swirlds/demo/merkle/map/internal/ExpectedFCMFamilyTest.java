@@ -59,6 +59,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -726,6 +727,7 @@ class ExpectedFCMFamilyTest {
     private FCMTransaction createTransaction(TransactionType type) {
         pttTransactionPool = new PttTransactionPool(
                 platform,
+                Mockito.mock(TransactionPoolNexus.class),
                 0,
                 config,
                 "test",

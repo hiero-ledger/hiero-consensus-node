@@ -26,6 +26,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.SUBMITTED;
 import static com.hedera.node.app.workflows.InnerTransaction.NO;
 import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
@@ -64,8 +65,8 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -248,7 +249,7 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var maxBytes = maxIngestParseSize(configuration);
+        final var maxBytes = Utils.maxIngestParseSize(configuration);
         TransactionInfo txInfo;
         if (innerTransaction == YES) {
             txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction, maxBytes);
@@ -275,8 +276,8 @@ public final class IngestChecker {
         // will convert that to INVALID_TRANSACTION_BODY.
         assert functionality != HederaFunctionality.NONE;
 
-        // 3. Deduplicate
-        if (deduplicationCache.contains(txInfo.transactionID())) {
+        // 3. Deduplicate the transaction and check for staleness
+        if (deduplicationCache.getTxStatus(txInfo.transactionID()) == SUBMITTED) {
             throw new PreCheckException(DUPLICATE_TRANSACTION);
         }
 
@@ -345,16 +346,6 @@ public final class IngestChecker {
             workflowMetrics.incrementThrottled(txInfo.functionality());
             throw new PreCheckException(BUSY);
         }
-    }
-
-    private static int maxIngestParseSize(Configuration configuration) {
-        final var jumboTxnEnabled =
-                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-        final var jumboMaxTxnSize =
-                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-        final var transactionMaxBytes =
-                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 
     private void assertThrottlingPreconditions(

@@ -128,6 +128,13 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     targetBlockNodeNetwork
                             .getBlockNodePrioritiesBySubProcessNodeId()
                             .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodePriorities());
+                    if (subProcessNodeConfig.applicationPropertiesOverrides().length > 0) {
+                        targetNetwork
+                                .getApplicationPropertyOverrides()
+                                .put(
+                                        subProcessNodeConfig.nodeId(),
+                                        Arrays.asList(subProcessNodeConfig.applicationPropertiesOverrides()));
+                    }
                 }
 
                 targetBlockNodeNetwork.start();
@@ -285,8 +292,8 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         doTargetSpec(spec, targetNetwork);
         try {
             spec.execute();
-        } catch (Throwable e) {
-            throw new IllegalStateException(e);
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
         }
         final SavedStateSpec savedStateSpec;
         try {
