@@ -6,6 +6,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.validation.Consens
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -91,7 +92,7 @@ public class MultipleNodeConsensusResultsAssert
         final Map<Long, List<NodeRound>> roundMap = new TreeMap<>();
         for (final SingleNodeConsensusResult result : actual.results()) {
             for (final ConsensusRound round : result.consensusRounds()) {
-                roundMap.computeIfAbsent(round.getRoundNum(), k -> new java.util.ArrayList<>())
+                roundMap.computeIfAbsent(round.getRoundNum(), k -> new ArrayList<>())
                         .add(new NodeRound(result.nodeId(), round));
             }
         }
@@ -112,7 +113,8 @@ public class MultipleNodeConsensusResultsAssert
             // Second, compare the rounds produced by different nodes to ensure they arrived at the same consensus.
             final NodeRound firstNodeRound = rounds.getFirst();
             for (int i = 1; i < rounds.size(); i++) {
-                ConsensusRoundValidator.validate(firstNodeRound.round, rounds.get(i).round);
+                ConsensusRoundValidator.validate(
+                        firstNodeRound.round(), rounds.get(i).round());
             }
         }
 
@@ -155,6 +157,11 @@ public class MultipleNodeConsensusResultsAssert
         return this;
     }
 
+    /**
+     * An internal record used to keep track of which node produced which round. Tracking this is useful for debugging.
+     * @param nodeId the ID of the node that produced the round
+     * @param round the round produced by the node
+     */
     private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
     private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
