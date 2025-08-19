@@ -14,19 +14,22 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.stats.AverageStat;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.Objects;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * Maintains all metrics which need to be updated on a new event
  */
-public class AddedEventMetrics {
+public class ConsensusEngineMetrics {
 
     private final NodeId selfId;
 
@@ -74,16 +77,23 @@ public class AddedEventMetrics {
             .withFormat(FORMAT_13_2);
     private final SpeedometerMetric transactionsPerSecond;
 
-    private static final SpeedometerMetric.Config TRANSACTIONS_PER_SECOND_SYS_CONFIG = new SpeedometerMetric.Config(
-                    INTERNAL_CATEGORY, "trans_per_sec_sys")
-            .withDescription("number of system transactions received per second " + DETAILS)
-            .withFormat(FORMAT_13_2);
-
     private static final Counter.Config NUM_TRANS_CONFIG =
             new Counter.Config(INTERNAL_CATEGORY, "trans").withDescription("number of transactions received so far");
     private final Counter numTrans;
 
     private final AverageStat averageOtherParentAgeDiff;
+
+    private static final LongAccumulator.Config STALE_EVENTS_CONFIG = new LongAccumulator.Config(
+            INTERNAL_CATEGORY, "staleEvents")
+            .withAccumulator(Long::sum)
+            .withDescription("number of stale self events");
+    private final LongAccumulator staleEventCount;
+
+    private static final LongAccumulator.Config STALE_APP_TRANSACTIONS_CONFIG = new LongAccumulator.Config(
+            INTERNAL_CATEGORY, "staleTransactions")
+            .withAccumulator(Long::sum)
+            .withDescription("number of transactions in stale self events");
+    private final LongAccumulator staleTransactionCount;
 
     /**
      * The constructor of {@code AddedEventMetrics}
@@ -91,7 +101,7 @@ public class AddedEventMetrics {
      * @param selfId  the {@link NodeId} of this node
      * @param metrics a reference to the metrics-system
      */
-    public AddedEventMetrics(final NodeId selfId, final Metrics metrics) {
+    public ConsensusEngineMetrics(final NodeId selfId, final Metrics metrics) {
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         Objects.requireNonNull(metrics, "metrics must not be null");
 
@@ -110,6 +120,8 @@ public class AddedEventMetrics {
         bytesPerSecondTrans = metrics.getOrCreate(BYTES_PER_SECOND_TRANS_CONFIG);
         transactionsPerSecond = metrics.getOrCreate(TRANSACTIONS_PER_SECOND_CONFIG);
         numTrans = metrics.getOrCreate(NUM_TRANS_CONFIG);
+        staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
+        staleTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
     }
 
     /**
@@ -161,5 +173,27 @@ public class AddedEventMetrics {
         if (event.getBaseEvent().getTransactionCount() != 0) {
             numTrans.add(event.getBaseEvent().getTransactionCount());
         }
+    }
+
+    /**
+     * Update metrics when a stale event has been detected
+     *
+     * @param event the stale event
+     */
+    public void reportStaleEvent(@NonNull final PlatformEvent event) {
+        if(!selfId.equals(event.getCreatorId())){
+            // only report stale events created by this node
+            return;
+        }
+        int appTransactions = 0;
+
+        final Iterator<Transaction> iterator = event.transactionIterator();
+        while (iterator.hasNext()) {
+            iterator.next();
+            appTransactions++;
+        }
+
+        staleEventCount.update(1);
+        staleTransactionCount.update(appTransactions);
     }
 }

@@ -14,7 +14,7 @@ import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.metrics.AddedEventMetrics;
+import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,7 +51,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final AddedEventMetrics eventAddedMetrics;
+    private final ConsensusEngineMetrics eventAddedMetrics;
 
     private final FreezeRoundController freezeRoundController;
 
@@ -80,7 +80,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
-        eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
+        eventAddedMetrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -117,6 +117,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         eventsToAdd.add(consensusRelevantEvent);
 
         final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
+        final List<PlatformEvent> staleEvents = new ArrayList<>();
 
         while (!eventsToAdd.isEmpty()) {
             final PlatformEvent eventToAdd = eventsToAdd.poll();
