@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
+import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -19,6 +23,7 @@ import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
  */
 public class ConsensusOutput implements Clearable {
     private final LinkedList<ConsensusRound> consensusRounds;
+    private final LinkedList<PlatformEvent> preConsensusEvents;
     private final LinkedList<PlatformEvent> addedEvents;
     private final LinkedList<PlatformEvent> staleEvents;
 
@@ -34,6 +39,7 @@ public class ConsensusOutput implements Clearable {
      */
     public ConsensusOutput() {
         addedEvents = new LinkedList<>();
+        preConsensusEvents = new LinkedList<>();
         consensusRounds = new LinkedList<>();
         staleEvents = new LinkedList<>();
 
@@ -45,6 +51,15 @@ public class ConsensusOutput implements Clearable {
     public void eventAdded(@NonNull final PlatformEvent event) {
         addedEvents.add(event);
         nonAncientEvents.add(event);
+    }
+
+    /**
+     * Processes the output of the consensus engine.
+     * @param output the output of the consensus engine
+     */
+    public void consensusEngineOutput(@NonNull final ConsensusEngineOutput output) {
+        output.consensusRounds().forEach(this::consensusRound);
+        preConsensusEvents.addAll(output.preConsensusEvents());
     }
 
     public void consensusRound(@NonNull final ConsensusRound consensusRound) {
@@ -79,6 +94,16 @@ public class ConsensusOutput implements Clearable {
         return consensusRounds;
     }
 
+    /**
+     * Get the last consensus round if it exists.
+     *
+     * @return the last consensus round
+     * @throws java.util.NoSuchElementException if there are no consensus rounds
+     */
+    public @NonNull ConsensusRound getLastConsensusRound() {
+        return consensusRounds.getLast();
+    }
+
     public @NonNull LinkedList<PlatformEvent> getAddedEvents() {
         return addedEvents;
     }
@@ -89,6 +114,49 @@ public class ConsensusOutput implements Clearable {
                 .thenComparingLong(e -> e.getCreatorId().id())
                 .thenComparing(PlatformEvent::getHash));
         return sortedEvents;
+    }
+
+    /**
+     * Get the pre-consensus events that have been returned by consensus.
+     *
+     * @return a list of pre-consensus events
+     */
+    public @NonNull List<PlatformEvent> getPreConsensusEvents() {
+        return preConsensusEvents;
+    }
+
+    /**
+     * Get the hashes of the pre-consensus events that have been returned by consensus.
+     *
+     * @return a set of hashes of pre-consensus events
+     */
+    public @NonNull Set<Hash> getPreConsensusEventHashes() {
+        return preConsensusEvents.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the hashes of the consensus events that have been returned by consensus.
+     *
+     * @return a set of hashes of consensus events
+     */
+    public @NonNull Set<Hash> consensusEventHashes() {
+        return consensusRounds.stream()
+                .map(ConsensusRound::getConsensusEvents)
+                .flatMap(List::stream)
+                .map(PlatformEvent::getHash)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get all consensus events that have been returned by consensus.
+     *
+     * @return a list of consensus events
+     */
+    public @NonNull List<PlatformEvent> getConsensusEvents() {
+        return consensusRounds.stream()
+                .map(ConsensusRound::getConsensusEvents)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
     }
 
     /**

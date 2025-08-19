@@ -15,8 +15,9 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 /**
  * Instance-wide config for {@code MerkleDbDataSource}.
  *
+ * @param initialCapacity initial capacity of the database
  * @param maxNumOfKeys
- * 	    The maximum number of unique keys to be stored in a database.
+ * 	    The maximum number of unique keys to be stored in a database. This is a hard limit.
  * @param hashesRamToDiskThreshold
  * 	    Get threshold where we switch from storing node hashes in ram to
  * 	    storing them on disk. If it is 0 then everything is on disk, if it is Long.MAX_VALUE then everything is in ram.
@@ -70,7 +71,8 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  */
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
-        @Positive @ConfigProperty(defaultValue = "1000000000") long maxNumOfKeys,
+        @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
+        @Positive @ConfigProperty(defaultValue = "4000000000") long maxNumOfKeys,
         @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
