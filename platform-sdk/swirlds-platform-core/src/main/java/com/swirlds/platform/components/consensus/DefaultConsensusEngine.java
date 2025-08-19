@@ -127,22 +127,22 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             }
 
             // check if we have found init judges before adding the event
-            final boolean judgesFoundBeforeAdd = consensus.noInitJudgesMissing();
+            final boolean waitingForJudgesBeforeAdd = consensus.waitingForInitJudges();
             // add the event to the consensus algorithm
             allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
             // check if we have found init judges after adding the event
-            final boolean judgesFoundAfterAdd = consensus.noInitJudgesMissing();
+            final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 
             eventAddedMetrics.eventAdded(linkedEvent);
 
-            if (!judgesFoundAfterAdd) {
+            if (waitingForJudgesAfterAdd) {
                 // If we haven't found all the init judges yet, we should return an empty output.
                 // We should not return the event we just added, since we are not sure if it will be a pre-consensus
                 // event. It may be that it has reached consensus previously, but we cannot know that until we found
                 // all the init judges.
                 return ConsensusEngineOutput.emptyInstance();
             }
-            if (!judgesFoundBeforeAdd) {
+            if (waitingForJudgesBeforeAdd) {
                 // This means that we have just found the last init judge.
 
                 // Most of the time, when we find the last init judge, we will not have any consensus rounds yet.

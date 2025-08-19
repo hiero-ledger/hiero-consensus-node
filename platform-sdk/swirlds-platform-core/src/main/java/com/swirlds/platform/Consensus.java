@@ -20,7 +20,7 @@ public interface Consensus {
 
     /**
      * Get a list of events that were added to consensus that have not yet reached consensus. This list will not be
-     * accurate if consensus is still waiting for init judges ({@link #noInitJudgesMissing()} returns false).
+     * accurate if consensus is still waiting for init judges ({@link #waitingForInitJudges()} returns true).
      * @return a list of pre-consensus events
      */
     List<EventImpl> getPreConsensusEvents();
@@ -45,12 +45,12 @@ public interface Consensus {
 
     /**
      * When loading consensus from a snapshot (via {@link #loadSnapshot(ConsensusSnapshot)}), consensus has to receive
-     * all init judges before it can proceed with consensus calculation. The method allows to check whether all init
-     * judges have been received.
+     * all init judges before it can proceed with consensus calculation. The method allows to check whether we are still
+     * waiting for init judges to be added to consensus or not.
      *
-     * @return true if there are no init judges missing
+     * @return true if consensus is still waiting for init judges
      */
-    boolean noInitJudgesMissing();
+    boolean waitingForInitJudges();
 
     /**
      * Return the max round number for which we have an event. If there are none yet, return {@link
