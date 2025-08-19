@@ -104,7 +104,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestMisc" to "nodes.nodeRewardsEnabled=false",
         "hapiTestTimeConsuming" to "nodes.nodeRewardsEnabled=false",
-        "hapiTestMiscRecords" to "blockStream.streamMode=RECORDS",
+        "hapiTestMiscRecords" to "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
