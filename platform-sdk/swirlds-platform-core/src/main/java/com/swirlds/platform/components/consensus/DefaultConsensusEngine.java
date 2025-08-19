@@ -11,7 +11,6 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
-import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
@@ -39,7 +38,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /**
      * Stores non-ancient events and manages linking and unlinking.
      */
-    private final InOrderLinker linker;
+    private final ConsensusLinker linker;
 
     /** Buffers events until needed by the consensus algorithm based on their birth round */
     private final FutureEventBuffer futureEventBuffer;

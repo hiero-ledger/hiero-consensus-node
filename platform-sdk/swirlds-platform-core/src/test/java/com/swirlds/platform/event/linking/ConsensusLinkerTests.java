@@ -3,16 +3,28 @@ package com.swirlds.platform.event.linking;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import java.time.Duration;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -23,20 +35,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests the {@link InOrderLinker} class.
+ * Tests the {@link ConsensusLinker} class.
  */
-class InOrderLinkerTests {
+class ConsensusLinkerTests {
     private Random random;
 
-    private InOrderLinker inOrderLinker;
+    private ConsensusLinker linker;
 
     private PlatformEvent genesisSelfParent;
     private PlatformEvent genesisOtherParent;
 
     private FakeTime time;
 
-    private NodeId selfId = NodeId.of(0);
-    private NodeId otherId = NodeId.of(1);
+    private final NodeId selfId = NodeId.of(0);
+    private final NodeId otherId = NodeId.of(1);
 
     /**
      * Set up the in order linker for testing
@@ -50,7 +62,7 @@ class InOrderLinkerTests {
     }
 
     private void inOrderLinkerSetup() {
-        inOrderLinker = new ConsensusLinker(
+        linker = new ConsensusLinker(
                 TestPlatformContextBuilder.create().withTime(time).build());
 
         time.tick(Duration.ofSeconds(1));
@@ -60,7 +72,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        inOrderLinker.linkEvent(genesisSelfParent);
+        linker.linkEvent(genesisSelfParent);
 
         time.tick(Duration.ofSeconds(1));
         genesisOtherParent = new TestingEventBuilder(random)
@@ -69,7 +81,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        inOrderLinker.linkEvent(genesisOtherParent);
+        linker.linkEvent(genesisOtherParent);
 
         time.tick(Duration.ofSeconds(1));
     }
@@ -116,7 +128,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent1 = inOrderLinker.linkEvent(child1);
+        final EventImpl linkedEvent1 = linker.linkEvent(child1);
         assertNotEquals(null, linkedEvent1);
         assertNotEquals(null, linkedEvent1.getSelfParent(), "Self parent is non-ancient, and should not be null");
         assertNotEquals(null, linkedEvent1.getOtherParent(), "Other parent is non-ancient, and should not be null");
@@ -126,7 +138,7 @@ class InOrderLinkerTests {
         // cause genesisOtherParent to become ancient
         EventWindow eventWindow = chooseEventWindow(genesisOtherParent);
         assertFalse(eventWindow.isAncient(child1));
-        inOrderLinker.setEventWindow(eventWindow);
+        linker.setEventWindow(eventWindow);
 
         final PlatformEvent child2 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -136,7 +148,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent2 = inOrderLinker.linkEvent(child2);
+        final EventImpl linkedEvent2 = linker.linkEvent(child2);
         assertNotEquals(null, linkedEvent2);
         assertNotEquals(null, linkedEvent2.getSelfParent(), "Self parent is non-ancient, and should not be null");
         assertNull(linkedEvent2.getOtherParent(), "Other parent is ancient, and should be null");
@@ -146,7 +158,7 @@ class InOrderLinkerTests {
         // cause child1 to become ancient
         eventWindow = chooseEventWindow(child1);
         assertFalse(eventWindow.isAncient(child2));
-        inOrderLinker.setEventWindow(eventWindow);
+        linker.setEventWindow(eventWindow);
 
         final PlatformEvent child3 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -156,7 +168,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent3 = inOrderLinker.linkEvent(child3);
+        final EventImpl linkedEvent3 = linker.linkEvent(child3);
         assertNotEquals(null, linkedEvent3);
         assertNull(linkedEvent3.getSelfParent(), "Self parent is ancient, and should be null");
         assertNotEquals(null, linkedEvent3.getOtherParent(), "Other parent is non-ancient, and should not be null");
@@ -164,7 +176,7 @@ class InOrderLinkerTests {
         time.tick(Duration.ofSeconds(1));
         // make both parents ancient.
         eventWindow = chooseEventWindow(child2, child3);
-        inOrderLinker.setEventWindow(eventWindow);
+        linker.setEventWindow(eventWindow);
 
         final PlatformEvent child4 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -174,7 +186,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent4 = inOrderLinker.linkEvent(child4);
+        final EventImpl linkedEvent4 = linker.linkEvent(child4);
         assertNotEquals(null, linkedEvent4);
         assertNull(linkedEvent4.getSelfParent(), "Self parent is ancient, and should be null");
         assertNull(linkedEvent4.getOtherParent(), "Other parent is ancient, and should be null");
@@ -191,7 +203,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNull(linkedEvent.getSelfParent(), "Self parent is missing, and should be null");
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent is not missing, and should not be null");
@@ -208,7 +220,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent is not missing, and should not be null");
         assertNull(linkedEvent.getOtherParent(), "Other parent is missing, and should be null");
@@ -219,7 +231,7 @@ class InOrderLinkerTests {
     void ancientEvent() {
         inOrderLinkerSetup();
 
-        inOrderLinker.setEventWindow(
+        linker.setEventWindow(
                 EventWindowBuilder.builder().setAncientThreshold(3).build());
 
         final PlatformEvent child1 = new TestingEventBuilder(random)
@@ -232,7 +244,7 @@ class InOrderLinkerTests {
 
         time.tick(Duration.ofSeconds(1));
 
-        assertNull(inOrderLinker.linkEvent(child1));
+        assertNull(linker.linkEvent(child1));
 
         final PlatformEvent child2 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -242,7 +254,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        assertNull(inOrderLinker.linkEvent(child2));
+        assertNull(linker.linkEvent(child2));
     }
 
     @Test
@@ -257,7 +269,7 @@ class InOrderLinkerTests {
                 .overrideSelfParentBirthRound(genesisSelfParent.getBirthRound() + 1) // birth round doesn't match actual
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched birth round, and should be null");
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
@@ -275,7 +287,7 @@ class InOrderLinkerTests {
                         genesisOtherParent.getBirthRound() + 1) // birth round doesn't match actual
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent should not be null");
         assertNull(linkedEvent.getOtherParent(), "Other parent has mismatched birth round, and should be null");
@@ -293,7 +305,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now().plus(Duration.ofSeconds(10)))
                 .build();
 
-        inOrderLinker.linkEvent(lateParent);
+        linker.linkEvent(lateParent);
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -302,7 +314,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched time created, and should be null");
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
@@ -319,7 +331,7 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now().plus(Duration.ofSeconds(10)))
                 .build();
 
-        inOrderLinker.linkEvent(lateParent);
+        linker.linkEvent(lateParent);
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -328,9 +340,99 @@ class InOrderLinkerTests {
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
+        final EventImpl linkedEvent = linker.linkEvent(child);
         assertNotEquals(null, linkedEvent);
         assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent should not be null");
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
+    }
+
+    @Test
+    void eventsAreUnlinkedTest() {
+        final Random random = getRandomPrintSeed();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withConfiguration(configuration)
+                .build();
+
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                platformContext,
+                random.nextLong(),
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource());
+
+        final List<EventImpl> linkedEvents = new LinkedList<>();
+        final ConsensusLinker linker = new ConsensusLinker(platformContext);
+
+        EventWindow eventWindow = EventWindow.getGenesisEventWindow();
+
+        for (int i = 0; i < 10_000; i++) {
+
+            final PlatformEvent event = generator.generateEvent().getBaseEvent();
+
+            // Verify correct behavior when added to the linker.
+
+            if (eventWindow.isAncient(event)) {
+                // Event is ancient before we add it and should be discarded.
+                assertNull(linker.linkEvent(event));
+            } else {
+                // Event is currently non-ancient. Verify that it is properly linked.
+
+                final EventImpl linkedEvent = linker.linkEvent(event);
+                assertNotNull(linkedEvent);
+                linkedEvents.add(linkedEvent);
+                assertSame(event, linkedEvent.getBaseEvent());
+
+                final EventDescriptorWrapper selfParent = event.getSelfParent();
+                if (selfParent == null || eventWindow.isAncient(selfParent)) {
+                    assertNull(linkedEvent.getSelfParent());
+                } else {
+                    assertNotNull(linkedEvent.getSelfParent());
+                    assertEquals(
+                            event.getSelfParent(),
+                            linkedEvent.getSelfParent().getBaseEvent().getDescriptor());
+                }
+
+                final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
+                if (otherParents.isEmpty()) {
+                    assertNull(linkedEvent.getOtherParent());
+                } else {
+                    final EventDescriptorWrapper otherParent = otherParents.getFirst();
+                    if (eventWindow.isAncient(otherParent)) {
+                        assertNull(linkedEvent.getOtherParent());
+                    } else {
+                        assertNotNull(linkedEvent.getOtherParent());
+                        assertEquals(
+                                otherParents.getFirst(),
+                                linkedEvent.getOtherParent().getBaseEvent().getDescriptor());
+                    }
+                }
+            }
+
+            // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
+            if (random.nextDouble() < 0.01) {
+                if (event.getBirthRound() <= eventWindow.ancientThreshold()) {
+                    // Advancing the window any further would make the most recent event ancient. Skip.
+                    continue;
+                }
+
+                eventWindow = EventWindowBuilder.builder()
+                        .setAncientThreshold(event.getBirthRound())
+                        .build();
+                linker.setEventWindow(eventWindow);
+
+                // All ancient events should have their parents nulled out
+                final Iterator<EventImpl> iterator = linkedEvents.iterator();
+                while (iterator.hasNext()) {
+                    final EventImpl linkedEvent = iterator.next();
+                    if (eventWindow.isAncient(linkedEvent.getBaseEvent())) {
+                        assertNull(linkedEvent.getSelfParent());
+                        assertNull(linkedEvent.getOtherParent());
+                        iterator.remove();
+                    }
+                }
+            }
+        }
     }
 }
