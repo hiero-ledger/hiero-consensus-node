@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -16,6 +17,7 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
+import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -107,6 +109,47 @@ public class ConsensusEngineContractTest {
         final TestIntake restartIntake = new TestIntake(CONTEXT, modifiedRoster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
+        validateOutputContract(restartIntake.getOutput());
+    }
+
+    @Test
+    void staleEventsTest(){
+        // parameters
+        // we need at least 4 nodes to have stale events if all nodes have equal weight
+        final int minNodes = 4;
+        final int maxNodes = 15;
+
+        // setup
+        final Randotron random = Randotron.create();
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .withSize(random.nextInt(minNodes, maxNodes))
+                .build();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        eventEmitter.getGraphGenerator().setOtherParentAffinity(
+                OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(roster.rosterEntries().size(), 0)
+        );
+        final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
+                .map(EventImpl::getBaseEvent)
+                .toList();
+
+        // start from genesis, validate the output
+        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        addToIntake(generatedEvents, random, genesisIntake);
+        validateOutputContract(genesisIntake.getOutput());
+
+        // get a snapshot from the first run
+        final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
+
+        // load the snapshot into a new intake and validate that the output is consistent
+        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        restartIntake.loadSnapshot(snapshot);
+        addToIntake(generatedEvents, random, restartIntake);
+
+        assertEquals(
+                genesisIntake.getOutput().getLastConsensusRound().getSnapshot(),
+                restartIntake.getOutput().getLastConsensusRound().getSnapshot(),
+                "Both consensus instances should have reached same last consensus round");
         validateOutputContract(restartIntake.getOutput());
     }
 
