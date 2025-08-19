@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -41,16 +35,9 @@ public class ConsensusLinker {
      */
     private static final int INITIAL_CAPACITY = 1024;
 
-    /**
-     * The minimum period between log messages for a specific mode of failure.
-     */
-    private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
-    private final ConsensusLinkerMetrics metrics;
 
-    private final RateLimitedLogger missingParentLogger;
-    private final RateLimitedLogger birthRoundMismatchLogger;
-    private final RateLimitedLogger timeCreatedMismatchLogger;
+    private final LinkerLogsMetrics logsMetrics;
 
     /**
      * A sequence map from event descriptor to event.
@@ -79,16 +66,7 @@ public class ConsensusLinker {
      * @param platformContext the platform context
      */
     public ConsensusLinker(@NonNull final PlatformContext platformContext) {
-        // We use a non-static logger here so that we can scope the logger to the concrete
-        // implementation of this class, not to the abstract class. Once instantiated, a
-        // linker has the same life span as a node, so it is not inefficient to
-        // have a non-static logger.
-        final Logger logger = LogManager.getLogger(this.getClass());
-
-        this.metrics = new ConsensusLinkerMetrics(platformContext.getMetrics());
-        this.missingParentLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.birthRoundMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.logsMetrics = new LinkerLogsMetrics(platformContext.getMetrics(), platformContext.getTime());
 
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
@@ -113,7 +91,7 @@ public class ConsensusLinker {
         // FUTURE WORK: Extend other parent linking to support multiple other parents.
         // Until then, take the first parent in the list.
         final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
-        final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.get(0));
+        final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.getFirst());
 
         final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
         EventCounter.incrementLinkedEventCount();
@@ -147,68 +125,9 @@ public class ConsensusLinker {
         parentHashMap.clear();
     }
 
-    /**
-     * This method is called when a child event has a missing parent.
-     *
-     * @param child            the child event
-     * @param parentDescriptor the descriptor of the missing parent
-     */
-    protected void childHasMissingParent(
-            @NonNull final PlatformEvent child, @NonNull final EventDescriptorWrapper parentDescriptor) {
-        missingParentLogger.error(
-                EXCEPTION.getMarker(),
-                "Child has a missing parent. This should not be possible. Child: {}, Parent EventDescriptor: {}",
-                child,
-                parentDescriptor);
-        metrics.missingParent();
-    }
 
-    /**
-     * This method is called when a child event has a parent with a different birth round than claimed.
-     *
-     * @param child            the child event
-     * @param parentDescriptor the claimed descriptor of the parent
-     * @param candidateParent  the parent event that we found in the parentHashMap
-     */
-    protected void parentHasIncorrectBirthRound(
-            @NonNull final PlatformEvent child,
-            @NonNull final EventDescriptorWrapper parentDescriptor,
-            @NonNull final EventImpl candidateParent) {
-        birthRoundMismatchLogger.warn(
-                EXCEPTION.getMarker(),
-                "Event has a parent with a different birth round than claimed. Child: {}, parent: {}, "
-                        + "claimed birth round: {}, actual birth round: {}",
-                child,
-                candidateParent,
-                parentDescriptor.eventDescriptor().birthRound(),
-                candidateParent.getBirthRound());
-        metrics.birthRoundMismatch();
-    }
 
-    /**
-     * This method is called when a child event has a self parent with a time created that is not strictly before the
-     * child's time created.
-     *
-     * @param child             the child event
-     * @param candidateParent   the parent event that we found in the parentHashMap
-     * @param parentTimeCreated the time created of the parent event
-     * @param childTimeCreated  the time created of the child event
-     */
-    protected void childTimeIsNotAfterSelfParentTime(
-            @NonNull final PlatformEvent child,
-            @NonNull final EventImpl candidateParent,
-            @NonNull final Instant parentTimeCreated,
-            @NonNull final Instant childTimeCreated) {
-        timeCreatedMismatchLogger.error(
-                EXCEPTION.getMarker(),
-                "Child time created isn't strictly after self parent time created. "
-                        + "Child: {}, parent: {}, child time created: {}, parent time created: {}",
-                child,
-                candidateParent,
-                childTimeCreated,
-                parentTimeCreated);
-        metrics.timeCreatedMismatch();
-    }
+
 
     /**
      * This method is called when this data structure stops tracking an event because it has become ancient.
@@ -250,13 +169,13 @@ public class ConsensusLinker {
 
         final EventImpl candidateParent = parentHashMap.get(parentDescriptor.hash());
         if (candidateParent == null) {
-            childHasMissingParent(child, parentDescriptor);
+            logsMetrics.childHasMissingParent(child, parentDescriptor);
             return null;
         }
 
         if (candidateParent.getBirthRound()
                 != parentDescriptor.eventDescriptor().birthRound()) {
-            parentHasIncorrectBirthRound(child, parentDescriptor, candidateParent);
+            logsMetrics.parentHasIncorrectBirthRound(child, parentDescriptor, candidateParent);
             return null;
         }
 
@@ -268,7 +187,7 @@ public class ConsensusLinker {
         if (parentDescriptor.creator().equals(child.getDescriptor().creator())
                 && parentTimeCreated.compareTo(childTimeCreated) >= 0) {
 
-            childTimeIsNotAfterSelfParentTime(child, candidateParent, parentTimeCreated, childTimeCreated);
+            logsMetrics.childTimeIsNotAfterSelfParentTime(child, candidateParent, parentTimeCreated, childTimeCreated);
 
             return null;
         }

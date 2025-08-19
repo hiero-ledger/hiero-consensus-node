@@ -146,6 +146,7 @@ module com.swirlds.platform.core {
     requires jdk.net;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires com.swirlds.platform.core;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
