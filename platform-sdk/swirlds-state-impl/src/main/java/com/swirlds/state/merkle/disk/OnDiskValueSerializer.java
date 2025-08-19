@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.disk;
+package com.swirlds.state.merkle.disk;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -15,11 +14,8 @@ import java.util.Objects;
  * An implementation of {@link ValueSerializer}, required by the {@link
  * com.swirlds.virtualmap.VirtualMap} for creating new {@link OnDiskValue}s.
  *
- * @deprecated This class should be removed together with {@link MerkleStateRoot}.
- *
  * @param <V> The type of the value in the virtual map
  */
-@Deprecated
 public final class OnDiskValueSerializer<V> implements ValueSerializer<OnDiskValue<V>> {
 
     private static final long CLASS_ID = 0x3992113882234886L;

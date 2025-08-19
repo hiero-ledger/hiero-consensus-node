@@ -6,6 +6,7 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
@@ -13,9 +14,9 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -41,7 +42,9 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
@@ -70,7 +73,7 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public MerkleNode getRoot() {
-        return new TestVirtualMapState().getRoot();
+        return new HederaStateRoot().getRoot();
     }
 
     /**
@@ -284,6 +287,12 @@ public class FakeState implements MerkleNodeState {
     @Override
     public @NonNull MerkleNodeState copy() {
         return this;
+    }
+
+    @Override
+    public <T extends MerkleNode> void putServiceStateIfAbsent(
+            @NonNull StateMetadata<?, ?> md, @NonNull Supplier<T> nodeSupplier, @NonNull Consumer<T> nodeInitializer) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

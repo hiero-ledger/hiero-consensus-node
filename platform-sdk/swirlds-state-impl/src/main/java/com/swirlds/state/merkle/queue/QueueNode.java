@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.queue;
+package com.swirlds.state.merkle.queue;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueAdd;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueIterate;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueuePeek;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueRemove;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -14,9 +14,9 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
-import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
-import com.swirlds.state.test.fixtures.merkle.singleton.ValueLeaf;
+import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.singleton.StringLeaf;
+import com.swirlds.state.merkle.singleton.ValueLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 

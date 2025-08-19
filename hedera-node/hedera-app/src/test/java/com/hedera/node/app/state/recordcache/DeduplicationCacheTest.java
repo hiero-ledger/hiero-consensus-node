@@ -8,13 +8,12 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import java.time.Instant;
 import java.time.InstantSource;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -66,7 +65,7 @@ final class DeduplicationCacheTest {
         cache.add(txId);
 
         // Then it is not added!
-        assertThat(internalMap()).isEmpty();
+        assertThat(internalSet()).isEmpty();
         assertThat(cache.contains(txId)).isFalse();
     }
 
@@ -86,7 +85,7 @@ final class DeduplicationCacheTest {
 
         // We allow it to be added. The TransactionChecker is responsible for filtering out future transactions,
         // not this cache.
-        assertThat(internalMap()).containsOnlyKeys(txId);
+        assertThat(internalSet()).containsExactly(txId);
         assertThat(cache.contains(txId)).isTrue();
     }
 
@@ -105,7 +104,7 @@ final class DeduplicationCacheTest {
         cache.add(txId);
 
         // Then it is added
-        assertThat(internalMap()).containsOnlyKeys(txId);
+        assertThat(internalSet()).containsExactly(txId);
         assertThat(cache.contains(txId)).isTrue();
     }
 
@@ -126,8 +125,8 @@ final class DeduplicationCacheTest {
         txIds.forEach(cache::add);
 
         // Then they are added in order
-        assertThat(internalMap())
-                .containsOnlyKeys(
+        assertThat(internalSet())
+                .containsExactly(
                         txIds.get(2),
                         txIds.get(6),
                         txIds.get(8),
@@ -150,7 +149,7 @@ final class DeduplicationCacheTest {
                         .seconds(now.getEpochSecond() - MAX_TXN_DURATION - 1)
                         .build())
                 .build();
-        internalMap().put(txId, TxStatus.SUBMITTED);
+        internalSet().add(txId);
 
         // When we add a new transaction ID that is in the right time window
         final var txId2 = TransactionID.newBuilder()
@@ -161,7 +160,7 @@ final class DeduplicationCacheTest {
         cache.add(txId2);
 
         // Then we find that the expired transaction ID is gone
-        assertThat(internalMap()).containsOnlyKeys(txId2);
+        assertThat(internalSet()).containsExactly(txId2);
     }
 
     @Test
@@ -174,14 +173,14 @@ final class DeduplicationCacheTest {
                         .seconds(now.getEpochSecond() - MAX_TXN_DURATION - 1)
                         .build())
                 .build();
-        internalMap().put(txId, TxStatus.SUBMITTED);
+        internalSet().add(txId);
 
         // When we check to see if it is in the cache
         final var result = cache.contains(txId);
 
         // Then we find that the expired transaction ID is gone
         assertThat(result).isFalse();
-        assertThat(internalMap()).isEmpty();
+        assertThat(internalSet()).isEmpty();
     }
 
     @Test
@@ -200,77 +199,22 @@ final class DeduplicationCacheTest {
         cache.add(txId);
 
         // Then it is added only once
-        assertThat(internalMap()).containsOnlyKeys(txId);
+        assertThat(internalSet()).containsExactly(txId);
         assertThat(cache.contains(txId)).isTrue();
     }
 
-    @Test
-    @DisplayName("markStale updates transaction status to STALE")
-    void markStaleUpdatesStatus() {
-        // Given a transaction in the cache
-        final var txId = createTransactionID();
-        cache.add(txId);
-        assertThat(cache.getTxStatus(txId) == TxStatus.SUBMITTED).isTrue();
-
-        // When marking it as stale
-        cache.markStale(txId);
-
-        // Then the status is updated to STALE
-        assertThat(cache.getTxStatus(txId) == TxStatus.STALE).isTrue();
-    }
-
-    @Test
-    @DisplayName("add clears STALE status")
-    void addClearsStaleUpdatesStatus() {
-        // Given a transaction marked as stale
-        final var txId = createTransactionID();
-        cache.add(txId);
-        cache.markStale(txId);
-
-        // When clearing the stale status
-        cache.add(txId);
-
-        // Then the map no longer contains the transaction ID so isStale returns false
-        assertThat(cache.getTxStatus(txId) == TxStatus.SUBMITTED).isTrue();
-    }
-
-    @Test
-    @DisplayName("clear removes all transactions from the cache")
-    void clearRemovesAllTransactions() {
-        // Given multiple transactions in the cache
-        final var txId1 = createTransactionID();
-        final var txId2 = createTransactionID();
-        cache.add(txId1);
-        cache.add(txId2);
-
-        // When clearing the cache
-        cache.clear();
-
-        // Then the cache is empty
-        assertThat(cache.contains(txId1)).isFalse();
-        assertThat(cache.contains(txId2)).isFalse();
-    }
-
-    private TransactionID createTransactionID() {
-        final var now = Instant.now();
-        return TransactionID.newBuilder()
-                .transactionValidStart(
-                        Timestamp.newBuilder().seconds(now.getEpochSecond()).build())
-                .build();
-    }
-
     /**
-     * Utility method for testing purposes that gets at the internal Map used by the cache. This makes it possible to
+     * Utility method for testing purposes that gets at the internal Set used by the cache. This makes it possible to
      * test more completely without having to open the access permissions on the cache itself.
      *
-     * @return The internal Map of the cache.
+     * @return The internal Set of the cache.
      */
-    private Map<TransactionID, TxStatus> internalMap() {
+    private Set<TransactionID> internalSet() {
         try {
             final var field = DeduplicationCacheImpl.class.getDeclaredField("submittedTxns");
             field.setAccessible(true);
             //noinspection unchecked
-            return (Map<TransactionID, TxStatus>) field.get(cache);
+            return (Set<TransactionID>) field.get(cache);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

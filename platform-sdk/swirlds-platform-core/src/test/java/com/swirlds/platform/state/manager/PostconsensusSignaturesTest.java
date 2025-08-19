@@ -90,6 +90,7 @@ class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
             MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
+                    .setCalculateHash(true)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();
