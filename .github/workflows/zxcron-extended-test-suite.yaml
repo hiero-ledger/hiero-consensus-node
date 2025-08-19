@@ -535,7 +535,7 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@85d19d9065f04d7a5d1d72d20981b8a98865bc66 #v1.0.2-alpha.5
+        uses: pandaswhocode/rootly-incident-action@9b0d12611bc4ca53af38eeaeb424d8f262271b42 #v1.0.2-alpha.6
         with:
           alert_service: "CITR"
           alert_external_id: ${{ github.run_id }}
