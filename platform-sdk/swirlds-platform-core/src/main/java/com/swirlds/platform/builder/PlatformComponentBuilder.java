@@ -30,8 +30,6 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
-import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
@@ -125,7 +123,6 @@ public class PlatformComponentBuilder {
     private IssHandler issHandler;
     private Gossip gossip;
     private StaleEventDetector staleEventDetector;
-    private TransactionResubmitter transactionResubmitter;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -858,39 +855,6 @@ public class PlatformComponentBuilder {
             staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
-    }
-
-    /**
-     * Provide a transaction resubmitter in place of the platform's default transaction resubmitter.
-     *
-     * @param transactionResubmitter the transaction resubmitter to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionResubmitter(
-            @NonNull final TransactionResubmitter transactionResubmitter) {
-        throwIfAlreadyUsed();
-        if (this.transactionResubmitter != null) {
-            throw new IllegalStateException("Transaction resubmitter has already been set");
-        }
-        this.transactionResubmitter = Objects.requireNonNull(transactionResubmitter);
-        return this;
-    }
-
-    /**
-     * Build the transaction resubmitter if it has not yet been built. If one has been provided via
-     * {@link #withTransactionResubmitter(TransactionResubmitter)}, that resubmitter will be used. If this method is
-     * called more than once, only the first call will build the transaction resubmitter. Otherwise, the default
-     * resubmitter will be created and returned.
-     *
-     * @return the transaction resubmitter
-     */
-    @NonNull
-    public TransactionResubmitter buildTransactionResubmitter() {
-        if (transactionResubmitter == null) {
-            transactionResubmitter = new DefaultTransactionResubmitter(blocks.platformContext());
-        }
-        return transactionResubmitter;
     }
 
     /**
