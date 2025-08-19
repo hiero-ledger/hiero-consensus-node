@@ -117,7 +117,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final var outcome = maybeChargeFeesAndReturnOutcome(
                     hevmTransaction,
                     context.body().transactionIDOrThrow().accountIDOrThrow(),
-                    null,
+                    rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
                     contractsConfig.chargeGasOnEvmHandleException());
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;

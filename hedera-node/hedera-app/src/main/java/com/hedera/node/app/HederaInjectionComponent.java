@@ -35,9 +35,10 @@ import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -60,8 +61,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -152,8 +151,6 @@ public interface HederaInjectionComponent {
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
-
-    DeduplicationCache deduplicationCache();
 
     @Component.Builder
     interface Builder {

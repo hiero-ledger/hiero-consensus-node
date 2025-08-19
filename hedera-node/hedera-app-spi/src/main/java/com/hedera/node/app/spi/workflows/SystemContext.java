@@ -2,8 +2,8 @@
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.function.Consumer;

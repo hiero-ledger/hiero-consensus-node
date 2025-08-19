@@ -15,6 +15,7 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -91,9 +92,8 @@ class VirtualMapSerializationTests {
 
         assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
 
-        // make sure that the hashes are calculated
-        originalMap.getHash();
-        deserializedMap.getHash();
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(originalMap);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(deserializedMap);
 
         final Map<MerkleRoute, Hash> hashes = new HashMap<>();
 
@@ -221,7 +221,7 @@ class VirtualMapSerializationTests {
         final MerkleDataOutputStream out = new MerkleDataOutputStream(byteOut);
 
         // Make sure the map is hashed
-        map.getHash();
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
 
         out.writeMerkleTree(savedStateDirectory, map);
         out.flush();
