@@ -451,7 +451,7 @@ public class ConsensusImpl implements Consensus {
      * @return true if the event is the last init judge we are looking for
      */
     private boolean checkInitJudges(@NonNull final EventImpl event) {
-        if(!waitingForInitJudges()){
+        if (!waitingForInitJudges()) {
             return false;
         }
         if (!initJudges.isInitJudge(event.getBaseHash())) {

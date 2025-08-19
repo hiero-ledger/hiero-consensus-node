@@ -74,7 +74,7 @@ public final class InitJudges {
     /**
      * @return true if we have not yet found all the init judges
      */
-    public boolean initJudgesMissing(){
+    public boolean initJudgesMissing() {
         return !judgeHashes.isEmpty();
     }
 

@@ -38,7 +38,7 @@ public interface ConsensusEngine {
      *     <li>Each event that reaches consensus or becomes stale, must have been previously returned as a pre-consensus
      *     event</li>
      * </ul>
-     * 
+     *
      * <b>NOTE: </b> The above stated guarantees are reset when {@link #outOfBandSnapshotUpdate(ConsensusSnapshot)}
      *
      * @param event an event to be added
