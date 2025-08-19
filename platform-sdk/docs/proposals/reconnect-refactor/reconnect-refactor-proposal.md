@@ -56,17 +56,20 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Constraints of the design
 
-1. (Lazar) Gossip component will become our network layer whose responsibilities should be getting events from the network and getting a new state for reconnect.
+1. Gossip component will become our network layer whose responsibilities should be getting events from the network and getting a new state for reconnect.
 2. Protocols cannot return a value to callers, they can share information outside their scope by associating them with consumers.
-3. Obtaining a state from the network is an async blocking activity. We do not control when the "reconnection protocol" will execute and the caller will have to wait until the state is retrieved.
+3. Obtaining a state from the network is an async blocking operation. We do not control when the "reconnection protocol" will execute and the caller will have to wait until the state is retrieved.
 4. All the reconnect logic needs to be reworked when we connect to block nodes instead of consensus nodes.
 
 ### Changes
 
-1. Refactoring Gossip:
-   The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
-   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
-   It now works with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
+1. Introduction of `FallenBehindMonitor`:
+   FallenBehindManager becomes a direct monitor and renamed accordingly.
+   Classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
+   The class is not used to check if the node is behind anymore, that check is done through the platform status.
+   It can be used to know if a certain node has reported that the local node has fallen behind.
+   As soon as it detects the node is behind, it updates the platform status and starts the reconnect process invoking `PlatformReconnecter`
+   This class will not be a component as doing so would remove the possibility that the learner logic can query it.
 
 2. Introduction of PlatformReconnecter:
    PlatformReconnecter will be the central authority for handling the entire reconnect process. It will live outside the Gossip component and will be a first class citizen for the platform.
@@ -83,20 +86,20 @@ If anything on the process goes wrong the code will retry until a configured max
    This makes PlatformBuilder / PlatformBuildingBlocks / Platform code simpler, lighter and easier to understand and the relationship between classes clear.
    This class can't be a component given that it will interact with other components (enabling and disabling them)
 
-3. Introduction of `FallenBehindMonitor`:
-   FallenBehindManager becomes a direct monitor and renamed accordingly.
-   Classes like AbstractShadowgraphSynchronizer now use FallenBehindMonitor directly to report fallen-behind status.
-   The class is not used to check if the node is behind anymore, that check is done through the platform status.
-   As soon as it detects the node is behind, it updates the platform status and starts the reconnect process invoking `PlatformReconnecter`
-   Making this class a component would remove the possibility that the learner logic can query it
+3. Refactoring Gossip:
+   The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
+   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
+   It will work with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
 
-4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class and it blocks until it gets the value,
+4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class, and it blocks until it gets the value,
    another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected. Given that the protocols cannot return a value to the outside world,
    PlatformReconnecter will use an instance of this class and signal the need to obtain a ReservedSignedState, the state sync protocol will ack that signal and provide with a reservedSignedState once obtained from the first peer that is deemed able to provide an useful state.
 
 5. `ReconnectProtocol` Renaming:
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
-   StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through Gossip's new interface.
+   StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through the shared ReservedSignedStatePromise object.
+
+6. `PlatformCoordinator` repurposing: This object currently only knows how to flush and clean the pipelines. IT will become the instance to hold all operations against the platform (e.g: start stop pause and resume gossip, submit a status action, push a roster update, etc. )
 
 ### Class diagram
 
