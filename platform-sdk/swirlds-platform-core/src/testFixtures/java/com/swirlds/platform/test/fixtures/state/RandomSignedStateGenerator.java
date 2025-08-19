@@ -59,6 +59,7 @@ import org.hiero.consensus.roster.RosterUtils;
 public class RandomSignedStateGenerator {
 
     private static final Logger logger = LogManager.getLogger(RandomSignedStateGenerator.class);
+
     /**
      * Signed states now use virtual maps which are heavy RAM consumers. They need to be released
      * in order to avoid producing OOMs when running tests. This list tracks all signed states
