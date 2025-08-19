@@ -90,9 +90,9 @@ If anything on the process goes wrong the code will retry until a configured max
    As soon as it detects the node is behind, it updates the platform status and starts the reconnect process invoking `PlatformReconnecter`
    Making this class a component would remove the possibility that the learner logic can query it
 
-4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class,
-   , another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected.
-   PlatformReconnecter will uses an instance of this class and signal the need to obtain a ReservedSignedState, the state sync protocol will read that signal and provide with a reservedSignedState once obtained from a peer.
+4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class and it blocks until it gets the value,
+   another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected. Given that the protocols cannot return a value to the outside world,
+   PlatformReconnecter will use an instance of this class and signal the need to obtain a ReservedSignedState, the state sync protocol will ack that signal and provide with a reservedSignedState once obtained from the first peer that is deemed able to provide an useful state.
 
 5. `ReconnectProtocol` Renaming:
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
@@ -100,8 +100,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Class diagram
 
-
-![final-class-diagram-after](final-class-diagram-after.png)
+![final-class-diagram-after.svg](final-class-diagram-after.svg)
 
 ![relationships.png](relationships.png)
 
@@ -111,7 +110,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Creation sequence diagram
 
-![creation-sequence.svg](creation-sequence.svg)![sequence-final.svg](sequence-final.svg)
+![creation-sequence.png](creation-sequence.png)
 
 ### Benefits
 
