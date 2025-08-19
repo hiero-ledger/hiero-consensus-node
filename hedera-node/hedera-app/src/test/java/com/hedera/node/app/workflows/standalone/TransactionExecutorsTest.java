@@ -70,6 +70,9 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
@@ -91,10 +94,7 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -158,7 +158,7 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true);
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
@@ -539,7 +539,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true);
+                        true,
+                        null);
             }
 
             @NonNull
@@ -552,7 +553,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false));
+                        false,
+                        null));
             }
 
             @Override
@@ -564,7 +566,8 @@ public class TransactionExecutorsTest {
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         Bytes.EMPTY,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false);
+                        false,
+                        null);
             }
 
             @Override

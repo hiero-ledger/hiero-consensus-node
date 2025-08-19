@@ -2,7 +2,6 @@
 module com.swirlds.state.api {
     exports com.swirlds.state;
     exports com.swirlds.state.spi;
-    exports com.swirlds.state.lifecycle.info;
     exports com.swirlds.state.spi.metrics;
     exports com.swirlds.state.lifecycle;
 

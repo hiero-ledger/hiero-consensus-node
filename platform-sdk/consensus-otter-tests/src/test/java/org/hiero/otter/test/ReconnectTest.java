@@ -22,7 +22,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -30,10 +29,9 @@ import org.junit.jupiter.api.Disabled;
  */
 public class ReconnectTest {
 
-    private static final long ROUNDS_NON_ANCIENT = 5L;
-    private static final long ROUNDS_EXPIRED = 10L;
+    private static final long ROUNDS_NON_ANCIENT = 20L;
+    private static final long ROUNDS_EXPIRED = 40L;
 
-    @Disabled("Disabled until the container networks are fully supported")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) {
         final Network network = env.network();
@@ -45,24 +43,23 @@ public class ReconnectTest {
         network.addNodes(4, WeightGenerators.BALANCED);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.setConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
-                .setConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
+        network.withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
         // Set the node we will force to reconnect
-        final Node nodeToReconnect = network.getNodes().getLast();
+        final Node nodeToReconnect = network.nodes().getLast();
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.newReconnectResults())
-                .startSuppressingNode(nodeToReconnect)
-                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
+                .doNotEnterAnyStatusesOf(BEHIND);
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
                 .hasMaximumReconnectTime(Duration.ofSeconds(10))
                 .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
         network.start();
 
-        // Wait for thirty seconds minutes
+        // Wait for thirty seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Shutdown the node for a period of time so that it falls behind.
@@ -74,24 +71,34 @@ public class ReconnectTest {
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         nodeToReconnectStatusResults.clear();
 
-        // Wait for the node we just killed to fall behind
+        // Wait for the node we just killed to become behind enough to require a reconnect.
         if (!timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30))) {
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(60))) {
             fail("Node did not fall behind in the time allotted.");
         }
 
         // Restart the node that was killed
         nodeToReconnect.start();
 
-        // Wait for thirty seconds to allow the node to reconnect and become active again
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        // First we must wait for the node to come back up and report that it is behind.
+        // If we wait for it to be active, this check will pass immediately because that was the last status it had
+        // and we will check the value before the node has a change to tell us that it is behind.
+        if (!timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30))) {
+            fail("Node did not become active in the time allotted.");
+        }
+
+        // Now we wait for the node to reconnect and become active again.
+        if (!timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(30))) {
+            fail("Node did not become active in the time allotted.");
+        }
 
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
+                .haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))

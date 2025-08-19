@@ -22,6 +22,7 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -32,7 +33,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -250,8 +250,8 @@ public enum TransactionExecutors {
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
-        var defaultNodeInfo =
-                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
+        var defaultNodeInfo = new NodeInfoImpl(
+                0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
         final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
                 .map(Boolean::parseBoolean)
                 .orElse(false);

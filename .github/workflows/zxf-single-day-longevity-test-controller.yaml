@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
+name: "ZXF: [CITR] Single Day Longevity Test Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -77,13 +77,13 @@ jobs:
       add-settings: ""
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-  tag-sdlt-passing:
-    name: Tag SDLT Passing
+
+  tag-sdlt-result:
+    name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-longevity-nlg-test
       - verify-tag
-    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -107,14 +107,27 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDLT Passing
+      - name: Tag SDLT Result
         run: |
-          TAG_NAME="sdlt-pass-${{ needs.verify-tag.outputs.build-number }}"
-          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          RESULT="${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          if [ "$RESULT" == "success" ]; then
+            TAG_NAME="sdlt-pass-${BUILD_NUM}"
+            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
+          elif [ "$RESULT" == "failure" ]; then
+            TAG_NAME="sdlt-fail-${BUILD_NUM}"
+            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
           git push --set-upstream origin --tags
 
-          echo "### SDLT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDLT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### SDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
@@ -134,8 +147,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: "0"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -168,11 +182,11 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - tag-sdlt-passing
+      - tag-sdlt-result
       - run-single-day-longevity-nlg-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdlt-passing.result == 'success' &&
+      needs.tag-sdlt-result.result == 'success' &&
       needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
@@ -234,7 +248,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.tag-sdlt-passing.result }}"
+                          "text": "${{ needs.tag-sdlt-result.result }}"
                         }
                       ]
                     },
@@ -293,10 +307,10 @@ jobs:
     needs:
       - verify-tag
       - run-single-day-longevity-nlg-test
-      - tag-sdlt-passing
+      - tag-sdlt-result
       - get-commit-info
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdlt-passing.result != 'success' ||
+      needs.tag-sdlt-result.result != 'success' ||
       needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success') &&
       !cancelled() && always() }}
@@ -387,7 +401,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.tag-sdlt-passing.result }}"
+                        "text": "${{ needs.tag-sdlt-result.result }}"
                       },
                       {
                         "type": "plain_text",

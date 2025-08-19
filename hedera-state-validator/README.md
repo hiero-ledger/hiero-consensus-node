@@ -15,7 +15,7 @@ of a corrupted state.
 2. Run the following command to execute the validation:
 
    ```shell
-   java -jar ./validator-<version>.jar validate {state path} {tag} [{tag}...]
+   java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
    ```
 
    Here, the `state path` (required) is the location of the state files, and `tag` refers to the validation that should be run. Multiple tags can be specified, separated by spaces, but at least one tag is required.
@@ -44,10 +44,107 @@ of a corrupted state.
 2. Run the following command to execute the introspection:
 
    ```shell
-   java -jar ./validator-<version>.jar introspect {serviceName} {stateName} [{keyInfo}]
+   java -jar ./validator-<version>.jar {path-to-state-round} introspect {serviceName} {stateName} [{keyInfo}]
    ```
 
    Here, the `serviceName` is the required name of the service to introspect, and `stateName` is the required name of the state to introspect.
    Optionally, you can specify `keyInfo` to get information about the values in the virtual map of the service state in a format `keyType:keyJson`:
    `keyType` represents service key type (`TopicID`, `AccountID`, etc.) and `keyJson` represents key value as json.
    If `keyInfo` is not provided, it introspects singleton value of the service state.
+
+## Export
+
+[ExportCommand](src/main/java/com/hedera/statevalidation/ExportCommand.java) allows you to export the state of a Hedera node into JSON file(s).
+
+### Usage
+
+1. Download the state files.
+2. Run the following command to execute the export:
+
+   ```shell
+   java -jar [-DmaxObjPerFile=X] [-Dsorted=true] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export {path-to-result-dir} [{service_name}] [{state_key}]
+   ```
+
+- `-DmaxObjPerFile` option allows customizing the upper limit of objects per file.
+- `-Dsorted=true` enables a special mode which exports the data in a sorted way; this may be helpful during differential testing.
+- `-DprettyPrint=true` enables human-readable result files.
+
+Example entry:
+
+For an unsorted file:
+
+```json
+{"p":970084,"k":"{
+  "accountId": {
+    "accountNum": "18147"
+  },
+  "tokenId": {
+    "tokenNum": "202004"
+  }
+}", "v":{
+  "tokenId": {
+    "tokenNum": "202004"
+  },
+  "accountId": {
+    "accountNum": "18147"
+  },
+  "kycGranted": true,
+  "automaticAssociation": true,
+  "previousToken": {
+    "tokenNum": "201052"
+  }
+}}
+```
+
+where `p` is a path in the virtual map, `k` is a key, and `v` is a value.
+
+For a sorted file:
+
+```json
+{"k":"{
+  "accountNum": "1"
+}", "v":{
+  "accountId": {
+    "accountNum": "1"
+  },
+  "key": {
+    "ed25519": "CqjiEGTGHquG4qnBZFZbTnqaQUYQbgps0DqMOVoRDpI="
+  },
+  "expirationSecond": "1762348512",
+  "stakePeriodStart": "-1",
+  "stakeAtStartOfLastRewardedPeriod": "-1",
+  "autoRenewSeconds": "8000001"
+}}
+```
+
+where `k` is a key, and `v` is a value.
+
+Examples:
+
+Export all states to the current directory (assuming the JAR file is located in the round directory):
+
+```shell
+java -jar ./validator-0.65.0.jar . export .
+```
+
+Export all states to the current directory, limiting the number of objects per file to 100,000:
+
+```shell
+java -jar -DmaxObjPerFile=100000 ./validator-0.65.0.jar /path/to/round export .
+```
+
+Export all accounts to `/tmp/accounts`, limiting the number of objects per file to 100,000 (paths are not included in resulting files, and account keys are sorted by byte representation lexicographically):
+
+```shell
+java -jar -Dsorted=true -DmaxObjPerFile=100000 ./validator-0.65.0.jar /path/to/round export /path/to/result AccountService ACCOUNTS
+```
+
+Notes:
+- If the service name and state key are omitted, it will export all the states.
+- Service name and state key should both be either omitted or specified.
+- If service name/state key is specified, the resulting file is `{service_name}_{state_key}_X.json`, where `X` is an ordinal number in the series of such files.
+- If service name/state key is not specified, the resulting file is `exportedState_X.json`, where `X` is an ordinal number in the series of such files.
+- The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
+- If you export a single state in the `unsorted` mode, keep in mind that the object count per file—though consistent across multiple runs—is likely to be uneven.
+- Order of entries is consistent across runs and ordered by path, unless `-Dsorted=true` is specified.
+- In case of `-Dsorted=true`, the data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison, particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
