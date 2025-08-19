@@ -40,21 +40,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  milestone-check:
-    name: Milestone Check
-    runs-on: hiero-network-node-linux-medium
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Check Milestone
-        if: ${{ github.event.pull_request.milestone == null }}
-        run: |
-          echo "Milestone is not set. Failing the workflow."
-          exit 1
-
   assignee-check:
     name: Assignee Check
     runs-on: hiero-network-node-linux-medium
