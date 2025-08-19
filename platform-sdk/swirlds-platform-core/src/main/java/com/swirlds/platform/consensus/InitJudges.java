@@ -72,10 +72,10 @@ public final class InitJudges {
     }
 
     /**
-     * @return true if all the init judges have been found
+     * @return true if we have not yet found all the init judges
      */
-    public boolean allJudgesFound() {
-        return judgeHashes.isEmpty();
+    public boolean initJudgesMissing() {
+        return !judgeHashes.isEmpty();
     }
 
     /**
