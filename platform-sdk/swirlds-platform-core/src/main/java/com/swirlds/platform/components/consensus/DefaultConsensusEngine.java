@@ -172,14 +172,15 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // If consensus is reached, we need to process the last event window and add any events released
             // from the future event buffer to the consensus algorithm.
             final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
-            linker.setEventWindow(eventWindow);
+            final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
+            ancientEvents.stream().filter(e->!e.isConsensus()).map(EventImpl::getBaseEvent).forEach(staleEvents::add);
             eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, List.of());
+        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 
     /**

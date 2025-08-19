@@ -7,6 +7,7 @@ import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,13 +109,16 @@ public class ConsensusLinker {
      *
      * @param eventWindow the event window
      */
-    public void setEventWindow(@NonNull final EventWindow eventWindow) {
+    public final List<EventImpl> setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
+        final List<EventImpl> ancientEvents = new ArrayList<>();
         parentDescriptorMap.shiftWindow(eventWindow.ancientThreshold(), (descriptor, event) -> {
             parentHashMap.remove(descriptor.hash());
-            eventHasBecomeAncient(event);
+            event.clear();
+            ancientEvents.add(event);
         });
+        return ancientEvents;
     }
 
     /**
@@ -123,19 +127,6 @@ public class ConsensusLinker {
     public void clear() {
         parentDescriptorMap.clear();
         parentHashMap.clear();
-    }
-
-
-
-
-
-    /**
-     * This method is called when this data structure stops tracking an event because it has become ancient.
-     *
-     * @param event the event that has become ancient
-     */
-    protected void eventHasBecomeAncient(@NonNull final EventImpl event) {
-        event.clear();
     }
 
     /**
