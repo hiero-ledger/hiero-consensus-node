@@ -100,9 +100,10 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Class diagram
 
-![img.png](img.png)
 
-![final-class-diagram-after.svg](final-class-diagram-after.svg)
+![final-class-diagram-after](final-class-diagram-after.png)
+
+![relationships.png](relationships.png)
 
 ### Interaction sequence diagram
 
