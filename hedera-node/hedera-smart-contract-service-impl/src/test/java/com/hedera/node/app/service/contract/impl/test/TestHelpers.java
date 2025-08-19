@@ -581,6 +581,20 @@ public class TestHelpers {
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
 
+    public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
+            SENDER_ID,
+            RELAYER_ID,
+            CALLED_CONTRACT_ID,
+            NONCE,
+            CALL_DATA,
+            MAINNET_CHAIN_ID,
+            VALUE,
+            GAS_LIMIT,
+            0L,
+            0L,
+            null,
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
             Wei.of(NETWORK_GAS_PRICE),

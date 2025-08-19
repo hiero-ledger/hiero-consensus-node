@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCall;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithGasLimit;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -379,6 +380,21 @@ class CustomGasChargingTest {
                 wellKnownHapiCall());
         verify(worldUpdater)
                 .collectGasFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
+    }
+
+    @Test
+    void chargeGasForAbortedRelayedTransaction() {
+        givenWellKnownIntrinsicGasCost();
+        given(worldUpdater.getHederaAccount(RELAYER_ID)).willReturn(relayer);
+
+        given(relayer.getBalance()).willReturn(Wei.of(100_000_000));
+        subject.chargeGasForAbortedTransaction(
+                RELAYER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownRelayedHapiCall(0L));
+        verify(worldUpdater)
+                .collectGasFee(RELAYER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
     }
 
     @Test

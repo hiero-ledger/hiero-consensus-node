@@ -3,12 +3,9 @@ package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
-import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.STALE;
-import static com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus.SUBMITTED;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -149,9 +146,9 @@ final class SubmissionManagerTest extends AppTestBase {
         void testSubmittingDuplicateTransactionsCloseTogether() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow()))
-                    .thenReturn(null)
-                    .thenReturn(SUBMITTED);
+            when(deduplicationCache.contains(txBody.transactionIDOrThrow()))
+                    .thenReturn(false)
+                    .thenReturn(true);
 
             // When we submit a duplicate transaction twice in close succession, then the second one fails
             // with a DUPLICATE_TRANSACTION error
@@ -162,24 +159,6 @@ final class SubmissionManagerTest extends AppTestBase {
                     .isEqualTo(DUPLICATE_TRANSACTION);
             // And the deduplication cache is updated just once
             verify(deduplicationCache).add(txBody.transactionIDOrThrow());
-        }
-
-        @Test
-        @DisplayName("Submitting the same transaction twice but after first becomes stale is allowed")
-        void testSubmittingDuplicateTransactionsCloseTogetherStaleness() throws PreCheckException {
-            // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(null);
-
-            submissionManager.submit(txBody, bytes);
-
-            when(deduplicationCache.getTxStatus(txBody.transactionIDOrThrow())).thenReturn(STALE);
-
-            // When we submit a duplicate transaction twice in close succession, the second one is allowed
-            // as the first one has become stale
-            submissionManager.submit(txBody, bytes);
-            // Verify we clear the stale transaction status from the deduplication cache by adding
-            verify(deduplicationCache, times(2)).add(txBody.transactionIDOrThrow());
         }
     }
 

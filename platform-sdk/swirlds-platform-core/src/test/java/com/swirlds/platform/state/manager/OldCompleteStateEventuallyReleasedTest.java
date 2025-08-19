@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
+import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
@@ -16,7 +19,14 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import java.security.PublicKey;
+import java.util.HashMap;
+import java.util.Map;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -76,13 +86,22 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();
 
+        final Hash stateHash = randomHash(random);
+        final Map<NodeId, Signature> signatures = new HashMap<>();
+        for (final RosterEntry node : roster.rosterEntries()) {
+            final PublicKey publicKey =
+                    RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
+            signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, stateHash));
+        }
+
         // Add a complete signed state. Eventually this will get released.
         final SignedState stateFromDisk = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setRound(0)
-                .useSignatureSupplierFromRoster()
-                .setState(new TestVirtualMapState())
+                .setSignatures(signatures)
+                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
                 .build();
+        stateFromDisk.getState().setHash(stateHash);
 
         signedStates.put(0L, stateFromDisk);
         highestRound.set(0);
@@ -99,7 +118,9 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
             MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
+                    .setCalculateHash(true)
                     .setRound(round)
+                    .setSignatures(new HashMap<>())
                     .build();
 
             signedStates.put((long) round, signedState);

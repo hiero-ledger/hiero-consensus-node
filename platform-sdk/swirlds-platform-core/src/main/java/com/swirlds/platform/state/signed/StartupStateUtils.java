@@ -191,11 +191,6 @@ public final class StartupStateUtils {
         signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
-        // just calling `initialSignedState.getState().getRoot().getHash()`. The latter option doesn't work for
-        // `MerkleStateRoot` as it doesn't cause hash recalculation. Once we get rid of `MerkleStateRoot` entirely,
-        // the following statement can be replaced. (see
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/19307)
         final Hash hash = platformContext
                 .getMerkleCryptography()
                 .digestTreeSync(initialSignedState.getState().getRoot());
