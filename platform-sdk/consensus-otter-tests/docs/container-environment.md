@@ -206,7 +206,7 @@ There are two processes, each with their own API, that the `ContainerNode` inter
    gRPC API. It is initialized when the node is created in the test and runs until the container is killed at test
    teardown.
 2. **NodeCommunicationService**: The application running inside the Docker container that provides a second gRPC API for
-   communicating with the consensus node. It is initialized when the consensus node is started and is kill when the
+   communicating with the consensus node. It is initialized when the consensus node is started and is killed when the
    consensus node is killed.
 
 These two applications are run in separate processes within the same Docker container so that the consensus node process
@@ -248,11 +248,11 @@ sequenceDiagram
     end
 
     Test ->> ContainerNetwork: start()
-    ContainerNetwork ->> ContainerNode: start()
 
     loop For each node
+        ContainerNetwork ->> ContainerNode: start()
         ContainerNode ->> DockerManager: Send InitRequest
-        DockerManager ->> ConsensusNodeMain: Start `ConsensusNodeMain` in new process
+        DockerManager ->>+ ConsensusNodeMain: java -cp DockerApp.jar
         ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
         ContainerNode ->> NodeCommunicationService: Establish gRPC connection
         ContainerNode ->> NodeCommunicationService: Send StartRequest
@@ -260,16 +260,18 @@ sequenceDiagram
         ConsensusNodeManager ->>+ Platform: Initialize
         ContainerNode ->> NodeCommunicationService: Send StartRequest
         NodeCommunicationService ->> ConsensusNodeManager: start
-        ConsensusNodeManager ->>+ Platform: start
+        ConsensusNodeManager ->> Platform: start
         Note over ContainerNode, Platform: 🔄 Ongoing consensus and event streaming
     end
 
     deactivate ContainerNode
     deactivate GenericContainer
+    deactivate ConsensusNodeMain
     deactivate Container
     deactivate DockerMain
     deactivate DockerManager
     deactivate ConsensusNodeManager
+    deactivate NodeCommunicationService
     deactivate Platform
 ```
 
@@ -277,8 +279,6 @@ When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for
 Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which
 initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing
 it to send requests to start and stop the second process.
-
-This process ensures each container runs an independent consensus node with real network communication.
 
 ## 📡 gRPC Protocol
 
@@ -348,50 +348,22 @@ message SyntheticBottleneckRequest {...}
 
 ```mermaid
 sequenceDiagram
-    participant Test as Test
-    participant ContainerNetwork
     participant ContainerNode
-    participant GenericContainer
-    participant Container as Docker Container
-    participant DockerMain
-    participant DockerManager
-    participant ConsensusNodeMain
     participant NodeCommunicationService
     participant ConsensusNodeManager
     participant Platform
-    Test ->> ContainerNetwork: addNodes(4)
 
-    loop For each node
-        ContainerNetwork ->>+ ContainerNode: new ContainerNode()
-        ContainerNode ->>+ GenericContainer: new GenericContainer()
-        GenericContainer ->>+ Container: Start container
-        ContainerNode ->> Container: start()
-        Container ->>+ DockerMain: java -jar DockerApp.jar
-        DockerMain ->>+ DockerManager: Initialize gRPC server
-        ContainerNode ->> DockerManager: Establish gRPC connection
+    ContainerNode ->> NodeCommunicationService: Send StartRequest
+    NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+    ConsensusNodeManager ->>+ Platform: Initialize
+
+    loop Event Streaming
+        Platform ->> ConsensusNodeManager: Notification via OutputWire
+        ConsensusNodeManager ->> NodeCommunicationService: Notify event
+        NodeCommunicationService ->> ContainerNode: Stream EventMessage
+        ContainerNode ->> ContainerNode: Add EventMessage to Queue
     end
 
-    Test ->> ContainerNetwork: start()
-    ContainerNetwork ->> ContainerNode: start()
-
-    loop For each node
-        ContainerNode ->> DockerManager: Send InitRequest
-        DockerManager ->> ConsensusNodeMain: Start DockerMain
-        ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
-        ContainerNode ->> NodeCommunicationService: Send StartRequest
-        NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
-        ConsensusNodeManager ->>+ Platform: Initialize
-        ContainerNode ->> NodeCommunicationService: Send StartRequest
-        NodeCommunicationService ->> ConsensusNodeManager: start
-        ConsensusNodeManager ->>+ Platform: start
-        Note over ContainerNode, Platform: 🔄 Ongoing consensus and event streaming
-    end
-
-    deactivate ContainerNode
-    deactivate GenericContainer
-    deactivate Container
-    deactivate DockerMain
-    deactivate DockerManager
     deactivate ConsensusNodeManager
     deactivate Platform
 ```
