@@ -49,7 +49,6 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
-import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -107,7 +106,6 @@ class PlatformWiringTests {
                 .withIssDetector(mock(IssDetector.class))
                 .withIssHandler(mock(IssHandler.class))
                 .withStateHasher(mock(StateHasher.class))
-                .withStaleEventDetector(mock(DefaultStaleEventDetector.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
                 .withBranchDetector(mock(BranchDetector.class))

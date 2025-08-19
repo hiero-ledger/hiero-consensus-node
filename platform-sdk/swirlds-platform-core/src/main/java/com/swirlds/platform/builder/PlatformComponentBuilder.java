@@ -6,7 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -78,8 +77,6 @@ import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
-import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
-import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.CesEvent;
 
@@ -122,7 +119,6 @@ public class PlatformComponentBuilder {
     private IssDetector issDetector;
     private IssHandler issHandler;
     private Gossip gossip;
-    private StaleEventDetector staleEventDetector;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -825,39 +821,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a stale event detector in place of the platform's default stale event detector.
-     *
-     * @param staleEventDetector the stale event detector to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withStaleEventDetector(@NonNull final StaleEventDetector staleEventDetector) {
-        throwIfAlreadyUsed();
-        if (this.staleEventDetector != null) {
-            throw new IllegalStateException("Stale event detector has already been set");
-        }
-        this.staleEventDetector = Objects.requireNonNull(staleEventDetector);
-        return this;
-    }
-
-    /**
-     * Build the stale event detector if it has not yet been built. If one has been provided via
-     * {@link #withStaleEventDetector(StaleEventDetector)}, that detector will be used. If this method is called more
-     * than once, only the first call will build the stale event detector. Otherwise, the default detector will be
-     * created and returned.
-     *
-     * @return the stale event detector
-     */
-    @NonNull
-    public StaleEventDetector buildStaleEventDetector() {
-        if (staleEventDetector == null) {
-            final PlatformContext context = blocks.platformContext();
-            staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
-        }
-        return staleEventDetector;
-    }
-
-    /**
      * Provide a gossip in place of the platform's default gossip.
      *
      * @param gossip the gossip to use
@@ -1185,4 +1148,5 @@ public class PlatformComponentBuilder {
         this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
         return this;
     }
+    //TODO seems like it should be removed
 }

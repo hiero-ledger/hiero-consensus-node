@@ -179,7 +179,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents);
+        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, List.of());
     }
 
     /**
