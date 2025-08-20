@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.network.Topology.DISCONNECTED;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -20,7 +19,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -40,7 +36,6 @@ import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
-import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.testcontainers.containers.Network;
@@ -72,7 +67,6 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
-    private Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -125,24 +119,8 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
-        final List<Node> nodes = topology.nodes();
-        for (final Node sender : nodes) {
-            for (final Node receiver : nodes) {
-                if (sender.equals(receiver)) {
-                    continue; // Skip self-connections
-                }
-                final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
-                final ConnectionData oldConnectionData = connections.getOrDefault(connectionKey, DISCONNECTED);
-                final ConnectionData newConnectionData = newConnections.getOrDefault(connectionKey, DISCONNECTED);
-                if (oldConnectionData.connected() && !newConnectionData.connected()) {
-                    networkBehavior.disconnect(sender, receiver);
-                } else if (!oldConnectionData.connected() && newConnectionData.connected()) {
-                    networkBehavior.connect(sender, receiver);
-                }
-            }
-        }
-        connections = newConnections;
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+        networkBehavior.onConnectionsChanged(topology.nodes(), connections);
     }
 
     @NonNull
@@ -186,20 +164,12 @@ public class ContainerNetwork extends AbstractNetwork {
         final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
         final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
         networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
-        final ConnectionData initialState =
-                new ConnectionData(true, Duration.ZERO, Percentage.withPercentage(0), BandwidthLimit.UNLIMITED);
         for (final ContainerNode sender : newNodes) {
             final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
                     .filter(receiver -> !receiver.equals(sender))
                     .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
                     .toList();
             sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
-            for (final ContainerNode receiver : newNodes) {
-                if (!sender.equals(receiver)) {
-                    final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
-                    connections.put(connectionKey, initialState);
-                }
-            }
         }
 
         return newNodes;
@@ -258,6 +228,8 @@ public class ContainerNetwork extends AbstractNetwork {
         log.info("Destroying network...");
         transactionGenerator.stop();
         topology.nodes().forEach(node -> ((ContainerNode) node).destroy());
-        toxiproxyContainer.stop();
+        if (toxiproxyContainer != null) {
+            toxiproxyContainer.stop();
+        }
     }
 }
