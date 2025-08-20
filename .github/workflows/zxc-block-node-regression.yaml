@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Mirror Node Explorer Regression"
+name: "ZXC: Block Node Explorer Regression"
 on:
   workflow_call:
     inputs:
@@ -35,15 +35,15 @@ permissions:
   id-token: write
 
 env:
-  SOLO_CLUSTER_NAME: "solo-mirror-node-explorer-e2e"
-  SOLO_NAMESPACE: "solo-mirror-node-explorer-e2e"
-  SOLO_DEPLOYMENT: "solo-mirror-node-explorer-deployment"
+  SOLO_CLUSTER_NAME: "solo-block-node-e2e"
+  SOLO_NAMESPACE: "solo-block-node-e2e"
+  SOLO_DEPLOYMENT: "solo-block-node-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  # Execute Mirror Node Explorer Regression Tests using specified version of hiero-consensus-node
-  mirror-node-explorer-regression:
+  # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
+  block-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hiero-citr-linux-large
     steps:
@@ -59,22 +59,22 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      #  Checkout the mirror-node-explorer repository
+      #  Checkout the block-node repository
       - name: Checkout Regression Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          path: regression-tests/mirror-node-explorer
-          repository: hiero-ledger/hiero-mirror-node-explorer
+          path: regression-tests/block-node
+          repository: hiero-ledger/hiero-block-node
           fetch-depth: 0
           fetch-tags: true
 
-      # checkout the latest mirror node tag if needed
+      # checkout the latest block node tag if needed
       - name: Checkout Latest Tag (MNE)
         run: |
-          cd regression-tests/mirror-node-explorer
+          cd regression-tests/block-node
           git fetch --tags
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Mirror Node Explorer tag: $LATEST_TAG"
+          echo "Latest Block Node Explorer tag: $LATEST_TAG"
           git checkout $LATEST_TAG
 
       # Checkout the JS-SDK server -- if needed
@@ -123,12 +123,12 @@ jobs:
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
 
-      # Set up the npm dependencies and cache on the mirror-node-explorer repository
+      # Set up the npm dependencies and cache on the block-node repository
       - name: Set up the tck-client
         run: |
           npm cache clean --force
           npm install
-        working-directory: regression-tests/mirror-node-explorer
+        working-directory: regression-tests/block-node
 
       # Set up the npm dependencies and cache on the sdk-server
       - name: Install NodeJS Dependencies (sdk-server)
@@ -187,8 +187,8 @@ jobs:
           kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
 
-      # Perform mirror node explorer regression tests
-      - name: Start mirror-node-explorer-test-client
+      # Perform block node regression tests
+      - name: Start block-node-test-client
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
@@ -200,13 +200,13 @@ jobs:
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
           npm run test
-        working-directory: regression-tests/mirror-node-explorer # required
+        working-directory: regression-tests/block-node # required
 
-      - name: Mirror Node Explorer Regression Test Report
+      - name: Block Node Regression Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: Mirror Node Explorer Regression Test Report
+          name: Block Node Regression Test Report
           path: "**/regression-tests/platform-sdk/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
@@ -236,8 +236,8 @@ jobs:
           name: Run Logs
           path: run.log
 
-      # Stop the Mirror Node Explorer Tests server
-      - name: Stop mirror-node-explorer-server
+      # Stop the Block Node Tests server
+      - name: Stop block-node-server
         if: ${{ always() }}
         run: |
           echo ${{ steps.start-sdk-server.outputs.pid }}
@@ -249,10 +249,10 @@ jobs:
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
-  report-mirror-node-explorer-regression-status:
+  report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hiero-citr-linux-medium
-    needs: mirror-node-explorer-regression
+    needs: block-node-regression
     if: ${{ always() }}
     steps:
       - name: Harden Runner
@@ -264,9 +264,9 @@ jobs:
         id: payload
         run: |
           COLOR="#FF0000"
-          if [[ "${{ needs.mirror-node-explorer-regression.result }}" == "success" ]]; then
+          if [[ "${{ needs.block-node-regression.result }}" == "success" ]]; then
             COLOR="#00FF00"
-          elif [[ "${{ needs.mirror-node-explorer-regression.result }}" == "cancelled" ]]; then
+          elif [[ "${{ needs.block-node-regression.result }}" == "cancelled" ]]; then
             COLOR="#555555"
           fi
           cat <<EOF > slack_payload.json
@@ -279,7 +279,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":vertical_traffic_light: Hiero Consensus Node - Mirror Node Regression Test Report",
+                      "text": ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report",
                       "emoji": true
                     }
                   },
@@ -290,16 +290,16 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*Mirror Node Regression Panel was executed. See status below.*"
+                      "text": "*Block Node Regression Panel was executed. See status below.*"
                     },
                     "fields": [
                       {
                         "type": "plain_text",
-                        "text": "Mirror Node Regression Panel Result"
+                        "text": "Block Node Regression Panel Result"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.mirror-node-explorer-regression.result }}"
+                        "text": "${{ needs.block-node-regression.result }}"
                       }
                     ]
                   },
