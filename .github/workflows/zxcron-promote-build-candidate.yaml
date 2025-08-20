@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   schedule:
     # Runs Promote Build Candidate at 0100 hours UTC (8:00 PM CDT)
-    - cron: "0 1 * * *"
+    - cron: "0 1 * * 1-5"
+
 
 permissions:
   actions: write
