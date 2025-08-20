@@ -356,6 +356,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             containerControlChannel.shutdownNow();
+            nodeCommChannel.shutdownNow();
             container.stop();
         }
         resultsCollector.destroy();

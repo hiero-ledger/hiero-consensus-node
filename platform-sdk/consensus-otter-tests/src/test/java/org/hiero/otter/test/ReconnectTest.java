@@ -98,7 +98,8 @@ public class ReconnectTest {
         assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
 
         assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
-                .haveEqualCommonRounds();
+                .haveConsistentRounds();
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
