@@ -46,7 +46,6 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.junit.jupiter.api.DisplayName;
