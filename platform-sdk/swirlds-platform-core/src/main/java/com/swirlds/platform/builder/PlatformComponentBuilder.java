@@ -1148,5 +1148,5 @@ public class PlatformComponentBuilder {
         this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
         return this;
     }
-    //TODO seems like it should be removed
+    // TODO seems like it should be removed
 }

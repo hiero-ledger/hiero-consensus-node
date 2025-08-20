@@ -373,16 +373,14 @@ public class PlatformWiring {
 
         eventCreationManagerWiring
                 .getOutputWire()
-                .solderTo(
-                        internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent), INJECT);
+                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent), INJECT);
 
         if (publishStaleEvents) {
-            final OutputWire<PlatformEvent> staleEvent = consensusEngineWiring.getOutputWire()
-                    .buildTransformer("staleEvents", "consensusEngineOutput",
-                            ConsensusEngineOutput::staleEvents)
+            final OutputWire<PlatformEvent> staleEvent = consensusEngineWiring
+                    .getOutputWire()
+                    .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
                     .buildSplitter("staleEventsSplitter", "stale events");
-            staleEvent.solderTo(
-                    platformPublisherWiring.getInputWire(PlatformPublisher::publishStaleEvent));
+            staleEvent.solderTo(platformPublisherWiring.getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine

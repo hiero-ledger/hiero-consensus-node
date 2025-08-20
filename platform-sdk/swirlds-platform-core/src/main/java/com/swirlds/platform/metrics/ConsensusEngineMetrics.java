@@ -84,13 +84,13 @@ public class ConsensusEngineMetrics {
     private final AverageStat averageOtherParentAgeDiff;
 
     private static final LongAccumulator.Config STALE_EVENTS_CONFIG = new LongAccumulator.Config(
-            INTERNAL_CATEGORY, "staleEvents")
+                    INTERNAL_CATEGORY, "staleEvents")
             .withAccumulator(Long::sum)
             .withDescription("number of stale self events");
     private final LongAccumulator staleEventCount;
 
     private static final LongAccumulator.Config STALE_APP_TRANSACTIONS_CONFIG = new LongAccumulator.Config(
-            INTERNAL_CATEGORY, "staleTransactions")
+                    INTERNAL_CATEGORY, "staleTransactions")
             .withAccumulator(Long::sum)
             .withDescription("number of transactions in stale self events");
     private final LongAccumulator staleTransactionCount;
@@ -181,7 +181,7 @@ public class ConsensusEngineMetrics {
      * @param event the stale event
      */
     public void reportStaleEvent(@NonNull final PlatformEvent event) {
-        if(!selfId.equals(event.getCreatorId())){
+        if (!selfId.equals(event.getCreatorId())) {
             // only report stale events created by this node
             return;
         }

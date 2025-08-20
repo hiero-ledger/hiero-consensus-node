@@ -17,7 +17,8 @@ public record ConsensusEngineOutput(
         @NonNull List<PlatformEvent> preConsensusEvents,
         @NonNull List<PlatformEvent> staleEvents) {
     /** Empty singleton instance */
-    private static final ConsensusEngineOutput EMPTY_INSTANCE = new ConsensusEngineOutput(List.of(), List.of(), List.of());
+    private static final ConsensusEngineOutput EMPTY_INSTANCE =
+            new ConsensusEngineOutput(List.of(), List.of(), List.of());
 
     /**
      * Returns an instance of {@link ConsensusEngineOutput} which contains no rounds and no pre-consensus events.

@@ -173,7 +173,10 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // from the future event buffer to the consensus algorithm.
             final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
             final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
-            ancientEvents.stream().filter(e->!e.isConsensus()).map(EventImpl::getBaseEvent).forEach(staleEvents::add);
+            ancientEvents.stream()
+                    .filter(e -> !e.isConsensus())
+                    .map(EventImpl::getBaseEvent)
+                    .forEach(staleEvents::add);
             eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
 

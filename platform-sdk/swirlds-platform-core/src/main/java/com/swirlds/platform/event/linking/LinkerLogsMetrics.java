@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -21,6 +22,7 @@ public class LinkerLogsMetrics {
      * The minimum period between log messages for a specific mode of failure.
      */
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
+
     private static final Logger logger = LogManager.getLogger(LinkerLogsMetrics.class);
 
     private final RateLimitedLogger missingParentLogger;
@@ -37,16 +39,15 @@ public class LinkerLogsMetrics {
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
         missingParentAccumulator = metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingParents")
-                        .withDescription("Parent child relationships where a parent was missing"));
+                .withDescription("Parent child relationships where a parent was missing"));
         birthRoundMismatchAccumulator = metrics.getOrCreate(
-                        new LongAccumulator.Config(PLATFORM_CATEGORY, "parentBirthRoundMismatch")
-                                .withDescription(
-                                        "Parent child relationships where claimed parent birth round did not match actual parent birth round"));
+                new LongAccumulator.Config(PLATFORM_CATEGORY, "parentBirthRoundMismatch")
+                        .withDescription(
+                                "Parent child relationships where claimed parent birth round did not match actual parent birth round"));
         timeCreatedMismatchAccumulator = metrics.getOrCreate(
-                        new LongAccumulator.Config(PLATFORM_CATEGORY, "timeCreatedMismatch")
-                                .withDescription(
-                                        "Parent child relationships where child time created wasn't strictly after parent time created"));
-
+                new LongAccumulator.Config(PLATFORM_CATEGORY, "timeCreatedMismatch")
+                        .withDescription(
+                                "Parent child relationships where child time created wasn't strictly after parent time created"));
     }
 
     /**

@@ -28,9 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -131,10 +129,10 @@ public class ConsensusEngineContractTest {
                 .withSize(random.nextInt(minNodes, maxNodes))
                 .build();
         final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
-        eventEmitter.getGraphGenerator().setOtherParentAffinity(
-                OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(roster.rosterEntries().size(),
-                        shunnedNodeIndex)
-        );
+        eventEmitter
+                .getGraphGenerator()
+                .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
+                        roster.rosterEntries().size(), shunnedNodeIndex));
         final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
                 .map(EventImpl::getBaseEvent)
                 .toList();
@@ -144,8 +142,8 @@ public class ConsensusEngineContractTest {
         addToIntake(generatedEvents, random, genesisIntake);
         validateOutputContract(genesisIntake.getOutput());
 
-        assertFalse(genesisIntake.getOutput().getStaleEvents().isEmpty(),
-                "This graph should produce some stale events");
+        assertFalse(
+                genesisIntake.getOutput().getStaleEvents().isEmpty(), "This graph should produce some stale events");
 
         // get a snapshot from the first run
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
@@ -258,9 +256,7 @@ public class ConsensusEngineContractTest {
                                 Event %s is an ancient pre-consensus event, but has not been returned as a consensus\s
                                 or stale event. Every ancient pre-consensus event added should have either reached\s
                                 consensus or become stale, but not both."""
-                                .formatted(preConsensusEvent
-                                        .getDescriptor()
-                                        .shortString()));
+                                .formatted(preConsensusEvent.getDescriptor().shortString()));
             }
         }
 

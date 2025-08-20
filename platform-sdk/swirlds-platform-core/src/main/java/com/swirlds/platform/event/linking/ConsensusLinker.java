@@ -36,8 +36,6 @@ public class ConsensusLinker {
      */
     private static final int INITIAL_CAPACITY = 1024;
 
-
-
     private final LinkerLogsMetrics logsMetrics;
 
     /**
