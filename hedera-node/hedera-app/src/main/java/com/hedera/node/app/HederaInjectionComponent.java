@@ -39,7 +39,6 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -152,8 +151,6 @@ public interface HederaInjectionComponent {
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
-
-    DeduplicationCache deduplicationCache();
 
     @Component.Builder
     interface Builder {

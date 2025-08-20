@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.singleton;
+package com.swirlds.state.merkle.singleton;
 
 import static com.swirlds.state.merkle.StateUtils.readFromStream;
 import static com.swirlds.state.merkle.StateUtils.writeToStream;
@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;

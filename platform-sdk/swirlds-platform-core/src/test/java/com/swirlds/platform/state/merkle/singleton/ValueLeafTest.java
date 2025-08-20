@@ -4,8 +4,8 @@ package com.swirlds.platform.state.merkle.singleton;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.swirlds.state.merkle.singleton.ValueLeaf;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.singleton.ValueLeaf;
 import org.junit.jupiter.api.Test;
 
 class ValueLeafTest extends MerkleTestBase {

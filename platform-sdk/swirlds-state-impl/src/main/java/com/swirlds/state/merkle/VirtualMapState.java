@@ -77,7 +77,7 @@ import org.json.JSONObject;
  */
 public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
 
-    public static final String VM_LABEL = "state";
+    static final String VM_LABEL = "state";
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
@@ -130,7 +130,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 (short) 1,
                 DigestType.SHA_384,
                 // FUTURE WORK: drop StateDefinition.maxKeysHint and load VM size from VirtualMapConfig.size instead
-                merkleDbConfig.maxNumOfKeys(),
+                merkleDbConfig.initialCapacity(),
                 merkleDbConfig.hashesRamToDiskThreshold());
         dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
 

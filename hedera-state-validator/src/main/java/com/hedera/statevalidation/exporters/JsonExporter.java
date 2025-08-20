@@ -133,7 +133,7 @@ public class JsonExporter {
                     } else { // kv
                         write(
                                 writer,
-                                "{\"p\":%d,\"k\":\"%s\", \"v\":%s}\n"
+                                "{\"p\":%d,\"k\":%s, \"v\":%s}\n"
                                         .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
                     }
                     emptyFile = false;
@@ -153,7 +153,7 @@ public class JsonExporter {
         if (PRETTY_PRINT_ENABLED) {
             writer.write(value);
         } else {
-            writer.write(value.replaceAll("[\n\\s]", ""));
+            writer.write(value.replaceAll("[\\p{C}\\s]", ""));
             writer.newLine();
         }
     }

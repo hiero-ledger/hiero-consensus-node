@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.disk;
+package com.swirlds.state.merkle.disk;
 
 import static java.util.Objects.requireNonNull;
 
@@ -7,7 +7,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;

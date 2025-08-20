@@ -105,7 +105,9 @@ public class TestIntake {
                 .buildSplitter("consensusRoundsSplitter", "consensusRounds");
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
-        consensusRoundOutputWire.solderTo("consensusOutputTestTool", "round output", output::consensusRound);
+        consensusEngineWiring
+                .getOutputWire()
+                .solderTo("consensusOutputTestTool", "consensus output", output::consensusEngineOutput);
 
         eventWindowManagerWiring
                 .getOutputWire()

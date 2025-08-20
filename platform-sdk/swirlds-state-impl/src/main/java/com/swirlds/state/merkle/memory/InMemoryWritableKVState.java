@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.memory;
+package com.swirlds.state.merkle.memory;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGet;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGetSize;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapIterate;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapPut;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapRemove;
+import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
+import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
+import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
+import static com.swirlds.state.merkle.logging.StateLogger.logMapPut;
+import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
 
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.merkle.map.MerkleMap;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;

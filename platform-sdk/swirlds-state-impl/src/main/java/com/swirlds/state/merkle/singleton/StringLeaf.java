@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle.singleton;
+package com.swirlds.state.merkle.singleton;
 
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.utility.Labeled;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
