@@ -67,6 +67,11 @@ public class ConsensusOutput implements Clearable {
         return staleEvents;
     }
 
+    /**
+     * Get a set of hashes of all stale events.
+     *
+     * @return a set of hashes of stale events
+     */
     public @NonNull Set<Hash> getStaleEventHashes() {
         return staleEvents.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }

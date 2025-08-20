@@ -172,6 +172,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // If consensus is reached, we need to process the last event window and add any events released
             // from the future event buffer to the consensus algorithm.
             final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
+            // We update the linker with the latest event window.
+            // This will also return any ancient events that were previously linked.
+            // Some of these ancient events may be stale, so we will add them to the stale events list.
             final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
             ancientEvents.stream()
                     .filter(e -> !e.isConsensus())

@@ -11,4 +11,3 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param <ROUTER_TYPE> the type of the enum that defines the addresses
  */
 public record RoutableData<ROUTER_TYPE extends Enum<ROUTER_TYPE>>(@NonNull ROUTER_TYPE address, @NonNull Object data) {}
-// TODO consider removing this functionality

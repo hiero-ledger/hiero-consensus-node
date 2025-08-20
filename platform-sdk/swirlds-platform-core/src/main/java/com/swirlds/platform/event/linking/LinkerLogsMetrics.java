@@ -17,6 +17,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * Logs and metrics for the {@link ConsensusLinker}
+ */
 public class LinkerLogsMetrics {
     /**
      * The minimum period between log messages for a specific mode of failure.
@@ -33,6 +36,12 @@ public class LinkerLogsMetrics {
     private final LongAccumulator birthRoundMismatchAccumulator;
     private final LongAccumulator timeCreatedMismatchAccumulator;
 
+    /**
+     * Constructor.
+     *
+     * @param metrics the metrics instance to use
+     * @param time    the time instance to use for log rate limiting
+     */
     public LinkerLogsMetrics(@NonNull final Metrics metrics, @NonNull final Time time) {
         this.missingParentLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.birthRoundMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
