@@ -38,7 +38,7 @@ on:
         required: true
         type: boolean
         default: true
-        description: "Run Mirror Node Regression Panel"
+        description: "Run BN Regression Panel"
 
 permissions:
   id-token: write
