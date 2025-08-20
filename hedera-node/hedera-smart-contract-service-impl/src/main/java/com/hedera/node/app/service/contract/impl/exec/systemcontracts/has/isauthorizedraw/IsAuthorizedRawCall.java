@@ -151,7 +151,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
     public boolean validateEcSignature(final Account account) {
         requireNonNull(account, "account");
 
-        if (account.key().ecdsaSecp256k1() == null) return false;
+        if (!account.key().hasEcdsaSecp256k1()) return false;
 
         var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
@@ -174,9 +174,11 @@ public class IsAuthorizedRawCall extends AbstractCall {
         requireNonNull(account, "account");
         requireNonNull(key, "key");
 
+        if (!account.key().hasEd25519()) return false;
+
         final var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
-                        .pubKeyPrefix(key.ed25519OrThrow())
+                        .pubKeyPrefix(key.ed25519())
                         .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(signature))
                         .build())
                 .build();
