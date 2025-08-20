@@ -209,11 +209,8 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            // Rejoining a network requires the RECONNECT capability.
-            if (env.capabilities().contains(Capability.RECONNECT)) {
-                // The node should be active again
-                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
-            }
+            // The node should be active again
+            timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
         } finally {
             env.destroy();
         }

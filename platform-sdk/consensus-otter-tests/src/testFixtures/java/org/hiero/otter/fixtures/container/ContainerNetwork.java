@@ -112,7 +112,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
         // No-op for container network, it will be implemented next
         // https://github.com/hiero-ledger/hiero-consensus-node/issues/20258
     }

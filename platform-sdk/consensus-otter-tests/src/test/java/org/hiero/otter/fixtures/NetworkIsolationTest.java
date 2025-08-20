@@ -145,11 +145,8 @@ class NetworkIsolationTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            // Rejoining a network requires the RECONNECT capability.
-            if (env.capabilities().contains(Capability.RECONNECT)) {
-                // The nodes should be active again
-                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
-            }
+            // The nodes should be active again
+            timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
         } finally {
             env.destroy();
         }
@@ -306,7 +303,7 @@ class NetworkIsolationTest {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
 
-            // Setup network with 5 nodes
+            // Setup network with 4 nodes
             network.setWeightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);

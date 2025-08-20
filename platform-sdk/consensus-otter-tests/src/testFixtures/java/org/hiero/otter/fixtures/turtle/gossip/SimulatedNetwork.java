@@ -6,7 +6,6 @@ import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,10 +57,9 @@ public class SimulatedNetwork {
      */
     private final Map<NodeId, SimulatedGossip> gossipInstances = new HashMap<>();
 
-    @Nullable
-    private Map<GossipConnectionKey, ConnectionData> connections;
+    private final Map<GossipConnectionKey, ConnectionData> connections = new HashMap<>();
 
-    private Map<GossipConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
+    private final Map<GossipConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
 
     /**
      * Constructor.
@@ -106,8 +104,9 @@ public class SimulatedNetwork {
      * @param newConnections the connection data
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
-        this.connections = newConnections.entrySet().stream()
-                .collect(toMap(entry -> GossipConnectionKey.of(entry.getKey()), Entry::getValue));
+        this.connections.clear();
+        this.connections.putAll(newConnections.entrySet().stream()
+                .collect(toMap(entry -> GossipConnectionKey.of(entry.getKey()), Entry::getValue)));
     }
 
     /**
@@ -171,7 +170,7 @@ public class SimulatedNetwork {
      * @param now the current time
      */
     private void transmitEvents(@NonNull final Instant now) {
-        if (connections == null) {
+        if (connections.isEmpty()) {
             return; // No connections have been set, so we cannot transmit events.
         }
 

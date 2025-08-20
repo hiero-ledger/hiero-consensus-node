@@ -107,7 +107,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
         simulatedNetwork.setConnections(connections);
     }
 

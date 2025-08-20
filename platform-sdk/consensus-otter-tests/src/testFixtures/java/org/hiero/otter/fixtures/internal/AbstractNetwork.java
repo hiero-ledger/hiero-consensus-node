@@ -508,7 +508,15 @@ public abstract class AbstractNetwork implements Network {
         onConnectionsChanged(connections);
     }
 
-    protected abstract void onConnectionsChanged(Map<ConnectionKey, ConnectionData> connections);
+    /**
+     * Callback method to handle changes in the network connections.
+     *
+     * <p>This method is called whenever the connections in the network change, such as when partitions are created or
+     * removed. This allows subclasses to react to changes in the network topology.
+     *
+     * @param connections a map of connections representing the current state of the network
+     */
+    protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections);
 
     /**
      * Default implementation of {@link AsyncNetworkActions}

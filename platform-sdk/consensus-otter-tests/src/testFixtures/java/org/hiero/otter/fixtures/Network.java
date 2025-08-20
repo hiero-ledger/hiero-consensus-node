@@ -129,6 +129,8 @@ public interface Network {
      *
      * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
      *
+     * <p>If there was no partition before, a second partition is created implicitly that contains the remaining nodes.
+     *
      * @param nodes the nodes to include in the partition
      * @return the created Partition object
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
