@@ -38,6 +38,7 @@ module org.hiero.otter.fixtures {
     requires java.net.http;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
+    requires com.fasterxml.jackson.dataformat.yaml;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;

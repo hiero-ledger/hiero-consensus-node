@@ -115,6 +115,8 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
             return;
         }
 
+        log.error("Overridden properties: {}", request.getOverriddenPropertiesMap());
+
         final Configuration platformConfig = createConfiguration(request.getOverriddenPropertiesMap());
         final Roster genesisRoster = ProtobufConverter.toPbj(request.getRoster());
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());

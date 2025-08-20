@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
@@ -13,8 +14,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -31,7 +34,7 @@ class NetworkPartitionTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED));
+        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
     }
 
     /**
@@ -93,7 +96,9 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
 
             // Wait for nodes to become inactive
-            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
+            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15))) {
+                fail("Not all nodes entered CHECKING status within the expected time");
+            }
         } finally {
             env.destroy();
         }
@@ -157,7 +162,9 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
 
             // Wait for nodes to become inactive
-            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
+            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15))) {
+                fail("Not all nodes entered CHECKING status within the expected time");
+            }
         } finally {
             env.destroy();
         }
@@ -197,7 +204,9 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
 
             // Wait for nodes to become inactive
-            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
+            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15))) {
+                fail("Not all nodes entered CHECKING status within the expected time");
+            }
 
             // Remove the partition
             network.removePartition(partition);
@@ -212,7 +221,9 @@ class NetworkPartitionTest {
             // Rejoining a network requires the RECONNECT capability.
             if (env.capabilities().contains(Capability.RECONNECT)) {
                 // The node should be active again
-                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
+                if (!timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15))) {
+                    fail("Not all nodes entered ACTIVE status within the expected time after removing partition");
+                }
             }
         } finally {
             env.destroy();
@@ -221,12 +232,10 @@ class NetworkPartitionTest {
 
     /**
      * Test creating multiple independent partitions.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testMultiplePartitions(@NonNull final TestEnvironment env) {
+    @Test
+    void testMultiplePartitions() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -281,12 +290,10 @@ class NetworkPartitionTest {
 
     /**
      * Test moving a node from one partition to another.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testMoveNodeBetweenPartitions(@NonNull final TestEnvironment env) {
+    @Test
+    void testMoveNodeBetweenPartitions() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -335,12 +342,10 @@ class NetworkPartitionTest {
 
     /**
      * Test that creating a partition with all nodes throws an exception.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreatePartitionWithAllNodes(@NonNull final TestEnvironment env) {
+    @Test
+    void testCreatePartitionWithAllNodes() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -364,12 +369,10 @@ class NetworkPartitionTest {
 
     /**
      * Test that creating a partition with no nodes throws an exception.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreatePartitionWithNoNodes(@NonNull final TestEnvironment env) {
+    @Test
+    void testCreatePartitionWithNoNodes() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -393,12 +396,10 @@ class NetworkPartitionTest {
 
     /**
      * Test removing a partition that doesn't exist throws an exception.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRemoveNonExistentPartition(@NonNull final TestEnvironment env) {
+    @Test
+    void testRemoveNonExistentPartition() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -426,12 +427,10 @@ class NetworkPartitionTest {
 
     /**
      * Test restoreConnectivity removes all partitions.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRestoreConnectivityWithMultiplePartitions(@NonNull final TestEnvironment env) {
+    @Test
+    void testRestoreConnectivityWithMultiplePartitions() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -479,12 +478,10 @@ class NetworkPartitionTest {
 
     /**
      * Test partition behavior when removing one of two partitions.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRemoveOneOfTwoPartitions(@NonNull final TestEnvironment env) {
+    @Test
+    void testRemoveOneOfTwoPartitions() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
