@@ -50,7 +50,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final ConsensusEngineMetrics eventAddedMetrics;
+    private final ConsensusEngineMetrics metrics;
 
     private final FreezeRoundController freezeRoundController;
 
@@ -79,7 +79,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
-        eventAddedMetrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
+        metrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -133,7 +133,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // check if we have found init judges after adding the event
             final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 
-            eventAddedMetrics.eventAdded(linkedEvent);
+            metrics.eventAdded(linkedEvent);
 
             if (waitingForJudgesAfterAdd) {
                 // If we haven't found all the init judges yet, we should return an empty output.
@@ -186,6 +186,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
+        staleEvents.forEach(metrics::reportStaleEvent);
         return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 

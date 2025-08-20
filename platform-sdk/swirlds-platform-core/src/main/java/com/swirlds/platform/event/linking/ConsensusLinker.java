@@ -36,7 +36,7 @@ public class ConsensusLinker {
      */
     private static final int INITIAL_CAPACITY = 1024;
 
-    private final LinkerLogsMetrics logsMetrics;
+    private final LinkerLogsAndMetrics logsAndMetrics;
 
     /**
      * A sequence map from event descriptor to event.
@@ -65,7 +65,7 @@ public class ConsensusLinker {
      * @param platformContext the platform context
      */
     public ConsensusLinker(@NonNull final PlatformContext platformContext) {
-        this.logsMetrics = new LinkerLogsMetrics(platformContext.getMetrics(), platformContext.getTime());
+        this.logsAndMetrics = new LinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime());
 
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
@@ -106,6 +106,7 @@ public class ConsensusLinker {
      * Set the event window, defining the minimum non-ancient threshold.
      *
      * @param eventWindow the event window
+     * @return a list of events that just became ancient because of the new event window
      */
     public final List<EventImpl> setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
@@ -158,13 +159,13 @@ public class ConsensusLinker {
 
         final EventImpl candidateParent = parentHashMap.get(parentDescriptor.hash());
         if (candidateParent == null) {
-            logsMetrics.childHasMissingParent(child, parentDescriptor);
+            logsAndMetrics.childHasMissingParent(child, parentDescriptor);
             return null;
         }
 
         if (candidateParent.getBirthRound()
                 != parentDescriptor.eventDescriptor().birthRound()) {
-            logsMetrics.parentHasIncorrectBirthRound(child, parentDescriptor, candidateParent);
+            logsAndMetrics.parentHasIncorrectBirthRound(child, parentDescriptor, candidateParent);
             return null;
         }
 
@@ -176,7 +177,7 @@ public class ConsensusLinker {
         if (parentDescriptor.creator().equals(child.getDescriptor().creator())
                 && parentTimeCreated.compareTo(childTimeCreated) >= 0) {
 
-            logsMetrics.childTimeIsNotAfterSelfParentTime(child, candidateParent, parentTimeCreated, childTimeCreated);
+            logsAndMetrics.childTimeIsNotAfterSelfParentTime(child, candidateParent, parentTimeCreated, childTimeCreated);
 
             return null;
         }

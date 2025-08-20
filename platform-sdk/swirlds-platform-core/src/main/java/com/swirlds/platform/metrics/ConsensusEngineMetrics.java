@@ -185,15 +185,8 @@ public class ConsensusEngineMetrics {
             // only report stale events created by this node
             return;
         }
-        int appTransactions = 0;
-
-        final Iterator<Transaction> iterator = event.transactionIterator();
-        while (iterator.hasNext()) {
-            iterator.next();
-            appTransactions++;
-        }
 
         staleEventCount.update(1);
-        staleTransactionCount.update(appTransactions);
+        staleTransactionCount.update(event.getTransactionCount());
     }
 }

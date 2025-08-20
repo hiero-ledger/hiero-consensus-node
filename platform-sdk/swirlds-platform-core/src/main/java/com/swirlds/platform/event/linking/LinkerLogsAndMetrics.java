@@ -20,13 +20,13 @@ import org.hiero.consensus.model.event.PlatformEvent;
 /**
  * Logs and metrics for the {@link ConsensusLinker}
  */
-public class LinkerLogsMetrics {
+public class LinkerLogsAndMetrics {
     /**
      * The minimum period between log messages for a specific mode of failure.
      */
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
-    private static final Logger logger = LogManager.getLogger(LinkerLogsMetrics.class);
+    private static final Logger logger = LogManager.getLogger(LinkerLogsAndMetrics.class);
 
     private final RateLimitedLogger missingParentLogger;
     private final RateLimitedLogger birthRoundMismatchLogger;
@@ -42,7 +42,7 @@ public class LinkerLogsMetrics {
      * @param metrics the metrics instance to use
      * @param time    the time instance to use for log rate limiting
      */
-    public LinkerLogsMetrics(@NonNull final Metrics metrics, @NonNull final Time time) {
+    public LinkerLogsAndMetrics(@NonNull final Metrics metrics, @NonNull final Time time) {
         this.missingParentLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.birthRoundMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
