@@ -46,7 +46,10 @@ public class NetworkBehavior {
 
         final String listenAddress = ipAddress + ":0";
 
-        final List<NodeId> nodeIds = roster.rosterEntries().stream().map(RosterEntry::nodeId).map(NodeId::new).toList();
+        final List<NodeId> nodeIds = roster.rosterEntries().stream()
+                .map(RosterEntry::nodeId)
+                .map(NodeId::new)
+                .toList();
         for (final RosterEntry receiverEntry : roster.rosterEntries()) {
             final NodeId receiver = new NodeId(receiverEntry.nodeId());
             final ServiceEndpoint endpoint = receiverEntry.gossipEndpoint().getFirst();
@@ -55,7 +58,11 @@ public class NetworkBehavior {
                 if (sender.equals(receiver)) {
                     continue;
                 }
-                log.info("Creating connection between sender {} and receiver {} at address {}", sender, receiver, receiverAddress);
+                log.info(
+                        "Creating connection between sender {} and receiver {} at address {}",
+                        sender,
+                        receiver,
+                        receiverAddress);
 
                 final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
                 final String connectionName = "%d-%d".formatted(sender.id(), receiver.id());
@@ -78,7 +85,8 @@ public class NetworkBehavior {
         final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
         final Proxy proxy = proxies.get(connectionKey);
         if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
+            throw new IllegalStateException(
+                    "No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
         }
 
         proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(true)));
@@ -97,7 +105,8 @@ public class NetworkBehavior {
         final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
         final Proxy proxy = proxies.get(connectionKey);
         if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
+            throw new IllegalStateException(
+                    "No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
         }
 
         proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(false)));
@@ -117,17 +126,15 @@ public class NetworkBehavior {
         final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
         final Proxy proxy = proxies.get(connectionKey);
         if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
+            throw new IllegalStateException(
+                    "No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
         }
 
         try {
             final URI uri = URI.create("http://" + proxy.listen());
             final InetAddress hostname = InetAddress.getByName(uri.getHost());
             final int port = uri.getPort();
-            return new NetworkEndpoint(
-                    receiver.selfId().id(),
-                    hostname,
-                    port);
+            return new NetworkEndpoint(receiver.selfId().id(), hostname, port);
         } catch (final UnknownHostException e) {
             // this should not happen as the host has just been set up
             throw new UncheckedIOException(e);

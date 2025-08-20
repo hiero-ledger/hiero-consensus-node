@@ -27,7 +27,8 @@ import org.jetbrains.annotations.NotNull;
  */
 public abstract class AbstractNodeConfiguration implements NodeConfiguration {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
 
@@ -107,7 +108,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NotNull final String key, @NotNull final List<NetworkEndpoint> endpoints) {
         throwIfNodeIsRunning();
-        final String value = endpoints.stream().map(AbstractNodeConfiguration::convertEndpoint).collect(Collectors.joining(","));
+        final String value = endpoints.stream()
+                .map(AbstractNodeConfiguration::convertEndpoint)
+                .collect(Collectors.joining(","));
         overriddenProperties.put(key, value);
         return this;
     }

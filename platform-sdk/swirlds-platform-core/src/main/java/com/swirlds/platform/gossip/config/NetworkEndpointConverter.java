@@ -12,7 +12,8 @@ import java.net.InetAddress;
 import java.util.Objects;
 
 public class NetworkEndpointConverter implements ConfigConverter<NetworkEndpoint> {
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory()).enable(Feature.INCLUDE_SOURCE_IN_LOCATION);
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper(new YAMLFactory()).enable(Feature.INCLUDE_SOURCE_IN_LOCATION);
 
     @Nullable
     @Override

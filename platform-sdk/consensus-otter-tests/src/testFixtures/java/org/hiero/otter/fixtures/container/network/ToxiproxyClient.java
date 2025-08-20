@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container.network;
 
 import static com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE;
@@ -62,7 +63,8 @@ public class ToxiproxyClient {
 
     private Proxy readProxyFromResponse(@NonNull final HttpResponse<String> response) throws IOException {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Failed to process request with error code %d: %s".formatted(response.statusCode(), response.request()));
+            throw new IOException("Failed to process request with error code %d: %s"
+                    .formatted(response.statusCode(), response.request()));
         }
         return MAPPER.readValue(response.body(), Proxy.class);
     }

@@ -51,9 +51,8 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
      * @return the IP address of the Toxiproxy container
      */
     public String getNetworkIpAddress() {
-        final Map<String, ContainerNetwork> networks = getContainerInfo()
-                .getNetworkSettings()
-                .getNetworks();
+        final Map<String, ContainerNetwork> networks =
+                getContainerInfo().getNetworkSettings().getNetworks();
         final ContainerNetwork network = networks.values().stream()
                 .filter(it -> networkId.equals(it.getNetworkID()))
                 .findAny()
