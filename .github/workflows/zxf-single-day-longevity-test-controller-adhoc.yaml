@@ -6,7 +6,7 @@ on:
       test-asset:
         required: true
         default: "SDLT2"
-        description: "Performance test on given Longevity Machine (SDLT2)"
+        description: "Test on given Longevity Machine (SDLT2)"
         type: choice
         options:
           - AdHoc5
@@ -115,7 +115,7 @@ jobs:
           fi
 
   run-single-day-longevity-nlg-test:
-    name: Performance Test
+    name: Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
@@ -290,7 +290,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
+                          "text": "Run Single Day Longevity Test"
                         },
                         {
                           "type": "plain_text",
@@ -443,7 +443,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
+                        "text": "Run Single Day Longevity Test"
                       },
                       {
                         "type": "plain_text",

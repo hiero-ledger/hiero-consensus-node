@@ -62,7 +62,7 @@ jobs:
           fi
 
   run-single-day-longevity-nlg-test:
-    name: Performance Test
+    name: Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
@@ -236,7 +236,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
+                          "text": "Run Single Day Longevity Test"
                         },
                         {
                           "type": "plain_text",
@@ -389,7 +389,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
+                        "text": "Run Single Day Longevity Test"
                       },
                       {
                         "type": "plain_text",
