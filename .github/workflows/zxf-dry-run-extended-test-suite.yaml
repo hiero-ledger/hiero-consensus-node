@@ -145,7 +145,7 @@ jobs:
   block-node-regression-panel:
     name: Block Node Regression Panel
     if: ${{ inputs.enable-block-node-regression-panel == true }}
-    uses: zxc-block-node-regression.yaml
+    uses: ./.github/workflows/zxc-block-node-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "Dry Run: Block Node Regression"
