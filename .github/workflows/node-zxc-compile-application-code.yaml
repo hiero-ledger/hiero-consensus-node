@@ -329,6 +329,7 @@ jobs:
           retention-days: 7
 
       - name: HAPI Testing (Misc Records)
+        id: gradle-hapi-misc-records
         if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
