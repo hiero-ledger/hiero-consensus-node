@@ -177,7 +177,8 @@ public class ConsensusLinker {
         if (parentDescriptor.creator().equals(child.getDescriptor().creator())
                 && parentTimeCreated.compareTo(childTimeCreated) >= 0) {
 
-            logsAndMetrics.childTimeIsNotAfterSelfParentTime(child, candidateParent, parentTimeCreated, childTimeCreated);
+            logsAndMetrics.childTimeIsNotAfterSelfParentTime(
+                    child, candidateParent, parentTimeCreated, childTimeCreated);
 
             return null;
         }
