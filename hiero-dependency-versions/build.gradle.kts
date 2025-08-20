@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.2.Final"))
+    api(platform("io.netty:netty-bom:4.2.4.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
