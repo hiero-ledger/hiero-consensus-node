@@ -15,7 +15,8 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.internal to
             com.swirlds.merkle,
             com.swirlds.merkledb,
-            com.swirlds.virtualmap.test.fixtures;
+            com.swirlds.virtualmap.test.fixtures,
+            com.hedera.state.validator;
     exports com.swirlds.virtualmap.internal.pipeline to
             com.swirlds.merkle,
             com.swirlds.merkledb;

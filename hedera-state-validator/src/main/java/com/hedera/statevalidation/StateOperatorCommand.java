@@ -10,7 +10,7 @@ import picocli.CommandLine.Parameters;
 @CommandLine.Command(
         name = "operator",
         mixinStandardHelpOptions = true,
-        subcommands = {ValidateCommand.class, IntrospectCommand.class},
+        subcommands = {ValidateCommand.class, IntrospectCommand.class, ExportCommand.class},
         description = "CLI tool with validation and introspection modes")
 public class StateOperatorCommand implements Runnable {
 
