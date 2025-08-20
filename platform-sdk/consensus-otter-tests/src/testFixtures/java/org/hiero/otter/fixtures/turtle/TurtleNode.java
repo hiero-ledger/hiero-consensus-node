@@ -36,7 +36,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -102,7 +102,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformWiring platformWiring;
+    private PlatformComponents platformComponents;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -232,14 +232,127 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withMetricsDocumentationEnabled(false)
                     .withGossip(network.getGossipInstance(legacyNodeId));
 
-            platformWiring = platformBuildingBlocks.platformWiring();
+            platformComponents= platformBuildingBlocks.platformComponents();
 
-            platformWiring
-                    .getConsensusEngineOutputWire()
+            platformComponents
+                    .consensusEngineWiring()
+                    .getOutputWire()
                     .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
-            platformWiring
-                    .getStatusStateMachineOutputWire()
+            platformComponents
+                    .statusStateMachineWiring()
+                    .getOutputWire()
+                    .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
+
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+            });
+
+            platform = platformComponentBuilder.build();
+            platformStatus = PlatformStatus.STARTING_UP;
+            platform.start();
+
+            lifeCycle = RUNNING;
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
+    }
+
+    @Override
+    private void doStartNode() {
+
+        final Configuration currentConfiguration = nodeConfiguration.current();
+        final org.hiero.consensus.model.node.NodeId legacyNodeId =
+                org.hiero.consensus.model.node.NodeId.of(selfId.id());
+
+            setupGlobalMetrics(currentConfiguration);
+
+            final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
+            final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
+            if (markerFilesDir != null) {
+                markerFileObserver.startObserving(markerFilesDir);
+            }
+
+            final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            MerkleDb.resetDefaultInstancePath();
+            final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
+            final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
+            final RecycleBin recycleBin = RecycleBin.create(
+                    metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
+
+            platformContext = TestPlatformContextBuilder.create()
+                    .withTime(time)
+                    .withConfiguration(currentConfiguration)
+                    .withFileSystemManager(fileSystemManager)
+                    .withMetrics(metrics)
+                    .withRecycleBin(recycleBin)
+                    .build();
+
+            model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                    .withDeterministicModeEnabled(true)
+                    .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                    .build();
+
+            final HashedReservedSignedState reservedState = loadInitialState(
+                    recycleBin,
+                    version,
+                    () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
+                    OtterApp.APP_NAME,
+                    OtterApp.SWIRLD_NAME,
+                    legacyNodeId,
+                    platformStateFacade,
+                    platformContext,
+                    OtterAppState::new);
+            final ReservedSignedState initialState = reservedState.state();
+
+            final State state = initialState.get().getState();
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final String eventStreamLoc = selfId.toString();
+
+            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+
+            final PlatformBuilder platformBuilder = PlatformBuilder.create(
+                            OtterApp.APP_NAME,
+                            OtterApp.SWIRLD_NAME,
+                            version,
+                            initialState,
+                            OtterApp.INSTANCE,
+                            legacyNodeId,
+                            eventStreamLoc,
+                            rosterHistory,
+                            platformStateFacade,
+                            OtterAppState::new)
+                    .withPlatformContext(platformContext)
+                    .withConfiguration(currentConfiguration)
+                    .withKeysAndCerts(keysAndCerts)
+                    .withExecutionLayer(executionLayer)
+                    .withModel(model)
+                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
+
+            final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
+            final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
+
+            final SimulatedGossip gossip = network.getGossipInstance(legacyNodeId);
+            gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
+
+            platformComponentBuilder
+                    .withMetricsDocumentationEnabled(false)
+                    .withGossip(network.getGossipInstance(legacyNodeId));
+
+            platformComponents = platformBuildingBlocks.platformComponents();
+
+            platformComponents
+                    .consensusEngineWiring()
+                .consensusRoundsOutputWire()
+                    .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+
+            platformComponents
+                    .statusStateMachineWiring()
+                .getOutputWire()
                     .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
