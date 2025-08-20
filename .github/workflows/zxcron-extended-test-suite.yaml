@@ -299,6 +299,7 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.extended-test-suite.result == 'success' &&
