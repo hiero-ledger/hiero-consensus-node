@@ -3,8 +3,9 @@ name: "ZXCron: [CITR] Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:
-    # Runs Promote Build Candidate at 0100 hours UTC (8:00 PM CDT)
-    - cron: "0 1 * * *"
+    # Runs Promote Build Candidate at 0100 hours UTC Tuesday to Saturday
+    # (8:00 PM CDT Monday to Friday)
+    - cron: "0 1 * * 2-6"
 
 permissions:
   actions: write

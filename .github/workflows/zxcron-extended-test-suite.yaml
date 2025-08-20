@@ -9,8 +9,8 @@ on:
         type: string
         default: ""
   schedule:
-    # Runs Extended Test Suite every three hours
-    - cron: "0 */3 * * *"
+    # Runs Extended Test Suite every three hours Monday to Friday
+    - cron: "0 */3 * * 1-5"
 
 permissions:
   id-token: write
