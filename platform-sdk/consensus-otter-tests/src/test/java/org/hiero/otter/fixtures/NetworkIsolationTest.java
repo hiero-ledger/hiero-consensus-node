@@ -91,7 +91,9 @@ class NetworkIsolationTest {
             // Wait for nodes to become inactive due to network partition
             timeManager.waitForCondition(node0::isChecking, Duration.ofSeconds(15));
             timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
-            assertThat(node1.isActive()).isTrue();
+            assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
+            assertThat(node2.platformStatus()).isEqualTo(ACTIVE);
+            assertThat(node3.platformStatus()).isEqualTo(ACTIVE);
         } finally {
             env.destroy();
         }
@@ -145,8 +147,11 @@ class NetworkIsolationTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            // The nodes should be active again
-            timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
+            // Rejoining a network requires the RECONNECT capability.
+            if (env.capabilities().contains(Capability.RECONNECT)) {
+                // The nodes should be active again
+                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
+            }
         } finally {
             env.destroy();
         }
