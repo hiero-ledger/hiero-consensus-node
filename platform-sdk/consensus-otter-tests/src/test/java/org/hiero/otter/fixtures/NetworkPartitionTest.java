@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -209,10 +210,8 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            // Rejoining a network requires the RECONNECT capability.
-            if (env.capabilities().contains(Capability.RECONNECT)) {
-                // The node should be active again
-                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
+            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15))) {
+                fail("Not all nodes entered ACTIVE status within the expected time after removing partition");
             }
         } finally {
             env.destroy();

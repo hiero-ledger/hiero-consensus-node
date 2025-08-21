@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -147,10 +148,8 @@ class NetworkIsolationTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            // Rejoining a network requires the RECONNECT capability.
-            if (env.capabilities().contains(Capability.RECONNECT)) {
-                // The nodes should be active again
-                timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15));
+            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(150))) {
+                fail("Not all nodes became ACTIVE after rejoining");
             }
         } finally {
             env.destroy();
