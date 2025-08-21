@@ -244,7 +244,7 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
+    #  - sdk-tck-regression-panel # currently we are not gating XTS-PASS on TCK Regression Panel success
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
@@ -299,13 +299,11 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.extended-test-suite.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
-      needs.sdk-tck-regression-panel.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
@@ -433,7 +431,6 @@ jobs:
       needs.extended-test-suite.result != 'success' ||
       needs.fetch-xts-candidate.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
-      needs.sdk-tck-regression-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 
