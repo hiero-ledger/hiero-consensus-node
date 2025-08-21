@@ -564,6 +564,7 @@ jobs:
 
       - name: Report Failure (Rootly)
         uses: pandaswhocode/rootly-incident-action@447ff4cbfbafd36a39d9095c9e85a0f650b00794 #v1.1.0
+        continue-on-error: true # continue on error so we can get the slack reporting
         with:
           alert_service: ${{ steps.set-rootly-service.outputs.service }}
           alert_external_id: ${{ github.run_id }}
@@ -579,17 +580,6 @@ jobs:
           summary: "${{ steps.rootly-summary.outputs.summary }}"
           title: "${{ steps.rootly-summary.outputs.title }}"
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-
-      - name: Verify Rootly Incident
-        continue-on-error: true
-        run: |
-          if [[ -z "${{ steps.rootly-summary.outputs.incident-id }}" ]]; then
-            echo "No Rootly incident was created." >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
-          if [[ -z "${{ steps.rootly-summary.outputs.alert-id }}" ]]; then
-            echo "No Rootly alert was created." >> "${GITHUB_STEP_SUMMARY}"
-          fi
 
       - name: Build Slack Payload Message
         id: payload
