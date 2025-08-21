@@ -13,6 +13,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 
+/**
+ * A client for interacting with the Toxiproxy control server REST API.
+ * This client allows creating and updating proxies to simulate network conditions.
+ */
 public class ToxiproxyClient {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -26,11 +30,23 @@ public class ToxiproxyClient {
     private final URI createProxyUri;
     private final URI updateProxyUri;
 
+    /**
+     * Constructs a new ToxiproxyClient instance.
+     *
+     * @param host the host on which the Toxiproxy control server is running
+     * @param controlPort the port on which the Toxiproxy control server is running
+     */
     public ToxiproxyClient(@NonNull final String host, final int controlPort) {
         this.createProxyUri = URI.create(String.format("http://%s:%d/proxies", host, controlPort));
         this.updateProxyUri = URI.create(String.format("http://%s:%d/proxies/", host, controlPort));
     }
 
+    /**
+     * Creates a new proxy with the specified configuration.
+     *
+     * @param proxy the proxy configuration to create
+     * @return the created proxy as it is stored on the server
+     */
     @NonNull
     public Proxy createProxy(@NonNull final Proxy proxy) {
         try {
@@ -46,6 +62,12 @@ public class ToxiproxyClient {
         }
     }
 
+    /**
+     * Updates an existing proxy with the specified configuration.
+     *
+     * @param proxy the proxy configuration to update
+     * @return the updated proxy as it is stored on the server
+     */
     @NonNull
     public Proxy updateProxy(@NonNull final Proxy proxy) {
         try {

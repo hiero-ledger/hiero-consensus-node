@@ -45,16 +45,16 @@ public class NetworkBehavior {
      * @param host the host on which the Toxiproxy control server is running
      * @param controlPort the port on which the Toxiproxy control server is running
      * @param roster the roster containing the nodes in the network
-     * @param ipAddress the IP address of the Toxiproxy container in the Docker network
+     * @param toxiproxyIpAddress the IP address of the Toxiproxy container in the Docker network
      */
     public NetworkBehavior(
             @NonNull final String host,
             final int controlPort,
             @NonNull final Roster roster,
-            @NonNull final String ipAddress) {
+            @NonNull final String toxiproxyIpAddress) {
         toxiproxyClient = new ToxiproxyClient(host, controlPort);
 
-        final String listenAddress = ipAddress + ":0";
+        final String listenAddress = toxiproxyIpAddress + ":0";
 
         final List<NodeId> nodeIds = roster.rosterEntries().stream()
                 .map(RosterEntry::nodeId)
