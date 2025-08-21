@@ -41,6 +41,7 @@ jobs:
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
       xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
+      commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -133,6 +134,7 @@ jobs:
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
+            # GitHub Outputs
             echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
@@ -140,6 +142,15 @@ jobs:
             echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
+
+            # Commit list output (multiline)
+            {
+              echo 'commit-list<<EOF'
+              echo "${COMMIT_LIST}"
+              echo EOF
+            } >> "${GITHUB_OUTPUT}"
+
+            # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
@@ -411,6 +422,22 @@ jobs:
                           "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Commit List*:"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -427,9 +454,9 @@ jobs:
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
       - tag-for-promotion
-    if: ${{ (needs.abbreviated-panel.result != 'success' ||
+    if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
+      needs.abbreviated-panel.result != 'success' ||
       needs.extended-test-suite.result != 'success' ||
-      needs.fetch-xts-candidate.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
@@ -490,6 +517,69 @@ jobs:
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Rootly Service Name
+        id: set-rootly-service
+        run: |
+          ROOTLY_SERVICE_NAME="CITR General"
+          if [[ "${{ needs.fetch-xts-candidate.result != 'success' || needs.tag-for-promotion.result != 'success' }}" ]]; then
+            ROOTLY_SERVICE_NAME="CI/CD Workflows"
+          elif [[ "${{ needs.sdk-tck-regression-panel.result != 'success' }}" ]]; then
+            ROOTLY_SERVICE_NAME="CITR TCK"
+          fi
+          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Abbreviated Panel: ${{ needs.abbreviated-panel.result }}"
+            echo "- Extended Test Suite: ${{ needs.extended-test-suite.result }}"
+            echo "- Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
+            echo "- SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+            echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo "------------------------------------"
+            echo "Commit List:"
+            echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Report Failure (Rootly)
+        uses: pandaswhocode/rootly-incident-action@447ff4cbfbafd36a39d9095c9e85a0f650b00794 #v1.1.0
+        continue-on-error: true # continue on error so we can get the slack reporting
+        with:
+          alert_service: ${{ steps.set-rootly-service.outputs.service }}
+          alert_external_id: ${{ github.run_id }}
+          alert_external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          alert_urgency: "Low"
+          create_alert: "true"
+          create_incident: "true"
+          environments: "CITR"
+          teams: "Platform CI"
+          incident_types: "Platform CI"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          severity: "Triage Event"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
 
       - name: Build Slack Payload Message
         id: payload
@@ -593,6 +683,22 @@ jobs:
                       {
                         "type": "mrkdwn",
                         "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Commit List*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
                       }
                     ]
                   }
