@@ -535,13 +535,14 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Report failure (rootly)
-        uses: pandaswhocode/rootly-incident-action@d640f4046bc09355ecefcc02c206e0691d5d2c23 #v1.0.2
+        uses: pandaswhocode/rootly-incident-action@447ff4cbfbafd36a39d9095c9e85a0f650b00794 #v1.1.0
         with:
           alert_service: "CITR"
           alert_external_id: ${{ github.run_id }}
           alert_external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           alert_urgency: "Low"
           create_alert: "true"
+          create_incident: "true"
           environments: "CITR"
           teams: "Platform CI"
           incident_types: "Platform-CI"
