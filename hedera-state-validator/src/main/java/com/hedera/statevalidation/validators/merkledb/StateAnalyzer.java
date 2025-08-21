@@ -183,12 +183,15 @@ public class StateAnalyzer {
     static class LongCountArray {
 
         static final int LONGS_PER_CHUNK = 1 << 20;
+        static final int BITS_PER_COUNT = 2;
+        static final int COUNTS_PER_LONG = Long.SIZE / BITS_PER_COUNT;
+        static final long COUNT_MASK = (1L << BITS_PER_COUNT) - 1;
         final long size;
         AtomicLongArray[] arrays;
 
         LongCountArray(long size) {
             this.size = size;
-            int maxChunkIndex = toIntExact((size - 1) / LONGS_PER_CHUNK);
+            int maxChunkIndex = toIntExact((size - 1) / COUNTS_PER_LONG / LONGS_PER_CHUNK);
             arrays = new AtomicLongArray[maxChunkIndex + 1];
             for (int i = 0; i < arrays.length; ++i) {
                 arrays[i] = new AtomicLongArray(LONGS_PER_CHUNK);
@@ -203,8 +206,18 @@ public class StateAnalyzer {
             if (idx < 0 || idx >= size) {
                 throw new IndexOutOfBoundsException();
             }
-            int chunkIdx = toIntExact(idx / LONGS_PER_CHUNK);
-            return arrays[chunkIdx].getAndIncrement(toIntExact(idx % LONGS_PER_CHUNK));
+            int chunkIdx = toIntExact(idx / COUNTS_PER_LONG / LONGS_PER_CHUNK);
+            int longIdx = toIntExact((idx / COUNTS_PER_LONG) % LONGS_PER_CHUNK);
+            int countOffset = toIntExact(idx % COUNTS_PER_LONG) * BITS_PER_COUNT;
+            long val = arrays[chunkIdx].get(longIdx);
+            while (true) {
+                long count = (val >>> countOffset) & COUNT_MASK;
+                if (count == COUNT_MASK) return count;
+                long newVal = val + (1L << countOffset);
+                long oldVal = arrays[chunkIdx].compareAndExchange(longIdx, val, newVal);
+                if (oldVal == val) return count;
+                val = oldVal;
+            }
         }
     }
 }
