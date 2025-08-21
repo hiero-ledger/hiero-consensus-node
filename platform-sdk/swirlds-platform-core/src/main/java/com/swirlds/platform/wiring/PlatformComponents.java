@@ -168,7 +168,7 @@ public record PlatformComponents(
     }
 
     /**
-     * Constructor.
+     * Creates a new instance of PlatformComponents.
      *
      * @param platformContext      the platform context
      * @param model                the wiring model
@@ -182,8 +182,10 @@ public record PlatformComponents(
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
+        Objects.requireNonNull(applicationCallbacks);
 
-        var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+        final PlatformSchedulersConfig config =
+                platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
         final ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring =
                 new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
@@ -264,12 +266,10 @@ public record PlatformComponents(
         final boolean publishSnapshotOverrides = applicationCallbacks.snapshotOverrideConsumer() != null;
         final boolean publishStaleEvents = applicationCallbacks.staleEventConsumer() != null;
 
-        final TaskSchedulerConfiguration publisherConfiguration;
-        if (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents) {
-            publisherConfiguration = config.platformPublisher();
-        } else {
-            publisherConfiguration = NO_OP_CONFIGURATION;
-        }
+        final TaskSchedulerConfiguration publisherConfiguration =
+                (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents)
+                        ? config.platformPublisher()
+                        : NO_OP_CONFIGURATION;
         final ComponentWiring<PlatformPublisher, Void> platformPublisherWiring =
                 new ComponentWiring<>(model, PlatformPublisher.class, publisherConfiguration);
 
