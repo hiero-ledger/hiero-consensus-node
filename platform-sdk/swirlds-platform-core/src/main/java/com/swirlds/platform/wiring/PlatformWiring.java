@@ -47,6 +47,7 @@ import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -66,106 +67,146 @@ public class PlatformWiring {
      * Wire the components together.
      */
     public static void wire(
-            PlatformContext platformContext, @NonNull final ExecutionLayer execution, PlatformComponents w) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final ExecutionLayer execution,
+            @NonNull final PlatformComponents components) {
+        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(execution);
+        Objects.requireNonNull(components);
+
         final InputWire<PlatformEvent> hasherInputWire =
-                w.eventHasherWiring().getInputWire(EventHasher::hashEvent, "unhashed event");
-        w.gossipWiring().getEventOutput().solderTo(hasherInputWire);
+                components.eventHasherWiring().getInputWire(EventHasher::hashEvent, "unhashed event");
+        components.gossipWiring().getEventOutput().solderTo(hasherInputWire);
 
-        w.gossipWiring()
+        components.gossipWiring()
                 .getSyncLagOutput()
-                .solderTo(w.eventCreationManagerWiring().getInputWire(EventCreationManager::reportSyncRoundLag));
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::reportSyncRoundLag));
 
-        w.eventHasherWiring()
+        components.eventHasherWiring()
                 .getOutputWire()
-                .solderTo(w.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent));
+                .solderTo(
+                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent));
 
-        w.internalEventValidatorWiring()
+        components
+                .internalEventValidatorWiring()
                 .getOutputWire()
-                .solderTo(w.eventDeduplicatorWiring().getInputWire(EventDeduplicator::handleEvent));
-        w.eventDeduplicatorWiring()
+                .solderTo(components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::handleEvent));
+        components
+                .eventDeduplicatorWiring()
                 .getOutputWire()
-                .solderTo(w.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::validateSignature));
-        w.eventSignatureValidatorWiring()
+                .solderTo(components
+                        .eventSignatureValidatorWiring()
+                        .getInputWire(EventSignatureValidator::validateSignature));
+        components
+                .eventSignatureValidatorWiring()
                 .getOutputWire()
-                .solderTo(w.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent));
+                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> splitOrphanBufferOutput =
-                w.orphanBufferWiring().getSplitOutput();
+                components.orphanBufferWiring().getSplitOutput();
 
-        splitOrphanBufferOutput.solderTo(w.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::writeEvent));
+        splitOrphanBufferOutput.solderTo(
+                components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::writeEvent));
 
         // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
         // reach consensus with events that might be lost due to a crash
-        w.pcesInlineWriterWiring()
+        components
+                .pcesInlineWriterWiring()
                 .getOutputWire()
-                .solderTo(w.consensusEngineWiring().componentWiring().getInputWire(ConsensusEngine::addEvent));
+                .solderTo(components.consensusEngineWiring().componentWiring().getInputWire(ConsensusEngine::addEvent));
 
         // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
         // where an event is created, gossipped, and then the node crashes before the event is persisted.
         // After restart, a node will not be aware of this event, so it can create a branch
-        w.pcesInlineWriterWiring().getOutputWire().solderTo(w.gossipWiring().getEventInput(), INJECT);
+        components
+                .pcesInlineWriterWiring()
+                .getOutputWire()
+                .solderTo(components.gossipWiring().getEventInput(), INJECT);
 
         // Avoid using events as parents before they are persisted
-        w.pcesInlineWriterWiring()
+        components
+                .pcesInlineWriterWiring()
                 .getOutputWire()
-                .solderTo(w.eventCreationManagerWiring().getInputWire(EventCreationManager::registerEvent));
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::registerEvent));
 
-        w.model()
+        components
+                .model()
                 .getHealthMonitorWire()
-                .solderTo(w.eventCreationManagerWiring().getInputWire(EventCreationManager::reportUnhealthyDuration));
+                .solderTo(components
+                        .eventCreationManagerWiring()
+                        .getInputWire(EventCreationManager::reportUnhealthyDuration));
 
-        w.model().getHealthMonitorWire().solderTo(w.gossipWiring().getSystemHealthInput());
-        w.model().getHealthMonitorWire()
+        components
+                .model()
+                .getHealthMonitorWire()
+                .solderTo(components.gossipWiring().getSystemHealthInput());
+        components.model().getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
-        splitOrphanBufferOutput.solderTo(w.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
-        w.branchDetectorWiring()
+        splitOrphanBufferOutput.solderTo(
+                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
+        components
+                .branchDetectorWiring()
                 .getOutputWire()
-                .solderTo(w.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
+                .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
 
         final double eventCreationHeartbeatFrequency = platformContext
                 .getConfiguration()
                 .getConfigData(EventCreationConfig.class)
                 .creationAttemptRate();
-        w.model()
+        components
+                .model()
                 .buildHeartbeatWire(eventCreationHeartbeatFrequency)
-                .solderTo(w.eventCreationManagerWiring().getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
-        w.model()
+                .solderTo(
+                        components.eventCreationManagerWiring().getInputWire(EventCreationManager::maybeCreateEvent),
+                        OFFER);
+        components
+                .model()
                 .buildHeartbeatWire(platformContext
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
-                .solderTo(w.statusStateMachineWiring().getInputWire(StatusStateMachine::heartbeat), OFFER);
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::heartbeat), OFFER);
 
-        w.eventCreationManagerWiring()
+        components
+                .eventCreationManagerWiring()
                 .getOutputWire()
-                .solderTo(w.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent), INJECT);
+                .solderTo(
+                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent),
+                        INJECT);
 
-        if (w.platformPublisherWiring().getSchedulerType() != NO_OP) {
-            final OutputWire<PlatformEvent> staleEvent = w.consensusEngineWiring()
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
+            final OutputWire<PlatformEvent> staleEvent = components
+                    .consensusEngineWiring()
                     .getOutputWire()
                     .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
                     .buildSplitter("staleEventsSplitter", "stale events");
-            staleEvent.solderTo(w.platformPublisherWiring().getInputWire(PlatformPublisher::publishStaleEvent));
+            staleEvent.solderTo(
+                    components.platformPublisherWiring().getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
-        final OutputWire<PlatformEvent> consEngineAddedEvents = w.consensusEngineWiring()
+        final OutputWire<PlatformEvent> consEngineAddedEvents = components
+                .consensusEngineWiring()
                 .getOutputWire()
                 .buildTransformer(
                         "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
                 .buildSplitter("PreConsensusEventsSplitter", "preConsensusEvents");
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
-        consEngineAddedEvents.solderTo(w.applicationTransactionPrehandlerWiring()
+        consEngineAddedEvents.solderTo(components
+                .applicationTransactionPrehandlerWiring()
                 .getInputWire(TransactionPrehandler::prehandleApplicationTransactions));
 
-        w.applicationTransactionPrehandlerWiring()
+        components
+                .applicationTransactionPrehandlerWiring()
                 .getOutputWire()
-                .solderTo(w.stateSignatureCollectorWiring()
+                .solderTo(components
+                        .stateSignatureCollectorWiring()
                         .getInputWire(StateSignatureCollector::handlePreconsensusSignatures));
 
         // Split output of StateSignatureCollector into single ReservedSignedStates.
-        final OutputWire<ReservedSignedState> splitReservedSignedStateWire = w.stateSignatureCollectorWiring()
+        final OutputWire<ReservedSignedState> splitReservedSignedStateWire = components
+                .stateSignatureCollectorWiring()
                 .getOutputWire()
                 .buildSplitter("reservedStateSplitter", "reserved state lists");
         // Add another reservation to the signed states since we are soldering to two different input wires
@@ -174,7 +215,7 @@ public class PlatformWiring {
 
         // Future work: this should be a full component in its own right or folded in with the state file manager.
         final WireFilter<ReservedSignedState> saveToDiskFilter =
-                new WireFilter<>(w.model(), "saveToDiskFilter", "states", state -> {
+                new WireFilter<>(components.model(), "saveToDiskFilter", "states", state -> {
                     if (state.get().isStateToSave()) {
                         return true;
                     }
@@ -186,7 +227,7 @@ public class PlatformWiring {
 
         saveToDiskFilter
                 .getOutputWire()
-                .solderTo(w.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::saveStateTask));
+                .solderTo(components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::saveStateTask));
 
         // Filter to complete states only and add a 3rd reservation since completes states are used in two input wires.
         final OutputWire<ReservedSignedState> completeReservedSignedStatesWire = allReservedSignedStatesWire
@@ -201,55 +242,59 @@ public class PlatformWiring {
                 })
                 .buildAdvancedTransformer(new SignedStateReserver("completeStatesReserver"));
         completeReservedSignedStatesWire.solderTo(
-                w.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::setStateIfNewer));
+                components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::setStateIfNewer));
 
-        solderEventWindow(w);
+        solderEventWindow(components);
 
-        w.pcesReplayerWiring().eventOutput().solderTo(hasherInputWire);
+        components.pcesReplayerWiring().eventOutput().solderTo(hasherInputWire);
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = w.consensusEngineWiring()
+        final OutputWire<ConsensusRound> consensusRoundOutputWire = components
+                .consensusEngineWiring()
                 .consensusRoundsOutputWire()
                 .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
 
-        w.pcesReplayerWiring()
+        components
+                .pcesReplayerWiring()
                 .doneStreamingPcesOutputWire()
-                .solderTo(w.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::beginStreamingNewEvents));
+                .solderTo(components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::beginStreamingNewEvents));
         // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
         consensusRoundOutputWire.solderTo(
-                w.transactionHandlerWiring().getInputWire(TransactionHandler::handleConsensusRound));
+                components.transactionHandlerWiring().getInputWire(TransactionHandler::handleConsensusRound));
 
         consensusRoundOutputWire.solderTo(
-                w.eventWindowManagerWiring().getInputWire(EventWindowManager::extractEventWindow));
+                components.eventWindowManagerWiring().getInputWire(EventWindowManager::extractEventWindow));
 
         consensusRoundOutputWire
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
-                .solderTo(w.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
+                .solderTo(components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-                transactionHandlerSysTxnsOutputWire = w.transactionHandlerWiring()
+                transactionHandlerSysTxnsOutputWire = components
+                        .transactionHandlerWiring()
                         .getOutputWire()
                         .buildTransformer(
                                 "getSystemTransactions",
                                 "transaction handler result",
                                 TransactionHandlerResult::systemTransactions);
+        transactionHandlerSysTxnsOutputWire.solderTo(components
+                .stateSignatureCollectorWiring()
+                .getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(
-                w.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
-        transactionHandlerSysTxnsOutputWire.solderTo(
-                w.issDetectorWiring().getInputWire(IssDetector::handleStateSignatureTransactions));
+                components.issDetectorWiring().getInputWire(IssDetector::handleStateSignatureTransactions));
 
-        final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput =
-                w.transactionHandlerWiring()
-                        .getOutputWire()
-                        .buildFilter(
-                                "notNullStateFilter",
-                                "transaction handler result",
-                                thr -> thr.stateWithHashComplexity() != null)
-                        .buildAdvancedTransformer(
-                                new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
+        final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput = components
+                .transactionHandlerWiring()
+                .getOutputWire()
+                .buildFilter(
+                        "notNullStateFilter",
+                        "transaction handler result",
+                        thr -> thr.stateWithHashComplexity() != null)
+                .buildAdvancedTransformer(
+                        new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
 
         transactionHandlerStateWithComplexityOutput.solderTo(
-                w.savedStateControllerWiring().getInputWire(SavedStateController::markSavedState));
+                components.savedStateControllerWiring().getInputWire(SavedStateController::markSavedState));
 
         final OutputWire<ReservedSignedState> transactionHandlerStateOnlyOutput =
                 transactionHandlerStateWithComplexityOutput.buildAdvancedTransformer(
@@ -257,36 +302,44 @@ public class PlatformWiring {
                                 "postHandler_stateWithHashComplexityToStateReserver"));
 
         transactionHandlerStateOnlyOutput.solderTo(
-                w.latestImmutableStateNexusWiring().getInputWire(SignedStateNexus::setState));
+                components.latestImmutableStateNexusWiring().getInputWire(SignedStateNexus::setState));
         transactionHandlerStateOnlyOutput.solderTo(
-                w.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
+                components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
 
-        w.savedStateControllerWiring()
+        components
+                .savedStateControllerWiring()
                 .getOutputWire()
-                .solderTo(w.stateHasherWiring().getInputWire(StateHasher::hashState));
+                .solderTo(components.stateHasherWiring().getInputWire(StateHasher::hashState));
 
         var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-        w.model()
+        components
+                .model()
                 .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
-                .solderTo(w.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
-        w.model()
+                .solderTo(
+                        components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
+        components
+                .model()
                 .buildHeartbeatWire(config.signedStateSentinelHeartbeatPeriod())
-                .solderTo(w.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates), OFFER);
+                .solderTo(
+                        components.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
+                        OFFER);
 
         // The state hasher needs to pass its data through a bunch of transformers. Construct those here.
-        final OutputWire<ReservedSignedState> hashedStateOutputWire = w.stateHasherWiring()
+        final OutputWire<ReservedSignedState> hashedStateOutputWire = components
+                .stateHasherWiring()
                 .getOutputWire()
                 .buildAdvancedTransformer(new SignedStateReserver("postHasher_stateReserver"));
 
-        hashedStateOutputWire.solderTo(w.hashLoggerWiring().getInputWire(HashLogger::logHashes));
-        hashedStateOutputWire.solderTo(w.stateSignerWiring().getInputWire(StateSigner::signState));
-        hashedStateOutputWire.solderTo(w.issDetectorWiring().getInputWire(IssDetector::handleState));
+        hashedStateOutputWire.solderTo(components.hashLoggerWiring().getInputWire(HashLogger::logHashes));
+        hashedStateOutputWire.solderTo(components.stateSignerWiring().getInputWire(StateSigner::signState));
+        hashedStateOutputWire.solderTo(components.issDetectorWiring().getInputWire(IssDetector::handleState));
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
-                .solderTo(w.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
+                .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
 
         // send state signatures to execution
-        w.stateSignerWiring()
+        components
+                .stateSignerWiring()
                 .getOutputWire()
                 .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
@@ -295,100 +348,130 @@ public class PlatformWiring {
 
         // Solder the state output as input to the state signature collector.
         hashedStateOutputWire.solderTo(
-                w.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::addReservedState));
+                components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::addReservedState));
 
-        w.stateSnapshotManagerWiring()
+        components
+                .stateSnapshotManagerWiring()
                 .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
                 .solderTo(
-                        w.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
+                        components
+                                .pcesInlineWriterWiring()
+                                .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
 
-        w.stateSnapshotManagerWiring()
+        components
+                .stateSnapshotManagerWiring()
                 .getTransformedOutput(StateSnapshotManager::toStateWrittenToDiskAction)
-                .solderTo(w.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
 
-        w.runningEventHashOverrideWiring()
+        components
+                .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
-                .solderTo(w.transactionHandlerWiring().getInputWire(TransactionHandler::updateLegacyRunningEventHash));
-        w.runningEventHashOverrideWiring()
+                .solderTo(components
+                        .transactionHandlerWiring()
+                        .getInputWire(TransactionHandler::updateLegacyRunningEventHash));
+        components
+                .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
-                .solderTo(w.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
+                .solderTo(
+                        components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
 
         final OutputWire<IssNotification> splitIssDetectorOutput =
-                w.issDetectorWiring().getSplitOutput();
-        splitIssDetectorOutput.solderTo(w.issHandlerWiring().getInputWire(IssHandler::issObserved));
-        w.issDetectorWiring()
+                components.issDetectorWiring().getSplitOutput();
+        splitIssDetectorOutput.solderTo(components.issHandlerWiring().getInputWire(IssHandler::issObserved));
+        components
+                .issDetectorWiring()
                 .getSplitAndTransformedOutput(IssDetector::getStatusAction)
-                .solderTo(w.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
 
-        completeReservedSignedStatesWire.solderTo(w.latestCompleteStateNotifierWiring()
+        completeReservedSignedStatesWire.solderTo(components
+                .latestCompleteStateNotifierWiring()
                 .getInputWire(LatestCompleteStateNotifier::latestCompleteStateHandler));
 
-        w.statusStateMachineWiring()
+        components
+                .statusStateMachineWiring()
                 .getOutputWire()
-                .solderTo(w.eventCreationManagerWiring().getInputWire(EventCreationManager::updatePlatformStatus));
-        w.statusStateMachineWiring()
+                .solderTo(components
+                        .eventCreationManagerWiring()
+                        .getInputWire(EventCreationManager::updatePlatformStatus));
+        components
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo(
-                        w.consensusEngineWiring().componentWiring().getInputWire(ConsensusEngine::updatePlatformStatus),
+                        components
+                                .consensusEngineWiring()
+                                .componentWiring()
+                                .getInputWire(ConsensusEngine::updatePlatformStatus),
                         INJECT);
-        w.statusStateMachineWiring()
+        components
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
-        w.statusStateMachineWiring().getOutputWire().solderTo(w.gossipWiring().getPlatformStatusInput(), INJECT);
+        components
+                .statusStateMachineWiring()
+                .getOutputWire()
+                .solderTo(components.gossipWiring().getPlatformStatusInput(), INJECT);
 
-        solderNotifier(w);
+        solderNotifier(components);
 
-        if (w.platformPublisherWiring().getSchedulerType() != NO_OP) {
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
             splitOrphanBufferOutput.solderTo(
-                    w.platformPublisherWiring().getInputWire(PlatformPublisher::publishPreconsensusEvent));
+                    components.platformPublisherWiring().getInputWire(PlatformPublisher::publishPreconsensusEvent));
         }
 
-        buildUnsolderedWires(w);
+        buildUnsolderedWires(components);
     }
 
     /**
      * Solder the EventWindow output to all components that need it.
      */
-    private static void solderEventWindow(PlatformComponents w) {
+    private static void solderEventWindow(final PlatformComponents components) {
         final OutputWire<EventWindow> eventWindowOutputWire =
-                w.eventWindowManagerWiring().getOutputWire();
+                components.eventWindowManagerWiring().getOutputWire();
 
         eventWindowOutputWire.solderTo(
-                w.eventDeduplicatorWiring().getInputWire(EventDeduplicator::setEventWindow), INJECT);
+                components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::setEventWindow), INJECT);
         eventWindowOutputWire.solderTo(
-                w.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow), INJECT);
-        eventWindowOutputWire.solderTo(w.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow), INJECT);
-        eventWindowOutputWire.solderTo(w.gossipWiring().getEventWindowInput(), INJECT);
+                components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow),
+                INJECT);
         eventWindowOutputWire.solderTo(
-                w.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
+                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
         eventWindowOutputWire.solderTo(
-                w.eventCreationManagerWiring().getInputWire(EventCreationManager::setEventWindow), INJECT);
+                components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary),
+                INJECT);
         eventWindowOutputWire.solderTo(
-                w.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
+                components.eventCreationManagerWiring().getInputWire(EventCreationManager::setEventWindow), INJECT);
         eventWindowOutputWire.solderTo(
-                w.branchDetectorWiring().getInputWire(BranchDetector::updateEventWindow), INJECT);
+                components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
         eventWindowOutputWire.solderTo(
-                w.branchReporterWiring().getInputWire(BranchReporter::updateEventWindow), INJECT);
+                components.branchDetectorWiring().getInputWire(BranchDetector::updateEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(
+                components.branchReporterWiring().getInputWire(BranchReporter::updateEventWindow), INJECT);
     }
 
     /**
      * Solder notifications into the notifier.
      */
-    private static void solderNotifier(PlatformComponents w) {
-        w.latestCompleteStateNotifierWiring()
+    private static void solderNotifier(final PlatformComponents components) {
+        components
+                .latestCompleteStateNotifierWiring()
                 .getOutputWire()
-                .solderTo(w.notifierWiring().getInputWire(AppNotifier::sendLatestCompleteStateNotification));
-        w.stateSnapshotManagerWiring()
+                .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendLatestCompleteStateNotification));
+        components
+                .stateSnapshotManagerWiring()
                 .getTransformedOutput(StateSnapshotManager::toNotification)
-                .solderTo(w.notifierWiring().getInputWire(AppNotifier::sendStateWrittenToDiskNotification), INJECT);
+                .solderTo(
+                        components.notifierWiring().getInputWire(AppNotifier::sendStateWrittenToDiskNotification),
+                        INJECT);
 
         final OutputWire<IssNotification> issNotificationOutputWire =
-                w.issDetectorWiring().getSplitOutput();
-        issNotificationOutputWire.solderTo(w.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
-        w.statusStateMachineWiring()
+                components.issDetectorWiring().getSplitOutput();
+        issNotificationOutputWire.solderTo(components.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
+        components
+                .statusStateMachineWiring()
                 .getOutputWire()
-                .solderTo(w.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
+                .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
 
     /**
@@ -396,24 +479,24 @@ public class PlatformWiring {
      * we are soldering things together, but there are a few wires that aren't soldered and aren't used until later in
      * the lifecycle. This method forces those wires to be built.
      */
-    private static void buildUnsolderedWires(PlatformComponents w) {
-        w.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
-        w.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
-        if (w.platformPublisherWiring().getSchedulerType() != NO_OP) {
-            w.platformPublisherWiring().getInputWire(PlatformPublisher::publishSnapshotOverride);
+    private static void buildUnsolderedWires(final PlatformComponents components) {
+        components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
+        components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
+            components.platformPublisherWiring().getInputWire(PlatformPublisher::publishSnapshotOverride);
         }
-        w.eventCreationManagerWiring().getInputWire(EventCreationManager::clear);
-        w.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
-        w.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        w.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::updateRosterHistory);
-        w.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        w.orphanBufferWiring().getInputWire(OrphanBuffer::clear);
-        w.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::registerDiscontinuity);
-        w.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::clear);
-        w.issDetectorWiring().getInputWire(IssDetector::overridingState);
-        w.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
-        w.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
-        w.branchDetectorWiring().getInputWire(BranchDetector::clear);
-        w.branchReporterWiring().getInputWire(BranchReporter::clear);
+        components.eventCreationManagerWiring().getInputWire(EventCreationManager::clear);
+        components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
+        components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
+        components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::updateRosterHistory);
+        components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
+        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear);
+        components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::registerDiscontinuity);
+        components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::clear);
+        components.issDetectorWiring().getInputWire(IssDetector::overridingState);
+        components.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
+        components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
+        components.branchDetectorWiring().getInputWire(BranchDetector::clear);
+        components.branchReporterWiring().getInputWire(BranchReporter::clear);
     }
 }
