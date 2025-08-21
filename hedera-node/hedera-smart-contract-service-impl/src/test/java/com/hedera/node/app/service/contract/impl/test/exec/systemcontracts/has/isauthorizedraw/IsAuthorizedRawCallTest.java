@@ -230,7 +230,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         given(account.key()).willReturn(null);
 
-        assertThrows(NullPointerException.class, () -> subject.validateEcSignature(account), "Account is null");
+        assertFalse(subject.validateEcSignature(account));
     }
 
     @NonNull
