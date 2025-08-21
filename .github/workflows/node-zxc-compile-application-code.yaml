@@ -28,6 +28,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hapi-tests-misc-records:
+        description: "HAPI Testng (misc records) Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-crypto:
         description: "HAPI Testing (crypto) Enabled"
         type: boolean
@@ -317,6 +322,42 @@ jobs:
         if: ${{ inputs.enable-hapi-tests-misc && inputs.enable-network-log-capture && steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Misc) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: HAPI Testing (Misc Records)
+        id: gradle-hapi-misc-records
+        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestMiscRecords
+
+      - name: Publish HAPI Test (Misc Records) Report
+        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: HAPI Test (Misc Records) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Misc Records) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: HAPI Test (Misc Records) Report
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Misc Records) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-misc-records && inputs.enable-network-log-capture && steps.gradle-hapi-misc-records.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Misc Records) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
