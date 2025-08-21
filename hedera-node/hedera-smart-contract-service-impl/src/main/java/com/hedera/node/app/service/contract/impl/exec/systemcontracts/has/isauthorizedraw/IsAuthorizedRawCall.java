@@ -126,7 +126,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
 
             // Key must match signature type
             if (!switch (signatureType) {
-                case EC -> key.get().hasEcdsa384();
+                case EC -> key.get().hasEcdsaSecp256k1();
                 case ED -> key.get().hasEd25519();
                 case INVALID -> false;
             }) return bail.apply(INVALID_SIGNATURE_TYPE_MISMATCHING_KEY);
@@ -151,7 +151,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
     public boolean validateEcSignature(final Account account) {
         requireNonNull(account, "account");
 
-        if (!account.key().hasEcdsaSecp256k1()) return false;
+        if (account.key() == null || !account.key().hasEcdsaSecp256k1()) return false;
 
         var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
@@ -174,7 +174,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         requireNonNull(account, "account");
         requireNonNull(key, "key");
 
-        if (!account.key().hasEd25519()) return false;
+        if (account.key() == null || !account.key().hasEd25519()) return false;
 
         final var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
