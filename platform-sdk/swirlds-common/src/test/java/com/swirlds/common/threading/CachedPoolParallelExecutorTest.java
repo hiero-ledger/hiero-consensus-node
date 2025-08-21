@@ -12,6 +12,7 @@ import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -36,10 +37,9 @@ class CachedPoolParallelExecutorTest {
             latch2.await();
             return expectedReturn;
         };
-        final Callable<Void> task2 = () -> {
+        final ThrowingRunnable task2 = () -> {
             latch2.countDown();
             latch1.await();
-            return null;
         };
         final Long actualReturn = executor.doParallel(task1, task2);
 
@@ -58,17 +58,17 @@ class CachedPoolParallelExecutorTest {
         final Exception exception2 = new Exception("exception 2");
         final AssertionError error1 = new AssertionError("error 1");
 
-        final Callable<Void> task1 = () -> {
+        final ThrowingRunnable task1 = () -> {
             throw exception1;
         };
-        final Callable<Void> task2 = () -> {
+        final ThrowingRunnable task2 = () -> {
             throw exception2;
         };
-        final Callable<Void> task3 = () -> {
+        final ThrowingRunnable task3 = () -> {
             throw error1;
         };
 
-        final Callable<Void> noEx = () -> null;
+        final ThrowingRunnable noEx = () -> {};
 
         // check if exceptions get thrown as intended
         ParallelExecutionException ex;
