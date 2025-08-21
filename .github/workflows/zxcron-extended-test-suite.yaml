@@ -518,7 +518,7 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Set rootly service name
+      - name: Set Rootly Service Name
         id: set-rootly-service
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
@@ -562,7 +562,7 @@ jobs:
           echo "### Rootly Service >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Report failure (rootly)
+      - name: Report Failure (Rootly)
         uses: pandaswhocode/rootly-incident-action@447ff4cbfbafd36a39d9095c9e85a0f650b00794 #v1.1.0
         with:
           alert_service: ${{ steps.set-rootly-service.outputs.service }}
@@ -584,11 +584,11 @@ jobs:
         continue-on-error: true
         run: |
           if [[ -z "${{ steps.rootly-summary.outputs.incident-id }}" ]]; then
-            echo "No rootly incident was created." >> "${GITHUB_STEP_SUMMARY}"
+            echo "No Rootly incident was created." >> "${GITHUB_STEP_SUMMARY}"
           fi
 
           if [[ -z "${{ steps.rootly-summary.outputs.alert-id }}" ]]; then
-            echo "No rootly alert was created." >> "${GITHUB_STEP_SUMMARY}"
+            echo "No Rootly alert was created." >> "${GITHUB_STEP_SUMMARY}"
           fi
 
       - name: Build Slack Payload Message
