@@ -523,7 +523,7 @@ jobs:
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result != 'success' || needs.tag-for-promotion.result != 'success' }}" ]]; then
-            ROOTLY_SERVICE_NAME="CI/CD Workflow"
+            ROOTLY_SERVICE_NAME="CI/CD Workflows"
           elif [[ "${{ needs.sdk-tck-regression-panel.result != 'success' }}" ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
           fi
