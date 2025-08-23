@@ -58,7 +58,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.0
+  NLG_VERSION: 0.6.2
 
 jobs:
   performance-tests-start:
@@ -440,7 +440,7 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sleep 60
+          sleep 300
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
