@@ -85,12 +85,16 @@ public class TransactionPoolNexus implements TransactionSupplier {
      */
     private boolean healthy = true;
 
+    private volatile boolean isSyncRoundLagging = false;
+
+    private final double maxAllowedSyncRoundLag;
+
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
      * @param configuration the configuration to use
-     * @param metrics       the metrics to use
-     * @param time          the time source to use
+     * @param metrics the metrics to use
+     * @param time the time source to use
      */
     public TransactionPoolNexus(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
@@ -108,6 +112,8 @@ public class TransactionPoolNexus implements TransactionSupplier {
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
         maximumPermissibleUnhealthyDuration = eventCreationConfig.maximumPermissibleUnhealthyDuration();
+        maxAllowedSyncRoundLag =
+                configuration.getConfigData(EventCreationConfig.class).maxAllowedSyncLag();
     }
 
     // FUTURE WORK: these checks should be unified with the checks performed when a system transaction is submitted.
@@ -115,8 +121,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
     // actually makes sense to have this distinction.
 
     /**
-     * Attempt to submit an application transaction. Similar to
-     * {@link #submitTransaction} but with extra safeguards.
+     * Attempt to submit an application transaction. Similar to {@link #submitTransaction} but with extra safeguards.
      *
      * @param appTransaction the transaction to submit
      * @return true if the transaction passed all validity checks and was accepted by the consumer
@@ -148,10 +153,9 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * Attempt to submit a transaction.
      *
      * @param transaction The transaction. It must have been created by self.
-     * @param priority    if true, then this transaction will be submitted before other waiting transactions that are
-     *                    not marked with the priority flag. Use with moderation, adding too many priority transactions
-     *                    (i.e. thousands per second) may disrupt the ability of the platform to perform some core
-     *                    functionalities.
+     * @param priority if true, then this transaction will be submitted before other waiting transactions that are not
+     * marked with the priority flag. Use with moderation, adding too many priority transactions (i.e. thousands per
+     * second) may disrupt the ability of the platform to perform some core functionalities.
      * @return true if successful
      */
     public synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
@@ -161,6 +165,12 @@ public class TransactionPoolNexus implements TransactionSupplier {
         // don't violate queue size capacity restrictions.
         if (!priority
                 && (bufferedTransactions.size() + priorityBufferedTransactions.size()) > throttleTransactionQueueSize) {
+            transactionPoolMetrics.recordRejectedAppTransaction();
+            return false;
+        }
+
+        // Reject transactions if the node is lagging behind
+        if (isSyncRoundLagging) {
             transactionPoolMetrics.recordRejectedAppTransaction();
             return false;
         }
@@ -293,5 +303,14 @@ public class TransactionPoolNexus implements TransactionSupplier {
         bufferedTransactions.clear();
         priorityBufferedTransactions.clear();
         bufferedSignatureTransactionCount = 0;
+    }
+
+    /**
+     * Report the lag of this node's pending round compared to others.
+     *
+     * @param lag the number of rounds behind this node is compared the median of the pending rounds of peers
+     */
+    public void reportSyncRoundLag(@NonNull final Double lag) {
+        isSyncRoundLagging = lag > maxAllowedSyncRoundLag;
     }
 }

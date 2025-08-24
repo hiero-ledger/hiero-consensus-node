@@ -20,4 +20,4 @@ public record TransactionConfig(
         @ConfigProperty(defaultValue = "133120") int transactionMaxBytes,
         @ConfigProperty(defaultValue = "245760") int maxTransactionBytesPerEvent,
         @ConfigProperty(defaultValue = "245760") int maxTransactionCountPerEvent,
-        @ConfigProperty(defaultValue = "100000") int throttleTransactionQueueSize) {}
+        @ConfigProperty(defaultValue = "500") int throttleTransactionQueueSize) {}

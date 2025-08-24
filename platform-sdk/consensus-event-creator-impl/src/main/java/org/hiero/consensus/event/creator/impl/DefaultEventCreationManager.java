@@ -63,7 +63,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
     private final FutureEventBuffer futureEventBuffer;
 
+    /** The latest sync lag value reported by gossip */
     private double syncRoundLag;
+
+    /** The transaction pool used to fill events with transactions */
+    private final TransactionPoolNexus transactionPoolNexus;
 
     /**
      * Constructor.
@@ -82,6 +86,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
+        this.transactionPoolNexus = Objects.requireNonNull(transactionPoolNexus);
 
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
@@ -89,6 +94,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
+
         if (config.maxAllowedSyncLag() >= 0) {
             rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
         }
@@ -182,6 +188,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
         syncRoundLag = Objects.requireNonNull(lag);
+        transactionPoolNexus.reportSyncRoundLag(lag);
     }
 
     /**
@@ -203,6 +210,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
         return unhealthyDuration;
     }
 
+    /**
+     * Get the latest sync round lag value reported by gossip.
+     *
+     * @return the lag value in rounds
+     */
     public double getSyncRoundLag() {
         return syncRoundLag;
     }
