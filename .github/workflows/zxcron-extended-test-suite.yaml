@@ -165,6 +165,9 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
+          
+          # Error out on purpose for TESTING
+          exit 1
 
   extended-test-suite:
     name: Execute eXtended Test Suite
@@ -562,24 +565,37 @@ jobs:
           echo "### Rootly Service >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
+          set_as_noise: 'true'
+          alert_urgency: 'High'
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
       - name: Report Failure (Rootly)
-        uses: pandaswhocode/rootly-incident-action@447ff4cbfbafd36a39d9095c9e85a0f650b00794 #v1.1.0
+        uses: pandaswhocode/rootly-incident-action@a572ac68245d381d8bf36c5348ee3d4450bfaf71 # v2.0.0
         continue-on-error: true # continue on error so we can get the slack reporting
         with:
-          alert_service: ${{ steps.set-rootly-service.outputs.service }}
-          alert_external_id: ${{ github.run_id }}
-          alert_external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          alert_urgency: "Low"
-          create_alert: "true"
-          create_incident: "true"
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: 'normal'
+          create_public_incident: 'false'
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
           environments: "CITR"
-          teams: "Platform CI"
           incident_types: "Platform CI"
           services: ${{ steps.set-rootly-service.outputs.service }}
-          severity: "Triage Event"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          teams: "Platform CI"
 
       - name: Build Slack Payload Message
         id: payload
