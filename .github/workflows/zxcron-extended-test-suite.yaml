@@ -165,6 +165,8 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
+        
+          exit 1 # EXIT FOR TESTING PURPOSE ONLY
 
   extended-test-suite:
     name: Execute eXtended Test Suite
@@ -567,7 +569,7 @@ jobs:
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: dummyvalue # force a failure
           summary: "${{ steps.rootly-summary.outputs.title }}"
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
@@ -579,7 +581,7 @@ jobs:
           environments: "CITR"
 
       - name: Report Failure (Rootly)
-        uses: pandaswhocode/rootly-incident-action@a572ac68245d381d8bf36c5348ee3d4450bfaf71 # v2.0.0
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         continue-on-error: true # continue on error so we can get the slack reporting
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
