@@ -165,9 +165,6 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
-          
-          # Error out on purpose for TESTING
-          exit 1
 
   extended-test-suite:
     name: Execute eXtended Test Suite
