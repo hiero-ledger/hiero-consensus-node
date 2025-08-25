@@ -165,8 +165,6 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
-        
-          exit 1 # EXIT FOR TESTING PURPOSE ONLY
 
   extended-test-suite:
     name: Execute eXtended Test Suite
@@ -569,7 +567,7 @@ jobs:
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
-          api_key: dummyvalue # force a failure
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
           summary: "${{ steps.rootly-summary.outputs.title }}"
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
