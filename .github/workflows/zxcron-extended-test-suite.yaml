@@ -572,8 +572,8 @@ jobs:
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
           notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: 'true'
-          alert_urgency: 'High'
+          set_as_noise: "true"
+          alert_urgency: "High"
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
@@ -584,8 +584,8 @@ jobs:
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
           title: "${{ steps.rootly-summary.outputs.title }}"
-          kind: 'normal'
-          create_public_incident: 'false'
+          kind: "normal"
+          create_public_incident: "false"
           summary: "${{ steps.rootly-summary.outputs.summary }}"
           severity: "Triage Event"
           alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
