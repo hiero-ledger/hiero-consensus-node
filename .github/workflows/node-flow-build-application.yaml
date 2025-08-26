@@ -292,7 +292,7 @@ jobs:
         run: |
           CREATE_INCIDENT='true'
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.deploy-ci-trigger.result == 'failure' }}" ]]; then
+          if [[ "${{ needs.deploy-ci-trigger.result }}" == "failure" ]] || [[ "${{ needs.deploy-ci-trigger.result }}" == "cancelled" ]]; then
             CREATE_INCIDENT='false'
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
@@ -330,6 +330,8 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.set-rootly-parameters.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Create Rootly Incident?" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-parameters.outputs.create-incident }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
         id: create-rootly-alert
