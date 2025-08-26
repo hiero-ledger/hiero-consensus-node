@@ -37,4 +37,5 @@ module com.hedera.node.yahcli {
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;
     requires org.yaml.snakeyaml;
+    requires com.hedera.node.yahcli;
 }

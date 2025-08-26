@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.StdoutYahcliOutput.STDOUT_YAHCLI_OUTPUT;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
@@ -89,6 +90,11 @@ public class ConfigManager {
 
             return new ConfigManager(yahcli, globalConfig);
         }
+    }
+
+    public long defaultPayerNumOrThrow() {
+        requireNonNull(defaultPayer);
+        return Long.parseLong(defaultPayer);
     }
 
     public YahcliOutput output() {
@@ -207,6 +213,10 @@ public class ConfigManager {
         return workingDir + File.separator + targetName + File.separator + "keys";
     }
 
+    public String scenariosDir() {
+        return workingDir + File.separator + targetName + File.separator + "scenarios";
+    }
+
     public boolean useFixedFee() {
         return yahcli.getFixedFee() != Yahcli.NO_FIXED_FEE;
     }
@@ -224,7 +234,7 @@ public class ConfigManager {
             throw new UncheckedIOException(e);
         }
         final var baseNetwork =
-                Objects.requireNonNull(freshConfig.global.getNetworks().get(targetName));
+                requireNonNull(freshConfig.global.getNetworks().get(targetName));
         return baseNetwork.getNodes().size();
     }
 
@@ -237,7 +247,7 @@ public class ConfigManager {
             throw new UncheckedIOException(e);
         }
         final var baseNetwork =
-                Objects.requireNonNull(freshConfig.global.getNetworks().get(targetName));
+                requireNonNull(freshConfig.global.getNetworks().get(targetName));
         return baseNetwork.getNodes().stream()
                 .map(NodeConfig::getId)
                 .map(i -> (long) i)
