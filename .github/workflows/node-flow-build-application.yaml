@@ -367,7 +367,6 @@ jobs:
           incident_types: "Platform CI"
           services: ${{ steps.set-rootly-parameters.outputs.service }}
           teams: "Platform CI"
-
 #      - name: Build Slack Payload Message
 #        id: payload
 #        run: |
