@@ -28,11 +28,7 @@ defaults:
     shell: bash
 
 permissions:
-  checks: write
   contents: read
-  actions: write
-  statuses: write
-  id-token: write
 
 env:
   SOLO_CLUSTER_NAME: "solo-mirror-node-e2e"
@@ -52,14 +48,12 @@ jobs:
         with:
           egress-policy: audit
 
-      #  Check out the specified hiero-consensus-node reference
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      # Set up Java Environment
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
@@ -69,28 +63,22 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
 
-      # Set up the node environment
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.19.3
 
-      # Set up the gradle environment
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
         with:
           cache-read-only: false
 
-      # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
 
-      # Install solo and configure to use the artifacts from
-      # the hiero-consensus-node build
       - name: Install Solo
         run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
 
-      # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
@@ -101,7 +89,6 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      # Set up solo
       - name: Configure and run solo
         run: |
           set -ex
@@ -126,38 +113,10 @@ jobs:
           solo node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
           solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --pinger --values-file mirror.yml
 
-      # Perform mirror node regression tests
       - name: Execute mirror node acceptance tests
         run: helm test mirror --filter name=mirror-acceptance --logs -n "${SOLO_NAMESPACE}" --timeout 30m
 
-      # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
-      - name: Collect run logs in a log file
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.access-token }}
-        run: |
-          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
-            echo "Fetching logs for job ${job_id}..."
-
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == $job_id) | .name')
-
-            echo "Logs for job $current_job_name :" >> run.log
-
-            gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
-          done
-
-      - name: Upload log as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        continue-on-error: true
-        with:
-          name: Run Logs
-          path: run.log
-
-      # Stop the solo nodes
-      - name: Stop solo
+      - name: Stop Solo
         continue-on-error: true
         if: ${{ always() }}
         run: |
