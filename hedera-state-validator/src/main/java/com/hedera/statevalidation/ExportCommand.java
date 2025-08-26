@@ -55,7 +55,7 @@ public class ExportCommand implements Runnable {
             throw new RuntimeException(e);
         }
 
-        System.out.printf("State has been initialized in %d ms. \n", (System.currentTimeMillis() - start));
+        System.out.printf("State has been initialized in %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
 
         ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
@@ -75,7 +75,7 @@ public class ExportCommand implements Runnable {
             exporter.export();
         }
 
-        System.out.printf("Total time is  %d ms. \n", (System.currentTimeMillis() - start));
+        System.out.printf("Total time is  %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
     }
 
     private List<Pair<String, String>> prepareServiceNameAndStateKeys() {
