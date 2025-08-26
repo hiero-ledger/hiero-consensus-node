@@ -266,17 +266,65 @@ jobs:
             }
 
   report-failure:
-    name: Report XTS execution failure
+    name: Report Build Promotion failure
     runs-on: hiero-citr-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
-    if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
+      - deploy-ci-trigger
+      - report-promotion
+    if: ${{ (needs.determine-build-candidate.result != 'success' ||
+      needs.promote-build-candidate.result != 'success' ||
+      needs.deploy-ci-trigger.result != 'success' ||
+      needs.report-promotion != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The Promote Build Candidate job failed"
+          if [[ -n "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}" ]]; then
+            summary="The Promote Build Candidate job failed (${{ needs.promote-build-candidate.outputs.build-candidate-tag }})."
+          fi
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Determine Build Candidate: ${{ needs.determine-build-candidate.result }}"
+            echo "- Promote Build Candidate: ${{ needs.promote-build-candidate.result }}"
+            echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
+            echo "- Report Promotion: ${{ needs.report-promotion.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Report Failure (Rootly)
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Build Slack Payload Message
         id: payload
