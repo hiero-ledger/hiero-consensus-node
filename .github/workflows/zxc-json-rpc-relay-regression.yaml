@@ -68,32 +68,21 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # checkout the latest json-rpc-relay tag if needed
-      - name: Checkout Latest Tag (MN)
+      # temporarily checkout the branch that contains the XTS code
+      - name: Checkout Relay XTS Branch (temporary)
         run: |
           cd regression-tests/json-rpc-relay
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest JSON-RPC Relay tag: $LATEST_TAG"
-          git checkout $LATEST_TAG
+          git fetch origin
+          git checkout quest-open-a-portal-for-the-sitter-mountains
 
-      # Checkout the JS-SDK server -- if needed
-      - name: Checkout JS-SDK Server
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: regression-tests/platform-sdk
-          repository: hiero-ledger/hiero-sdk-js
-          fetch-depth: 0
-          fetch-tags: true
-
-      # Checks out the latest tagged version of the JS-SDK
-      - name: Checkout Latest Tag (JS-SDK)
-        run: |
-          cd platform-sdk/sdk-server
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest JS-SDK tag: $LATEST_TAG"
-          git checkout $LATEST_TAG
+      # # checkout the latest json-rpc-relay tag if needed
+      # - name: Checkout Latest Tag (Relay)
+      #   run: |
+      #     cd regression-tests/json-rpc-relay
+      #     git fetch --tags
+      #     LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+      #     echo "Latest JSON-RPC Relay tag: $LATEST_TAG"
+      #     git checkout $LATEST_TAG
 
       # Set up Java Environment
       - name: Setup Java
@@ -107,11 +96,7 @@ jobs:
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22.15.1
-
-      - name: Setup PNPM
-        run: |
-          npm install -g pnpm
+          node-version: 22
 
       # Set up the gradle environment
       - name: Setup Gradle
@@ -124,32 +109,11 @@ jobs:
         run: ${GRADLE_EXEC} assemble
 
       # Set up the npm dependencies and cache on the json-rpc-relay repository
-      - name: Set up the tck-client
+      - name: Install NodeJS Dependencies (json-rpc-relay)
         run: |
           npm cache clean --force
-          npm install
+          npm ci
         working-directory: regression-tests/json-rpc-relay
-
-      # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS Dependencies (sdk-server)
-        id: start-sdk-server
-        run: |
-          # Extract package versions from the parent package.json
-          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
-          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
-
-          echo "Using SDK version: $SDK_VERSION"
-          echo "Using long version: $LONG_VERSION"
-          echo "Using proto version: $PROTO_VERSION"
-
-          # Install with the extracted versions
-          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
-          pnpm install
-          nohup pnpm start &
-          server_pid=$!
-          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
-        working-directory: regression-tests/platform-sdk/sdk-server
 
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
@@ -186,20 +150,20 @@ jobs:
           kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/mirror-web3 -n "${{ env.SOLO_NAMESPACE }}" 8545:http &
 
       # Perform JSON-RPC Relay regression tests
       - name: Start json-rpc-relay-test-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
-          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
-          NODE_IP: "127.0.0.1:50211"
-          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
-          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
+          CHAIN_ID: "0x12a"
+          MIRROR_NODE_URL: "http://127.0.0.1:5551"
+          MIRROR_NODE_URL_WEB3: "http://127.0.0.1:8545"
+          HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
+          OPERATOR_ID_MAIN: "0.0.2"
+          OPERATOR_KEY_MAIN: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
         run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
-          cp .env.custom_node .env
-          npm run test
+          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_KEY_MAIN }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          npm run build && npm run acceptancetest:xts
         working-directory: regression-tests/json-rpc-relay # required
 
       - name: JSON-RPC Relay Regression Test Report
@@ -235,13 +199,6 @@ jobs:
         with:
           name: Run Logs
           path: run.log
-
-      # Stop the JSON-RPC Relay Tests server
-      - name: Stop json-rpc-relay-server
-        if: ${{ always() }}
-        run: |
-          echo ${{ steps.start-sdk-server.outputs.pid }}
-          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
 
       # Stop the solo nodes
       - name: Stop solo
