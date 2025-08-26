@@ -73,22 +73,18 @@ permissions:
 jobs:
   code:
     name: Compile Code
-    # TEST CODE
-    if: ${{ false }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       enable-spotless-check: false
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      access-token: '' #'${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: '' #'${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: '' #'${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   dependency-check:
     name: Dependency (Module Info)
-    # TEST CODE
-    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - code
@@ -102,8 +98,6 @@ jobs:
 
   spotless:
     name: Spotless
-    # TEST CODE
-    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - code
@@ -118,8 +112,6 @@ jobs:
 
   mats-unit-tests:
     name: MATS - Unit Tests
-    # TEST CODE
-    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - dependency-check
@@ -155,9 +147,7 @@ jobs:
     needs:
       - dependency-check
       - spotless
-    # TEST CODE
-
-    if: ${{ false && (github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true') }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -172,7 +162,7 @@ jobs:
     needs:
       - dependency-check
       - spotless
-    if: ${{ false && (github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true') }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true' }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -188,10 +178,10 @@ jobs:
       - mats-unit-tests
       - mats-gradle-determinism
       - mats-docker-determinism
-    if: ${{ false && ( (github.event_name == 'push') &&
+    if: ${{ (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
       needs.mats-gradle-determinism.result == 'success' &&
-      needs.mats-docker-determinism.result == 'success') }}
+      needs.mats-docker-determinism.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -229,7 +219,8 @@ jobs:
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
-      !inputs.dry-run-enabled && always() }}
+      !inputs.dry-run-enabled &&
+      !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
@@ -299,9 +290,8 @@ jobs:
         id: set-rootly-parameters
         run: |
           CREATE_INCIDENT='true'
-          # ROOTLY_SERVICE_NAME="CITR General"
-          ROOTLY_SERVICE_NAME="CI/CD Workflows" # test code
-          if [[ "${{ needs.deploy-ci-trigger.result == 'failure' }}" }} ]]; then
+          ROOTLY_SERVICE_NAME="CITR General"
+          if [[ "${{ needs.deploy-ci-trigger.result == 'failure' }}" ]]; then
             CREATE_INCIDENT='false'
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
@@ -372,6 +362,7 @@ jobs:
           incident_types: "Platform CI"
           services: ${{ steps.set-rootly-parameters.outputs.service }}
           teams: "Platform CI"
+
 #      - name: Build Slack Payload Message
 #        id: payload
 #        run: |
