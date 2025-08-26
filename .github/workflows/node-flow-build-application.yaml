@@ -294,7 +294,7 @@ jobs:
         run: |
           CREATE_INCIDENT='true'
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.deploy-ci-trigger.result }}" == "failure" ]] || [[ "${{ needs.deploy-ci-trigger.result }}" == "cancelled" ]]; then
+          if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]]; then
             CREATE_INCIDENT='false'
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
