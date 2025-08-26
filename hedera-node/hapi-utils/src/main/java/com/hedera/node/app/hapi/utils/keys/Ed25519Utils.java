@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.Provider;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
@@ -38,6 +41,18 @@ public final class Ed25519Utils {
 
     public static EdDSAPrivateKey readKeyFrom(final String pemLoc, final String passphrase) {
         return KeyUtils.readKeyFrom(new File(pemLoc), passphrase, ED_PROVIDER);
+    }
+
+    /**
+     * Reads an Ed25519 private key from the given input stream, using the provided passphrase to decrypt it.
+     * @param in the input stream to read the key from
+     * @param passphrase the passphrase to decrypt the key
+     * @return the Ed25519 key
+     */
+    public static EdDSAPrivateKey readKeyFrom(@NonNull final InputStream in, @NonNull final String passphrase) {
+        requireNonNull(in);
+        requireNonNull(passphrase);
+        return KeyUtils.readKeyFrom(in, passphrase, ED_PROVIDER);
     }
 
     public static byte[] extractEd25519PublicKey(@NonNull final EdDSAPrivateKey key) {

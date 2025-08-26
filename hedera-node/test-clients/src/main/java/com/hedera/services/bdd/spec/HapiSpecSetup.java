@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.ED_PROVIDER;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.BC_PROVIDER;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSources;
 import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
@@ -13,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
-import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
@@ -132,7 +129,7 @@ public class HapiSpecSetup {
             final var mnemonic = Bip0032.mnemonicFromFile(defaultPayerMnemonicFile());
             return mnemonicToEd25519Key(mnemonic);
         } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
-            return payerKeyFromResource(in -> KeyUtils.readKeyFrom(in, defaultPayerPemKeyPassphrase(), ED_PROVIDER));
+            return defaultPayerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
         }
@@ -147,13 +144,13 @@ public class HapiSpecSetup {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Secp256k1Utils.readECKeyFrom(CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
-            return payerKeyFromResource(in -> KeyUtils.readKeyFrom(in, defaultPayerPemKeyPassphrase(), BC_PROVIDER));
+            return defaultPayerKeyFromResource(in -> Secp256k1Utils.readECKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Secp256k1Utils.readECKeyFrom(new File(defaultPayerPemKeyLoc()), defaultPayerPemKeyPassphrase());
         }
     }
 
-    private <T extends PrivateKey> T payerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
+    private <T extends PrivateKey> T defaultPayerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
         try (var in =
                 Thread.currentThread().getContextClassLoader().getResourceAsStream(defaultPayerPemKeyResource())) {
             if (in == null) {
