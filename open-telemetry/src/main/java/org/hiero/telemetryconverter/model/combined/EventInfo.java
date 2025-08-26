@@ -96,6 +96,18 @@ public class EventInfo {
     public long eventEndTimeNanos() {
         return eventEndTimeNanos;
     }
+
+    public long firstTransactionOrEventCreation() {
+        if (transactions.isEmpty()) {
+            return createdTrace.startTimeNanos();
+        } else {
+            return transactions.stream()
+                .mapToLong(t -> t.transactionReceivedTimeNanos())
+                .min()
+                .orElse(eventStartTimeNanos);
+        }
+    }
+
     public long endOfGossipOrEventCreation() {
         if (gossipedTraces.isEmpty()) {
             return createdTrace.endTimeNanos();

@@ -21,36 +21,36 @@ services:
       - ./tempo/tempo.yaml:/etc/tempo.yaml
       - ./tmp/tempo-data:/var/tempo
     ports:
-      - "3200" # tempo
-      - "4317" # otlp grpc
+      - "3200:3200" # tempo
+      - "4317:4317" # otlp grpc
     depends_on:
       - init
-      - otel-collector
+      #- otel-collector
     networks:
       - observe-network
 
-  prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus:/etc/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-    ports:
-      - "9090:9090"
-    networks:
-      - observe-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+  #prometheus:
+  #  image: prom/prometheus
+  #  volumes:
+  #    - ./prometheus:/etc/prometheus
+  #  command:
+  #    - '--config.file=/etc/prometheus/prometheus.yml'
+  #  ports:
+  #    - "9090:9090"
+  #  networks:
+  #    - observe-network
+  #  extra_hosts:
+   #   - "host.docker.internal:host-gateway"
 
-  otel-collector:
-    image: otel/opentelemetry-collector:0.86.0
-    command: [ "--config=/etc/otel-collector.yaml" ]
-    volumes:
-      - ./otel-collector/otel-collector.yaml:/etc/otel-collector.yaml
-    ports:
-      - "5156:4317" # random 5156 port mapped to otlp grpc 4317
-    networks:
-      - observe-network
+  #otel-collector:
+  #  image: otel/opentelemetry-collector:0.86.0
+  #  command: [ "--config=/etc/otel-collector.yaml" ]
+  #  volumes:
+  #    - ./otel-collector/otel-collector.yaml:/etc/otel-collector.yaml
+  #  ports:
+  #    - "5156:4317" # random 5156 port mapped to otlp grpc 4317
+  #  networks:
+  #    - observe-network
 
   grafana:
     image: grafana/grafana:11.0.0
@@ -67,7 +67,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - prometheus
+      #- prometheus
       - tempo
     networks:
       - observe-network

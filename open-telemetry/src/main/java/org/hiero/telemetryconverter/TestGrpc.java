@@ -32,12 +32,91 @@ public class TestGrpc {
     public static final Options PROTO_OPTIONS =
             new Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
 
+    private static final TraceServiceInterface.TraceServiceClient client = new TraceServiceInterface.TraceServiceClient(
+            createGrpcClient("http://localhost:4317"), PROTO_OPTIONS);
+
     public static void main(String[] args) throws NoSuchAlgorithmException {
+        testMultipleResourcesSameTrace();
+    }
+
+    // test two resources with same trace and some links between them
+    private static void testMultipleResourcesSameTrace() throws NoSuchAlgorithmException {
         // create a digest for creating trace ids
         final MessageDigest digest = MessageDigest.getInstance("MD5");
 
-        TraceServiceInterface.TraceServiceClient client = new TraceServiceInterface.TraceServiceClient(
-                createGrpcClient("http://localhost:5156"), PROTO_OPTIONS);
+        Resource resource1 = Resource.newBuilder()
+                .attributes(new KeyValue("service.name", AnyValue.newBuilder().stringValue("r1").build()))
+                .build();
+
+        Resource resource2 = Resource.newBuilder()
+                .attributes(new KeyValue("service.name", AnyValue.newBuilder().stringValue("r2").build()))
+                .build();
+
+        Instant now = Instant.now();
+
+        final Bytes trace1 = Utils.longToHash16Bytes(digest, now.getEpochSecond());
+        Bytes r1t1Id = Utils.longToHash8Bytes(now.getEpochSecond() + 1L);
+
+        // root span of resource 1 trace 1
+        Span r1t1 = Span.newBuilder()
+                .traceId(trace1)
+                .spanId(r1t1Id)
+                .name("r1-t1-root")
+                .startTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(60, ChronoUnit.SECONDS)))
+                .endTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(40, ChronoUnit.SECONDS)))
+                .build();
+
+        // child span of rot span of resource 1 trace 1
+        Span r1t1s1 = Span.newBuilder()
+                .traceId(trace1)
+                .spanId(Utils.longToHash8Bytes(now.getEpochSecond() + 11L))
+                .parentSpanId(r1t1Id)
+                .name("r1-t1-s1")
+                .startTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(55, ChronoUnit.SECONDS)))
+                .endTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(50, ChronoUnit.SECONDS)))
+                .build();
+
+        // root span of resource 2 trace 1
+        Bytes r2t1Id = Utils.longToHash8Bytes(now.getEpochSecond() + 2L);
+        Span r2t1 = Span.newBuilder()
+                .traceId(trace1)
+                .spanId(r2t1Id)
+                .parentSpanId(r1t1Id)
+                .name("r2-t1-root")
+                .startTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(30, ChronoUnit.SECONDS)))
+                .endTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(10, ChronoUnit.SECONDS)))
+                .build();
+
+        Span r2t1s1 = Span.newBuilder()
+                .traceId(trace1)
+                .spanId(Utils.longToHash8Bytes(now.getEpochSecond() + 21L))
+                .parentSpanId(r2t1Id)
+                .name("r2-t1-s1")
+                .startTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(25, ChronoUnit.SECONDS)))
+                .endTimeUnixNano(Utils.instantToUnixEpocNanos(now.minus(15, ChronoUnit.SECONDS)))
+                .links(Span.Link.newBuilder().traceId(trace1).spanId(r1t1Id).build())
+                .build();
+
+        ResourceSpans r1Spans = ResourceSpans.newBuilder()
+                .resource(resource1)
+                .scopeSpans(ScopeSpans.newBuilder().spans(r1t1, r1t1s1).build())
+                .build();
+        ResourceSpans r2Spans = ResourceSpans.newBuilder()
+                .resource(resource2)
+                .scopeSpans(ScopeSpans.newBuilder().spans(r2t1, r2t1s1).build())
+                .build();
+
+        final ExportTraceServiceRequest request = ExportTraceServiceRequest.newBuilder()
+                .resourceSpans(r1Spans, r2Spans)
+                .build();
+        System.out.println("ExportTraceServiceRequest = " + ExportTraceServiceRequest.JSON.toJSON(request));
+        client.Export(request);
+    }
+
+    // test single resource with multiple spans including nested ones
+    private static void testSingleResource() throws NoSuchAlgorithmException {
+        // create a digest for creating trace ids
+        final MessageDigest digest = MessageDigest.getInstance("MD5");
 
         Resource resource = Resource.newBuilder()
                 .attributes(new KeyValue("service.name", AnyValue.newBuilder().stringValue("Hedera").build()))

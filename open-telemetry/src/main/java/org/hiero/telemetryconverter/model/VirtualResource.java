@@ -13,7 +13,8 @@ public enum VirtualResource {
     GOSSIP("hiero-cn-gossip"),
     CONSENSUS("hiero-cn-consensus"),
     EXECUTION("hiero-cn-execution"),
-    BLOCK("hiero-cn-block");
+    BLOCK_FINISHING("hiero-cn-blk-finishing"),
+    CN("hiero-cn"); // general resource for the CN
     public final Resource resource;
 
     VirtualResource(String serviceName) {

@@ -89,7 +89,7 @@ public final class TelemetryConverter {
     private static final Path testOutputDir = PROJECT_ROOT.resolve("build/telemetry");
 
     private static final TraceServiceInterface.TraceServiceClient traceClient = new TraceServiceInterface.TraceServiceClient(
-            createGrpcClient("http://localhost:5156"), PROTO_OPTIONS);
+            createGrpcClient("http://localhost:4317"), PROTO_OPTIONS);
 
 
     public static void main(String[] args) throws IOException {
@@ -161,7 +161,7 @@ public final class TelemetryConverter {
                     })
                     .filter(Objects::nonNull)
                     .map(BlockSpanCreator::createBlockSpans)
-                    .limit(20) // TODO limit to first 5 blocks for testing
+//                    .limit(20) // TODO limit to first 5 blocks for testing
                     // merge all the maps into one map
                     .flatMap(map -> map.entrySet().stream())
                     .collect(Collectors.toMap(

@@ -127,6 +127,16 @@ public class BlockInfo {
         return blockEndTimeNanos;
     }
 
+    /**
+     * Count total number of transactions in all events of all rounds
+     */
+    public long txCount() {
+        return rounds.stream()
+                .flatMap(r -> r.events().stream())
+                .mapToLong(e -> e.transactions().size())
+                .sum();
+    }
+
     @Override
     public String toString() {
         return "BlockInfo{" +

@@ -2,6 +2,12 @@ receivers:
   otlp:
     protocols:
       grpc:
+processors:
+  batch:
+    # Send smaller batches more frequently
+    timeout: 500ms
+    send_batch_size: 64
+    send_batch_max_size: 128
 exporters:
   otlp:
     endpoint: tempo:4317
@@ -11,4 +17,5 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [ batch ]
       exporters: [otlp]
