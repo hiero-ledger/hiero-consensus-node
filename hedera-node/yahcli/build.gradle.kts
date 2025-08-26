@@ -13,9 +13,27 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
 
-mainModuleInfo {
-    runtimeOnly("com.github.spotbugs.annotations")
-    runtimeOnly("com.google.protobuf")
+testModuleInfo {
+    runtimeOnly("com.hedera.common.nativesupport")
+    requires("com.hedera.node.app.hapi.utils")
+    requires("com.hedera.node.hapi")
+    requires("com.hedera.node.test.clients")
+    requires("com.swirlds.config.api")
+    requires("info.picocli")
+    requires("io.github.classgraph")
+    requires("io.helidon.common.buffers")
+    requires("io.helidon.common.resumable")
+    requires("io.helidon.common")
+    requires("jakarta.inject")
+    requires("javax.inject")
+    requires("org.apache.logging.log4j")
+    requires("org.eclipse.collections.api")
+    requires("org.jspecify")
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.assertj.core")
+    requires("org.yaml.snakeyaml")
+    requires("simpleclient")
 }
 
 val yahCliJar =

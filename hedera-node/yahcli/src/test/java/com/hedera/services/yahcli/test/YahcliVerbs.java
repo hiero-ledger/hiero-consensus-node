@@ -15,7 +15,6 @@ public class YahcliVerbs {
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
-    public static final String TEST_NETWORK = "hapi";
 
     private YahcliVerbs() {
         throw new UnsupportedOperationException("Utility class");

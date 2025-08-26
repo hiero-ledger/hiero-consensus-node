@@ -11,6 +11,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
+import com.hedera.services.bdd.junit.support.YahcliHapiTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Method;
 import java.util.Optional;
@@ -24,6 +25,7 @@ public class ExtensionUtils {
     private static boolean isHapiTest(@NonNull final Method method) {
         return isAnnotated(method, HapiTest.class)
                 || isAnnotated(method, LeakyHapiTest.class)
+                || isAnnotated(method, YahcliHapiTest.class)
                 || isAnnotated(method, GenesisHapiTest.class)
                 || isAnnotated(method, RestartHapiTest.class)
                 || isAnnotated(method, EmbeddedHapiTest.class)

@@ -68,6 +68,26 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     public static final AtomicReference<HederaNetwork> SHARED_NETWORK = new AtomicReference<>();
     public static final AtomicReference<BlockNodeNetwork> SHARED_BLOCK_NODE_NETWORK = new AtomicReference<>();
     public static final AtomicReference<RepeatableKeyGenerator> REPEATABLE_KEY_GENERATOR = new AtomicReference<>();
+    public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
+    public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
+
+    /**
+     * Sets the default config location to use for yahcli operations.
+     * @param configLoc the config location
+     */
+    public static void setDefaultConfigLoc(@NonNull final String configLoc) {
+        requireNonNull(configLoc);
+        DEFAULT_CONFIG_LOC.set(requireNonNull(configLoc));
+    }
+
+    /**
+     * Sets the default working directory to use for yahcli operations.
+     * @param workingDir the working directory
+     */
+    public static void setDefaultWorkingDir(@NonNull final String workingDir) {
+        requireNonNull(workingDir);
+        DEFAULT_WORKING_DIR.set(requireNonNull(workingDir));
+    }
 
     @Override
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {

@@ -5,12 +5,15 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.SHARED_NETWORK_NAME;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.rm;
 import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -18,12 +21,24 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
+import com.hedera.services.bdd.junit.support.YahcliHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
+import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.bdd.utils.yahcli.GlobalConfig;
+import com.hedera.services.bdd.utils.yahcli.NetConfig;
+import com.hedera.services.bdd.utils.yahcli.NodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,12 +47,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestPlan;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.nodes.Tag;
 
 /**
  * Registers a {@link TestExecutionListener} when the {@link LauncherSession} is opened to
@@ -46,6 +64,14 @@ import org.junit.platform.launcher.TestPlan;
  */
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
     private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
+
+    private static final String BUILD_DIR = "build";
+    private static final String SCOPE = "yahcli";
+    private static final String KEYS_DIR = "keys";
+    private static final String CONFIG_YML = "config.yml";
+    private static final Path BASE_WORKING_DIR = Path.of(BUILD_DIR, SCOPE);
+    public static final String YAHCLI_TEST_NETWORK = "hapi";
+
     private static final List<Consumer<HederaNetwork>> onSubProcessReady = new ArrayList<>();
 
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
@@ -132,6 +158,12 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 network.start();
                 SHARED_NETWORK.set(network);
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    // If any YahcliHapiTests are present in the plan, write a config.yml for yahcli to use
+                    if (hasAnnotatedTestNode(testPlan, Set.of(YahcliHapiTest.class))) {
+                        onSubProcessNetworkReady(
+                                SharedNetworkLauncherSessionListener::writeYahcliConfigYml);
+                        HapiSuite.DEFAULT_TEARDOWN = false;
+                    }
                     onSubProcessReady.forEach(subProcessNetwork::onReady);
                     onSubProcessReady.clear();
                 }
@@ -248,5 +280,54 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
             }
         }
+    }
+
+    private static void writeYahcliConfigYml(@NonNull final HederaNetwork network) {
+        if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
+            throw new IllegalStateException("Expected a SubProcessNetwork, got a " + network.getClass());
+        }
+        rm(BASE_WORKING_DIR);
+        final var keysDir = guaranteedExtantDir(
+                BASE_WORKING_DIR.resolve(YAHCLI_TEST_NETWORK).resolve(KEYS_DIR));
+        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream("genesis.pem")) {
+            requireNonNull(in);
+            Files.copy(in, keysDir.resolve("account2.pem"));
+            Files.writeString(keysDir.resolve("account2.pass"), "swirlds");
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to write yahcli config", e);
+        }
+        final var netConfig = new NetConfig();
+        netConfig.setShard(subProcessNetwork.shard());
+        netConfig.setRealm(subProcessNetwork.realm());
+        netConfig.setDefaultPayer("2");
+        final var nodesConfig = subProcessNetwork.nodes().stream()
+                .map(SubProcessNode.class::cast)
+                .map(node -> {
+                    final var nodeConfig = new NodeConfig();
+                    nodeConfig.setId((int) node.getNodeId());
+                    nodeConfig.setShard(subProcessNetwork.shard());
+                    nodeConfig.setRealm(subProcessNetwork.realm());
+                    nodeConfig.setAccount(node.metadata().accountId().accountNumOrThrow());
+                    nodeConfig.setIpv4Addr(
+                            node.metadata().host() + ":" + node.metadata().grpcPort());
+                    return nodeConfig;
+                })
+                .toList();
+        netConfig.setNodes(nodesConfig);
+        netConfig.setDefaultNodeAccount((int) nodesConfig.getFirst().getAccount());
+        final var config = new GlobalConfig();
+        config.setNetworks(Map.of(YAHCLI_TEST_NETWORK, netConfig));
+        config.setDefaultNetwork(YAHCLI_TEST_NETWORK);
+
+        final var yamlOut = new Yaml();
+        final var doc = yamlOut.dumpAs(config, Tag.MAP, null);
+        final var configPath = BASE_WORKING_DIR.resolve(CONFIG_YML);
+        try (final var writer = Files.newBufferedWriter(configPath)) {
+            writer.write(doc);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not write yahcli config to " + configPath.toAbsolutePath(), e);
+        }
+        NetworkTargetingExtension.setDefaultConfigLoc(configPath.toAbsolutePath().toString());
+        NetworkTargetingExtension.setDefaultWorkingDir(BUILD_DIR + File.separator + SCOPE);
     }
 }

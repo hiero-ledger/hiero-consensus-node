@@ -70,6 +70,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.hedera.remote;
     exports com.hedera.services.bdd.spec.remote;
     exports com.hedera.services.bdd.suites.utils.sysfiles;
+    exports com.hedera.services.bdd.utils.yahcli;
 
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;

@@ -19,7 +19,9 @@ import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestPlan;
 
 public final class TestPlanUtils {
-    private TestPlanUtils() {}
+    private TestPlanUtils() {
+        throw new UnsupportedOperationException("Utility Class");
+    }
 
     /**
      * Returns true iff there exists a test node in the plan whose underlying
