@@ -174,14 +174,14 @@ jobs:
   deploy-ci-trigger:
     name: Trigger CI Flows
     runs-on: hiero-citr-linux-medium
-#needs:
-#  - mats-unit-tests
-#  - mats-gradle-determinism
-#  - mats-docker-determinism
-#if: ${{ (github.event_name == 'push') &&
-#  needs.mats-unit-tests.result == 'success' &&
-#  needs.mats-gradle-determinism.result == 'success' &&
-#  needs.mats-docker-determinism.result == 'success' }}
+    #needs:
+    #  - mats-unit-tests
+    #  - mats-gradle-determinism
+    #  - mats-docker-determinism
+    #if: ${{ (github.event_name == 'push') &&
+    #  needs.mats-unit-tests.result == 'success' &&
+    #  needs.mats-gradle-determinism.result == 'success' &&
+    #  needs.mats-docker-determinism.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
