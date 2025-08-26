@@ -21,8 +21,6 @@ testModuleInfo {
     opensTo("org.junit.platform.commons")
 }
 
-description = "Hedera Services YahCli Tool"
-
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
