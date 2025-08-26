@@ -73,7 +73,6 @@ permissions:
 jobs:
   code:
     name: Compile Code
-    if: ${{ false }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -188,6 +187,9 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Induce Failure
+        run: exit 1
 
       - name: Trigger ZXF Deploy Production Release
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
