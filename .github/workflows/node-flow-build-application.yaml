@@ -302,7 +302,7 @@ jobs:
           CREATE_INCIDENT='true'
           # ROOTLY_SERVICE_NAME="CITR General"
           ROOTLY_SERVICE_NAME="CI/CD Workflows" # test code
-          if [[ "${{ needs.deploy-ci-trigger.result != 'success' }}" ]]; then
+          if [[ "${{ needs.deploy-ci-trigger.result != 'success' }}" && "${{ needs.deploy-ci-trigger.result != 'skipped' }} ]]; then
             CREATE_INCIDENT='false'
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
