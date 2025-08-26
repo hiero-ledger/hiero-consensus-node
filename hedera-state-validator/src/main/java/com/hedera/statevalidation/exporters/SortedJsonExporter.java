@@ -35,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.LongStream;
 
 /**
@@ -53,6 +54,8 @@ public class SortedJsonExporter {
     private final ExecutorService executorService;
     private final Map<Integer, Set<Pair<Long, Bytes>>> keysByExpectedStateIds;
     private final Map<Integer, Pair<String, String>> nameByStateId;
+
+    private final AtomicLong objectsProcessed = new AtomicLong(0);
 
     public SortedJsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
         this(resultDir, state, List.of(Pair.of(serviceName, stateKeyName)));
@@ -109,6 +112,7 @@ public class SortedJsonExporter {
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
+        System.out.println("Collecting keys from the state...");
         collectKeys(vm);
         keysByExpectedStateIds.forEach((key, values) -> {
             if (values.isEmpty()) {
@@ -200,6 +204,10 @@ public class SortedJsonExporter {
                     emptyFile = false;
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
+                }
+                long currentObjCount = objectsProcessed.incrementAndGet();
+                if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
+                    System.out.println(currentObjCount + " objects processed");
                 }
             }
         } catch (IOException e) {
