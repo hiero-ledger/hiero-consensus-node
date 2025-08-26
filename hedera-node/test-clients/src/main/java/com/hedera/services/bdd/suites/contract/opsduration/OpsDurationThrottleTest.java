@@ -3,15 +3,10 @@ package com.hedera.services.bdd.suites.contract.opsduration;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -391,6 +386,40 @@ public class OpsDurationThrottleTest {
                                     .gas(10_000_000L)
                                     .hasKnownStatus(ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED));
                     restoreDefaults(spec);
+                }));
+    }
+
+    @HapiTest
+    @Order(11)
+    @DisplayName("account creation consumes ops duration")
+    public Stream<DynamicTest> accountCreationConsumesOpsDuration() {
+        final var payer = "payer";
+        return hapiTest(
+                disableOpsDurationThrottle(),
+                uploadInitCode(OPS_DURATION_THROTTLE),
+                contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
+                cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
+                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0L),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            // This call is going to make 25 transfers to subsequent accounts starting at address 10^48
+                            // (chosen arbitrarily)
+                            contractCall(
+                                            OPS_DURATION_THROTTLE,
+                                            "createNAccounts",
+                                            BigInteger.TEN.pow(48),
+                                            BigInteger.valueOf(25L))
+                                    .payingWith(payer)
+                                    .signedBy(payer)
+                                    .sending(ONE_HBAR)
+                                    .gas(15_000_000L)
+                                    .hasKnownStatus(ResponseCodeEnum.SUCCESS));
+                    // Let's wait for the metrics to update
+                    Thread.sleep(2000);
+                    final double duration = getOpsDurationValue(spec);
+                    // We expect the throttle to be significantly overfilled with our test limits
+                    allRunFor(spec, valueIsInRange(duration, 1000.0, 3000.0));
                 }));
     }
 }
