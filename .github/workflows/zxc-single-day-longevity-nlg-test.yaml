@@ -59,7 +59,7 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
   NLG_VERSION: 0.6.2
-  BlockNode_version: 0.17.0
+  BlockNode_version: 0.16.1
   NUM_OF_BLOCK_NODES: 3
 
 
