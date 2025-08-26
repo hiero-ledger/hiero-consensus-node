@@ -52,7 +52,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterComparator;
+import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
 
@@ -150,7 +150,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-        platformContext = PlatformContext.create(
+        this.platformContext = PlatformContext.create(
                 configuration,
                 Time.getCurrent(),
                 new NoOpMetrics(),
@@ -158,9 +158,28 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 MerkleCryptographyFactory.create(configuration));
 
+        final SemanticVersion version = getSemanticVersion(platformContext.getConfiguration());
+
+        final PathsConfig defaultPathsConfig =
+                platformContext.getConfiguration().getConfigData(PathsConfig.class);
+        final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
+
+        final ApplicationDefinition appDefinition =
+                ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
+
         validateOverrideNetworkJson();
 
-        printDiffsAndGetConfirmation();
+        final StateInformation sourceStateInfo = loadSourceStateAndGetConfirmation(appDefinition, version);
+
+        this.targetStateDir = new SignedStateFilePath(stateConfig)
+                .getSignedStateDirectory(
+                        appDefinition.getMainClassName(), selfId, appDefinition.getSwirldName(), sourceStateInfo.round);
+
+        printRosterDiffAndGetConfirmation(sourceStateInfo);
+
+        moveNetworkOverrideFile();
+
+        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().getDirectory());
 
         truncatePCESFilesIfNotAFreezeState();
 
@@ -171,6 +190,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
         return RETURN_CODE_SUCCESS;
     }
 
+    private SemanticVersion getSemanticVersion(Configuration configuration) {
+        final String versionString = configuration.getValue(CONFIG_KEY, "1.0.0");
+        return Optional.ofNullable(versionString)
+                .map(HapiUtils::fromString)
+                .orElse(SemanticVersion.newBuilder().major(1).build());
+    }
+
     private void validateOverrideNetworkJson() {
         final Roster roster = loadRosterFrom(networkOverrideFile);
         if (roster == null) {
@@ -179,49 +205,38 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.overrideRoster = roster;
     }
 
-    private void printDiffsAndGetConfirmation() {
-        final var versionString = platformContext.getConfiguration().getValue(CONFIG_KEY, "1.0.0");
-        final var version = Optional.ofNullable(versionString)
-                .map(HapiUtils::fromString)
-                .orElse(SemanticVersion.newBuilder().major(1).build());
-
-        final PathsConfig defaultPathsConfig =
-                platformContext.getConfiguration().getConfigData(PathsConfig.class);
-
-        final ApplicationDefinition appDefinition =
-                ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-
-        final StateInformation sourceStateInfo = loadSourceStateInformation(appDefinition, version);
-        System.out.println(RosterComparator.compare(sourceStateInfo.roster, this.overrideRoster));
+    private void printRosterDiffAndGetConfirmation(final StateInformation sourceStateInfo) {
+        System.out.println(
+                RosterDiff.report(sourceStateInfo.roster, this.overrideRoster).print());
         askIfContinue(String.format(
                 "The state trying to migrate is on round: %d and has hash: %s %n",
                 sourceStateInfo.round, sourceStateInfo.hash));
-        final Path targetNetworkOverrideDir = targetNodePath.resolve(DATA_CONFIG_OVERRIDE_NETWORK_JSON);
-        askIfContinue("Copy network override file to location: " + targetNetworkOverrideDir);
-        try {
-            if (!targetNetworkOverrideDir.toFile().exists()) {
-                Files.createDirectories(targetNetworkOverrideDir);
-            }
-            Files.copy(networkOverrideFile, targetNetworkOverrideDir, REPLACE_EXISTING);
-        } catch (IOException e) {
-            System.err.printf("Unable to copy network override file for self-id %s. %s %n", selfId, e);
-            System.exit(RETURN_CODE_PROMPT_NO);
-        }
+    }
 
-        final var latest = sourceStateInfo.fileInfo.getDirectory();
-        final var stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
-        targetStateDir = new SignedStateFilePath(stateConfig)
-                .getSignedStateDirectory(
-                        appDefinition.getMainClassName(), selfId, appDefinition.getSwirldName(), sourceStateInfo.round);
-        askIfContinue(String.format("Move state files from source dir: %s to target: %s %n", latest, targetStateDir));
+    private void copyStateFilesToCorrectDirectory(final Path sourceDir) {
+        askIfContinue(
+                String.format("Copy state files from source dir: %s to target: %s %n", sourceDir, targetStateDir));
         try {
-            if (!targetStateDir.toFile().exists()) {
-                Files.createDirectories(targetStateDir);
-            }
-            FileUtils.moveDirectory(latest, targetStateDir);
+            FileUtils.copyDirectory(sourceDir, targetStateDir);
             stateMetadata = SavedStateMetadata.parse(targetStateDir.resolve(SavedStateMetadata.FILE_NAME));
         } catch (IOException e) {
-            System.err.printf("Unable to move state files from:%s to:%s. %s %n", latest, targetStateDir, e);
+            System.err.printf("Unable to move state files from:%s to:%s. %s %n", sourceDir, targetStateDir, e);
+            System.exit(RETURN_CODE_PROMPT_NO);
+        }
+    }
+
+    private void moveNetworkOverrideFile() {
+        // The configurations to assemble the DATA_CONFIG_OVERRIDE_NETWORK_JSON live in services, so can't be used here.
+        // Hardcoded for now.
+        final Path networkOverrideFile = targetNodePath.resolve(DATA_CONFIG_OVERRIDE_NETWORK_JSON);
+        askIfContinue("Copy network override file to location: " + networkOverrideFile);
+        try {
+            if (!networkOverrideFile.toFile().exists()) {
+                Files.createDirectories(networkOverrideFile);
+            }
+            Files.copy(this.networkOverrideFile, networkOverrideFile, REPLACE_EXISTING);
+        } catch (IOException e) {
+            System.err.printf("Unable to copy network override file for self-id %s. %s %n", selfId, e);
             System.exit(RETURN_CODE_PROMPT_NO);
         }
     }
@@ -247,7 +262,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         }
     }
 
-    private StateInformation loadSourceStateInformation(
+    private StateInformation loadSourceStateAndGetConfirmation(
             final ApplicationDefinition appDefinition, final SemanticVersion version) {
         setupConstructableRegistry();
         try {

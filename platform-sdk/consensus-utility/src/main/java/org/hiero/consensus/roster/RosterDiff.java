@@ -19,7 +19,7 @@ import javax.annotation.Nullable;
  * A utility class to compare two Roster instances and identify differences.
  * It reports which roster entries have been added, deleted, or modified.
  */
-public class RosterComparator {
+public class RosterDiff {
 
     /**
      * Compares an old Roster with a new Roster and returns the differences.
@@ -29,16 +29,16 @@ public class RosterComparator {
      * @return A RosterComparisonResult object detailing the changes.
      */
     @NonNull
-    public static RosterComparisonResult compare(@Nullable final Roster oldRoster, @Nullable final Roster newRoster) {
+    public static RosterDiffResult report(@Nullable final Roster oldRoster, @Nullable final Roster newRoster) {
         // Handle null cases for entire rosters
         if (oldRoster == null && newRoster == null) {
-            return new RosterComparisonResult(List.of(), List.of(), List.of());
+            return new RosterDiffResult(List.of(), List.of(), List.of());
         }
         if (oldRoster == null) {
-            return new RosterComparisonResult(newRoster.rosterEntries(), List.of(), List.of());
+            return new RosterDiffResult(newRoster.rosterEntries(), List.of(), List.of());
         }
         if (newRoster == null) {
-            return new RosterComparisonResult(List.of(), oldRoster.rosterEntries(), List.of());
+            return new RosterDiffResult(List.of(), oldRoster.rosterEntries(), List.of());
         }
 
         final Map<Long, RosterEntry> oldEntriesById =
@@ -73,14 +73,14 @@ public class RosterComparator {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        return new RosterComparisonResult(addedEntries, deletedEntries, modifiedEntries);
+        return new RosterDiffResult(addedEntries, deletedEntries, modifiedEntries);
     }
 
     /**
      * A data class to hold the results of a comparison between two Roster objects.
      * It also provides a formatted string representation of the differences.
      */
-    public record RosterComparisonResult(
+    public record RosterDiffResult(
             List<RosterEntry> added, List<RosterEntry> deleted, List<Pair<RosterEntry, RosterEntry>> modified) {
 
         /**
@@ -90,7 +90,7 @@ public class RosterComparator {
          * @param deleted  List of RosterEntry objects that were deleted.
          * @param modified List of RosterEntry pair objects that were modified.
          */
-        public RosterComparisonResult {
+        public RosterDiffResult {
             Objects.requireNonNull(added);
             Objects.requireNonNull(deleted);
             Objects.requireNonNull(modified);
@@ -105,9 +105,8 @@ public class RosterComparator {
          *
          * @return A formatted string detailing the changes.
          */
-        @Override
         @NonNull
-        public String toString() {
+        public String print() {
             if (!hasChanges()) {
                 return "No differences found between the rosters.";
             }

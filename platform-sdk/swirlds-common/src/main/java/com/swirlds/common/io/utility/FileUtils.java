@@ -377,4 +377,49 @@ public final class FileUtils {
             }
         });
     }
+
+    /**
+     * copies a source directory, along with its contents, to a target location.
+     * If the target directory does not exist, it will be created.
+     * The method preserves the directory structure during the copy operation.
+     * <br>
+     * <strong>Note:</strong> if a file already exists at the target with the same relative path, it will be overwritten.
+     *
+     * @param source the path of the directory to be moved, must not be null
+     * @param target the path where the directory should be moved, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void copyDirectory(@NonNull final Path source, @NonNull final Path target) throws IOException {
+        Objects.requireNonNull(source, "Source path cannot be null");
+        Objects.requireNonNull(target, "Target path cannot be null");
+
+        if (!Files.exists(source)) {
+            throw new IOException(source + " does not exist");
+        }
+        if (!Files.exists(target)) {
+            Files.createDirectories(target);
+        }
+
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @NonNull
+            @Override
+            public FileVisitResult preVisitDirectory(@NonNull final Path dir, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(dir);
+                final Path targetDir = target.resolve(relative);
+                Files.createDirectories(targetDir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @NonNull
+            @Override
+            public FileVisitResult visitFile(@NonNull final Path file, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(file);
+                final Path targetFile = target.resolve(relative);
+                Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
 }
