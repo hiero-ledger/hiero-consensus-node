@@ -111,7 +111,7 @@ jobs:
               helm.sh/hook-delete-policy: before-hook-creation
             env:
               HIERO_MIRROR_TEST_ACCEPTANCE_NETWORK: OTHER
-            cucumberTags: "@acceptance and not @schedulebase"
+            cucumberTags: "@acceptance and not @estimateprecompile"
             enabled: true
           EOF
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
