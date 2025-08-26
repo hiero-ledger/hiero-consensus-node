@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.test;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.services.yahcli.test.bdd.YahcliCallOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
