@@ -131,7 +131,7 @@ public class HapiSpecSetup {
             final var mnemonic = Bip0032.mnemonicFromFile(defaultPayerMnemonicFile());
             return mnemonicToEd25519Key(mnemonic);
         } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
-            return payerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
+            return defaultPayerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
         }
@@ -146,13 +146,14 @@ public class HapiSpecSetup {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Secp256k1Utils.readECKeyFrom(CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
-            return payerKeyFromResource(in -> KeyUtils.readKeyFrom(in, defaultPayerPemKeyPassphrase(), BC_PROVIDER));
+            return defaultPayerKeyFromResource(
+                    in -> KeyUtils.readKeyFrom(in, defaultPayerPemKeyPassphrase(), BC_PROVIDER));
         } else {
             return Secp256k1Utils.readECKeyFrom(new File(defaultPayerPemKeyLoc()), defaultPayerPemKeyPassphrase());
         }
     }
 
-    private <T extends PrivateKey> T payerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
+    private <T extends PrivateKey> T defaultPayerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
         try (var in =
                 Thread.currentThread().getContextClassLoader().getResourceAsStream(defaultPayerPemKeyResource())) {
             if (in == null) {

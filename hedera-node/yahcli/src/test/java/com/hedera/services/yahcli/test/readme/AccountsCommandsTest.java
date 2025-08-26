@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.test.scenarios;
+package com.hedera.services.yahcli.test.readme;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newAccountCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.yahcliAccounts;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 
 import com.hedera.services.bdd.junit.support.YahcliHapiTest;
 import java.util.concurrent.atomic.AtomicLong;

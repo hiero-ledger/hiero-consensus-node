@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.test;
+package com.hedera.services.yahcli.test.bdd;
 
 import static java.util.Objects.requireNonNull;
 
