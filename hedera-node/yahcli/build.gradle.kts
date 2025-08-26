@@ -7,6 +7,18 @@ plugins {
     id("org.hiero.gradle.feature.shadow")
 }
 
+mainModuleInfo {
+    runtimeOnly("org.junit.jupiter.engine")
+    runtimeOnly("org.junit.platform.launcher")
+}
+
+testModuleInfo {
+    requires("org.assertj.core")
+    requires("org.junit.jupiter.params")
+    requires("org.junit.platform.launcher")
+    opensTo("org.junit.platform.commons")
+}
+
 description = "Hedera Services YahCli Tool"
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
