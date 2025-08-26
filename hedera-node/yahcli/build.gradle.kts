@@ -7,6 +7,8 @@ plugins {
     id("org.hiero.gradle.feature.shadow")
 }
 
+description = "Hedera Execution YahCli Tool"
+
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
