@@ -31,6 +31,11 @@ public class HasScheduleCapacityCallStub extends AbstractCall {
     }
 
     @Override
+    public boolean allowsStaticFrame() {
+        return true;
+    }
+
+    @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         return gasOnly(
                 successResult(

@@ -5,8 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -17,6 +15,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,12 +49,13 @@ public class ScheduleDeleteTest {
 
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(
+                UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     @AfterAll
     public static void shutdown(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "false"));
+        lifecycle.doAdhoc(UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"));
     }
 
     // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
@@ -104,7 +104,7 @@ public class ScheduleDeleteTest {
             @NonNull final String scheduleFunction,
             @NonNull final String deleteFunction,
             @NonNull final Object... parameters) {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(UtilVerbs.withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();
             allRunFor(

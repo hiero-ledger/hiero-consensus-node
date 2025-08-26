@@ -129,8 +129,10 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
         var status = recordBuilder.status();
         if (status != SUCCESS) {
             recordBuilder.status(status);
+            return completionWith(gasRequirement, recordBuilder, encodedRc(status));
+        } else {
+            return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
         }
-        return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
     }
 
     /**

@@ -83,8 +83,8 @@ abstract contract HederaScheduleService_HIP1215 {
     /// @param gasLimit a maximum limit to the amount of gas to use for future call
     /// @return hasCapacity returns `true` iff the given second still has capacity to schedule a contract call
     /// with the specified gas limit.
-    function hasScheduleCapacity(uint256 expirySecond, uint256 gasLimit) internal returns (bool hasCapacity) {
-        (bool success, bytes memory result) = HSS.call(
+    function hasScheduleCapacity(uint256 expirySecond, uint256 gasLimit) view internal returns (bool hasCapacity) {
+        (bool success, bytes memory result) = HSS.staticcall(
             abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond, gasLimit));
         hasCapacity = success ? abi.decode(result, (bool)) : false;
     }
