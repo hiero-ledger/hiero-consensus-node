@@ -126,6 +126,8 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hiero-citr-linux-medium
     needs: mirror-node-regression
+    permissions:
+      id-token: write
     if: ${{ always() }}
     steps:
       - name: Harden Runner
