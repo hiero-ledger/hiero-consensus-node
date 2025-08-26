@@ -135,10 +135,6 @@ dependencies.constraints {
     api("com.google.protobuf:protoc:$protobuf")
     api("io.grpc:protoc-gen-grpc-java:$grpc")
 
-    api("com.hedera.common:hedera-common-nativesupport:$hederaCryptography") {
-        because("com.hedera.common.nativesupport")
-    }
-
     api("com.hedera.cryptography:hedera-cryptography-blskeygen:$hederaCryptography") {
         because("com.hedera.cryptography.blskeygen")
     }
