@@ -39,7 +39,9 @@ blockNode:
     # PERSISTENCE_STORAGE_TYPE: "NO_OP"
     # VERIFICATION_TYPE: "NO_OP"
     # MEDIATOR_TYPE: "NO_OP"
-    MEDIATOR_RING_BUFFER_SIZE: "8192"
+    MEDIATOR_RING_BUFFER_SIZE: "1024"
+    MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+
   persistence:
     archive:
       # If false, the chart expects an externally provided PVC
