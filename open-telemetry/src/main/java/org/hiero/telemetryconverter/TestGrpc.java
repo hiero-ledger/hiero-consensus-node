@@ -89,7 +89,8 @@ public class TestGrpc {
                 .resourceSpans(resourceSpans)
                 .build();
         System.out.println("ExportTraceServiceRequest = " + ExportTraceServiceRequest.JSON.toJSON(request));
-        client.Export(request);
+        var response = client.Export(request);
+        System.out.println("response = " + response);
     }
 
     private static GrpcClient createGrpcClient(String baseUri) {

@@ -119,9 +119,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
 
     private VirtualMap virtualMap;
 
-    /** Used to trace when the round is hashed. */
-    private final RoundTrace roundTrace = new RoundTrace();
-
     /**
      * Used to track the status of the Platform.
      * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
@@ -423,12 +420,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     @Override
     @Nullable
     public Hash getHash() {
-        roundTrace.begin();
-        final Hash hash =  virtualMap.getHash();
-        roundTrace.roundNum = roundSupplier.getAsLong();
-        roundTrace.eventType = EventType.HASHED.ordinal();
-        roundTrace.commit();
-        return hash;
+        return  virtualMap.getHash();
     }
 
     /**

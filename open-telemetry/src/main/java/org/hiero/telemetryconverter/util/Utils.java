@@ -40,7 +40,7 @@ public final class Utils {
     }
 
     /**
-     * XXH3 64 bit hash to 8 bytes.
+     * XXH3 64 bit hash of a long to 8 bytes.
      *
      * @param val the value to hash
      * @return the hash as 8 bytes
@@ -51,6 +51,25 @@ public final class Utils {
         val ^= (val >>> 35) + 8;
         val *= 0x9FB21C651E98DF25L;
         return Bytes.wrap(longToByteArray(val ^ (val >>> 28)));
+    }
+
+
+    /**
+     * XXH3 64 bit hash of two longs to 8 bytes.
+     *
+     * @param val the value to hash
+     * @return the hash as 8 bytes
+     */
+    public static Bytes longToHash8Bytes(long val, long val2) {
+        long lo = val ^ (0x1f67b3b7a4a44072L ^ 0x78e5c0cc4ee679cbL);
+        long hi = val2 ^ (0x2172ffcc7dd05a82L ^ 0x8e2443f7744608b8L);
+        long x = lo * hi;
+        long y = Math.unsignedMultiplyHigh(lo, hi);
+        long acc = 16 + Long.reverseBytes(lo) + hi + (x ^ y);
+        acc ^= acc >>> 37;
+        acc *= 0x165667919E3779F9L;
+        long hash = acc ^ (acc >>> 32);
+        return Bytes.wrap(longToByteArray(hash));
     }
 
     /**

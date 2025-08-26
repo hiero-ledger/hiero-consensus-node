@@ -96,4 +96,14 @@ public class EventInfo {
     public long eventEndTimeNanos() {
         return eventEndTimeNanos;
     }
+    public long endOfGossipOrEventCreation() {
+        if (gossipedTraces.isEmpty()) {
+            return createdTrace.endTimeNanos();
+        } else {
+            return gossipedTraces.stream()
+                .mapToLong(gt -> gt.endTimeNanos())
+                .max()
+                .orElse(eventStartTimeNanos);
+        }
+    }
 }

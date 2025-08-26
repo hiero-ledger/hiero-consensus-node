@@ -1,15 +1,12 @@
 package org.hiero.telemetryconverter;
 
-import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.INFO;
-import static java.lang.System.Logger.Level.TRACE;
 
 import java.io.IOException;
 import java.lang.System.Logger.Level;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
@@ -56,10 +53,21 @@ public class JfrFileReader {
                         case "consensus.Round" -> {
                             final long roundNum = e.getLong("roundNum");
                             final int eventTypeOrdinal = e.getInt("eventType");
+                            final long startTimeNanos = Utils.instantToUnixEpocNanos(e.getStartTime());
+                            final long endTimeNanos = Utils.instantToUnixEpocNanos(e.getEndTime());
+                            final java.time.Duration duration = java.time.Duration.ofNanos(
+                                    endTimeNanos-startTimeNanos);
+                            if (!duration.equals(e.getDuration())) throw new IllegalStateException(
+                                    "Inconsistent duration in Round event: " + e);
+                            if (duration.getSeconds() >= 1) {
+                                LOGGER.log(Level.WARNING,
+                                        () -> String.format(
+                                                "Long duration in Round event: %d, duration: %s",
+                                                roundNum, duration));
+                            }
                             final RoundTraceInfo roundTraceInfo = new RoundTraceInfo(nodeId, roundNum,
                                     RoundTraceInfo.EventType.values()[eventTypeOrdinal],
-                                    Utils.instantToUnixEpocNanos(e.getStartTime()),
-                                    Utils.instantToUnixEpocNanos(e.getEndTime()));
+                                    startTimeNanos,endTimeNanos);
                             roundTraces.getIfAbsentPut(roundNum, ArrayList::new).add(roundTraceInfo);
                         }
                         case "consensus.Event" -> {

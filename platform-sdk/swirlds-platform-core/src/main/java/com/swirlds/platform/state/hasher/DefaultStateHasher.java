@@ -3,6 +3,8 @@ package com.swirlds.platform.state.hasher;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.swirlds.base.telemetry.RoundTrace;
+import com.swirlds.base.telemetry.RoundTrace.EventType;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
@@ -14,6 +16,7 @@ import java.time.Instant;
 import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Hashes signed states after all modifications for a round have been completed.
@@ -23,6 +26,9 @@ public class DefaultStateHasher implements StateHasher {
     private static final Logger logger = LogManager.getLogger(DefaultStateHasher.class);
     private final MerkleCryptography merkleCryptography;
     private final StateHasherMetrics metrics;
+
+    /** Used to trace when the round is hashed. */
+    private final RoundTrace roundTrace = new RoundTrace();
 
     /**
      * Constructs a SignedStateHasher to hash SignedStates.  If the signedStateMetrics object is not null, the time
@@ -44,11 +50,16 @@ public class DefaultStateHasher implements StateHasher {
     public ReservedSignedState hashState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
+        roundTrace.begin();
         try {
             merkleCryptography
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
+            // trace the hashing of a state to JFR
+            roundTrace.roundNum = reservedSignedState.get().getRound();
+            roundTrace.eventType = EventType.HASHED.ordinal();
+            roundTrace.commit();
 
             return reservedSignedState;
         } catch (final ExecutionException e) {

@@ -3,6 +3,7 @@ package org.hiero.telemetryconverter;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
+import static org.hiero.telemetryconverter.util.CleanColorfulFormatter.GREY;
 
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
@@ -25,15 +26,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.LogManager;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
+import org.hiero.telemetryconverter.model.VirtualResource;
 import org.hiero.telemetryconverter.model.combined.BlockInfo;
 import org.hiero.telemetryconverter.model.trace.BlockTraceInfo;
 import org.hiero.telemetryconverter.model.trace.EventTraceInfo;
@@ -134,7 +139,7 @@ public final class TelemetryConverter {
         }
         // now read the block files and match them with the round traces
         try(Stream<Path> paths = java.nio.file.Files.walk(BLOCK_FILES_DIR)) {
-            paths.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".blk.gz"))
+            sendSpans(paths.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".blk.gz"))
                     .sorted(Comparator.comparingLong(path -> {
                         // extract the block number from the file name, assuming it is in the format "<blockNum>.blk.gz"
                         String fileName = path.getFileName().toString();
@@ -156,22 +161,37 @@ public final class TelemetryConverter {
                     })
                     .filter(Objects::nonNull)
                     .map(BlockSpanCreator::createBlockSpans)
-                    .limit(5) // TODO limit to first 5 blocks for testing
-                    .forEach(TelemetryConverter::sendSpans);
+                    .limit(20) // TODO limit to first 5 blocks for testing
+                    // merge all the maps into one map
+                    .flatMap(map -> map.entrySet().stream())
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (list1, list2) -> {
+                                List<Span> mergedList = new ArrayList<>(list1);
+                                mergedList.addAll(list2);
+                                return mergedList;
+                            }
+                    )));
         }
     }
 
     private static final AtomicLong spanIdCounter = new AtomicLong(0L);
 
-    private static void sendSpans(final List<Span> spans) {
-        LOGGER.log(INFO, "Start sending "+spans.size()+" spans to OpenTelemetry collector");
+    private static void sendSpans(final Map<VirtualResource,List<Span>> spanMap) {
+        final int numOfSpans = spanMap.values().stream().mapToInt(List::size).sum();
+        LOGGER.log(INFO, "Start sending "+numOfSpans+" spans to OpenTelemetry collector");
         try {
-            final ResourceSpans resourceSpans = ResourceSpans.newBuilder()
-                    .resource(HIERO_RESOURCE)
-                    .scopeSpans(ScopeSpans.newBuilder().spans(spans).build())
-                    .build();
             final ExportTraceServiceRequest request = ExportTraceServiceRequest.newBuilder()
-                    .resourceSpans(resourceSpans)
+                    .resourceSpans(
+                            spanMap.entrySet().stream().map(entry -> {
+                                final VirtualResource vr = entry.getKey();
+                                final List<Span> spans = entry.getValue();
+                                return ResourceSpans.newBuilder()
+                                        .resource(vr.resource)
+                                        .scopeSpans(ScopeSpans.newBuilder().spans(spans).build())
+                                        .build();
+                            }).toList())
                     .build();
             // write json file
             try(WritableStreamingData out = new WritableStreamingData(Files.newOutputStream(
@@ -181,8 +201,8 @@ public final class TelemetryConverter {
                 System.err.printf("Error writing spans to file: %s%n", e.getMessage());
             }
             // send to GRPC
-            traceClient.Export(request);
-            LOGGER.log(INFO, "Sent "+spans.size()+" spans to OpenTelemetry collector");
+            var response = traceClient.Export(request);
+            LOGGER.log(INFO, "Sent "+numOfSpans+" spans to OpenTelemetry collector :: "+ GREY+ response);
         } catch (Exception e) {
             LOGGER.log(ERROR, "Error sending spans to OpenTelemetry collector: " + e.getMessage(), e);
         }

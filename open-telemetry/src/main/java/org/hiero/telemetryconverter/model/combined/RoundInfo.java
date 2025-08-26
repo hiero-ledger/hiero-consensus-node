@@ -61,14 +61,20 @@ public class RoundInfo {
         // scan all transactions to find the earliest start time.
         // If there are no transactions, use the earliest event created time.
         // If there are no events, use the earliest round created time.
-        roundStartTimeNanos = createdTraces.stream()
+//        roundStartTimeNanos = createdTraces.stream()
+//                .mapToLong(RoundTraceInfo::startTimeNanos)
+//                .min().orElseThrow();
+        roundStartTimeNanos = traces.stream()
                 .mapToLong(RoundTraceInfo::startTimeNanos)
-                .min().orElseThrow();
+                .max().orElseThrow();
         // find the oldest block creation time
-        roundEndTimeNanos = roundTraces.values().stream()
-                .flatMap(List::stream)
+        roundEndTimeNanos = traces.stream()
                 .mapToLong(RoundTraceInfo::endTimeNanos)
                 .max().orElseThrow();
+        System.out.println("roundNumber="+roundNumber+" size= "+traces.size()+" roundStartTimeNanos = " + roundStartTimeNanos+"  roundEndTimeNanos = " + roundEndTimeNanos+" difference = "+(roundEndTimeNanos-roundStartTimeNanos));
+        for (var t : traces) {
+            System.out.println("   "+t);
+        }
     }
 
     public long roundNumber() {
@@ -98,4 +104,5 @@ public class RoundInfo {
     public long roundEndTimeNanos() {
         return roundEndTimeNanos;
     }
+
 }
