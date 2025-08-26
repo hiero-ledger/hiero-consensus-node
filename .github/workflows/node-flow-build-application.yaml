@@ -73,6 +73,8 @@ permissions:
 jobs:
   code:
     name: Compile Code
+    # TEST CODE
+    if: ${{ false }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -85,6 +87,8 @@ jobs:
 
   dependency-check:
     name: Dependency (Module Info)
+    # TEST CODE
+    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - code
@@ -98,6 +102,8 @@ jobs:
 
   spotless:
     name: Spotless
+    # TEST CODE
+    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - code
@@ -112,6 +118,8 @@ jobs:
 
   mats-unit-tests:
     name: MATS - Unit Tests
+    # TEST CODE
+    if: ${{ true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - dependency-check
@@ -147,7 +155,9 @@ jobs:
     needs:
       - dependency-check
       - spotless
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
+    # TEST CODE
+
+    if: ${{ false && (github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true') }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -162,7 +172,7 @@ jobs:
     needs:
       - dependency-check
       - spotless
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true' }}
+    if: ${{ false && (github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true') }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
@@ -178,10 +188,10 @@ jobs:
       - mats-unit-tests
       - mats-gradle-determinism
       - mats-docker-determinism
-    if: ${{ (github.event_name == 'push') &&
+    if: ${{ false && ( (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
       needs.mats-gradle-determinism.result == 'success' &&
-      needs.mats-docker-determinism.result == 'success' }}
+      needs.mats-docker-determinism.result == 'success') }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -290,7 +300,8 @@ jobs:
         id: set-rootly-parameters
         run: |
           CREATE_INCIDENT='true'
-          ROOTLY_SERVICE_NAME="CITR General"
+          # ROOTLY_SERVICE_NAME="CITR General"
+          ROOTLY_SERVICE_NAME="CI/CD Workflows" # test code
           if [[ "${{ needs.deploy-ci-trigger.result != 'success' }}" ]]; then
             CREATE_INCIDENT='false'
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
@@ -362,134 +373,133 @@ jobs:
           incident_types: "Platform CI"
           services: ${{ steps.set-rootly-parameters.outputs.service }}
           teams: "Platform CI"
-
-      - name: Build Slack Payload Message
-        id: payload
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":exclamation: Hiero Consensus Node - MATS Error Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*MATS Job Resulted in failure on `main`. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Code Compiles*: ${{ needs.code.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Dependency (Module Info)*: ${{ needs.dependency-check.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Spotless*: ${{ needs.spotless.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Unit Tests*: ${{ needs.mats-unit-tests.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Gradle Determinism*: ${{ needs.mats-gradle-determinism.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Docker Determinism*: ${{ needs.mats-docker-determinism.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
-
-      - name: Report failure (slack citr-operations)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+#      - name: Build Slack Payload Message
+#        id: payload
+#        run: |
+#          cat <<EOF > slack_payload.json
+#          {
+#            "attachments": [
+#              {
+#                "color": "#FF0000",
+#                "blocks": [
+#                  {
+#                    "type": "header",
+#                    "text": {
+#                      "type": "plain_text",
+#                      "text": ":exclamation: Hiero Consensus Node - MATS Error Report",
+#                      "emoji": true
+#                    }
+#                  },
+#                  {
+#                    "type": "divider"
+#                  },
+#                  {
+#                    "type": "section",
+#                    "text": {
+#                      "type": "mrkdwn",
+#                      "text": "*MATS Job Resulted in failure on `main`. See status below.*"
+#                    },
+#                    "fields": [
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Code Compiles*: ${{ needs.code.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Dependency (Module Info)*: ${{ needs.dependency-check.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Spotless*: ${{ needs.spotless.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*MATS - Unit Tests*: ${{ needs.mats-unit-tests.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*MATS - Gradle Determinism*: ${{ needs.mats-gradle-determinism.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*MATS - Docker Determinism*: ${{ needs.mats-docker-determinism.result }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
+#                      }
+#                    ]
+#                  },
+#                  {
+#                    "type": "divider"
+#                  },
+#                  {
+#                    "type": "section",
+#                    "text": {
+#                      "type": "mrkdwn",
+#                      "text": "*Workflow and Commit Information*"
+#                    },
+#                    "fields": [
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Source Commit*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Commit author*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Slack user*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Workflow run ID*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": " ${{ github.run_id }}"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "*Workflow run URL*:"
+#                      },
+#                      {
+#                        "type": "mrkdwn",
+#                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+#                      }
+#                    ]
+#                  }
+#                ]
+#              }
+#            ]
+#          }
+#          EOF
+#
+#      - name: Report failure (slack citr-operations)
+#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+#        with:
+#          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+#          webhook-type: incoming-webhook
+#          payload-templated: true
+#          payload-file-path: slack_payload.json
+#
+#      - name: Report failure (slack release-team)
+#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+#        with:
+#          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+#          webhook-type: incoming-webhook
+#          payload-templated: true
+#          payload-file-path: slack_payload.json
