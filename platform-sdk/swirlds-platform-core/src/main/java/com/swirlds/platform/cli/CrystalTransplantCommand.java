@@ -71,13 +71,14 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private static final String CONFIG_KEY = "hedera.config.version";
     /** Application properties file name */
     private static final String APPLICATION_PROPERTIES_FILE_NAME = "application.properties";
-
+    /** Target location for network-override file */
     public static final String DATA_CONFIG_OVERRIDE_NETWORK_JSON = "data/config/override-network.json";
 
     /** The path to the state to prepare for transplant. */
     private Path sourceStatePath;
-
+    /** Target node id. */
     private NodeId selfId;
+    /** The path to the Override network file. */
     private Path networkOverrideFile;
 
     @CommandLine.Option(
@@ -141,7 +142,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
      */
     @Override
     public Integer call() throws IOException {
-        askIfContinue(String.format(
+        requestConfirmation(String.format(
                 "Start migration process for selfId: %s using networkOverride:%s sourceStatePath:%s and targetNodePath:%s",
                 selfId,
                 networkOverrideFile.toAbsolutePath(),
@@ -158,11 +159,10 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 MerkleCryptographyFactory.create(configuration));
 
-        final SemanticVersion version = getSemanticVersion(platformContext.getConfiguration());
+        final SemanticVersion version = getSemanticVersion(configuration);
 
-        final PathsConfig defaultPathsConfig =
-                platformContext.getConfiguration().getConfigData(PathsConfig.class);
-        final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
+        final PathsConfig defaultPathsConfig = configuration.getConfigData(PathsConfig.class);
+        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
 
         final ApplicationDefinition appDefinition =
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
@@ -208,13 +208,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private void printRosterDiffAndGetConfirmation(final StateInformation sourceStateInfo) {
         System.out.println(
                 RosterDiff.report(sourceStateInfo.roster, this.overrideRoster).print());
-        askIfContinue(String.format(
+        requestConfirmation(String.format(
                 "The state trying to migrate is on round: %d and has hash: %s %n",
                 sourceStateInfo.round, sourceStateInfo.hash));
     }
 
     private void copyStateFilesToCorrectDirectory(final Path sourceDir) {
-        askIfContinue(
+        requestConfirmation(
                 String.format("Copy state files from source dir: %s to target: %s %n", sourceDir, targetStateDir));
         try {
             FileUtils.copyDirectory(sourceDir, targetStateDir);
@@ -229,7 +229,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         // The configurations to assemble the DATA_CONFIG_OVERRIDE_NETWORK_JSON live in services, so can't be used here.
         // Hardcoded for now.
         final Path networkOverrideFile = targetNodePath.resolve(DATA_CONFIG_OVERRIDE_NETWORK_JSON);
-        askIfContinue("Copy network override file to location: " + networkOverrideFile);
+        requestConfirmation("Copy network override file to location: " + networkOverrideFile);
         try {
             if (!networkOverrideFile.toFile().exists()) {
                 Files.createDirectories(networkOverrideFile);
@@ -241,7 +241,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         }
     }
 
-    private void askIfContinue(String message) {
+    private void requestConfirmation(final String message) {
         System.out.println(message);
         if (!this.autoConfirm) {
             Console console = System.console();
@@ -300,7 +300,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
      * rounds to make the state look like a freeze state
      */
     private void truncatePCESFilesIfNotAFreezeState() throws IOException {
-        askIfContinue("Truncate PCES files");
+        requestConfirmation("Truncate PCES files");
 
         if (stateMetadata.freezeState() == null || !stateMetadata.freezeState()) {
             final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(targetStateDir, platformContext);
@@ -313,7 +313,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     }
 
     private void copyPCESFilesToCorrectDirectory() {
-        askIfContinue("Copy PCES files to correct directory");
+        requestConfirmation("Copy PCES files to correct directory");
     }
 
     /**
@@ -327,7 +327,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
      * @throws IOException If the application properties file is missing or cannot be read or written.
      */
     private void performConfigBump() throws IOException {
-        askIfContinue("Perform config bumping");
+        requestConfirmation("Perform config bumping");
         final Path propertiesPath = Paths.get(APPLICATION_PROPERTIES_FILE_NAME);
         if (Files.notExists(propertiesPath)) {
             Files.createFile(propertiesPath.resolve(APPLICATION_PROPERTIES_FILE_NAME));
