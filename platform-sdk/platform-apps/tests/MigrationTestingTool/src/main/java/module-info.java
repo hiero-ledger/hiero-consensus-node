@@ -13,7 +13,7 @@ module com.swirlds.demo.migration {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
-    requires com.swirlds.state.impl.test.fixtures;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;

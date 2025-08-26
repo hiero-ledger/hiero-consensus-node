@@ -188,8 +188,14 @@ public class SortedJsonExporter {
                     } else { // kv
                         write(
                                 writer,
-                                "{\"k\":\"%s\", \"v\":%s}\n"
-                                        .formatted(keyToJson(stateKey.key()), valueToJson(stateValue.value())));
+                                "{\"k\":\"%s\", \"v\":\"%s\"}\n"
+                                        .formatted(
+                                                keyToJson(stateKey.key())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\""),
+                                                valueToJson(stateValue.value())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\"")));
                     }
                     emptyFile = false;
                 } catch (ParseException e) {

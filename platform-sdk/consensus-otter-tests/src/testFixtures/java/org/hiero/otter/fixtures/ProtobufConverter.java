@@ -2,14 +2,18 @@
 package org.hiero.otter.fixtures;
 
 import static java.util.Comparator.comparingLong;
+import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.event.legacy.EventConsensusData;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 
 public class ProtobufConverter {
@@ -237,24 +241,19 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ GossipEvent to a Legacy GossipEvent.
+     * Converts an Otter PlatformEvent to the consensus model PlatformEvent.
      *
-     * @param sourceGossipEvent the PBJ GossipEvent to convert
+     * @param sourcePlatformEvent the PBJ GossipEvent to convert
      * @return the converted Legacy GossipEvent
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.legacy.GossipEvent fromPbj(
-            @NonNull final com.hedera.hapi.platform.event.GossipEvent sourceGossipEvent) {
-        return com.hedera.hapi.platform.event.legacy.GossipEvent.newBuilder()
-                .setEventCore(sourceGossipEvent.eventCore() != null ? fromPbj(sourceGossipEvent.eventCore()) : null)
-                .setSignature(fromPbj(sourceGossipEvent.signature()))
-                .addAllTransactions(sourceGossipEvent.transactions().stream()
-                        .map(ProtobufConverter::fromPbj)
-                        .toList())
-                .addAllParents(sourceGossipEvent.parents().stream()
-                        .map(ProtobufConverter::fromPbj)
-                        .toList())
-                .build();
+    public static org.hiero.consensus.model.event.PlatformEvent toPlatform(
+            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent sourcePlatformEvent) {
+        final org.hiero.consensus.model.event.PlatformEvent platformEvent =
+                new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourcePlatformEvent.getGossipEvent()));
+        new PbjStreamHasher().hashEvent(platformEvent);
+        platformEvent.setConsensusData(toPbj(sourcePlatformEvent.getConsensusData()));
+        return platformEvent;
     }
 
     /**
@@ -491,7 +490,7 @@ public class ProtobufConverter {
     public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> toPbj(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds sourceRounds) {
         return sourceRounds.getRoundsList().stream()
-                .map(ProtobufConverter::toPbj)
+                .map(ProtobufConverter::toPlatform)
                 .collect(Collectors.toList());
     }
 
@@ -518,7 +517,7 @@ public class ProtobufConverter {
      * @return the converted ConsensusRound
      */
     @NonNull
-    public static org.hiero.consensus.model.hashgraph.ConsensusRound toPbj(
+    public static org.hiero.consensus.model.hashgraph.ConsensusRound toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRound sourceRound) {
         final com.hedera.hapi.node.state.roster.Roster consensusRoster = toPbj(sourceRound.getConsensusRoster());
         final List<org.hiero.consensus.model.event.PlatformEvent> consensusEvents =
@@ -547,19 +546,13 @@ public class ProtobufConverter {
     @NonNull
     public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRound fromPlatform(
             @NonNull final org.hiero.consensus.model.hashgraph.ConsensusRound sourceRound) {
-        final List<com.hedera.hapi.platform.event.legacy.GossipEvent> gossipEvents =
+        final List<org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent> events =
                 sourceRound.getConsensusEvents().stream()
-                        .map(org.hiero.consensus.model.event.PlatformEvent::getGossipEvent)
-                        .map(ProtobufConverter::fromPbj)
-                        .toList();
-        final List<org.hiero.otter.fixtures.container.proto.CesEvent> streamedEvents =
-                sourceRound.getStreamedEvents().stream()
                         .map(ProtobufConverter::fromPlatform)
                         .toList();
 
         return org.hiero.otter.fixtures.container.proto.ProtoConsensusRound.newBuilder()
-                .addAllConsensusEvents(gossipEvents)
-                .addAllStreamedEvents(streamedEvents)
+                .addAllConsensusEvents(events)
                 .setEventWindow(fromPlatform(sourceRound.getEventWindow()))
                 .setNumAppTransactions(sourceRound.getNumAppTransactions())
                 .setSnapshot(fromPbj(sourceRound.getSnapshot()))
@@ -569,38 +562,40 @@ public class ProtobufConverter {
                 .build();
     }
 
-    /**
-     * Converts a CesEvent to a Proto CesEvent.
-     *
-     * @param sourceEvent the CesEvent to convert
-     * @return the converted Proto CesEvent
-     */
-    @NonNull
-    public static org.hiero.otter.fixtures.container.proto.CesEvent fromPlatform(
-            @NonNull final org.hiero.consensus.model.event.CesEvent sourceEvent) {
-        final com.google.protobuf.ByteString runningHash = sourceEvent.getRunningHash() != null
-                        && sourceEvent.getRunningHash().getHash() != null
-                ? com.google.protobuf.ByteString.copyFrom(
-                        sourceEvent.getRunningHash().getHash().copyToByteArray())
-                : com.google.protobuf.ByteString.EMPTY;
-        return org.hiero.otter.fixtures.container.proto.CesEvent.newBuilder()
-                .setPlatformEvent(fromPbj(sourceEvent.getPlatformEvent().getGossipEvent()))
-                .setRunningHash(runningHash)
-                .setRoundReceived(sourceEvent.getRoundReceived())
-                .setLastInRoundReceived(sourceEvent.isLastInRoundReceived())
+    private static org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent fromPlatform(
+            @NonNull final org.hiero.consensus.model.event.PlatformEvent platformEvent) {
+        return org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent.newBuilder()
+                .setGossipEvent(fromPbj(platformEvent.getGossipEvent()))
+                .setConsensusData(
+                        platformEvent.getConsensusData() == null ? null : toPbj(platformEvent.getConsensusData()))
                 .build();
     }
 
-    /**
-     * Converts a legacy GossipEvent to a PlatformEvent.
-     *
-     * @param sourceEvent the legacy GossipEvent to convert
-     * @return the converted PlatformEvent
-     */
-    @NonNull
-    public static org.hiero.consensus.model.event.PlatformEvent toPlatform(
-            @NonNull final com.hedera.hapi.platform.event.legacy.GossipEvent sourceEvent) {
-        return new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourceEvent));
+    private static com.hedera.hapi.platform.event.legacy.GossipEvent fromPbj(
+            @NonNull final com.hedera.hapi.platform.event.GossipEvent gossipEvent) {
+        return com.hedera.hapi.platform.event.legacy.GossipEvent.newBuilder()
+                .setEventCore(fromPbj(requireNonNull(gossipEvent.eventCore())))
+                .addAllParents(fromPbj(gossipEvent.parents()))
+                .build();
+    }
+
+    private static Iterable<com.hedera.hapi.platform.event.legacy.EventDescriptor> fromPbj(
+            final List<com.hedera.hapi.platform.event.EventDescriptor> parents) {
+        return parents.stream().map(ProtobufConverter::fromPbj).toList();
+    }
+
+    private static EventConsensusData toPbj(final com.hedera.hapi.platform.event.EventConsensusData consensusData) {
+        return EventConsensusData.newBuilder()
+                .setConsensusTimestamp(toPbj(requireNonNull(consensusData.consensusTimestamp())))
+                .setConsensusOrder(consensusData.consensusOrder())
+                .build();
+    }
+
+    private static Timestamp toPbj(final com.hedera.hapi.node.base.Timestamp timestamp) {
+        return com.hederahashgraph.api.proto.java.Timestamp.newBuilder()
+                .setSeconds(timestamp.seconds())
+                .setNanos(timestamp.nanos())
+                .build();
     }
 
     /**

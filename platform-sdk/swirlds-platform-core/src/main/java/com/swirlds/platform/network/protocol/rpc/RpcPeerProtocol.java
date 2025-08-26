@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -276,9 +277,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         conversationFinishPending = -1L;
         syncMetrics.reportSyncPhase(remotePeerId, previousPhase);
         try {
-            executor.doParallel(
+            executor.doParallelWithHandler(
                     connection::disconnect,
-                    this::dispatchInputMessages,
+                    (ThrowingRunnable) this::dispatchInputMessages,
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {

@@ -5,9 +5,16 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
+import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
@@ -24,25 +31,87 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 public interface Network {
 
     /**
-     * Add regular nodes to the network.
+     * Get the list of nodes in the network.
      *
-     * @param count the number of nodes to add
-     * @return a list of the added nodes
+     * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the network, the
+     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
+     * create a copy.
+     *
+     * @return a list of nodes in the network
      */
     @NonNull
-    default List<Node> addNodes(final int count) {
-        return addNodes(count, WeightGenerators.GAUSSIAN);
+    default List<Node> nodes() {
+        return topology().nodes();
     }
 
     /**
-     * Add regular nodes to the network with specific weights.
+     * Returns the {@link Topology} of the network.
      *
-     * @param count - the number of nodes to add
-     * @param weightGenerator - the generator to use for the weights of the nodes
-     * @return a list of the added nodes
+     * @return the topology of the network
      */
     @NonNull
-    List<Node> addNodes(int count, WeightGenerator weightGenerator);
+    Topology topology();
+
+    /**
+     * Adds a single node to the network.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     *
+     * @return the created node
+     */
+    @NonNull
+    default Node addNode() {
+        return topology().addNode();
+    }
+
+    /**
+     * Adds multiple nodes to the network.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     *
+     * @param count the number of nodes to add
+     * @return list of created nodes
+     */
+    @NonNull
+    default List<Node> addNodes(final int count) {
+        return topology().addNodes(count);
+    }
+
+    /**
+     * Add an instrumented node to the network.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     *
+     * <p>This method is used to add a node that has additional instrumentation for testing purposes.
+     * For example, it can exhibit malicious or erroneous behavior.
+     *
+     * @return the added instrumented node
+     */
+    @NonNull
+    default InstrumentedNode addInstrumentedNode() {
+        return topology().addInstrumentedNode();
+    }
+
+    /**
+     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes.
+     *
+     * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
+     *
+     * <p>Note that the weight generator can only be set before any nodes are added to the network.
+     *
+     * @param weightGenerator the weight generator to use
+     * @throws IllegalStateException if nodes have already been added to the network
+     */
+    void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
+
+    /**
+     * Gets the total weight of the network. Always positive.
+     *
+     * @return the network weight
+     */
+    default long totalWeight() {
+        return nodes().stream().mapToLong(Node::weight).sum();
+    }
 
     /**
      * Start the network with the currently configured setup.
@@ -55,34 +124,92 @@ public interface Network {
     void start();
 
     /**
-     * Add an instrumented node to the network.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
+     * each other, but are disconnected from all nodes outside the partition.
      *
-     * <p>This method is used to add a node that has additional instrumentation for testing purposes.
-     * For example, it can exhibit malicious or erroneous behavior.
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
      *
-     * @return the added instrumented node
+     * <p>If there was no partition before, a second partition is created implicitly that contains the remaining nodes.
+     *
+     * @param nodes the nodes to include in the partition
+     * @return the created Partition object
+     * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    InstrumentedNode addInstrumentedNode();
+    Partition createPartition(@NonNull Collection<Node> nodes);
 
     /**
-     * Get the list of nodes in the network.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
+     * each other, but are disconnected from all nodes outside the partition.
      *
-     * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the network, the
-     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
-     * create a copy.
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
      *
-     * @return a list of nodes in the network
+     * @param node0 the first node to include in the partition (mandatory)
+     * @param nodes additional nodes to include in the partition (optional)
+     * @return the created Partition object
+     * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    List<Node> nodes();
+    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
+        return createPartition(Utils.collect(node0, nodes));
+    }
 
     /**
-     * Gets the total weight of the network. Always positive.
+     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the partition.
      *
-     * @return the network weight
+     * @param partition the partition to remove
      */
-    long totalWeight();
+    void removePartition(@NonNull Partition partition);
+
+    /**
+     * Gets all currently active partitions.
+     *
+     * @return set of all active partitions
+     */
+    @NonNull
+    Set<Partition> partitions();
+
+    /**
+     * Gets the partition containing the specified node.
+     *
+     * @param node the node to search for
+     * @return the partition containing the node, or {@code null} if not in any partition
+     */
+    @Nullable
+    Partition getPartitionContaining(@NonNull Node node);
+
+    /**
+     * Isolates a node from the network. Disconnects all connections to and from this node.
+     *
+     * <p>This is equivalent to creating a partition with a single node. Consequently, a node that is part of a
+     * partition will be removed from the old partition before being isolated.
+     *
+     * @param node the node to isolate
+     * @return the created partition containing only the isolated node
+     * @throws IllegalArgumentException if the node is already part of a partition
+     */
+    Partition isolate(@NonNull Node node);
+
+    /**
+     * Rejoins a node with the network. Restores connections that were active before isolation.
+     *
+     * @param node the node to rejoin
+     */
+    void rejoin(@NonNull Node node);
+
+    /**
+     * Checks if a node is currently isolated from the network.
+     *
+     * @param node the node to check
+     * @return true if the node is isolated, false otherwise
+     */
+    boolean isIsolated(@NonNull Node node);
+
+    /**
+     * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
+     * connection settings. The defaults are defined by the {@link Topology} of the network.
+     */
+    void restoreConnectivity();
 
     /**
      * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
@@ -254,4 +381,14 @@ public interface Network {
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
     boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
+
+    /**
+     * Checks if all nodes in the network are in the specified {@link PlatformStatus}.
+     *
+     * @param status the status to check against
+     * @return {@code true} if all nodes are in the specified status, {@code false} otherwise
+     */
+    default boolean allNodesInStatus(@NonNull final PlatformStatus status) {
+        return nodes().stream().allMatch(node -> node.platformStatus() == status);
+    }
 }

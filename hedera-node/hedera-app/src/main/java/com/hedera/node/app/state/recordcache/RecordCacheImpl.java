@@ -2,7 +2,6 @@
 package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.STALE;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
@@ -31,7 +30,6 @@ import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.WorkingStateAccessor;
-import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -104,11 +102,6 @@ public class RecordCacheImpl implements HederaRecordCache {
     private static final HistorySource EMPTY_HISTORY_SOURCE = new HistorySource();
 
     /**
-     * This receipt source is used whenever a transaction is known to be stale in the deduplication cache.
-     */
-    private static final ReceiptSource STALE_RECEIPT_SOURCE = new StaleReceiptSource();
-
-    /**
      * Used for looking up fee collection account for a node that failed due diligence. This must be looked up dynamically.
      */
     private final NetworkInfo networkInfo;
@@ -138,35 +131,6 @@ public class RecordCacheImpl implements HederaRecordCache {
      * The list of transaction receipts for the current round.
      */
     private final List<TransactionReceiptEntry> transactionReceipts = new ArrayList<>();
-
-    /**
-     * A ReceiptSource implementation that provides the stale receipt for a transaction ID.
-     */
-    private record StaleReceiptSource() implements ReceiptSource {
-        @Override
-        public @NonNull TransactionReceipt priorityReceipt(@NonNull final TransactionID txnId) {
-            requireNonNull(txnId);
-            return TransactionReceipt.newBuilder().status(STALE).build();
-        }
-
-        @Override
-        public @Nullable TransactionReceipt childReceipt(@NonNull final TransactionID txnId) {
-            requireNonNull(txnId);
-            return null;
-        }
-
-        @Override
-        public @NonNull List<TransactionReceipt> duplicateReceipts(@NonNull final TransactionID txnId) {
-            requireNonNull(txnId);
-            return emptyList();
-        }
-
-        @Override
-        public @NonNull List<TransactionReceipt> childReceipts(@NonNull final TransactionID txnId) {
-            requireNonNull(txnId);
-            return emptyList();
-        }
-    }
 
     /**
      * Contains history of transactions submitted with the same "base" {@link TransactionID};
@@ -508,17 +472,9 @@ public class RecordCacheImpl implements HederaRecordCache {
     public @Nullable ReceiptSource getReceipts(@NonNull final TransactionID txnId) {
         requireNonNull(txnId);
         final var historySource = historySources.get(txnId);
-        if (historySource != null) {
-            return historySource;
-        }
-        TxStatus status = deduplicationCache.getTxStatus(txnId);
-        if (status == TxStatus.STALE) {
-            return STALE_RECEIPT_SOURCE;
-        } else if (status == TxStatus.SUBMITTED) {
-            return EMPTY_HISTORY_SOURCE;
-        } else {
-            return null;
-        }
+        return historySource != null
+                ? historySource
+                : (deduplicationCache.contains(txnId) ? EMPTY_HISTORY_SOURCE : null);
     }
 
     @NonNull

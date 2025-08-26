@@ -33,6 +33,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -62,7 +63,7 @@ public final class SyncUtils {
      * @param tips        the tips to write
      * @return a {@link Callable} that writes the tips and event window
      */
-    public static Callable<Void> writeMyTipsAndEventWindow(
+    public static ThrowingRunnable writeMyTipsAndEventWindow(
             @NonNull final Connection connection,
             @NonNull final EventWindow eventWindow,
             @NonNull final List<ShadowEvent> tips) {
@@ -86,7 +87,6 @@ public final class SyncUtils {
                         connection::getDescription,
                         () -> SyncLogging.toShortShadows(tips));
             }
-            return null;
         };
     }
 
@@ -131,7 +131,8 @@ public final class SyncUtils {
      *                       the order in which they sent me their tips.
      * @return a {@link Callable} that writes the booleans
      */
-    public static Callable<Void> writeTheirTipsIHave(final Connection connection, final List<Boolean> theirTipsIHave) {
+    public static ThrowingRunnable writeTheirTipsIHave(
+            final Connection connection, final List<Boolean> theirTipsIHave) {
         return () -> {
             connection.getDos().writeBooleanList(theirTipsIHave);
             connection.getDos().flush();
@@ -142,7 +143,6 @@ public final class SyncUtils {
                         connection::getDescription,
                         () -> SyncLogging.toShortBooleans(theirTipsIHave));
             }
-            return null;
         };
     }
 
@@ -183,7 +183,7 @@ public final class SyncUtils {
      *                            sync
      * @return A {@link Callable} that executes this part of the sync
      */
-    public static Callable<Void> sendEventsTheyNeed(
+    public static ThrowingRunnable sendEventsTheyNeed(
             final Connection connection,
             final List<PlatformEvent> events,
             final CountDownLatch eventReadingDone,
@@ -230,9 +230,6 @@ public final class SyncUtils {
             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
                 logger.debug(SYNC_INFO.getMarker(), "{} sent COMM_SYNC_DONE", connection.getDescription());
             }
-
-            // (ignored)
-            return null;
         };
     }
 
@@ -558,7 +555,7 @@ public final class SyncUtils {
      * For each tip sent to the peer, determine if they have that event. If they have it, add it to the list that is
      * returned.
      *
-     * @param peerId    the peer node id
+     * @param peerId         the peer node id
      * @param myTips         the tips we sent them
      * @param myTipsTheyHave a list of booleans corresponding to our tips in the order they were sent. True if they have
      *                       the event, false if they don't
@@ -614,7 +611,7 @@ public final class SyncUtils {
     /**
      * Deserialize an event window from the given input stream.
      *
-     * @param in          the input stream
+     * @param in the input stream
      * @return the deserialized event window
      */
     @NonNull

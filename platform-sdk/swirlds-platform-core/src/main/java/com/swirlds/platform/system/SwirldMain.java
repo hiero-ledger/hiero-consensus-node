@@ -10,7 +10,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Function;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -105,12 +104,4 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
      */
     @NonNull
     SemanticVersion getSemanticVersion();
-
-    /**
-     * Callback invoked by the platform when an event is detected to be stale.
-     * Applications may use this to update any in-flight bookkeeping for the transactions in the stale event (for example, to update
-     * receipt status or enable re-submission of the transaction).
-     * @param platformEvent the stale event that was detected
-     */
-    default void staleEventCallback(@NonNull PlatformEvent platformEvent) {}
 }

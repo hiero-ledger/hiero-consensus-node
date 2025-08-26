@@ -62,6 +62,7 @@ env:
   BlockNode_version: 0.17.0
   NUM_OF_BLOCK_NODES: 3
 
+
 jobs:
   performance-tests-start:
     name: Start
@@ -508,7 +509,7 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sleep 60
+          sleep 300
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"

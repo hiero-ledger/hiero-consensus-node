@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
@@ -128,8 +127,7 @@ public class OtterTestExtension
      * @param extensionContext the current extension context; never {@code null}
      */
     @Override
-    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext)
-            throws IOException, InterruptedException {
+    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) {
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {

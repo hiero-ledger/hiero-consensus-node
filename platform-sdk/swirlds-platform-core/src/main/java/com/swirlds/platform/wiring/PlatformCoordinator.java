@@ -3,7 +3,6 @@ package com.swirlds.platform.wiring;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
@@ -27,9 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
@@ -55,8 +52,6 @@ public class PlatformCoordinator {
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
     private final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring;
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
-    private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
-            staleEventDetectorWiring;
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
@@ -77,7 +72,6 @@ public class PlatformCoordinator {
      * @param stateSignatureCollectorWiring          the system transaction prehandler wiring
      * @param transactionHandlerWiring               the transaction handler wiring
      * @param stateHasherWiring                      the state hasher wiring
-     * @param staleEventDetectorWiring               the stale event detector wiring
      * @param statusStateMachineWiring               the status state machine wiring
      * @param branchDetectorWiring                   the branch detector wiring
      * @param branchReporterWiring                   the branch reporter wiring
@@ -101,9 +95,6 @@ public class PlatformCoordinator {
                             stateSignatureCollectorWiring,
             @NonNull final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
             @NonNull final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-            @NonNull
-                    final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
-                            staleEventDetectorWiring,
             @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
@@ -121,7 +112,6 @@ public class PlatformCoordinator {
         this.stateSignatureCollectorWiring = Objects.requireNonNull(stateSignatureCollectorWiring);
         this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
         this.stateHasherWiring = Objects.requireNonNull(stateHasherWiring);
-        this.staleEventDetectorWiring = Objects.requireNonNull(staleEventDetectorWiring);
         this.statusStateMachineWiring = Objects.requireNonNull(statusStateMachineWiring);
         this.branchDetectorWiring = Objects.requireNonNull(branchDetectorWiring);
         this.branchReporterWiring = Objects.requireNonNull(branchReporterWiring);
@@ -175,7 +165,6 @@ public class PlatformCoordinator {
         consensusEngineWiring.flush();
         eventCreationManagerWiring.startSquelching();
         eventCreationManagerWiring.flush();
-        staleEventDetectorWiring.startSquelching();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
@@ -189,7 +178,6 @@ public class PlatformCoordinator {
         stateHasherWiring.flush();
         stateSignatureCollectorWiring.flush();
         transactionHandlerWiring.flush();
-        staleEventDetectorWiring.flush();
         branchDetectorWiring.flush();
         branchReporterWiring.flush();
 
@@ -198,7 +186,6 @@ public class PlatformCoordinator {
         consensusEngineWiring.stopSquelching();
         eventCreationManagerWiring.stopSquelching();
         transactionHandlerWiring.stopSquelching();
-        staleEventDetectorWiring.stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
@@ -209,7 +196,6 @@ public class PlatformCoordinator {
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
-        staleEventDetectorWiring.getInputWire(StaleEventDetector::clear).inject(NoInput.getInstance());
         branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         branchReporterWiring.getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }

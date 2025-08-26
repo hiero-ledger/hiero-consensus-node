@@ -16,9 +16,8 @@ import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
- * Similar to the {@link InOrderLinker} but simplified and streamlined. Also does unlinking and supports queries against
- * the non-ancient event set. Will soon be replaced by an instance of the ConsensusEngine once that class has been
- * disentangled from the shadowgraph.
+ * Links events to their parents. Expects events to be provided in topological order. Also does unlinking and supports
+ * queries against the non-ancient event set.
  */
 public class SimpleLinker {
     /**
