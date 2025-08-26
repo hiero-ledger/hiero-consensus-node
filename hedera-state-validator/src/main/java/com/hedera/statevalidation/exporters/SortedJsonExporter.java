@@ -56,6 +56,7 @@ public class SortedJsonExporter {
     private final Map<Integer, Pair<String, String>> nameByStateId;
 
     private final AtomicLong objectsProcessed = new AtomicLong(0);
+    private long totalNumber;
 
     public SortedJsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
         this(resultDir, state, List.of(Pair.of(serviceName, stateKeyName)));
@@ -112,6 +113,7 @@ public class SortedJsonExporter {
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
+        totalNumber = vm.size();
         System.out.println("Collecting keys from the state...");
         collectKeys(vm);
         keysByExpectedStateIds.forEach((key, values) -> {
@@ -123,7 +125,7 @@ public class SortedJsonExporter {
 
         List<CompletableFuture<Void>> futures = traverseVmInParallel();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        System.out.println("Export time: " + (System.currentTimeMillis() - startTimestamp) + "ms");
+        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000)  + " seconds");
         executorService.close();
     }
 
@@ -207,7 +209,7 @@ public class SortedJsonExporter {
                 }
                 long currentObjCount = objectsProcessed.incrementAndGet();
                 if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
-                    System.out.println(currentObjCount + " objects processed");
+                    System.out.printf("%s objects of %s are processed\n", currentObjCount, totalNumber);
                 }
             }
         } catch (IOException e) {

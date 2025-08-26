@@ -56,6 +56,7 @@ public class JsonExporter {
     private final boolean allStates;
 
     private final AtomicLong objectsProcessed = new AtomicLong(0);
+    private long totalNumber;
 
     public JsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
         this.resultDir = resultDir;
@@ -81,12 +82,13 @@ public class JsonExporter {
         System.out.println("Start exporting state");
         List<CompletableFuture<Void>> futures = traverseVmInParallel(vm);
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        System.out.println("Export time: " + (System.currentTimeMillis() - startTimestamp) + "ms");
+        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000) + " seconds");
         executorService.close();
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(final VirtualMap virtualMap) {
         VirtualMapMetadata metadata = virtualMap.getMetadata();
+        totalNumber = metadata.getSize();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < writingParallelism; i++) {
             String fileName;
@@ -143,7 +145,7 @@ public class JsonExporter {
                     emptyFile = false;
                     long currentObjCount = objectsProcessed.incrementAndGet();
                     if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
-                        System.out.println(currentObjCount + " objects processed");
+                        System.out.printf("%s objects of %s are processed\n", currentObjCount, totalNumber);
                     }
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
