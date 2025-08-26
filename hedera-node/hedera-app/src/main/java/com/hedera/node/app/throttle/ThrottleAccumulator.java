@@ -969,7 +969,7 @@ public class ThrottleAccumulator {
         final var opsDurationThrottleUnitsFreedPerSecond = contractConfig.opsDurationThrottleUnitsFreedPerSecond();
         if (contractConfig.throttleThrottleByOpsDuration()
                 && (opsDurationThrottleCapacity == 0 || opsDurationThrottleUnitsFreedPerSecond == 0)) {
-            log.warn(
+            log.info(
                     "{} ops duration throttles are enabled, but either capacity or leak rate is 0",
                     throttleType.name());
         }
