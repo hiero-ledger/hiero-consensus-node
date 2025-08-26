@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils.yahcli;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 
 // Methods used by reflection to load java beans
 @SuppressWarnings("unused")

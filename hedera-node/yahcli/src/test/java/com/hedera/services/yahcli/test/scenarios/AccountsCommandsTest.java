@@ -11,7 +11,7 @@ import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.YahcliVerbs.newAccountCapturer;
 import static com.hedera.services.yahcli.test.YahcliVerbs.yahcliAccounts;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.support.YahcliHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
 public class AccountsCommandsTest {
-    @HapiTest
+    @YahcliHapiTest
     final Stream<DynamicTest> readmeAccountsCreateExample() {
         final var newAccountNum = new AtomicLong();
         return hapiTest(

@@ -4,7 +4,6 @@ package com.hedera.services.yahcli.test;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.regex.Pattern;
@@ -12,9 +11,6 @@ import org.junit.jupiter.api.Assertions;
 
 public class YahcliVerbs {
     private static final Pattern NEW_ACCOUNT_PATTERN = Pattern.compile("account num=(\\d+)");
-
-    public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
-    public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
 
     private YahcliVerbs() {
         throw new UnsupportedOperationException("Utility class");
@@ -60,23 +56,5 @@ public class YahcliVerbs {
         System.arraycopy(ps, 0, newArgs, 0, ps.length);
         System.arraycopy(a, 0, newArgs, ps.length, a.length);
         return newArgs;
-    }
-
-    /**
-     * Sets the default config location to use for yahcli operations.
-     * @param configLoc the config location
-     */
-    public static void setDefaultConfigLoc(@NonNull final String configLoc) {
-        requireNonNull(configLoc);
-        DEFAULT_CONFIG_LOC.set(requireNonNull(configLoc));
-    }
-
-    /**
-     * Sets the default working directory to use for yahcli operations.
-     * @param workingDir the working directory
-     */
-    public static void setDefaultWorkingDir(@NonNull final String workingDir) {
-        requireNonNull(workingDir);
-        DEFAULT_WORKING_DIR.set(requireNonNull(workingDir));
     }
 }

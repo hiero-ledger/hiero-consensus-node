@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.test;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.spec.SpecOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,14 +31,14 @@ public abstract class AbstractYahcliOperation<T extends AbstractYahcliOperation<
     protected String workingDirOrThrow() {
         return Optional.ofNullable(workingDir)
                 .orElseGet(() -> requireNonNull(
-                        YahcliVerbs.DEFAULT_WORKING_DIR.get(),
+                        NetworkTargetingExtension.DEFAULT_WORKING_DIR.get(),
                         "No default working dir set, and none provided via args"));
     }
 
     protected String configLocOrThrow() {
         return Optional.ofNullable(configLoc)
                 .orElseGet(() -> requireNonNull(
-                        YahcliVerbs.DEFAULT_CONFIG_LOC.get(),
+                        NetworkTargetingExtension.DEFAULT_CONFIG_LOC.get(),
                         "No default config location set, and none provided via args"));
     }
 }
