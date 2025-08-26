@@ -63,22 +63,19 @@ jobs:
 
             # Verify the commit is on main and continue
             if git branch --contains "${CANDIDATE_COMMIT}" | grep --quiet main >/dev/null 2>&1; then
-              # git push --delete origin $(git tag --list "${TAG_PATTERN}")
-              # git tag --delete $(git tag --list "${TAG_PATTERN}")
+              git push --delete origin $(git tag --list "${TAG_PATTERN}")
+              git tag --delete $(git tag --list "${TAG_PATTERN}")
               echo "build-candidate-exists=true" >> "${GITHUB_OUTPUT}"
               echo "build-candidate-commit=${CANDIDATE_COMMIT}" >> "${GITHUB_OUTPUT}"
               echo "### Build Candidate Found" >>  "${GITHUB_STEP_SUMMARY}"
               echo "build-candidate-commit=${CANDIDATE_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
               echo "build-candidate-tag=${CANDIDATE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
             else
-              # gh run cancel "${{ github.run_id }}"
+              gh run cancel "${{ github.run_id }}"
             fi
           else
-            # gh run cancel "${{ github.run_id }}"
+            gh run cancel "${{ github.run_id }}"
           fi
-
-          ## force a failure FOR TESTING
-          exit 1
 
   promote-build-candidate:
     name: Promote Build Candidate
@@ -400,18 +397,18 @@ jobs:
           }
           EOF
 
-#      - name: Report failure (slack citr-operations)
-#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-#        with:
-#          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-#          webhook-type: incoming-webhook
-#          payload-templated: true
-#          payload-file-path: slack_payload.json
-#
-#      - name: Report failure (slack release-team)
-#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-#        with:
-#          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
-#          webhook-type: incoming-webhook
-#          payload-templated: true
-#          payload-file-path: slack_payload.json
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
