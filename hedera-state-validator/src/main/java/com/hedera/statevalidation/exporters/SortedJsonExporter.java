@@ -125,7 +125,7 @@ public class SortedJsonExporter {
 
         List<CompletableFuture<Void>> futures = traverseVmInParallel();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000)  + " seconds");
+        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000) + " seconds");
         executorService.close();
     }
 
