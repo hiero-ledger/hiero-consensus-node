@@ -13,6 +13,11 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
 
+mainModuleInfo {
+    runtimeOnly("com.github.spotbugs.annotations")
+    runtimeOnly("com.google.protobuf")
+}
+
 val yahCliJar =
     tasks.register<ShadowJar>("yahCliJar") {
         archiveClassifier.set("shadow")

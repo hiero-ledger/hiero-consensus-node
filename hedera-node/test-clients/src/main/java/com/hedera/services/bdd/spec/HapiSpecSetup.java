@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.ED_PROVIDER;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.BC_PROVIDER;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSources;
@@ -132,7 +131,7 @@ public class HapiSpecSetup {
             final var mnemonic = Bip0032.mnemonicFromFile(defaultPayerMnemonicFile());
             return mnemonicToEd25519Key(mnemonic);
         } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
-            return payerKeyFromResource(in -> KeyUtils.readKeyFrom(in, defaultPayerPemKeyPassphrase(), ED_PROVIDER));
+            return payerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
         }

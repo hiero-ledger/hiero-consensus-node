@@ -9,8 +9,6 @@ module hiero.consensus.node.yahcli.test {
     requires com.hedera.node.test.clients;
     requires com.hedera.node.yahcli;
     requires com.swirlds.config.api;
-    requires com.github.spotbugs.annotations;
-    requires com.google.protobuf;
     requires info.picocli;
     requires io.github.classgraph;
     requires io.helidon.common.buffers;
