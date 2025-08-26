@@ -229,8 +229,7 @@ jobs:
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
-      !inputs.dry-run-enabled &&
-      !cancelled() && always() }}
+      !inputs.dry-run-enabled && always() }}
 
     steps:
       - name: Harden Runner
