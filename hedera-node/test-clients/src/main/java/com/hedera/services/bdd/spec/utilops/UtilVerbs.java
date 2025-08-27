@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransactionID;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.timeUntilNextPeriod;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -41,6 +43,7 @@ import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Cont
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.DOES_NOT_CONTAIN;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -193,6 +196,7 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -222,6 +226,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -229,6 +234,7 @@ import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -237,6 +243,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.hiero.base.utility.CommonUtils;
@@ -282,6 +289,54 @@ public class UtilVerbs {
                         "staking.startThreshold", "" + 0,
                         "staking.rewardBalanceThreshold", "" + 0),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
+    }
+
+    public static SpecOperation fundOrCreateEd25519Account(
+            @NonNull final String name,
+            @Nullable final Long number,
+            final long desiredBalance,
+            @NonNull final LongFunction<PrivateKey> keyLoader,
+            @NonNull final BiConsumer<Long, EdDSAPrivateKey> onCreation) {
+        requireNonNull(onCreation);
+        return doingContextual(spec -> {
+            if (number == null) {
+                final var creation = cryptoCreate(name)
+                        .balance(desiredBalance)
+                        .keyShape(ED25519_ON)
+                        .hasRetryPrecheckFrom(BUSY)
+                        .advertisingCreation();
+                allRunFor(spec, creation);
+                final long createdNumber = creation.numOfCreatedAccount();
+                final var publicKey = CommonUtils.hex(spec.registry().getKey(name).getEd25519().toByteArray());
+                onCreation.accept(createdNumber, (EdDSAPrivateKey) spec.keys().getEd25519PrivateKey(publicKey));
+            } else {
+                final var accountId = spec.accountIdFactory().apply(number);
+                final var idLiteral = asAccountString(accountId);
+                final var lookup = getAccountInfo(idLiteral);
+                allRunFor(spec, lookup);
+                final var info = lookup.getResponse().getCryptoGetInfo().getAccountInfo();
+                final var privateKey = keyLoader.apply(number);
+                if (privateKey instanceof EdDSAPrivateKey edDSAPrivateKey) {
+                    final var publicKey = Key.newBuilder()
+                            .setEd25519(ByteString.copyFrom(edDSAPrivateKey.getAbyte()))
+                            .build();
+                    Assertions.assertEquals(
+                            publicKey,
+                            info.getKey(),
+                            String.format("Account %s had a different key than expected", idLiteral));
+                    spec.keys().incorporate(name, edDSAPrivateKey);
+                    spec.registry().saveKey(name, publicKey);
+                    spec.registry().saveAccountId(name, accountId);
+                    if (info.getBalance() < desiredBalance) {
+                        allRunFor(
+                                spec,
+                                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
+                    }
+                } else {
+                    Assertions.fail("Scenario payer must have an Ed25519 key at this time");
+                }
+            }
+        });
     }
 
     /**
