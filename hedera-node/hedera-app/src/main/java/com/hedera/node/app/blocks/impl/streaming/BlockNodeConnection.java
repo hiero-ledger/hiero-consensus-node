@@ -23,7 +23,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.GuardedBy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
@@ -107,9 +106,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final BlockStreamPublishServiceClient blockStreamPublishServiceClient;
 
-    @GuardedBy("stateLock")
     private Pipeline<? super PublishStreamRequest> requestPipeline;
-
     /**
      * Reference to the current state of this connection.
      */
