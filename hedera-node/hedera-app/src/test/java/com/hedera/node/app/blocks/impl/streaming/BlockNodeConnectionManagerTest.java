@@ -212,7 +212,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
         verify(connection).updateConnectionState(ConnectionState.CONNECTING);
-        verify(connection).close();
+        verify(connection).close(true);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(executorService);
@@ -234,7 +234,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connections.put(node3Config, node3Conn);
 
         // introduce a failure on one of the connection closes to ensure the shutdown process does not fail prematurely
-        doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close();
+        doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close(true);
 
         final AtomicBoolean isActive = isActiveFlag();
         final Thread dummyWorkerThread = mock(Thread.class);
@@ -252,9 +252,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(connections).isEmpty();
         assertThat(isActive).isFalse();
 
-        verify(node1Conn).close();
-        verify(node2Conn).close();
-        verify(node3Conn).close();
+        verify(node1Conn).close(true);
+        verify(node2Conn).close(true);
+        verify(node3Conn).close(true);
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
         verifyNoMoreInteractions(node1Conn);
@@ -699,7 +699,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(newConnection).getNodeConfig();
-        verify(newConnection).close();
+        verify(newConnection).close(true);
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
@@ -726,7 +726,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
+        verify(activeConnection).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -761,7 +761,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
+        verify(activeConnection).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -822,7 +822,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         doThrow(new RuntimeException("why does this always happen to me"))
                 .when(activeConnection)
-                .close();
+                .close(true);
         activeConnectionRef.set(activeConnection);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
@@ -836,7 +836,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
+        verify(activeConnection).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -923,7 +923,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
 
         verify(connection).getNodeConfig();
-        verify(connection).close();
+        verify(connection).close(true);
 
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);

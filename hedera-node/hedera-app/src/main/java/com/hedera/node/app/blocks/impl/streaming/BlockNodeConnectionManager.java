@@ -25,6 +25,7 @@ import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -351,7 +352,7 @@ public class BlockNodeConnectionManager {
         } catch (final Exception e) {
             logger.error("[{}] Failed to schedule connection task for block node", connection, e);
             // Consider closing the connection object if scheduling fails
-            connection.close();
+            connection.close(true);
         }
     }
 
@@ -384,7 +385,7 @@ public class BlockNodeConnectionManager {
             final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
-                connection.close();
+                connection.close(true);
             } catch (final RuntimeException e) {
                 logger.warn(
                         "[{}] Error while closing connection during connection manager shutdown; ignoring",
@@ -582,6 +583,11 @@ public class BlockNodeConnectionManager {
             } catch (final InterruptedException e) {
                 logger.error("Block stream worker interrupted", e);
                 Thread.currentThread().interrupt();
+            } catch (final UncheckedIOException e) {
+                final BlockNodeConnection activeConnection = activeConnectionRef.get();
+                if (activeConnection != null) {
+                    activeConnection.handleStreamFailureWithoutOnComplete();
+                }
             } catch (final Exception e) {
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
                 if (activeConnection != null) {
@@ -763,7 +769,7 @@ public class BlockNodeConnectionManager {
                                 activeConnection,
                                 connection);
 
-                        connection.close();
+                        connection.close(true);
                         return;
                     }
                 }
@@ -794,7 +800,7 @@ public class BlockNodeConnectionManager {
                 if (activeConnection != null) {
                     // close the old active connection
                     try {
-                        activeConnection.close();
+                        activeConnection.close(true);
                     } catch (final RuntimeException e) {
                         logger.warn(
                                 "[{}] Failed to shutdown connection (shutdown reason: another connection was elevated to active)",
@@ -846,7 +852,7 @@ public class BlockNodeConnectionManager {
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
                 // will handle checking if there are no longer any connections
                 connections.remove(connection.getNodeConfig());
-                connection.close();
+                connection.close(true);
             }
         }
     }

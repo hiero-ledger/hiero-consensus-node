@@ -242,10 +242,20 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Handles the failure of the stream by closing the connection and notifying the connection manager.
+     * Handles the failure of the stream by closing the connection,
+     * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        close();
+        close(true);
+        blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
+    }
+
+    /**
+     * Handles the failure of the stream by closing the connection,
+     * notifying the connection manager without calling onComplete on the request pipeline.
+     */
+    public void handleStreamFailureWithoutOnComplete() {
+        close(false);
         blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
     }
 
@@ -314,7 +324,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Check if we've exceeded the EndOfStream rate limit
         if (hasExceededEndOfStreamLimit()) {
-            close();
+            close(true);
             logger.warn(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
@@ -331,7 +341,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         switch (responseCode) {
             case Code.ERROR, Code.PERSISTENCE_FAILED -> {
-                close();
+                close(true);
                 // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to retry
                 // to avoid overwhelming the node if it's having issues
@@ -343,7 +353,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
             case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST -> {
-                close();
+                close(true);
                 // We should restart the stream at the block immediately
                 // following the last verified and persisted block number
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
@@ -356,7 +366,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 restartStreamAtBlock(restartBlockNumber);
             }
             case Code.SUCCESS -> {
-                close();
+                close(true);
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
                 logger.warn("[{}] Block node orderly ended the stream at block {}", this, blockNumber);
@@ -367,7 +377,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // restart the stream from there
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 if (blockBufferService.getBlockState(restartBlockNumber) != null) {
-                    close();
+                    close(true);
                     logger.warn(
                             "[{}] Block node reported it is behind. Will restart stream at block {}.",
                             this,
@@ -386,7 +396,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 }
             }
             case Code.UNKNOWN -> {
-                close();
+                close(true);
                 // This should never happen, but if it does, schedule this connection for a retry attempt
                 // and in the meantime select a new node to stream to
                 logger.error("[{}] Block node reported an unknown error at block {}.", this, blockNumber);
@@ -440,7 +450,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             + "consensus node. Closing connection and will retry later",
                     this,
                     resendBlockNumber);
-            close();
+            close(true);
             blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
         }
     }
@@ -490,7 +500,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 .build();
 
         sendRequest(endStream);
-        close();
+        close(true);
     }
 
     /**
@@ -510,11 +520,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Idempotent operation that closes this connection (if active) and releases associated resources. If there is a
      * failure in closing the connection, the error will be logged and not propagated back to the caller.
      */
-    public void close() {
+    public void close(final boolean callOnComplete) {
         try {
             logger.debug("[{}] Closing connection...", this);
 
-            closePipeline();
+            closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.UNINITIALIZED);
             jumpToBlock(-1L);
 
@@ -524,13 +534,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
     }
 
-    private void closePipeline() {
+    private void closePipeline(final boolean callOnComplete) {
         if (requestPipeline != null) {
             logger.debug("[{}] Closing request pipeline for block node", this);
             streamShutdownInProgress.set(true);
 
             try {
-                if (getConnectionState() == ConnectionState.ACTIVE) {
+                if (getConnectionState() == ConnectionState.ACTIVE && callOnComplete) {
                     requestPipeline.onComplete();
                     logger.debug("[{}] Request pipeline successfully closed", this);
                 } else {

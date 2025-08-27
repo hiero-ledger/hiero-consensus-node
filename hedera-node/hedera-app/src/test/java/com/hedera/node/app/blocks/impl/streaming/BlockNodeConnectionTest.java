@@ -503,7 +503,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(ONCE_PER_DAY_MILLIS), // period
                         eq(TimeUnit.MILLISECONDS));
 
-        connection.close();
+        connection.close(true);
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
@@ -528,7 +528,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(ONCE_PER_DAY_MILLIS), // period
                         eq(TimeUnit.MILLISECONDS));
 
-        connection.close();
+        connection.close(true);
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
@@ -563,7 +563,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnCompleted_streamClosingInProgress() {
         openConnectionAndResetMocks();
-        connection.close(); // call this so we mark the connection as closing
+        connection.close(true); // call this so we mark the connection as closing
         resetMocks();
 
         connection.onComplete();
