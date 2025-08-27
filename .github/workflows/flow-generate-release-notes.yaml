@@ -99,7 +99,7 @@ jobs:
       - name: Get Changes in JSON Format
         run: |
           echo "Create Release Notes of Conventional Commits"
-          git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}"
+          git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}" > changes.json
 
       - name: Create Release Notes - Full Markdown Format
         id: changelog
