@@ -418,14 +418,19 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Performing scheduled stream reset", portNumbers.getFirst()),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.getFirst()),
                         String.format(
-                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
+                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
                                 portNumbers.getFirst()),
-                        String.format("[localhost:%s/CLOSED] Connection successfully closed", portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Connection successfully closed", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
-                        "Selected block node",
-                        "Running connection task...",
-                        "Connection state transitioned from UNINITIALIZED to PENDING",
-                        "Connection state transitioned from PENDING to ACTIVE")),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
+                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.getLast()),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                portNumbers.getLast()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.getLast()))),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }

@@ -229,7 +229,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     private void performStreamReset() {
-        if (connectionState.get() == ConnectionState.ACTIVE) {
+        if (getConnectionState() == ConnectionState.ACTIVE) {
             logger.debug("[{}] Performing scheduled stream reset", this);
             endTheStreamWith(RESET);
             blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
@@ -499,7 +499,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     public void sendRequest(@NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
-        if (connectionState.get() == ConnectionState.ACTIVE && requestPipeline != null) {
+        if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
             requestPipeline.onNext(request);
         }
     }
@@ -528,8 +528,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             streamShutdownInProgress.set(true);
 
             try {
-                requestPipeline.onComplete();
-                logger.debug("[{}] Request pipeline successfully closed", this);
+                if (getConnectionState() == ConnectionState.ACTIVE) {
+                    requestPipeline.onComplete();
+                    logger.debug("[{}] Request pipeline successfully closed", this);
+                } else {
+                    logger.debug("[{}] Request pipeline closed without onComplete - connection not active", this);
+                }
             } catch (final Exception e) {
                 logger.warn("[{}] Error while completing request pipeline", this, e);
             }
@@ -624,11 +628,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     public void onError(final Throwable error) {
         logger.warn("[{}] onError invoked", this, error);
 
-        // Handle the error - this will change state, so acquire write lock
-        // Check if already in terminal state
-        if (getConnectionState() == ConnectionState.UNINITIALIZED) {
-            logger.debug("[{}] onError invoked but connection is already closed", this);
-        } else if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
+        if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
             logger.warn("[{}] onError being handled", this, error);
             blockStreamMetrics.incrementOnErrorCount();
             handleStreamFailure();
@@ -641,13 +641,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onComplete() {
-        if (getConnectionState() == ConnectionState.ACTIVE) {
-            if (streamShutdownInProgress.getAndSet(false)) {
-                logger.debug("[{}] Stream completed (stream close was in progress)", this);
-            } else {
-                logger.warn("[{}] Stream completed unexpectedly", this);
-                handleStreamFailure();
-            }
+        if (streamShutdownInProgress.getAndSet(false)) {
+            logger.debug("[{}] Stream completed (stream close was in progress)", this);
+        } else {
+            logger.warn("[{}] Stream completed unexpectedly", this);
+            handleStreamFailure();
         }
     }
 

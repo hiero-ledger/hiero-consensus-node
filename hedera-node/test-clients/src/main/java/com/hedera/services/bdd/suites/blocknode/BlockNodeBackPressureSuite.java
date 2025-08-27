@@ -54,7 +54,7 @@ public class BlockNodeBackPressureSuite {
         return hapiTest(
                 waitUntilNextBlocks(5),
                 blockNodeSimulator(0).shutDownImmediately(),
-                waitUntilNextBlocks(60),
+                waitUntilNextBlocks(30),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0),
                         "Block buffer is saturated; backpressure is being enabled",

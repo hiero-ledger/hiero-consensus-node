@@ -320,7 +320,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(workerThreadRef).hasNullValue();
 
-        connectionManager.start();
+        final Exception exception = catchException(() -> connectionManager.start());
+        assertThat(exception)
+                .isInstanceOf(NoBlockNodesAvailableException.class)
+                .hasMessage("No block nodes were available to connect to");
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(isActive).isFalse();

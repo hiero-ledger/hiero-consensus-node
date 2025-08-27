@@ -505,7 +505,6 @@ public class BlockNodeConnectionManager {
      *
      * @param nodeConfig the configuration of the node to connect to.
      */
-    @NonNull
     private void connectToNode(@NonNull final BlockNodeConfig nodeConfig, final boolean force) {
         requireNonNull(nodeConfig);
         logger.info("Scheduling connection attempt for block node {}:{}", nodeConfig.address(), nodeConfig.port());
@@ -585,6 +584,7 @@ public class BlockNodeConnectionManager {
                 Thread.currentThread().interrupt();
             } catch (final Exception e) {
                 logger.error("Block stream worker encountered an error", e);
+                activeConnectionRef.get().handleStreamFailure();
             }
         }
     }
