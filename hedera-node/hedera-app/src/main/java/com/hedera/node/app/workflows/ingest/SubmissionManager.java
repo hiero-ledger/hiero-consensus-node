@@ -168,9 +168,6 @@ public class SubmissionManager {
                             final var body = TransactionBody.PROTOBUF.parseStrict(
                                     signedTransaction.bodyBytes().toReadableSequentialData());
                             final var innerTxnId = body.transactionIDOrThrow();
-                            if (submittedTxns.contains(innerTxnId)) {
-                                throw new PreCheckException(DUPLICATE_TRANSACTION);
-                            }
                             submittedTxns.add(innerTxnId);
                         } catch (ParseException e) {
                             // This should never happen. All inner batch transactions should be validated by the

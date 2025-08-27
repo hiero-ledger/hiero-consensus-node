@@ -438,33 +438,6 @@ final class SubmissionManagerTest extends AppTestBase {
         }
 
         @Test
-        @DisplayName("Detects duplicate transaction in atomic batch")
-        void testAtomicBatchWithDuplicate() throws Exception {
-            // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-
-            // And a duplicate check that returns true for the second transaction in the batch
-            when(deduplicationCache.contains(any()))
-                    .thenReturn(false) // Main transaction is not a duplicate
-                    .thenReturn(false) // First batch transaction is not a duplicate
-                    .thenReturn(true); // Second batch transaction is a duplicate
-
-            // When we submit a transaction with an atomic batch containing a duplicate
-            assertThatThrownBy(() -> submissionManager.submit(txBodyWithBatch, mainBytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", DUPLICATE_TRANSACTION);
-
-            // Then the platform actually received the main bytes (before we detected the duplicate)
-            verify(transactionPool).submitApplicationTransaction(mainBytes);
-
-            // And the deduplication cache was updated for the main transaction
-            verify(deduplicationCache).add(txBodyWithBatch.transactionIDOrThrow());
-
-            // And for the first transaction in the batch (but not the second one)
-            verify(deduplicationCache, times(2)).add(any());
-        }
-
-        @Test
         @DisplayName("Handles parse exception from invalid batch transaction")
         void testAtomicBatchWithParseException() throws Exception {
             // Given a platform that will succeed in taking bytes
