@@ -160,7 +160,7 @@ jobs:
       - name: Create Release Notes - Full Markdown Format
         run: |
           echo "Release Notes - Full Markdown Format" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "" >> | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           cat RELEASE_NOTES.md | tee -a ${GITHUB_STEP_SUMMARY}
