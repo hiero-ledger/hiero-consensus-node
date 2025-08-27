@@ -45,7 +45,7 @@ import picocli.CommandLine;
 @CommandLine.Command(
         name = "vs",
         subcommands = {CommandLine.HelpCommand.class},
-        description = "Runs legacy validation scenarios")
+        description = "Runs original validation scenarios")
 public class ValidationScenariosCommand implements Callable<Integer> {
     enum Scenario {
         CRYPTO,

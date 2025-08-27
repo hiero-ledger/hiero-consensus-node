@@ -290,6 +290,20 @@ public class UtilVerbs {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
     }
 
+    /**
+     * Returns an operation that will either create a new account with the given name, or
+     * look up the account with the given number and ensure it has the desired balance.
+     * <p>
+     * If the account is created, the {@code onCreation} callback will be executed so that
+     * any additional setup can be done (e.g., saving the new account's key to the yahcli
+     * working directory).
+     * @param name the name of the account to create or fund
+     * @param number if the account is expected to exist, its number
+     * @param desiredBalance the desired balance of the named account
+     * @param keyLoader a function that, given an account number, will load its private key
+     * @param onCreation a callback to be executed if the account is created
+     * @return the operation
+     */
     public static SpecOperation fundOrCreateEd25519Account(
             @NonNull final String name,
             @Nullable final Long number,
@@ -331,7 +345,7 @@ public class UtilVerbs {
                                         tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
                     }
                 } else {
-                    Assertions.fail("Scenario payer must have an Ed25519 key at this time");
+                    Assertions.fail("Account expected to have an Ed25519 key, was " + privateKey.getAlgorithm());
                 }
             }
         });

@@ -17,6 +17,9 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 
+/**
+ * Exposes or removes the yahcli scenarios config as requested.
+ */
 public class YahcliScenariosConfigOperation extends AbstractYahcliOperation<YahcliScenariosConfigOperation> {
     private final boolean removeExisting;
 

@@ -18,8 +18,7 @@ public class IvyCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        throw new CommandLine.ParameterException(
-                yahcli.getSpec().commandLine(), "Please specify an accounts subcommand!");
+        throw new CommandLine.ParameterException(yahcli.getSpec().commandLine(), "Please specify an ivy subcommand");
     }
 
     public Yahcli getYahcli() {

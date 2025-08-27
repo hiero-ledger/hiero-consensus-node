@@ -29,6 +29,11 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestInstance;
 
+/**
+ * Validates that {@code yahcli ivy --crypto} creates a sender and receiver account when there is no config
+ * specifying well-known accounts; and then reuses those accounts (but creates a novel account) when run again with
+ * the {@code --new-entities} flag.
+ */
 @Tag(REGRESSION)
 @HapiTestLifecycle
 @OrderedInIsolation
