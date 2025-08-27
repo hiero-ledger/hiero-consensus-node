@@ -1237,6 +1237,7 @@ jobs:
           environments: "CITR"
 
       - name: Create Rootly Incident
+        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
         uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
