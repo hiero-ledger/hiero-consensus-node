@@ -52,7 +52,7 @@ jobs:
           is_valid=$(semver validate ${release_identifier})
 
           if [ "$is_valid" != "valid" ]; then
-            echo "❌ Invalid semantic version: $release_identifier"
+            echo "Invalid semantic version: $release_identifier"
             exit 1
           fi
           
@@ -89,7 +89,7 @@ jobs:
       - name: Create Release Notes - Markdown Format
         run: |
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "Release Notes:" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "## Release Notes:" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
