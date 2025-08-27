@@ -128,7 +128,7 @@ jobs:
                   continue
 
               # Convert PR numbers (#12345) into links
-              desc = re.sub(r"\(#(\d+)\)", r"[\1](" + pr_url_prefix + r"\1)", desc)
+              desc = re.sub(r"\(#(\d+)\)", r"[#\1](" + pr_url_prefix + r"\1)", desc)
 
               if typ == "feat":
                   features.append(desc)
