@@ -27,6 +27,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -132,6 +133,14 @@ public final class TelemetryConverter {
                         }
                     });
         }
+        // find all nodes
+        final long[] nodeIds = roundTraces.values().stream()
+                .flatMap(List::stream)
+                .mapToLong(RoundTraceInfo::nodeId)
+                .distinct()
+                .sorted()
+                .toArray();
+        LOGGER.log(INFO, "Found round traces from nodes: " + Arrays.toString(nodeIds));
         // now read the block files and match them with the round traces
         try(Stream<Path> paths = java.nio.file.Files.walk(BLOCK_FILES_DIR)) {
             sendSpans(paths.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".blk.gz"))
@@ -146,6 +155,11 @@ public final class TelemetryConverter {
                             final BlockInfo blockInfo = new BlockInfo(blockFilePath,
                                     blockTraces, roundTraces, eventTraces, transactionTraces);
                             LOGGER.log(INFO, "Created: " + blockInfo);
+                            if (blockInfo.blockCreationTraces().isEmpty()) {
+                                LOGGER.log(WARNING, "No block creation traces found for block " +
+                                        blockInfo.blockNum() + " so skipping creating traces");
+                                return null;
+                            }
                             return blockInfo;
                         } catch (WarningException e) {
                             LOGGER.log(WARNING, e.getMessage());
@@ -155,7 +169,7 @@ public final class TelemetryConverter {
                         return null;
                     })
                     .filter(Objects::nonNull)
-                    .map(BlockSpanCreator::createBlockSpans)
+                    .map(blockInfo -> BlockSpanCreator.createBlockSpans(blockInfo, nodeIds))
 //                    .limit(20) // TODO limit to first 5 blocks for testing
                     // merge all the maps into one map
                     .flatMap(map -> map.entrySet().stream())

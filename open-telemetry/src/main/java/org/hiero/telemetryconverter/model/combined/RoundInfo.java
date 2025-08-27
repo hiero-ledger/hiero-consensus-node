@@ -2,6 +2,7 @@ package org.hiero.telemetryconverter.model.combined;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
+import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.hiero.telemetryconverter.util.WarningException;
  * we have everything in one place to produce spans with.
  */
 public class RoundInfo {
+    private final long blockNumber;
     private final long roundNumber;
     private final List<RoundTraceInfo> createdTraces = new ArrayList<>();
     private final List<RoundTraceInfo> executedTraces = new ArrayList<>();
@@ -26,11 +28,13 @@ public class RoundInfo {
     private final long roundStartTimeNanos;
     private final long roundEndTimeNanos;
 
-    public RoundInfo(final List<BlockItem> roundItems,
+    public RoundInfo(final long blockNum,
+            final List<BlockItem> roundItems,
             final LongObjectHashMap<List<RoundTraceInfo>> roundTraces,
             final IntObjectHashMap<List<EventTraceInfo>> eventTraces,
             final IntObjectHashMap<List<TransactionTraceInfo>> transactionTraces) {
         final RoundHeader roundHeader = roundItems.getFirst().roundHeader();
+        this.blockNumber = blockNum;
         roundNumber = roundHeader.roundNumber();
         // find all round trace info
         var traces = roundTraces.get(roundNumber);
@@ -46,16 +50,20 @@ public class RoundInfo {
         });
         // scan through all block items and find events
         List<BlockItem> eventItems = null;
+        EventHeader eventHeader = null;
         for (final BlockItem item : roundItems) {
             if (Objects.requireNonNull(item.item().kind()) == ItemOneOfType.EVENT_HEADER) {
                 if (eventItems != null) {
-                    events.add(new EventInfo(eventItems, eventTraces, transactionTraces));
+                    events.add(new EventInfo(blockNum, eventHeader.eventCore().creatorNodeId(), eventItems,
+                            eventTraces, transactionTraces));
                 }
+                eventHeader = item.eventHeader();
                 eventItems = new ArrayList<>();
             }
             if(eventItems != null) eventItems.add(item);
         }
-        if (eventItems != null) events.add(new EventInfo(eventItems, eventTraces, transactionTraces));
+        if (eventItems != null) events.add(new EventInfo(blockNum, eventHeader.eventCore().creatorNodeId(),
+                eventItems, eventTraces, transactionTraces));
 
 
         // scan all transactions to find the earliest start time.
@@ -71,10 +79,10 @@ public class RoundInfo {
         roundEndTimeNanos = traces.stream()
                 .mapToLong(RoundTraceInfo::endTimeNanos)
                 .max().orElseThrow();
-        System.out.println("roundNumber="+roundNumber+" size= "+traces.size()+" roundStartTimeNanos = " + roundStartTimeNanos+"  roundEndTimeNanos = " + roundEndTimeNanos+" difference = "+(roundEndTimeNanos-roundStartTimeNanos));
-        for (var t : traces) {
-            System.out.println("   "+t);
-        }
+    }
+
+    public long blockNumber() {
+        return blockNumber;
     }
 
     public long roundNumber() {

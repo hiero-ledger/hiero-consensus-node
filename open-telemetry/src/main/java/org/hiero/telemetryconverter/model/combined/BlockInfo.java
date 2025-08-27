@@ -66,7 +66,7 @@ public class BlockInfo {
                 switch (item.item().kind()) {
                     case ROUND_HEADER, BLOCK_PROOF -> {
                         if (roundItems != null) {
-                            rounds.add(new RoundInfo(roundItems, roundTraces, eventTraces, transactionTraces));
+                            rounds.add(new RoundInfo(blockNum, roundItems, roundTraces, eventTraces, transactionTraces));
                         }
                         roundItems = new ArrayList<>();
                     }

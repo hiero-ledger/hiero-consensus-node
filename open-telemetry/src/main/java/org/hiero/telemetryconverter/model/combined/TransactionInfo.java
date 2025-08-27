@@ -1,5 +1,8 @@
 package org.hiero.telemetryconverter.model.combined;
 
+import static java.lang.System.Logger.Level.WARNING;
+import static org.hiero.telemetryconverter.util.Utils.timestampToUnixEpocNanos;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -15,6 +18,7 @@ import org.hiero.telemetryconverter.util.WarningException;
  */
 @SuppressWarnings("DataFlowIssue")
 public class TransactionInfo {
+    private static final System.Logger LOGGER = System.getLogger(TransactionInfo.class.getName());
     private final int txHash; // TransactionID.hashCode() value
     private final List<TransactionTraceInfo> receivedTraces;
     private final List<TransactionTraceInfo> executedTraces;
@@ -22,7 +26,8 @@ public class TransactionInfo {
     private final long transactionReceivedEndTimeNanos;
     private final long transactionLastExecutionTimeNanos;
 
-    public TransactionInfo(final List<BlockItem> transactionItems,
+    public TransactionInfo(final long blockNum,
+            final List<BlockItem> transactionItems,
             final IntObjectHashMap<List<TransactionTraceInfo>> transactionTraces) {
         try {
             // parse the transaction body
@@ -41,10 +46,18 @@ public class TransactionInfo {
             executedTraces = traces.stream()
                     .filter(t -> t.eventType() == TransactionTraceInfo.EventType.EXECUTED).toList();
             // find the earliest received time
-            var receivedTimeStats = receivedTraces.stream()
-                    .mapToLong(TransactionTraceInfo::startTimeNanos).summaryStatistics();
-            transactionReceivedStartTimeNanos = receivedTimeStats.getMin();
-            transactionReceivedEndTimeNanos = receivedTimeStats.getMax();
+            if (receivedTraces.isEmpty()) {
+                LOGGER.log(WARNING, () -> "In Block "+blockNum+" : No RECEIVED transaction traces found in JFR files for transaction " +
+                        transactionBody.transactionID());
+                // TODO hack, for missing data
+                transactionReceivedStartTimeNanos = timestampToUnixEpocNanos(transactionBody.transactionID().transactionValidStart());
+                transactionReceivedEndTimeNanos = transactionReceivedStartTimeNanos;
+            } else {
+                var receivedTimeStats = receivedTraces.stream()
+                        .mapToLong(TransactionTraceInfo::startTimeNanos).summaryStatistics();
+                transactionReceivedStartTimeNanos = receivedTimeStats.getMin();
+                transactionReceivedEndTimeNanos = receivedTimeStats.getMax();
+            }
             // find the latest executed time
             transactionLastExecutionTimeNanos = executedTraces.stream()
                     .mapToLong(TransactionTraceInfo::endTimeNanos).max().orElse(0L);

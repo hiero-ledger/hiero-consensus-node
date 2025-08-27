@@ -6,6 +6,7 @@ import static org.hiero.telemetryconverter.model.VirtualResource.EXECUTION;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.opentelemetry.pbj.trace.v1.Span;
 import io.opentelemetry.pbj.trace.v1.Span.Event;
+import io.opentelemetry.pbj.trace.v1.Span.Link;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,27 +16,25 @@ import org.hiero.telemetryconverter.model.VirtualResource;
 import org.hiero.telemetryconverter.model.combined.BlockInfo;
 import org.hiero.telemetryconverter.model.combined.EventInfo;
 import org.hiero.telemetryconverter.model.combined.RoundInfo;
-import org.hiero.telemetryconverter.model.combined.TransactionInfo;
 import org.hiero.telemetryconverter.model.trace.BlockTraceInfo;
 import org.hiero.telemetryconverter.model.trace.EventTraceInfo;
 import org.hiero.telemetryconverter.model.trace.RoundTraceInfo;
-import org.hiero.telemetryconverter.model.trace.TransactionTraceInfo;
 import org.hiero.telemetryconverter.util.Utils;
 
 /**
  * Create trace spans for a block, from the perspective of the block.
  */
 public class BlockSpanCreator {
-    public static Map<VirtualResource, List<Span>> createBlockSpans(final BlockInfo blockInfo) {
+    public static Map<VirtualResource, List<Span>> createBlockSpans(final BlockInfo blockInfo, final long[] nodeIds) {
         final Map<VirtualResource, List<Span>> spanMap = new HashMap<>();
         try {
+
             // create a digest for creating trace ids
             final MessageDigest digest = MessageDigest.getInstance("MD5");
             // create a trace id and span id based on the block
             final Bytes blockTraceID = Utils.longToHash16Bytes(digest, blockInfo.blockNum());
             final Bytes blockSpanID = Utils.longToHash8Bytes(blockInfo.blockNum());
-            createIngestAndConsensusSpans(blockInfo, spanMap, blockTraceID, blockSpanID);
-            createExecutionSpans(blockInfo, spanMap, blockTraceID, blockSpanID);
+            createIngestAndConsensusSpans(blockInfo, spanMap, blockTraceID, blockSpanID, digest);
             createBlockFinishingSpans(blockInfo, spanMap, blockTraceID, blockSpanID);
             // create a span for the block
             final Span blockSpan = Span.newBuilder()
@@ -50,7 +49,11 @@ public class BlockSpanCreator {
                     .startTimeUnixNano(blockInfo.blockStartTimeNanos())
                     .endTimeUnixNano(blockInfo.blockEndTimeNanos())
                     .build();
-            putSpan(spanMap, VirtualResource.CN, blockSpan);
+            Utils.putSpan(spanMap, VirtualResource.CN, blockSpan);
+            // create round traces
+            for (var round : blockInfo.rounds()) {
+                RoundSpanCreator.createRoundSpans(round, nodeIds, spanMap, digest);
+            }
         } catch (Exception e) {
             System.err.printf("Error converting block %s: %s%n", blockInfo.blockNum(), e.getMessage());
             e.printStackTrace();
@@ -59,10 +62,10 @@ public class BlockSpanCreator {
     }
 
     private static void createIngestAndConsensusSpans(BlockInfo blockInfo, Map<VirtualResource, List<Span>> spanMap, Bytes blockTraceID,
-            Bytes blockSpanID) {
+            Bytes blockSpanID, MessageDigest digest) {
         // create root span for all Ingest and Consensus activity in the block
         final Bytes ingestConsensusSpanID = Utils.longToHash8Bytes(blockInfo.blockNum(), 1);
-        putSpan(spanMap, VirtualResource.CONSENSUS, Span.newBuilder()
+        Utils.putSpan(spanMap, VirtualResource.CONSENSUS, Span.newBuilder()
                 .traceId(blockTraceID) // 16 byte trace id
                 .spanId(ingestConsensusSpanID) // 8 byte span id
                 .parentSpanId(blockSpanID)
@@ -80,10 +83,10 @@ public class BlockSpanCreator {
         // create spans for each round in the block
         for (var round : blockInfo.rounds()) {
             final Bytes roundSpanID = Utils.longToHash8Bytes(round.roundNumber());
-            List<Event> events = new ArrayList<>();
             // add events for round created on each node
+            List<Event> roundCreatedOnNodeEvents = new ArrayList<>();
             for (var createdTrace : round.createdTraces()) {
-                events.add(Event.newBuilder()
+                roundCreatedOnNodeEvents.add(Event.newBuilder()
                         .name("Round Created on Node " + createdTrace.nodeId())
                         .timeUnixNano(createdTrace.startTimeNanos())
                         .build());
@@ -95,12 +98,16 @@ public class BlockSpanCreator {
                     .name("Round " + round.roundNumber()+"  ")
                     .startTimeUnixNano(round.roundStartTimeNanos())
                     .endTimeUnixNano(round.roundEndTimeNanos())
-                    .events(events)
+                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .links(Link.newBuilder()
+                            .traceId(RoundSpanCreator.roundTraceID(round, digest)) // 16 byte trace id
+                            .spanId(RoundSpanCreator.roundSpanID(round))
+                            .build())
                     .build();
-            putSpan(spanMap, VirtualResource.CN, roundSpan);
+            Utils.putSpan(spanMap, VirtualResource.CN, roundSpan);
             // create span for transactions arriving for all events in round
             if(round.events().stream().map(EventInfo::transactions).mapToLong(List::size).sum() > 0) {
-                putSpan(spanMap, VirtualResource.INGESTION, Span.newBuilder()
+                Utils.putSpan(spanMap, VirtualResource.INGESTION, Span.newBuilder()
                         .traceId(blockTraceID) // 16 byte trace id
                         .spanId(Utils.longToHash8Bytes(round.roundNumber(), 1)) // 8 byte span id
                         .parentSpanId(roundSpanID)
@@ -111,11 +118,11 @@ public class BlockSpanCreator {
                         .endTimeUnixNano(round.events().stream()
                                 .mapToLong(EventInfo::lastTransactionOrEventCreationEnd)
                                 .max().orElseThrow())
-                        .events(events)
+                        .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                         .build());
             }
             // create span for summary of all events creation in round
-            putSpan(spanMap, VirtualResource.EVENT_CREATION, Span.newBuilder()
+            Utils.putSpan(spanMap, VirtualResource.EVENT_CREATION, Span.newBuilder()
                     .traceId(blockTraceID) // 16 byte trace id
                     .spanId(Utils.longToHash8Bytes(round.roundNumber(), 2)) // 8 byte span id
                     .parentSpanId(roundSpanID)
@@ -126,11 +133,11 @@ public class BlockSpanCreator {
                     .endTimeUnixNano(round.events().stream().map(EventInfo::createdTrace)
                             .mapToLong(EventTraceInfo::endTimeNanos)
                             .max().orElseThrow())
-                    .events(events)
+                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                     .build());
             // create span for summary of all events gossip in round
             if (round.events().stream().map(EventInfo::gossipedTraces).mapToLong(List::size).sum() > 0) {
-                putSpan(spanMap, VirtualResource.GOSSIP, Span.newBuilder()
+                Utils.putSpan(spanMap, VirtualResource.GOSSIP, Span.newBuilder()
                         .traceId(blockTraceID) // 16 byte trace id
                         .spanId(Utils.longToHash8Bytes(round.roundNumber(), 3)) // 8 byte span id
                         .parentSpanId(roundSpanID)
@@ -143,11 +150,11 @@ public class BlockSpanCreator {
                                 .flatMap(List::stream)
                                 .mapToLong(EventTraceInfo::endTimeNanos)
                                 .max().orElseThrow())
-                        .events(events)
+                        .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                         .build());
             }
             // create span for consensus time span
-            putSpan(spanMap, VirtualResource.CONSENSUS, Span.newBuilder()
+            Utils.putSpan(spanMap, VirtualResource.CONSENSUS, Span.newBuilder()
                     .traceId(blockTraceID) // 16 byte trace id
                     .spanId(Utils.longToHash8Bytes(round.roundNumber(), 4)) // 8 byte span id
                     .parentSpanId(roundSpanID)
@@ -155,34 +162,14 @@ public class BlockSpanCreator {
                     .startTimeUnixNano(round.events().stream()
                             .mapToLong(EventInfo::endOfGossipOrEventCreation).max().orElseThrow())
                     .endTimeUnixNano(round.createdTraces().stream().mapToLong(RoundTraceInfo::endTimeNanos).min().orElseThrow())
-                    .events(events)
+                    .events(roundCreatedOnNodeEvents)
+                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                     .build());
-
-        }
-    }
-
-    private static void createExecutionSpans(BlockInfo blockInfo, Map<VirtualResource, List<Span>> spanMap, Bytes blockTraceID,
-            Bytes blockSpanID) {
-        // create span for all execution in the block
-        final Bytes executionSpanId = Utils.longToHash8Bytes(blockInfo.blockNum(), 2);
-        putSpan(spanMap, EXECUTION, Span.newBuilder()
-                .traceId(blockTraceID) // 16 byte trace id
-                .spanId(executionSpanId) // 8 byte span id
-                .parentSpanId(blockSpanID)
-                .name("Execution")
-                .startTimeUnixNano(blockInfo.rounds().stream()
-                        .mapToLong(RoundInfo::executionStartTimeNanos)
-                        .min().orElseThrow())
-                .endTimeUnixNano(blockInfo.rounds().stream()
-                        .mapToLong(RoundInfo::executionEndTimeNanos)
-                        .max().orElseThrow())
-                .build());
-        // create execution sub-spans for each round
-        for (var round : blockInfo.rounds()) {
-            putSpan(spanMap, EXECUTION, Span.newBuilder()
+            // create round execution span
+            Utils.putSpan(spanMap, EXECUTION, Span.newBuilder()
                     .traceId(blockTraceID) // 16 byte trace id
                     .spanId(Utils.longToHash8Bytes(blockInfo.blockNum(), 2 + round.roundNumber() * 100)) // 8 byte span id
-                    .parentSpanId(executionSpanId)
+                    .parentSpanId(roundSpanID)
                     .name("Round " + round.roundNumber()+" Execution")
                     .startTimeUnixNano(round.executionStartTimeNanos())
                     .endTimeUnixNano(round.executionEndTimeNanos())
@@ -211,7 +198,7 @@ public class BlockSpanCreator {
                 .max().orElseThrow();
         // create span for all block finishing in the block
         final Bytes blockFinishingSpanId = Utils.longToHash8Bytes(blockInfo.blockNum(), 20);
-        putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
+        Utils.putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
                 .traceId(blockTraceID) // 16 byte trace id
                 .spanId(blockFinishingSpanId) // 8 byte span id
                 .parentSpanId(blockSpanID)
@@ -220,7 +207,7 @@ public class BlockSpanCreator {
                 .endTimeUnixNano(Math.max(endOfBlockHashing, endOfBlockCreation))
                 .build());
         // create block hashing span
-        putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
+        Utils.putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
                 .traceId(blockTraceID) // 16 byte trace id
                 .spanId(Utils.longToHash8Bytes(blockInfo.blockNum(), 21))
                 .parentSpanId(blockFinishingSpanId)
@@ -229,7 +216,7 @@ public class BlockSpanCreator {
                 .endTimeUnixNano(endOfBlockHashing)
                 .build());
         // create block creation span
-        putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
+        Utils.putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
                 .traceId(blockTraceID) // 16 byte trace id
                 .spanId(Utils.longToHash8Bytes(blockInfo.blockNum(), 22))
                 .parentSpanId(blockFinishingSpanId)
@@ -237,9 +224,5 @@ public class BlockSpanCreator {
                 .startTimeUnixNano(startOfBlockCreation)
                 .endTimeUnixNano(endOfBlockCreation)
                 .build());
-    }
-
-    private static void putSpan(Map<VirtualResource, List<Span>> spanMap, VirtualResource resource, Span span) {
-        spanMap.computeIfAbsent(resource, k -> new ArrayList<>()).add(span);
     }
 }

@@ -15,6 +15,7 @@ import org.hiero.telemetryconverter.model.trace.TransactionTraceInfo;
  */
 public class EventInfo {
     private final int eventHash;// EventCore.hashCode() value
+    private final long eventCreatorNodeId;
     private final EventTraceInfo createdTrace;
     private final List<EventTraceInfo> gossipedTraces = new ArrayList<>();
     private final List<EventTraceInfo> receivedTraces = new ArrayList<>();
@@ -23,9 +24,12 @@ public class EventInfo {
     private final long eventStartTimeNanos;
     private final long eventEndTimeNanos;
 
-    public EventInfo(final List<BlockItem> eventItems,
+    public EventInfo(final long blockNum,
+            final long eventCreatorNodeId,
+            final List<BlockItem> eventItems,
             final IntObjectHashMap<List<EventTraceInfo>> eventTraces,
             final IntObjectHashMap<List<TransactionTraceInfo>> transactionTraces) {
+        this.eventCreatorNodeId = eventCreatorNodeId;
         final EventHeader eventHeader = eventItems.getFirst().eventHeader();
         eventHash = eventHeader.eventCore().hashCode();
         final List<EventTraceInfo> thisEventTraces =
@@ -48,13 +52,13 @@ public class EventInfo {
         for (final BlockItem item : eventItems) {
             if (item.item().kind() == ItemOneOfType.SIGNED_TRANSACTION) {
                 if (transactionItems != null) {
-                    transactions.add(new TransactionInfo(transactionItems, transactionTraces));
+                    transactions.add(new TransactionInfo(blockNum, transactionItems, transactionTraces));
                 }
                 transactionItems = new ArrayList<>();
             }
             if (transactionItems != null) transactionItems.add(item);
         }
-        if (transactionItems != null) transactions.add(new TransactionInfo(transactionItems, transactionTraces));
+        if (transactionItems != null) transactions.add(new TransactionInfo(blockNum, transactionItems, transactionTraces));
         // find event start and end time
         eventStartTimeNanos = createdTrace != null ? createdTrace.startTimeNanos() :
                 eventTraces.stream().flatMap(List::stream)
@@ -69,6 +73,10 @@ public class EventInfo {
 
     public int eventHash() {
         return eventHash;
+    }
+
+    public long eventCreatorNodeId() {
+        return eventCreatorNodeId;
     }
 
     public EventTraceInfo createdTrace() {

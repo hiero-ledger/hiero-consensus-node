@@ -1,6 +1,10 @@
 package org.hiero.telemetryconverter.util;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import io.opentelemetry.pbj.common.v1.AnyValue;
+import io.opentelemetry.pbj.common.v1.KeyValue;
+import io.opentelemetry.pbj.trace.v1.Span;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -10,6 +14,10 @@ import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.hiero.telemetryconverter.model.VirtualResource;
 
 /**
  * Utility methods for telemetry conversion.
@@ -84,6 +92,17 @@ public final class Utils {
         return instant.atZone(UTC).toEpochSecond() * 1_000_000_000L + instant.getNano();
     }
 
+    /**
+     * Converts a Timestamp to a UNIX Epoch time in nanoseconds.
+     *
+     * @param instant the Timestamp to convert
+     * @return the UNIX Epoch time in nanoseconds
+     */
+    public static long timestampToUnixEpocNanos(Timestamp instant) {
+        // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+        return instant.seconds() * 1_000_000_000L + instant.nanos();
+    }
+
     public static Instant unixEpocNanosToInstant(long epochNanos) {
         long seconds = epochNanos / 1_000_000_000L;
         int nanos = (int) (epochNanos % 1_000_000_000L);
@@ -99,5 +118,17 @@ public final class Utils {
             System.err.println("Error reading file attributes: " + e.getMessage());
             throw new UncheckedIOException(e);
         }
+    }
+
+    public static void putSpan(Map<VirtualResource, List<Span>> spanMap, VirtualResource resource, Span span) {
+        spanMap.computeIfAbsent(resource, k -> new ArrayList<>()).add(span);
+    }
+
+    public static KeyValue kv(String key, String value) {
+        return KeyValue.newBuilder().key(key).value(AnyValue.newBuilder().stringValue(value).build()).build();
+    }
+
+    public static KeyValue kv(String key, long value) {
+        return KeyValue.newBuilder().key(key).value(AnyValue.newBuilder().intValue(value).build()).build();
     }
 }

@@ -36,6 +36,9 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -152,16 +155,26 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         if (processHandle == null) {
             return CompletableFuture.completedFuture(null);
         }
+        // destroyForcibly if still alive after 2 seconds
+        final var executor = Executors.newSingleThreadScheduledExecutor();
+        executor.schedule(() -> {
+            if (processHandle.isAlive()) {
+                if (!processHandle.destroyForcibly()) {
+                    log.warn("May have failed to stop node{} with PID '{}'", metadata.nodeId(), processHandle.pid());
+                }
+            }
+        }, 2, TimeUnit.SECONDS);
         final var stopFuture = processHandle.onExit().thenAccept(handle -> {
             log.info("Destroyed PID {}", handle.pid());
             this.processHandle = null;
+            executor.close();
         });
         log.info(
                 "Destroying node{} with PID '{}' (Alive? {})",
                 metadata.nodeId(),
                 processHandle.pid(),
                 processHandle.isAlive() ? "Yes" : "No");
-        if (!processHandle.destroyForcibly()) {
+        if (!processHandle.destroy()) {
             log.warn("May have failed to stop node{} with PID '{}'", metadata.nodeId(), processHandle.pid());
         }
         return stopFuture;
