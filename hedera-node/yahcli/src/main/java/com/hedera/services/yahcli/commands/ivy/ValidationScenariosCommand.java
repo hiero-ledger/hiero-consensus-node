@@ -10,14 +10,11 @@ import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.FILE;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.XFERS;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
-import static java.util.Collections.disjoint;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterrupted;
 
-import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoSuite;
@@ -120,11 +117,7 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                 .collect(toMap(
                         Function.identity(),
                         scenario -> run(
-                                scenario,
-                                specConfig,
-                                nodeAccountSupplier,
-                                persistUpdatedScenarios,
-                                accountKeyLoader)));
+                                scenario, specConfig, nodeAccountSupplier, persistUpdatedScenarios, accountKeyLoader)));
 
         return 0;
     }
@@ -139,7 +132,12 @@ public class ValidationScenariosCommand implements Callable<Integer> {
         final HapiSuite delegate =
                 switch (scenario) {
                     case CRYPTO ->
-                        new IvyCryptoSuite(specConfig, scenariosConfig, nodeAccountSupplier, persistUpdatedScenarios, accountKeyLoader);
+                        new IvyCryptoSuite(
+                                specConfig,
+                                scenariosConfig,
+                                nodeAccountSupplier,
+                                persistUpdatedScenarios,
+                                accountKeyLoader);
                     case FILE -> {
                         throw new AssertionError("Not implemented");
                     }

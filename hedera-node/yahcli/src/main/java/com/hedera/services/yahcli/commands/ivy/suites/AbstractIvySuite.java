@@ -1,20 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.ivy.suites;
-
-import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
-import com.hedera.services.bdd.suites.HapiSuite;
-import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-
-import java.security.PrivateKey;
-import java.util.Map;
-import java.util.function.LongFunction;
-import java.util.function.Supplier;
 
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.fundOrCreateEd25519Account;
 import static com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig.SCENARIO_PAYER_NAME;
 import static java.util.Objects.requireNonNull;
+
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.PrivateKey;
+import java.util.Map;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 
 public abstract class AbstractIvySuite extends HapiSuite {
     protected final Map<String, String> specConfig;

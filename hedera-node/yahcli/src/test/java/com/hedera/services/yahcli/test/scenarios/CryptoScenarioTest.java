@@ -1,14 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.test.scenarios;
-
-import com.hedera.services.bdd.junit.HapiTest;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.YahcliVerbs.yahcliIvy;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
 public class CryptoScenarioTest {

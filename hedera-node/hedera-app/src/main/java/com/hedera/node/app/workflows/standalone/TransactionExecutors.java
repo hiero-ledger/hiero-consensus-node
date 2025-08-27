@@ -299,7 +299,6 @@ public enum TransactionExecutors {
                 .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
-                .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
                 .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)

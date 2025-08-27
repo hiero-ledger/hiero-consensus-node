@@ -307,7 +307,8 @@ public class UtilVerbs {
                         .advertisingCreation();
                 allRunFor(spec, creation);
                 final long createdNumber = creation.numOfCreatedAccount();
-                final var publicKey = CommonUtils.hex(spec.registry().getKey(name).getEd25519().toByteArray());
+                final var publicKey = CommonUtils.hex(
+                        spec.registry().getKey(name).getEd25519().toByteArray());
                 onCreation.accept(createdNumber, (EdDSAPrivateKey) spec.keys().getEd25519PrivateKey(publicKey));
             } else {
                 final var accountId = spec.accountIdFactory().apply(number);
@@ -330,7 +331,8 @@ public class UtilVerbs {
                     if (info.getBalance() < desiredBalance) {
                         allRunFor(
                                 spec,
-                                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
+                                cryptoTransfer(
+                                        tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
                     }
                 } else {
                     Assertions.fail("Scenario payer must have an Ed25519 key at this time");

@@ -31,7 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -233,8 +232,7 @@ public class ConfigManager {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        final var baseNetwork =
-                requireNonNull(freshConfig.global.getNetworks().get(targetName));
+        final var baseNetwork = requireNonNull(freshConfig.global.getNetworks().get(targetName));
         return baseNetwork.getNodes().size();
     }
 
@@ -246,8 +244,7 @@ public class ConfigManager {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        final var baseNetwork =
-                requireNonNull(freshConfig.global.getNetworks().get(targetName));
+        final var baseNetwork = requireNonNull(freshConfig.global.getNetworks().get(targetName));
         return baseNetwork.getNodes().stream()
                 .map(NodeConfig::getId)
                 .map(i -> (long) i)
