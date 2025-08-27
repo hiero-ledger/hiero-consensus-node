@@ -340,8 +340,8 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.embedded.mode", "concurrent")
     // Running all the tests that are executed in testEmbedded with 0 for shard and realm,
     // so we can maintain confidence that there are no regressions in the code.
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
+    systemProperty("hapi.spec.default.shard", 0)
+    systemProperty("hapi.spec.default.realm", 0)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
