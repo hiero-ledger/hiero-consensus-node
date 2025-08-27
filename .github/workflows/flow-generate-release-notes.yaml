@@ -89,19 +89,19 @@ jobs:
       - name: Create Release Notes - Markdown Format
         run: |
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "## Release Notes:" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!"
 
-      - name: Create Full List of Git History Commits
-        run: |
-          echo "Create Full List of Git History Commits:"
-          git-semver log "${{ steps.validate.outputs.release-identifier }}"
-
       - name: Create Release Notes - JSON Structure
         run: |
           echo "Create Release Notes of Conventional Commits"
           git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}"
+
+      - name: Create Full List of Git History Commits
+        run: |
+          echo "Create Full List of Git History Commits:"
+          git-semver log "${{ steps.validate.outputs.release-identifier }}"
