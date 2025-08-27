@@ -629,7 +629,7 @@ public class BlockNodeConnectionManager {
         }
 
         if (requestIndex < blockState.numRequestsCreated()) {
-            logger.trace(
+            logger.debug(
                     "[{}] Processing block {} (isBlockProofSent={}, totalBlockRequests={}, currentRequestIndex={})",
                     connection,
                     streamingBlockNumber,
