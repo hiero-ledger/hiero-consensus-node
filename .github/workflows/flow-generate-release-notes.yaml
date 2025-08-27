@@ -73,9 +73,6 @@ jobs:
 
           echo "Checking if tag ${tag} exists..."
 
-          # Check if the tag exists in the repository
-          git fetch --tags
-
           if git rev-parse "$tag" >/dev/null 2>&1; then
             echo "Tag ${tag} found in repo." >> ${GITHUB_STEP_SUMMARY}
           else
