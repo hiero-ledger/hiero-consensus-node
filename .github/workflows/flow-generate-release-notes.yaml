@@ -38,6 +38,8 @@ jobs:
             tag="${GITHUB_REF#refs/tags/}"
             echo "version=$tag" >> $GITHUB_OUTPUT
           fi
+          echo "Version Number to Process:" >> $GITHUB_STEP_SUMMARY
+          echo "\`$version\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Validate and Correct Release Identifier
         id: validate
@@ -85,9 +87,10 @@ jobs:
 
       - name: Create Release Notes - Markdown Format
         run: |
-          echo ""
-          echo "Release Notes (Markdown Formatted):"
-          echo ""
+          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "Release Notes (Markdown Formatted):" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
+          
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
