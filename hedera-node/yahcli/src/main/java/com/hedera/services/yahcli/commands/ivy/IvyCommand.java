@@ -6,11 +6,12 @@ import picocli.CommandLine;
 import java.util.concurrent.Callable;
 
 @CommandLine.Command(
-        name = "accounts",
+        name = "ivy",
         subcommands = {
                 CommandLine.HelpCommand.class,
+                ValidationScenariosCommand.class,
         },
-        description = "Performs account operations")
+        description = "Execution acceptance tests")
 public class IvyCommand implements Callable<Integer> {
     @CommandLine.ParentCommand
     Yahcli yahcli;

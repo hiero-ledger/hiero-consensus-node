@@ -33,6 +33,16 @@ public class YahcliVerbs {
     }
 
     /**
+     * Returns an operation that invokes a yahcli {@code ivy} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliIvy(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "ivy"));
+    }
+
+    /**
      * Returns a callback that will look for a line indicating the creation of a new account,
      * and pass the new account number to the given callback.
      * @param cb the callback to capture the new account number
