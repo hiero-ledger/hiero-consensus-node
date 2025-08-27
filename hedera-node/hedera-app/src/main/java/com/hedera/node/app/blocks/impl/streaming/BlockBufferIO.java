@@ -144,7 +144,11 @@ public class BlockBufferIO {
             for (final File file : files) {
                 try {
                     final BufferedBlock bufferedBlock = readBlockFile(file);
-                    logger.debug("Read block {} from file: {}", bufferedBlock.blockNumber(), file.getAbsolutePath());
+                    logger.debug(
+                            "Block {} (items: {}) read from file: {}",
+                            bufferedBlock.blockNumber(),
+                            bufferedBlock.block().items().size(),
+                            file.getAbsolutePath());
                     blocks.add(bufferedBlock);
                 } catch (final Exception e) {
                     logger.warn("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
@@ -267,8 +271,9 @@ public class BlockBufferIO {
                     StandardOpenOption.TRUNCATE_EXISTING);
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                        "Block {} written to file: {} (bytes: {})",
+                        "Block {} (items: {}) written to file: {} (bytes: {})",
                         block.blockNumber(),
+                        items.size(),
                         path.toFile().getAbsolutePath(),
                         bytes.length());
             }

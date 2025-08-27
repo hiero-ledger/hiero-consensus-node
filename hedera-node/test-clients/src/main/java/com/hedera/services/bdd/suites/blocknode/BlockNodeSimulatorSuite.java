@@ -468,6 +468,9 @@ public class BlockNodeSimulatorSuite {
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
+    private static final int BLOCK_TTL_MINUTES = 2;
+    private static final int BLOCK_PERIOD_SECONDS = 2;
+
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -478,22 +481,71 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                                "blockStream.streamMode", "BLOCKS",
-                                "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.buffer.blockTtl",
+                            BLOCK_TTL_MINUTES + "m",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s"
                         })
             })
     @Order(7)
     final Stream<DynamicTest> testBlockBufferDurability() {
+        /*
+        1. Create some background traffic for a while.
+        2. Shutdown the block node.
+        3. Wait until block buffer becomes partially saturated.
+        4. Restart consensus node (this should both save the buffer to disk on shutdown and load it back on startup)
+        5. Check that the consensus node is still in a state with the block buffer saturated
+        6. Start the block node.
+        7. Wait for the blocks to be acked and the consensus node recovers
+         */
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        final Duration blockTtl = Duration.ofMinutes(BLOCK_TTL_MINUTES);
+        final Duration blockPeriod = Duration.ofSeconds(BLOCK_PERIOD_SECONDS);
+        final int maxBufferSize = (int) blockTtl.dividedBy(blockPeriod);
+        final int halfBufferSize = Math.max(1, maxBufferSize / 2);
+
         return hapiTest(
-                waitUntilNextBlocks(20).withBackgroundTraffic(true),
+                // create some blocks to establish a baseline
+                waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                // shutdown the block node. this will cause the block buffer to become saturated
+                blockNodeSimulator(0).shutDownImmediately(),
+                waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
+                // wait until the buffer is starting to get saturated
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                blockTtl,
+                                blockTtl,
+                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                // restart the consensus node
+                // this should persist the buffer to disk on shutdown and load the buffer on startup
                 restartAtNextConfigVersion(),
+                // check that the block buffer was saved to disk on shutdown and it was loaded from disk on startup
+                // additionally, check that the buffer is still in a partially saturated state
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                Duration.ofMinutes(3),
+                                Duration.ofMinutes(3),
+                                "Block buffer persisted to disk",
+                                "Block buffer is being restored from disk",
+                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
+                // restart the block node and let it catch up
+                blockNodeSimulator(0).startImmediately(),
+                // create some more blocks and ensure the buffer/platform remains healthy
+                waitUntilNextBlocks(maxBufferSize + halfBufferSize).withBackgroundTraffic(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                // after restart and adding more blocks, saturation should be at 0% because the block node has
+                // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        timeRef::get,
-                        Duration.ofMinutes(2),
-                        Duration.ofMinutes(2),
-                        "Block buffer is being restored from disk")));
+                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
     }
 }
