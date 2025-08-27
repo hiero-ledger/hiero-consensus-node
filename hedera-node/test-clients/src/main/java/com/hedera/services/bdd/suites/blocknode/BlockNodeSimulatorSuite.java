@@ -182,69 +182,69 @@ public class BlockNodeSimulatorSuite {
                 }),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
-                doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(0).shutDownImmediately(), // Pri 0
+                doingContextual(spec -> connectionDropTime.set(Instant.now().minus(10, SECONDS))),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
-                        "onError invoked",
+                        "Block stream worker encountered an error",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/CONNECTING] Connection state transitioned from UNINITIALIZED to CONNECTING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
-                doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).shutDownImmediately(), // Pri 1
+                doingContextual(spec -> connectionDropTime.set(Instant.now().minus(10, SECONDS))),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/CONNECTING] Connection state transitioned from UNINITIALIZED to CONNECTING",
                                 portNumbers.get(2)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(2)))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
-                doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(2).shutDownImmediately(), // Pri 2
+                doingContextual(spec -> connectionDropTime.set(Instant.now().minus(10, SECONDS))),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/CONNECTING] Connection state transitioned from UNINITIALIZED to CONNECTING",
                                 portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(3)))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
-                doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).startImmediately(),
+                doingContextual(spec -> connectionDropTime.set(Instant.now().minus(10, SECONDS))),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/CONNECTING] Connection state transitioned from UNINITIALIZED to CONNECTING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
-                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
+                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
                                 portNumbers.get(3)))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
