@@ -357,8 +357,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockNumber,
                     responseCode);
 
-        // Update the latest acknowledged block number
-        acknowledgeBlocks(blockNumber, false);
+            // Update the latest acknowledged block number
+            acknowledgeBlocks(blockNumber, false);
 
             // Record the EndOfStream event and check if the rate limit has been exceeded.
             // The connection manager maintains persistent stats for each node across connections.
@@ -375,7 +375,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 closeAndReschedule(scheduleDelay);
                 return;
             }
-
 
             switch (responseCode) {
                 case Code.ERROR, Code.PERSISTENCE_FAILED -> {

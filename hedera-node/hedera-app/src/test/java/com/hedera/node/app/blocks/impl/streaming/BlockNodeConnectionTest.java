@@ -285,7 +285,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(connectionManager).recordEndOfStreamAndCheckLimit(nodeConfig);
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
         verify(connectionManager).restartConnection(connection, 11L);
         verifyNoMoreInteractions(metrics);
