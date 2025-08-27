@@ -276,7 +276,7 @@ jobs:
     if: ${{ (needs.determine-build-candidate.result != 'success' ||
       needs.promote-build-candidate.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success' ||
-      needs.report-promotion != 'success') && !cancelled() && always() }}
+      needs.report-promotion.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

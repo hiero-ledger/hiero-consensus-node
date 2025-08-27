@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.SHARED_NETWORK_NAME;
+import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static java.util.Objects.requireNonNull;
@@ -24,20 +25,18 @@ import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.platform.engine.TestDescriptor;
-import org.junit.platform.engine.TestSource;
-import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
-import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 /**
@@ -47,7 +46,26 @@ import org.junit.platform.launcher.TestPlan;
  */
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
     private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
+    private static final List<Consumer<HederaNetwork>> onSubProcessReady = new ArrayList<>();
+
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
+
+    /**
+     * Add a listener to be notified when the network is ready.
+     * @param listener the listener to notify when the network is ready
+     */
+    public static void onSubProcessNetworkReady(@NonNull final Consumer<HederaNetwork> listener) {
+        requireNonNull(listener);
+        final var sharedNetwork = SHARED_NETWORK.get();
+        if (sharedNetwork != null) {
+            if (!(sharedNetwork instanceof SubProcessNetwork subProcessNetwork)) {
+                throw new IllegalStateException("Shared network is not a SubProcessNetwork");
+            }
+            subProcessNetwork.onReady(listener);
+        } else {
+            onSubProcessReady.add(listener);
+        }
+    }
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
@@ -70,16 +88,28 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
-            // Check if any test in the plan uses HapiBlockNode
-            if (planUsesHapiBlockNode(testPlan)) {
-                log.info("Test plan includes HapiBlockNode annotation, skipping shared network startup.");
-                // Ensure repeatable key generator is still set up even if network isn't
-                REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
-                embedding = Embedding.NA; // Set embedding state appropriately
-                return; // Skip network setup
-            }
-
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+
+            // Skip standard setup if any test in the plan uses HapiBlockNode
+            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
+                log.info("Test plan includes HapiBlockNode annotation, skipping shared network startup.");
+                embedding = Embedding.NA;
+                return;
+            }
+            // Do nothing if the test plan has no HapiTests of any kind
+            if (!hasAnnotatedTestNode(
+                    testPlan,
+                    Set.of(
+                            EmbeddedHapiTest.class,
+                            GenesisHapiTest.class,
+                            HapiTest.class,
+                            LeakyEmbeddedHapiTest.class,
+                            LeakyHapiTest.class,
+                            LeakyRepeatableHapiTest.class,
+                            RepeatableHapiTest.class))) {
+                log.info("No HapiTests found in test plan, skipping shared network startup");
+                return;
+            }
             embedding = embeddingMode();
             final HederaNetwork network =
                     switch (embedding) {
@@ -101,6 +131,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
                 SHARED_NETWORK.set(network);
+                if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    onSubProcessReady.forEach(subProcessNetwork::onReady);
+                    onSubProcessReady.clear();
+                }
             }
         }
 
@@ -188,80 +222,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case "repeatable" -> Embedding.REPEATABLE;
                 default -> Embedding.NA;
             };
-        }
-
-        /**
-         * Recursively checks if any test identifier in the test plan corresponds to a method
-         * annotated with {@link HapiBlockNode}.
-         *
-         * @param testPlan The test plan.
-         * @return {@code true} if any test method is annotated, {@code false} otherwise.
-         */
-        private boolean planUsesHapiBlockNode(@NonNull final TestPlan testPlan) {
-            final Set<TestIdentifier> roots = testPlan.getRoots();
-            log.info("Checking test plan roots for HapiBlockNode: {}", roots);
-            for (final TestIdentifier root : roots) {
-                if (testIdentifierOrDescendantsUseHapiBlockNode(testPlan, root)) {
-                    log.info("Found HapiBlockNode annotation in root or descendants: {}", root);
-                    return true;
-                }
-            }
-            log.info("No HapiBlockNode annotation found in test plan.");
-            return false;
-        }
-
-        /**
-         * Checks if a given TestIdentifier or any of its descendants corresponds to a test method
-         * annotated with {@link HapiBlockNode}.
-         *
-         * @param testPlan The test plan (needed to get children).
-         * @param identifier The current TestIdentifier to check.
-         * @return {@code true} if the identifier or a descendant uses the annotation, {@code false} otherwise.
-         */
-        private boolean testIdentifierOrDescendantsUseHapiBlockNode(
-                @NonNull final TestPlan testPlan, @NonNull final TestIdentifier identifier) {
-            log.trace("Checking identifier for HapiBlockNode: {}", identifier.getUniqueId());
-            // Check for MethodSource first, as @TestFactory methods might not have type TEST
-            final Optional<TestSource> source = identifier.getSource();
-            if (source.isPresent() && source.get() instanceof MethodSource methodSource) {
-                log.trace("Identifier has MethodSource: {}", identifier.getUniqueId());
-                try {
-                    final var method = methodSource.getJavaMethod();
-                    final var annotations = Arrays.toString(method.getDeclaredAnnotations());
-                    log.trace("Method source found: {}, annotations: {}", method.getName(), annotations);
-                    if (method.isAnnotationPresent(HapiBlockNode.class)) {
-                        log.info("HapiBlockNode annotation FOUND on method: {}", method.getName());
-                        return true; // Annotation found
-                    } else {
-                        log.trace("HapiBlockNode annotation NOT found on method: {}", method.getName());
-                    }
-                } catch (Exception e) {
-                    log.warn("Could not get Java method or annotations for source: {}", source, e);
-                }
-            } else if (identifier.getType() == TestDescriptor.Type.TEST) {
-                // Log if it's a TEST but doesn't have MethodSource (less common)
-                log.trace("Identifier is a TEST but lacks MethodSource: {}", identifier.getUniqueId());
-            } else {
-                log.trace("Identifier is not a TEST and has no MethodSource: {}", identifier.getUniqueId());
-            }
-
-            // Recursively check children
-            final Set<TestIdentifier> children = testPlan.getChildren(identifier);
-            log.trace("Checking {} children of {}", children.size(), identifier.getUniqueId());
-            for (final TestIdentifier child : children) {
-                if (testIdentifierOrDescendantsUseHapiBlockNode(testPlan, child)) {
-                    log.trace(
-                            "Found HapiBlockNode in child: {}, returning true for parent: {}",
-                            child.getUniqueId(),
-                            identifier.getUniqueId());
-                    return true; // Found in descendant
-                }
-            }
-
-            log.trace(
-                    "HapiBlockNode not found for identifier or its descendants: {}, returning false",
-                    identifier.getUniqueId());
-            return false; // Not found in this branch
         }
     }
 

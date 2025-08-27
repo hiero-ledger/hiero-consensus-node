@@ -28,6 +28,9 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
@@ -125,6 +128,8 @@ public class HapiSpecSetup {
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonicFile())) {
             final var mnemonic = Bip0032.mnemonicFromFile(defaultPayerMnemonicFile());
             return mnemonicToEd25519Key(mnemonic);
+        } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
+            return defaultPayerKeyFromResource(in -> Ed25519Utils.readKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
         }
@@ -138,8 +143,23 @@ public class HapiSpecSetup {
     private ECPrivateKey payerKeyAsEcdsa() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Secp256k1Utils.readECKeyFrom(CommonUtils.unhex(defaultPayerKey()));
+        } else if (StringUtils.isNotEmpty(defaultPayerPemKeyResource())) {
+            return defaultPayerKeyFromResource(in -> Secp256k1Utils.readECKeyFrom(in, defaultPayerPemKeyPassphrase()));
         } else {
             return Secp256k1Utils.readECKeyFrom(new File(defaultPayerPemKeyLoc()), defaultPayerPemKeyPassphrase());
+        }
+    }
+
+    private <T extends PrivateKey> T defaultPayerKeyFromResource(@NonNull final Function<InputStream, T> reader) {
+        try (var in =
+                Thread.currentThread().getContextClassLoader().getResourceAsStream(defaultPayerPemKeyResource())) {
+            if (in == null) {
+                throw new IllegalArgumentException(
+                        "No resource found for default payer key " + defaultPayerPemKeyResource());
+            }
+            return reader.apply(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -286,6 +306,10 @@ public class HapiSpecSetup {
 
     public String defaultPayerMnemonicFile() {
         return props.get("default.payer.mnemonicFile");
+    }
+
+    public String defaultPayerPemKeyResource() {
+        return props.get("default.payer.pemKeyResource");
     }
 
     public String defaultPayerPemKeyLoc() {
@@ -495,10 +519,10 @@ public class HapiSpecSetup {
         return props.get("node.details.name");
     }
 
-    public List<NodeConnectInfo> nodes() {
+    public List<NodeConnectInfo> nodes(long shard, long realm) {
         NodeConnectInfo.NEXT_DEFAULT_ACCOUNT_NUM = 3;
         return Stream.of(props.get("nodes").split(","))
-                .map(NodeConnectInfo::new)
+                .map(inString -> new NodeConnectInfo(inString, shard, realm))
                 .toList();
     }
 
