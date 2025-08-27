@@ -30,6 +30,7 @@ import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.cli.utils.HederaAppUtils;
 import com.swirlds.platform.config.PathsConfig;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.SavedStateUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -44,6 +45,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -80,9 +83,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private NodeId selfId;
     /** The path to the Override network file. */
     private Path networkOverrideFile;
-    /**The timestamp of when the writing of this file began. */
-    private final Instant timestamp;
-
+    /**The time of when the writing of this file began. */
+    private Time time;
     @CommandLine.Option(
             names = {"-ac", "--auto-confirm"},
             description = "Automatically confirm the operation without prompting")
@@ -96,9 +98,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private SavedStateMetadata stateMetadata;
     private Path targetStateDir;
 
-    public CrystalTransplantCommand(Instant timestamp) {
-        this.timestamp = timestamp;
-    }
     /**
      * Set the path to state to prepare for transplant.
      */
@@ -168,6 +167,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final PathsConfig defaultPathsConfig = configuration.getConfigData(PathsConfig.class);
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
+        final ZonedDateTime zonedDateTime = time.now().atZone(ZoneId.systemDefault());
 
         final ApplicationDefinition appDefinition =
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
@@ -193,8 +193,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 .getConfigData(PcesConfig.class)
                 .databaseDirectory()
                 .resolve(Long.toString(selfId.id())));
-
-        final ZonedDateTime zonedDateTime = timestamp.atZone(ZoneId.systemDefault());
 
         final Path targetPcesDir = stateConfig.savedStateDirectory().resolve(platformContext
                 .getConfiguration()
