@@ -595,7 +595,7 @@ public class BlockBufferService {
         }
 
         // update the earliest block number after pruning
-        earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);h
+        earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);
 
         final long oldestUnackedMillis = Instant.MAX.equals(oldestUnackedTimestamp.get())
                 ? -1 // sentinel value indicating no blocks are unacked
