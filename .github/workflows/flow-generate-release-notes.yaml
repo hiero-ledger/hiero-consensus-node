@@ -98,7 +98,7 @@ jobs:
       - name: Get All Changes in JSON Format
         run: |
           echo "Create Release Notes of Conventional Commits"
-          git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}" > changes.json
+          git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}" | tee changes.json
 
       - name: Process All Changes to Markdown File
         id: generate-md
