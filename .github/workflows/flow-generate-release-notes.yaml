@@ -69,7 +69,7 @@ jobs:
 
       - name: Validate Tag Exists
         run: |
-          tag="v${{ steps.validate.outputs.validated-version }}"
+          tag="v${{ steps.validate.outputs.release-identifier }}"
 
           echo "Checking if tag ${tag} exists..."
 
@@ -91,11 +91,11 @@ jobs:
           echo ""
           echo "Release Notes (Markdown Formatted):"
           echo ""
-          git-semver log --markdown "${{ steps.validate.outputs.validated-version }}" | tee -a ${GITHUB_STEP_SUMMARY}
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Create Release Notes - JSON Structure
         run: |
           echo "Release Notes (JSON Structure):"
-          git-semver log "${{ steps.validate.outputs.validated-version }}"
+          git-semver log "${{ steps.validate.outputs.release-identifier }}"
