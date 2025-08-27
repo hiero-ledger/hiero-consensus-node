@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
 
@@ -221,7 +223,12 @@ public record EthTxData(
                 .longValueExact();
     }
 
+    private static final Logger log = LogManager.getLogger(EthTxData.class);
+
     public byte[] getEthereumHash() {
+        log.info("!!!!!!!!!!!!!rawTx={}", rawTx);
+        log.info("!!!!!!!!!!!!!type={}", type);
+        log.info("!!!!!!!!!!!!!tx={}", toString());
         return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
     }
 
