@@ -18,7 +18,8 @@ public class TransactionInfo {
     private final int txHash; // TransactionID.hashCode() value
     private final List<TransactionTraceInfo> receivedTraces;
     private final List<TransactionTraceInfo> executedTraces;
-    private final long transactionReceivedTimeNanos;
+    private final long transactionReceivedStartTimeNanos;
+    private final long transactionReceivedEndTimeNanos;
     private final long transactionLastExecutionTimeNanos;
 
     public TransactionInfo(final List<BlockItem> transactionItems,
@@ -40,8 +41,10 @@ public class TransactionInfo {
             executedTraces = traces.stream()
                     .filter(t -> t.eventType() == TransactionTraceInfo.EventType.EXECUTED).toList();
             // find the earliest received time
-            transactionReceivedTimeNanos = receivedTraces.stream()
-                    .mapToLong(TransactionTraceInfo::startTimeNanos).min().orElse(0L);
+            var receivedTimeStats = receivedTraces.stream()
+                    .mapToLong(TransactionTraceInfo::startTimeNanos).summaryStatistics();
+            transactionReceivedStartTimeNanos = receivedTimeStats.getMin();
+            transactionReceivedEndTimeNanos = receivedTimeStats.getMax();
             // find the latest executed time
             transactionLastExecutionTimeNanos = executedTraces.stream()
                     .mapToLong(TransactionTraceInfo::endTimeNanos).max().orElse(0L);
@@ -64,7 +67,11 @@ public class TransactionInfo {
     }
 
     public long transactionReceivedTimeNanos() {
-        return transactionReceivedTimeNanos;
+        return transactionReceivedStartTimeNanos;
+    }
+
+    public long transactionReceivedEndTimeNanos() {
+        return transactionReceivedEndTimeNanos;
     }
 
     public long transactionLastExecutionTimeNanos() {

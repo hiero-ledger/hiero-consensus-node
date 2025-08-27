@@ -100,11 +100,11 @@ public class BlockInfo {
                         .min().orElse(rounds.stream()
                                 .flatMap(r -> r.createdTraces().stream())
                                 .mapToLong(RoundTraceInfo::startTimeNanos)
-                                .min().orElse(0L)));
+                                .min().orElseThrow()));
         // find the oldest block creation time
         blockEndTimeNanos = blockCreationTraces.stream()
                 .mapToLong(BlockTraceInfo::endTimeNanos)
-                .max().orElse(0L);
+                .max().orElseThrow();
     }
 
     public long blockNum() {

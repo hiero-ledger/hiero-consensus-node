@@ -183,6 +183,7 @@ public class ProcessUtils {
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
                 "-Dhedera.profiles.active=DEV",
+                String.format("-XX:StartFlightRecording=duration=120s,filename=recording-node-%s.jfr,disk=true", metadata.nodeId()),
                 "--module",
                 "com.hedera.node.app/com.hedera.node.app.ServicesMain",
                 "-local",

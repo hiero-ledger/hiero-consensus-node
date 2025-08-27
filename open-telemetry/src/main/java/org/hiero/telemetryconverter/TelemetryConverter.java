@@ -57,7 +57,6 @@ import org.hiero.telemetryconverter.util.WarningException;
  * <pre> java -cp network-load-generator-0.6.0.jar com.hedera.benchmark.NftTransferLoadTest -a 10 -n 10 -t 100000</pre>
  * Then in another terminal, find the PID of the node process with jps then run the jcmd command to start JFR recording
  * <pre>jcmd &lt;PID&gt; JFR.start duration=300s filename=&lt;ABSOLUTE_PATH_TO_CONSENSUS_NODE_REPO&gt;/hedera-node/hedera-app/build/node/data/trace-node-&lt;NODE_ID&gt;.jfr</pre>
- * </p>
  */
 @SuppressWarnings("CallToPrintStackTrace")
 public final class TelemetryConverter {
@@ -68,14 +67,10 @@ public final class TelemetryConverter {
     public static final Options PROTO_OPTIONS =
             new Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
 
-    private static final ZoneId SERVER_TIMEZONE = ZoneId.systemDefault();
     private static final Path PROJECT_ROOT = Paths.get("").toAbsolutePath();
-    private static final Path JFR_TRACE_DIR = PROJECT_ROOT.resolve("hedera-node/hedera-app/build/node/data/");
-    private static final Path BLOCK_FILES_DIR = PROJECT_ROOT.resolve("hedera-node/hedera-app/build/node/data/blockStreams/block-0.0.3");
-
-    private static final Resource HIERO_RESOURCE = Resource.newBuilder()
-            .attributes(new KeyValue("service.name", AnyValue.newBuilder().stringValue("hiero-consensus-node").build()))
-            .build();
+    private static final Path JFR_TRACE_DIR = PROJECT_ROOT.resolve("hedera-node/test-clients/build/hapi-test");
+    // we will take blocks only from one single node
+    private static final Path BLOCK_FILES_DIR = PROJECT_ROOT.resolve("hedera-node/test-clients/build/hapi-test/node0/data/blockStreams");
 
     /** Cache of all block traces found in the JFR file, keyed by block number. */
     private static final LongObjectHashMap<List<BlockTraceInfo>> blockTraces = new LongObjectHashMap<>();

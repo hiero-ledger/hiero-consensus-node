@@ -61,7 +61,9 @@ public class RoundInfo {
         // scan all transactions to find the earliest start time.
         // If there are no transactions, use the earliest event created time.
         // If there are no events, use the earliest round created time.
-        roundStartTimeNanos = events.stream().mapToLong(EventInfo::firstTransactionOrEventCreation).min().orElseThrow();
+        roundStartTimeNanos = events.stream()
+                .mapToLong(EventInfo::firstTransactionOrEventCreationStart)
+                .min().orElseThrow();
 //        roundStartTimeNanos = traces.stream()
 //                .mapToLong(RoundTraceInfo::startTimeNanos)
 //                .max().orElseThrow();

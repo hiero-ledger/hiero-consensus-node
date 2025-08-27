@@ -28,17 +28,19 @@ public class EventInfo {
             final IntObjectHashMap<List<TransactionTraceInfo>> transactionTraces) {
         final EventHeader eventHeader = eventItems.getFirst().eventHeader();
         eventHash = eventHeader.eventCore().hashCode();
-        createdTrace = eventTraces.get(eventHash).stream()
+        final List<EventTraceInfo> thisEventTraces =
+                eventTraces.getIfAbsent(eventHash, ArrayList::new);
+        createdTrace = thisEventTraces.stream()
                 .filter(t -> t.eventType() == EventTraceInfo.EventType.CREATED)
                 .findFirst()
                 .orElse(null);
-        gossipedTraces.addAll(eventTraces.get(eventHash).stream()
+        gossipedTraces.addAll(thisEventTraces.stream()
                 .filter(t -> t.eventType() == EventTraceInfo.EventType.GOSSIPED)
                 .toList());
-        receivedTraces.addAll(eventTraces.get(eventHash).stream()
+        receivedTraces.addAll(thisEventTraces.stream()
                 .filter(t -> t.eventType() == EventTraceInfo.EventType.RECEIVED)
                 .toList());
-        preHandledTraces.addAll(eventTraces.get(eventHash).stream()
+        preHandledTraces.addAll(thisEventTraces.stream()
                 .filter(t -> t.eventType() == EventTraceInfo.EventType.PRE_HANDLED)
                 .toList());
         // scan through all block items and find transactions
@@ -97,13 +99,24 @@ public class EventInfo {
         return eventEndTimeNanos;
     }
 
-    public long firstTransactionOrEventCreation() {
+    public long firstTransactionOrEventCreationStart() {
         if (transactions.isEmpty()) {
             return createdTrace.startTimeNanos();
         } else {
             return transactions.stream()
                 .mapToLong(t -> t.transactionReceivedTimeNanos())
                 .min()
+                .orElse(eventStartTimeNanos);
+        }
+    }
+
+    public long lastTransactionOrEventCreationEnd() {
+        if (transactions.isEmpty()) {
+            return createdTrace.endTimeNanos();
+        } else {
+            return transactions.stream()
+                .mapToLong(t -> t.transactionReceivedEndTimeNanos())
+                .max()
                 .orElse(eventStartTimeNanos);
         }
     }

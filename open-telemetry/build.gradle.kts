@@ -19,3 +19,7 @@ testModuleInfo {
 pbj {
     generateTestClasses = false
 }
+
+tasks.register<Exec>("cleanAndRestartTempo") {
+    commandLine("bash", "-c", "rm -rf docker/tmp/tempo-data && docker restart docker-tempo-1")
+}
