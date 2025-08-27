@@ -21,6 +21,7 @@ module com.hedera.node.yahcli {
 
     exports com.hedera.services.yahcli.config.domain;
     exports com.hedera.services.yahcli.config;
+    exports com.hedera.services.yahcli.output;
 
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook;
