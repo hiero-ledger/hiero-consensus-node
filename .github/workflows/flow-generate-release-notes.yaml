@@ -32,7 +32,7 @@ jobs:
       - name: Extract the Input Version
         id: extract-version
         run: |
-echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
+          echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
           echo "Version Number to Process:" >> "${GITHUB_STEP_SUMMARY}"
           echo "${version}" >> "${GITHUB_STEP_SUMMARY}"
 
