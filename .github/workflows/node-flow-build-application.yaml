@@ -286,6 +286,85 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
+      - name: Set Rootly Parameters
+        id: set-rootly-parameters
+        run: |
+          CREATE_INCIDENT='true'
+          ROOTLY_SERVICE_NAME="CITR General"
+          if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]]; then
+            CREATE_INCIDENT='false'
+            ROOTLY_SERVICE_NAME="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "create-incident=${CREATE_INCIDENT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="MATS Error Report ${{ github.event.inputs.ref || '' }}"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Code Compiles: ${{ needs.code.result }}"
+            echo "- Dependency (Module Info): ${{ needs.dependency-check.result }}"
+            echo "- Spotless: ${{ needs.spotless.result }}"
+            echo "- MATS - Unit Tests: ${{ needs.mats-unit-tests.result }}"
+            echo "- MATS - Gradle Determinism: ${{ needs.mats-gradle-determinism.result }}"
+            echo "- MATS - Docker Determinism: ${{ needs.mats-docker-determinism.result }}"
+            echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.inputs.ref || github.sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-parameters.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Create Rootly Incident?" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-parameters.outputs.create-incident }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Report Failure (Rootly)
+        if: ${{ steps.set-rootly-parameters.outputs.create-incident == 'true' }}
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        continue-on-error: true # continue on error so we can get the slack reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI"
+          services: ${{ steps.set-rootly-parameters.outputs.service }}
+          teams: "Platform CI"
+
       - name: Build Slack Payload Message
         id: payload
         run: |

@@ -29,6 +29,11 @@ on:
         type: boolean
         default: true
         description: "Run SDK TCK Regression Panel"
+      enable-mirror-node-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Mirror Node Regression Panel"
 
 permissions:
   id-token: write
@@ -118,4 +123,16 @@ jobs:
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  mirror-node-regression-panel:
+    name: Mirror Node Regression Panel
+    if: ${{ inputs.enable-mirror-node-regression-panel == true }}
+    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
+      custom-job-name: "Mirror Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
