@@ -33,10 +33,11 @@ jobs:
         id: extract-version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            version="${{ github.event.inputs.version }}"
+            echo "version=$version >> $GITHUB_OUTPUT
           else
-            tag="${GITHUB_REF#refs/tags/}"
-            echo "version=$tag" >> $GITHUB_OUTPUT
+            version="${GITHUB_REF#refs/tags/}"
+            echo "version=$version" >> $GITHUB_OUTPUT
           fi
           echo "Version Number to Process:" >> $GITHUB_STEP_SUMMARY
           echo "\`$version\`" >> $GITHUB_STEP_SUMMARY
