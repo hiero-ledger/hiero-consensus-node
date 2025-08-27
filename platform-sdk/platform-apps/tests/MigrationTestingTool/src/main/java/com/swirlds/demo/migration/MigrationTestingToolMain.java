@@ -44,18 +44,6 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(MigrationTestingToolState.class, MigrationTestingToolState::new));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(MapValue.class, MapValue::new));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(MapKey.class, MapKey::new));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(AccountID.class, AccountID::new));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(FCTimestamp.class, FCTimestamp::new));
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(InternalValue.class, InternalValue::new));
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(TransactionHash.class, TransactionHash::new));
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(TransactionRecord.class, TransactionRecord::new));
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(TransactionHash.class, TransactionHash::new));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "MigrationTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {

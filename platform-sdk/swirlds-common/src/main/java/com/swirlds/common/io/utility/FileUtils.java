@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.nio.file.Files.exists;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -15,6 +16,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
@@ -243,7 +245,7 @@ public final class FileUtils {
 
             // Move needs to be atomic to guarantee that the folder only exists when its contents are complete.
             // Otherwise, it's possible another thread will see a half-completed directory.
-            Files.move(tmpDirectory, directory, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tmpDirectory, directory, ATOMIC_MOVE);
         } catch (final Throwable ex) {
             logger.info(STATE_TO_DISK.getMarker(), "deleting temporary file due to exception");
             throw ex;
@@ -421,5 +423,26 @@ public final class FileUtils {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * Renames a source file represented by source
+     *
+     * @param source the path of the file to be renamed, must not be null
+     * @param newName the new name to give the file, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void rename(@NonNull final Path source, @NonNull final String newName) throws IOException {
+        Path target = requireNonNull(source).resolveSibling(requireNonNull(newName));
+
+        if (Files.exists(target)) {
+            throw new FileAlreadyExistsException(target.toString());
+        }
+
+        try {
+            Files.move(source, target, ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, target);
+        }
     }
 }
