@@ -3,13 +3,11 @@ package com.hedera.services.yahcli.commands.ivy;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiSpecSetup.loadKeyOrThrow;
-import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONSENSUS;
+import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONTRACT;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CRYPTO;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.FILE;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.XFERS;
-import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterrupted;
@@ -20,6 +18,7 @@ import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
+import com.hedera.services.yahcli.config.YahcliKeys;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -27,15 +26,14 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.PrivateKey;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -63,33 +61,38 @@ public class ValidationScenariosCommand implements Callable<Integer> {
 
     @CommandLine.Option(
             names = {"--crypto"},
-            description = "Include the legacy crypto scenario")
+            description = "Include the VS crypto scenario")
     boolean crypto;
 
     @CommandLine.Option(
             names = {"--file"},
-            description = "Include the legacy file scenario")
+            description = "Include the VS file scenario")
     boolean file;
 
     @CommandLine.Option(
             names = {"--contract"},
-            description = "Include the legacy contract scenario")
+            description = "Include the VS contract scenario")
     boolean contract;
 
     @CommandLine.Option(
             names = {"--consensus"},
-            description = "Include the legacy consensus scenario")
+            description = "Include the VS consensus scenario")
     boolean consensus;
 
     @CommandLine.Option(
             names = {"--xfers"},
-            description = "Include the legacy xfers scenario")
+            description = "Include the VS xfers scenario")
     boolean xfers;
 
     @CommandLine.Option(
             names = {"--staking"},
-            description = "Include the legacy staking scenario")
+            description = "Include the VS staking scenario")
     boolean staking;
+
+    @CommandLine.Option(
+            names = {"-n", "--new-entities"},
+            description = "Enable the VS 'novel' flag")
+    boolean novel;
 
     @Nullable
     private Path configYmlPath;
@@ -107,52 +110,33 @@ public class ValidationScenariosCommand implements Callable<Integer> {
         requireNonNull(scenariosConfig);
         final var specConfig = config.asSpecConfig();
         final var scenariosToRun = requestedScenarios();
-        final var nodeAccountSupplier = nodeAccountSupplier(scenariosConfig, config);
+        final var nodeAccounts = nodeAccounts(scenariosConfig, config);
         final Runnable persistUpdatedScenarios = this::persistCurrentScenariosConfig;
-        final LongFunction<PrivateKey> accountKeyLoader = number -> {
-            final var f = keyFileFor(config.keysLoc(), "account" + number).orElseThrow();
-            return loadKeyOrThrow(f, "YAHCLI_PASSPHRASE");
-        };
+        final var yahcliKeys = config.keys();
         final var results = scenariosToRun.stream()
                 .collect(toMap(
                         Function.identity(),
-                        scenario -> run(
-                                scenario, specConfig, nodeAccountSupplier, persistUpdatedScenarios, accountKeyLoader)));
-
-        return 0;
+                        scenario -> run(scenario, specConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys)));
+        return results.values().stream().allMatch(PASSED::equals) ? 0 : 1;
     }
 
     private HapiSpec.SpecStatus run(
             @NonNull final Scenario scenario,
             @NonNull final Map<String, String> specConfig,
-            @NonNull final Supplier<String> nodeAccountSupplier,
+            @NonNull final Supplier<Supplier<String>> nodeAccounts,
             @NonNull final Runnable persistUpdatedScenarios,
-            @NonNull final LongFunction<PrivateKey> accountKeyLoader) {
+            @NonNull final YahcliKeys yahcliKeys) {
         requireNonNull(scenariosConfig);
         final HapiSuite delegate =
                 switch (scenario) {
                     case CRYPTO ->
                         new IvyCryptoSuite(
-                                specConfig,
-                                scenariosConfig,
-                                nodeAccountSupplier,
-                                persistUpdatedScenarios,
-                                accountKeyLoader);
-                    case FILE -> {
-                        throw new AssertionError("Not implemented");
-                    }
-                    case CONTRACT -> {
-                        throw new AssertionError("Not implemented");
-                    }
-                    case CONSENSUS -> {
-                        throw new AssertionError("Not implemented");
-                    }
-                    case XFERS -> {
-                        throw new AssertionError("Not implemented");
-                    }
-                    case STAKING -> {
-                        throw new AssertionError("Not implemented");
-                    }
+                                specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys, novel);
+                    case FILE -> throw new AssertionError("Not implemented");
+                    case CONTRACT -> throw new AssertionError("Not implemented");
+                    case CONSENSUS -> throw new AssertionError("Not implemented");
+                    case XFERS -> throw new AssertionError("Not implemented");
+                    case STAKING -> throw new AssertionError("Not implemented");
                 };
         delegate.runSuiteSync();
         return delegate.getFinalSpecs().getFirst().getStatus();
@@ -170,7 +154,7 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                 .toList());
     }
 
-    private static Supplier<String> nodeAccountSupplier(
+    private static Supplier<Supplier<String>> nodeAccounts(
             @NonNull final ScenariosConfig scenariosConfig, @NonNull final ConfigManager config) {
         final List<String> nodeAccountIds = config.asNodeInfos().stream()
                 .map(info -> asAccountString(info.getAccount()))
@@ -179,8 +163,13 @@ public class ValidationScenariosCommand implements Callable<Integer> {
         final int n = nodeAccountIds.size();
         return () -> {
             final var accountId = nodeAccountIds.get(nextAccountId.getAndUpdate(i -> (i + 1) % n));
-            abortIfInterrupted(() -> Thread.sleep(scenariosConfig.getSleepMsBeforeNextNode()));
-            return accountId;
+            final var slept = new AtomicBoolean();
+            return () -> {
+                if (!slept.compareAndSet(false, true)) {
+                    abortIfInterrupted(() -> Thread.sleep(scenariosConfig.getSleepMsBeforeNextNode()));
+                }
+                return accountId;
+            };
         };
     }
 

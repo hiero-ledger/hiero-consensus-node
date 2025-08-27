@@ -4,7 +4,7 @@ package com.hedera.services.yahcli.commands.ivy.scenarios;
 public class ScenariosConfig {
     public static final String SCENARIO_PAYER_NAME = "scenarioPayer";
 
-    private static final long DEFAULT_SLEEP_MS_BEFORE_NEXT_NODE = 5_000L;
+    private static final long DEFAULT_SLEEP_MS_BEFORE_NEXT_NODE = 1_000L;
     private static final long FEE_TO_OFFER_IN_HBAR = 100;
     private static final long DEFAULT_INITIAL_HBARS = 25;
     private static final long DEFAULT_NODE = 3;

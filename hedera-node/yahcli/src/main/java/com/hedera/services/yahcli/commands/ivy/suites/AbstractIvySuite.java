@@ -7,42 +7,66 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.commands.ivy.scenarios.Scenarios;
 import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
+import com.hedera.services.yahcli.config.YahcliKeys;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.PrivateKey;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
-import java.util.function.LongFunction;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 
 public abstract class AbstractIvySuite extends HapiSuite {
     protected final Map<String, String> specConfig;
     protected final ScenariosConfig scenariosConfig;
-    protected final Supplier<String> nodeAccountSupplier;
+    protected final Supplier<Supplier<String>> nodeAccounts;
     protected final Runnable persistUpdatedScenarios;
-    protected final LongFunction<PrivateKey> accountKeyLoader;
+    protected final YahcliKeys yahcliKeys;
 
     protected AbstractIvySuite(
             @NonNull final Map<String, String> specConfig,
             @NonNull final ScenariosConfig scenariosConfig,
-            @NonNull final Supplier<String> nodeAccountSupplier,
+            @NonNull final Supplier<Supplier<String>> nodeAccounts,
             @NonNull final Runnable persistUpdatedScenarios,
-            @NonNull final LongFunction<PrivateKey> accountKeyLoader) {
+            @NonNull final YahcliKeys yahcliKeys) {
         this.specConfig = requireNonNull(specConfig);
         this.scenariosConfig = requireNonNull(scenariosConfig);
-        this.nodeAccountSupplier = requireNonNull(nodeAccountSupplier);
+        this.nodeAccounts = requireNonNull(nodeAccounts);
         this.persistUpdatedScenarios = requireNonNull(persistUpdatedScenarios);
-        this.accountKeyLoader = requireNonNull(accountKeyLoader);
+        this.yahcliKeys = yahcliKeys;
     }
 
     protected SpecOperation ensureScenarioPayer() {
-        return fundOrCreateEd25519Account(
+        return ensureEd25519Account(
                 SCENARIO_PAYER_NAME,
                 scenariosConfig.getScenarioPayer(),
                 scenariosConfig.getEnsureScenarioPayerHbars() * TINY_PARTS_PER_WHOLE,
-                accountKeyLoader,
-                (number, key) -> {
-                    scenariosConfig.setScenarioPayer(number);
+                scenariosConfig::setScenarioPayer);
+    }
+
+    protected SpecOperation ensureEd25519Account(
+            @NonNull final String name,
+            @Nullable final Long maybeNumber,
+            final long desiredBalance,
+            @NonNull LongConsumer onCreatedNumber) {
+        return fundOrCreateEd25519Account(
+                name,
+                maybeNumber,
+                desiredBalance,
+                number -> yahcliKeys.loadAccountKey(number, EdDSAPrivateKey.class),
+                spec -> {
+                    final long createdNum = spec.registry().getAccountID(name).getAccountNum();
+                    onCreatedNumber.accept(createdNum);
+                    yahcliKeys.exportAccountKey(spec, name);
                     persistUpdatedScenarios.run();
                 });
+    }
+
+    protected Scenarios getOrCreateScenarios() {
+        if (scenariosConfig.getScenarios() == null) {
+            scenariosConfig.setScenarios(new Scenarios());
+        }
+        return scenariosConfig.getScenarios();
     }
 }

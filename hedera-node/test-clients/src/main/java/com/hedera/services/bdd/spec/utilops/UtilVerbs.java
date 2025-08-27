@@ -226,7 +226,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -296,7 +295,7 @@ public class UtilVerbs {
             @Nullable final Long number,
             final long desiredBalance,
             @NonNull final LongFunction<PrivateKey> keyLoader,
-            @NonNull final BiConsumer<Long, EdDSAPrivateKey> onCreation) {
+            @NonNull final Consumer<HapiSpec> onCreation) {
         requireNonNull(onCreation);
         return doingContextual(spec -> {
             if (number == null) {
@@ -306,10 +305,7 @@ public class UtilVerbs {
                         .hasRetryPrecheckFrom(BUSY)
                         .advertisingCreation();
                 allRunFor(spec, creation);
-                final long createdNumber = creation.numOfCreatedAccount();
-                final var publicKey = CommonUtils.hex(
-                        spec.registry().getKey(name).getEd25519().toByteArray());
-                onCreation.accept(createdNumber, (EdDSAPrivateKey) spec.keys().getEd25519PrivateKey(publicKey));
+                onCreation.accept(spec);
             } else {
                 final var accountId = spec.accountIdFactory().apply(number);
                 final var idLiteral = asAccountString(accountId);
@@ -325,9 +321,9 @@ public class UtilVerbs {
                             publicKey,
                             info.getKey(),
                             String.format("Account %s had a different key than expected", idLiteral));
-                    spec.keys().incorporate(name, edDSAPrivateKey);
                     spec.registry().saveKey(name, publicKey);
                     spec.registry().saveAccountId(name, accountId);
+                    spec.keys().incorporate(name, edDSAPrivateKey);
                     if (info.getBalance() < desiredBalance) {
                         allRunFor(
                                 spec,
