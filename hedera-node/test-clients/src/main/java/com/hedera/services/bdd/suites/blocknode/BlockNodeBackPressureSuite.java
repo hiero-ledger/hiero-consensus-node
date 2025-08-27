@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(BLOCK_NODE_SIMULATOR)
 @OrderedInIsolation
-public class BlockNodeBackpressureSuite {
+public class BlockNodeBackPressureSuite {
 
     @HapiTest
     @HapiBlockNode(
@@ -54,7 +54,7 @@ public class BlockNodeBackpressureSuite {
         return hapiTest(
                 waitUntilNextBlocks(5),
                 blockNodeSimulator(0).shutDownImmediately(),
-                waitUntilNextBlocks(30),
+                waitUntilNextBlocks(60),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0),
                         "Block buffer is saturated; backpressure is being enabled",
