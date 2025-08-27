@@ -85,7 +85,6 @@ env:
   MinHeliSwapLoadTest: 1008
   MinSmartContractLoadTest: 7020
 
-
 jobs:
   performance-tests-start:
     name: Start
