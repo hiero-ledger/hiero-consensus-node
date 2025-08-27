@@ -88,13 +88,12 @@ jobs:
 
       - name: Create Release Notes - Feats and Fixes Only Markdown Format
         run: |
+          echo "Release Notes - Feats and Fixes Only Markdown Format" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
           echo "" | tee -a ${GITHUB_STEP_SUMMARY}
           
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo ""
-          echo "Successfully created release notes!"
 
       - name: Get All Changes in JSON Format
         run: |
@@ -158,11 +157,13 @@ jobs:
                   out.write("\n")
           EOF
 
-      - name: Append Changelog to Step Summary
+      - name: Create Release Notes - Full Markdown Format
         run: |
-          echo "## Release Notes" >> $GITHUB_STEP_SUMMARY
-          cat RELEASE_NOTES.md >> $GITHUB_STEP_SUMMARY
-          cat RELEASE_NOTES.md
+          echo "Release Notes - Full Markdown Format" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "" >> | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
+          cat RELEASE_NOTES.md | tee -a ${GITHUB_STEP_SUMMARY}
 
       - name: Create Full List of Git History Commits
         run: |
