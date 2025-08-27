@@ -80,6 +80,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private NodeId selfId;
     /** The path to the Override network file. */
     private Path networkOverrideFile;
+    /**The timestamp of when the writing of this file began. */
+    private final Instant timestamp;
 
     @CommandLine.Option(
             names = {"-ac", "--auto-confirm"},
@@ -93,6 +95,9 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
     private SavedStateMetadata stateMetadata;
     private Path targetStateDir;
+
+    public CrystalTransplantCommand(Instant timestamp) {
+        this.timestamp = timestamp;
 
     /**
      * Set the path to state to prepare for transplant.
@@ -182,6 +187,25 @@ public class CrystalTransplantCommand extends AbstractCommand {
         copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().getDirectory());
 
         truncatePCESFilesIfNotAFreezeState();
+
+        final Path sourcePcesDir = this.targetStateDir.resolve(platformContext
+                .getConfiguration()
+                .getConfigData(PcesConfig.class)
+                .databaseDirectory()
+                .resolve(Long.toString(selfId.id())));
+
+        final ZonedDateTime zonedDateTime = timestamp.atZone(ZoneId.systemDefault());
+
+        final Path targetPcesDir = stateConfig.savedStateDirectory().resolve(platformContext
+                .getConfiguration()
+                .getConfigData(PcesConfig.class)
+                .databaseDirectory()
+                .resolve(Long.toString(selfId.id()))
+                .resolve(String.format("%04d", zonedDateTime.getYear()))
+                .resolve(String.format("%02d", zonedDateTime.getMonthValue()))
+                .resolve(String.format("%02d", zonedDateTime.getDayOfMonth())));
+
+        copyPCESFilesToCorrectDirectory(sourcePcesDir, targetPcesDir);
 
         copyPCESFilesToCorrectDirectory();
 
@@ -312,8 +336,14 @@ public class CrystalTransplantCommand extends AbstractCommand {
         }
     }
 
-    private void copyPCESFilesToCorrectDirectory() {
+    private void copyPCESFilesToCorrectDirectory(final Path sourcePcesDir, final Path targetPcesDir)  {
         requestConfirmation("Copy PCES files to correct directory");
+        try {
+            FileUtils.copyDirectory(sourcePcesDir, targetPcesDir);
+        } catch (IOException e) {
+            System.err.printf("Unable to move PCES files from:%s to:%s. %s %n", sourcePcesDir, targetPcesDir, e);
+            System.exit(RETURN_CODE_PROMPT_NO);
+        }
     }
 
     /**
