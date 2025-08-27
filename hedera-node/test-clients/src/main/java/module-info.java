@@ -56,6 +56,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.assertions.matchers;
     exports com.hedera.services.bdd.junit;
     exports com.hedera.services.bdd.junit.hedera;
+    exports com.hedera.services.bdd.junit.hedera.utils;
     exports com.hedera.services.bdd.junit.hedera.embedded;
     exports com.hedera.services.bdd.junit.hedera.embedded.fakes;
     exports com.hedera.services.bdd.junit.hedera.subprocess;

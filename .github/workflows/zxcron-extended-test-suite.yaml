@@ -522,9 +522,10 @@ jobs:
         id: set-rootly-service
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.fetch-xts-candidate.result != 'success' || needs.tag-for-promotion.result != 'success' }}" ]]; then
+          if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
-          elif [[ "${{ needs.sdk-tck-regression-panel.result != 'success' }}" ]]; then
+          elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"

@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -129,6 +130,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -1968,6 +1970,7 @@ public class CryptoTransferSuite {
                 cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
                         .payingWithNoSig(tokenTreasury)
                         .signedBy(tokenTreasury)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // try again *with* the receiver sig.
                 cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
