@@ -430,6 +430,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         final PublishStreamResponse response = createResendBlock(10L);
         when(bufferService.getBlockState(10L)).thenReturn(null);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
