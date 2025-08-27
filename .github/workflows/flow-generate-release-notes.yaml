@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "Generate Release Notes"
 on:
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
-      release-id:
+      version:
         description: "Release Version Number (ex: 0.59.2):"
         type: string
         required: true
@@ -26,32 +29,35 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Extract the Input Version
+        id: extract-version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+            echo "version=$tag" >> $GITHUB_OUTPUT
+          fi
+
       - name: Validate and Correct Release Identifier
         id: validate
         run: |
-          release_identifier="${{ inputs.release-id }}"
+          release_identifier="${{ steps.extract-version.outputs.version }}"
 
           echo "Input release identifier: '${release_identifier}'"
 
-          # Trim leading/trailing spaces
-          release_identifier="$(echo -n "${release_identifier}" | xargs)"
+          is_valid=$(semver validate ${release_identifier})
 
-          # Remove leading "v" if present
-          release_identifier="${release_identifier#v}"
-
-          echo "Corrected release identifier: ${release_identifier}"
-
-          # Regular expression for semantic versioning (X.Y.Z)
-          semver_regex="^[0-9]+\\.[0-9]+\\.[0-9]+$"
-
-          if [[ ! "${release_identifier}" =~ ${semver_regex} ]]; then
-            echo "Error: Invalid release version format after correction. Expected format: X.Y.Z (e.g., 0.59.2)"
+          if [ "$is_valid" != "valid" ]; then
+            echo "❌ Invalid semantic version: $release_identifier"
             exit 1
           fi
-
-          echo "Release identifier is valid: ${release_identifier}"
-          echo "release-identifier=${release_identifier}" >> ${GITHUB_OUTPUT}
-          echo "Validated Input: ${release_identifier}" >> ${GITHUB_STEP_SUMMARY}
+          
+          cleaned="${release_identifier#v}"
+          
+          echo "Release identifier is valid: ${cleaned}"
+          echo "release-identifier=${cleaned}" >> ${GITHUB_OUTPUT}
+          echo "Validated Input: ${cleaned}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Checkout Code
         id: checkout_code
@@ -63,7 +69,7 @@ jobs:
 
       - name: Validate Tag Exists
         run: |
-          tag="v${{ steps.validate.outputs.release-identifier }}"
+          tag="v${{ steps.validate.outputs.validated-version }}"
 
           echo "Checking if tag ${tag} exists..."
 
@@ -85,11 +91,11 @@ jobs:
           echo ""
           echo "Release Notes (Markdown Formatted):"
           echo ""
-          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
+          git-semver log --markdown "${{ steps.validate.outputs.validated-version }}" | tee -a ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Create Release Notes - JSON Structure
         run: |
           echo "Release Notes (JSON Structure):"
-          git-semver log "${{ steps.validate.outputs.release-identifier }}"
+          git-semver log "${{ steps.validate.outputs.validated-version }}"
