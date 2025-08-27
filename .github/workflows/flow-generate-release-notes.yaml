@@ -96,32 +96,28 @@ jobs:
           echo ""
           echo "Successfully created release notes!"
 
-      - name: Get Changes in JSON Format
+      - name: Get All Changes in JSON Format
         run: |
           echo "Create Release Notes of Conventional Commits"
           git-semver log --conventional-commits "${{ steps.validate.outputs.release-identifier }}" > changes.json
 
-      - name: Create Release Notes - Full Markdown Format
-        id: changelog
+      - name: Process All Changes to Markdown File
+        id: generate-md
         run: |
           python3 - <<'EOF'
           import json
           import re
-          import sys
           import os
 
-          # Path to your JSON file
           json_file = "changes.json"
+          output_file = "RELEASE_NOTES.md"
 
-          # Get GitHub repo info from environment
-          repo = os.environ.get("GITHUB_REPOSITORY")  # e.g., "owner/repo"
+          repo = os.environ.get("GITHUB_REPOSITORY")
           pr_url_prefix = f"https://github.com/{repo}/pull/"
 
-          # Load JSON
           with open(json_file) as f:
               data = json.load(f)
 
-          # Prepare sections
           features = []
           bug_fixes = []
           others = []
@@ -142,26 +138,31 @@ jobs:
               else:
                   others.append(desc)
 
-          # Write to GitHub Step Summary
-          with open("$GITHUB_STEP_SUMMARY", "a") as summary:
+          with open(output_file, "w") as out:
               if features:
-                  summary.write("### Features\n")
+                  out.write("### Features\n")
                   for f in features:
-                      summary.write(f"- {f}\n")
-                  summary.write("\n")
+                      out.write(f"- {f}\n")
+                  out.write("\n")
 
               if bug_fixes:
-                  summary.write("### Bug Fixes\n")
+                  out.write("### Bug Fixes\n")
                   for f in bug_fixes:
-                      summary.write(f"- {f}\n")
-                  summary.write("\n")
+                      out.write(f"- {f}\n")
+                  out.write("\n")
 
               if others:
-                  summary.write("### Other Changes\n")
+                  out.write("### Other Changes\n")
                   for f in others:
-                      summary.write(f"- {f}\n")
-                  summary.write("\n")
+                      out.write(f"- {f}\n")
+                  out.write("\n")
           EOF
+
+      - name: Append Changelog to Step Summary
+        run: |
+          echo "## Release Notes" >> $GITHUB_STEP_SUMMARY
+          cat RELEASE_NOTES.md >> $GITHUB_STEP_SUMMARY
+          cat RELEASE_NOTES.md
 
       - name: Create Full List of Git History Commits
         run: |
