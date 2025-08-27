@@ -98,7 +98,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
     public CrystalTransplantCommand(Instant timestamp) {
         this.timestamp = timestamp;
-
+    }
     /**
      * Set the path to state to prepare for transplant.
      */
