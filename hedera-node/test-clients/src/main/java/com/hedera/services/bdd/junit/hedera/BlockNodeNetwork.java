@@ -124,7 +124,13 @@ public class BlockNodeNetwork {
         }
     }
 
-    public void addSimulatorNode(Long id) {
+    /**
+     * Starts a new simulated block node server on an available port
+     * and registers it with the given id.
+     *
+     * @param id the id to register the simulated block node under
+     */
+    public void addSimulatorNode(long id) {
         // Find an available port
         int port = findAvailablePort();
         SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, -1L);
