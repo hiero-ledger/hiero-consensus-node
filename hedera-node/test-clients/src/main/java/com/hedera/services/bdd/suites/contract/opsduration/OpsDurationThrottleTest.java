@@ -38,13 +38,12 @@ public class OpsDurationThrottleTest {
             "contracts.opsDurationThrottleUnitsFreedPerSecond";
 
     private static final long DEFAULT_OPS_DURATION_CAPACITY = 10000000;
-    private static final long DEFAULT_OPS_DURATION_FREED_PER_SECOND = 10000000;
 
-    private SpecOperation enableOpsDurationThrottle(long throttleCapacity, long unitsFreedPerSecond) {
+    private SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
         return overridingAllOf(Map.of(
                 THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(true),
-                OPS_DURATION_THROTTLE_CAPACITY, Long.toString(throttleCapacity),
-                OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND, Long.toString(unitsFreedPerSecond)));
+                OPS_DURATION_THROTTLE_CAPACITY, Long.toString(DEFAULT_OPS_DURATION_CAPACITY),
+                OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND, Long.toString(0)));
     }
 
     private SpecOperation disableOpsDurationThrottle() {
@@ -67,7 +66,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -79,7 +78,7 @@ public class OpsDurationThrottleTest {
                                                     ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to overfill, but not exceed 1.5x the capacity
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
@@ -95,11 +94,11 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(spec, contractCall(OPS_DURATION_THROTTLE, "run").gas(200_000L));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // This scenario shouldn't consume more than 20% of the throttle
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
@@ -125,7 +124,7 @@ public class OpsDurationThrottleTest {
                 cryptoApproveAllowance()
                         .addTokenAllowance(SENDER, TOKEN, SYSTEM_CONTRACT_TRANSFER, 1_000_000L)
                         .signedByPayerAnd(SENDER),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     final var tokenAddress = HapiParserUtil.asHeadlongAddress(
                             asAddress(spec.registry().getTokenID(TOKEN)));
@@ -149,7 +148,7 @@ public class OpsDurationThrottleTest {
                                                     ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to overfill, but not exceed 1.5x the capacity
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
@@ -175,7 +174,7 @@ public class OpsDurationThrottleTest {
                 cryptoApproveAllowance()
                         .addTokenAllowance(SENDER, TOKEN, SYSTEM_CONTRACT_TRANSFER, 1_000_000L)
                         .signedByPayerAnd(SENDER),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     final var tokenAddress = HapiParserUtil.asHeadlongAddress(
                             asAddress(spec.registry().getTokenID(TOKEN)));
@@ -196,7 +195,7 @@ public class OpsDurationThrottleTest {
                                             .gas(200_000L)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // This scenario shouldn't consume more than 20% of the throttle
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
@@ -212,7 +211,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -224,7 +223,7 @@ public class OpsDurationThrottleTest {
                                                     ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to overfill, but not exceed 1.5x the capacity
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
@@ -240,7 +239,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -249,7 +248,7 @@ public class OpsDurationThrottleTest {
                                             .gas(400_000L)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // This scenario shouldn't consume more than 20% of the throttle
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
@@ -265,7 +264,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -277,7 +276,7 @@ public class OpsDurationThrottleTest {
                                                     ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to overfill, but not exceed 1.5x the capacity
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
@@ -293,7 +292,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -303,7 +302,7 @@ public class OpsDurationThrottleTest {
                                             .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // This scenario shouldn't consume more than 20% of the throttle
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
@@ -319,7 +318,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -331,7 +330,7 @@ public class OpsDurationThrottleTest {
                                                     ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to overfill, but not exceed 1.5x the capacity
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
@@ -347,7 +346,7 @@ public class OpsDurationThrottleTest {
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -357,7 +356,7 @@ public class OpsDurationThrottleTest {
                                             .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // This scenario shouldn't consume more than 20% of the throttle
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
@@ -374,7 +373,7 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 // Let's add some initial capacity, but don't free any units once exhausted
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0L),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -404,7 +403,7 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
-                enableOpsDurationThrottle(DEFAULT_OPS_DURATION_CAPACITY, 0L),
+                enableDefaultOpsDurationThrottleNoRefill(),
                 withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
@@ -421,7 +420,7 @@ public class OpsDurationThrottleTest {
                                     .gas(15_000_000L)
                                     .hasKnownStatus(ResponseCodeEnum.SUCCESS));
                     // Let's wait for the metrics to update
-                    allRunFor(spec, sleepForSeconds(2));
+                    allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to be significantly overfilled with our test limits
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 1000.0, 3000.0));
