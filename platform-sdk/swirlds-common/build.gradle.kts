@@ -14,23 +14,22 @@ tasks.withType<JavaCompile>().configureEach {
     )
 }
 
-mainModuleInfo {
-    annotationProcessor("com.swirlds.config.processor")
-
-    runtimeOnly("resource.loader")
-    runtimeOnly("com.sun.jna")
-}
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions")
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requiresStatic("com.github.spotbugs.annotations")
+
+    exportsTo("org.hiero.base.utility")
 }
 
 timingSensitiveModuleInfo {
@@ -40,11 +39,11 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.logging")
-    requires("com.swirlds.logging.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.metrics.impl")
-    requires("org.apache.logging.log4j.core")
+    requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.crypto")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

@@ -2,27 +2,22 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.system.address.AddressBook;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 public class EventSourceFactory {
 
     /** the address book to use */
-    private final AddressBook addressBook;
+    private final int numNodes;
     /**
      * a list of lambdas that supply a custom event source for some indexes
      */
     private final List<Pair<Predicate<Long>, Supplier<EventSource>>> customSources;
 
-    public EventSourceFactory(@NonNull final AddressBook addressBook) {
-        this.addressBook = Objects.requireNonNull(addressBook);
+    public EventSourceFactory(final int numNodes) {
+        this.numNodes = numNodes;
         this.customSources = new LinkedList<>();
     }
 
@@ -44,7 +39,6 @@ public class EventSourceFactory {
      */
     public List<EventSource> generateSources() {
         final List<EventSource> list = new LinkedList<>();
-        final int numNodes = addressBook.getSize();
         forEachNode:
         for (long i = 0; i < numNodes; i++) {
             for (final Pair<Predicate<Long>, Supplier<EventSource>> customSource : customSources) {
@@ -63,31 +57,7 @@ public class EventSourceFactory {
         return new StandardEventSource(false);
     }
 
-    public static StandardEventSource newStandardEventSource(final long weight) {
-        return new StandardEventSource(false, weight);
-    }
-
-    public static List<StandardEventSource> newStandardEventSources(final int numToCreate) {
-        final List<StandardEventSource> sources = new ArrayList<>(numToCreate);
-        IntStream.range(0, numToCreate).forEach(i -> sources.add(newStandardEventSource()));
-        return sources;
-    }
-
-    public static List<EventSource> newStandardEventSources(final List<Long> nodeWeights) {
-        final List<EventSource> eventSources = new ArrayList<>(nodeWeights.size());
-        for (final Long nodeWeight : nodeWeights) {
-            eventSources.add(newStandardEventSource(nodeWeight));
-        }
-        return eventSources;
-    }
-
     public static ForkingEventSource newForkingEventSource() {
         return new ForkingEventSource(false);
-    }
-
-    public static ForkingEventSource newForkingEventSource(final double forkProbability) {
-        final ForkingEventSource source = new ForkingEventSource(false);
-        source.setForkProbability(forkProbability);
-        return source;
     }
 }

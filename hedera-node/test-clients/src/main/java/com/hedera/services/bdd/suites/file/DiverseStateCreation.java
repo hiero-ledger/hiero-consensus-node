@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.suites.HapiSuite;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -33,6 +32,7 @@ import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
@@ -141,8 +141,10 @@ public final class DiverseStateCreation extends HapiSuite {
                         fuseContract, FUSE_EXPIRY_TIME, GENESIS, num -> entityNums.put(FUSE_INITCODE, num)),
                 uploadSingleInitCode(
                         multiContract, MULTI_EXPIRY_TIME, GENESIS, num -> entityNums.put(MULTI_INITCODE, num)),
-                contractCreate(fuseContract).exposingNumTo(num -> entityNums.put(FUSE_CONTRACT, num)),
-                contractCreate(multiContract).exposingNumTo(num -> entityNums.put(MULTI_CONTRACT, num)),
+                contractCreate(fuseContract)
+                        .exposingContractIdTo(id -> entityNums.put(FUSE_CONTRACT, id.getContractNum())),
+                contractCreate(multiContract)
+                        .exposingContractIdTo(id -> entityNums.put(MULTI_CONTRACT, id.getContractNum())),
                 contractCall(multiContract, "believeIn", EXPECTED_LUCKY_NO),
                 systemFileDelete(fuseContract).payingWith(GENESIS),
                 systemFileDelete(multiContract).payingWith(GENESIS),

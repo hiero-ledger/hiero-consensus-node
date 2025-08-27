@@ -16,19 +16,19 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This class is used to warm up the cache. It is called at the beginning of a round with the current state
@@ -41,20 +41,23 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
+    private final HederaConfig hederaConfig;
 
     @NonNull
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull @Named("CacheWarmer") final Executor executor,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        this.checker = checker;
+            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final ConfigProvider configProvider) {
+        this.checker = requireNonNull(checker);
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
         this.softwareVersionFactory = softwareVersionFactory;
+        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
     }
 
     /**
@@ -65,7 +68,7 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
             final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {
@@ -97,7 +100,10 @@ public class CacheWarmer {
         // or keeping the result for later.
         try {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
-            return checker.parseAndCheck(buffer).txBody();
+            // There is no cache warming to do for oversize TSS transactions, so it's fine
+            // to fail with TRANSACTION_OVERSIZE here in any case
+            final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
+            return checker.parseSignedAndCheck(buffer, transactionMaxBytes).txBody();
         } catch (PreCheckException ex) {
             return null;
         }

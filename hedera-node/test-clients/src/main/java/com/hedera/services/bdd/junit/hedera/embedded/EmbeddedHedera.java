@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeEvent.FAKE_EVENT_BIRTH_ROUND;
+
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
@@ -12,12 +15,11 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 public interface EmbeddedHedera {
     /**
@@ -47,7 +49,7 @@ public interface EmbeddedHedera {
      * Returns the software version of the embedded Hedera node.
      * @return the software version of the embedded Hedera node
      */
-    SoftwareVersion version();
+    SemanticVersion version();
 
     /**
      * Returns the next in a repeatable sequence of valid start times that the embedded Hedera's
@@ -66,6 +68,12 @@ public interface EmbeddedHedera {
      * @return the current synthetic time
      */
     Instant now();
+
+    /**
+     * Returns the duration of elapsed synthetic time in the embedded Hedera node.
+     * @return the duration of elapsed synthetic time
+     */
+    Duration restartOffset();
 
     /**
      * Returns the embedded Hedera.
@@ -92,19 +100,8 @@ public interface EmbeddedHedera {
      * @return the response to the transaction
      */
     default TransactionResponse submit(@NonNull Transaction transaction, @NonNull AccountID nodeAccountId) {
-        return submit(transaction, nodeAccountId, SyntheticVersion.PRESENT);
+        return submit(transaction, nodeAccountId, FAKE_EVENT_BIRTH_ROUND);
     }
-
-    /**
-     * Submits a transaction to the embedded node.
-     *
-     * @param transaction the transaction to submit
-     * @param nodeAccountId the account ID of the node to submit the transaction to
-     * @param version the synthetic version of the transaction
-     * @return the response to the transaction
-     */
-    TransactionResponse submit(
-            @NonNull Transaction transaction, @NonNull AccountID nodeAccountId, @NonNull SyntheticVersion version);
 
     /**
      * Submits a transaction to the embedded node.
@@ -129,4 +126,13 @@ public interface EmbeddedHedera {
      * @return the response to the query
      */
     Response send(@NonNull Query query, @NonNull AccountID nodeAccountId, final boolean asNodeOperator);
+
+    /**
+     * Submits a transaction to the embedded node.
+     * @param transaction the transaction to submit
+     * @param nodeAccountId the account ID of the node to submit the transaction to
+     * @param eventBirthRound the round in which the event was born, used for event processing
+     * @return the response to the transaction
+     */
+    TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, long eventBirthRound);
 }

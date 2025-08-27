@@ -64,6 +64,15 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
     }
 
     /**
+     * Returns this {@link Fees} with the node fee replaced by the actually charged amount.
+     *
+     * @return this {@link Fees} with the node fee replaced by the actually charged amount
+     */
+    public Fees withChargedNodeComponent(final long fee) {
+        return new Fees(fee, networkFee, serviceFee);
+    }
+
+    /**
      * Returns this {@link Fees} with the node fee and network fee zeroed out.
      * @return this {@link Fees} with the node fee and network fee zeroed out
      */

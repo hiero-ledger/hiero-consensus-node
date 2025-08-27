@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.Event;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Implements the major lifecycle events for the state. Normally, the implementation of this interface should be
@@ -66,7 +66,7 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
             @NonNull T state,
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion);
+            @Nullable SemanticVersion previousVersion);
 
     /**
      * Called exclusively by platform test apps to update the weight of the address book. Should be removed

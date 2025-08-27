@@ -44,36 +44,40 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Attempts to submit a hinTS key aggregation vote to the network.
-     * @param partyId the ID of the party submitting the vote
+     *
+     * @param partyId    the ID of the party submitting the vote
      * @param numParties the total number of parties in the vote
-     * @param hintsKey the key to vote for
+     * @param hintsKey   the key to vote for
      * @return a future that completes when the vote has been submitted
      */
     public CompletableFuture<Void> submitHintsKey(
             final int partyId, final int numParties, @NonNull final Bytes hintsKey) {
         requireNonNull(hintsKey);
         final var op = new HintsKeyPublicationTransactionBody(partyId, numParties, hintsKey);
-        return submit(b -> b.hintsKeyPublication(op), onFailure);
+        return submitIfActive(b -> b.hintsKeyPublication(op), onFailure);
     }
 
     /**
      * Attempts to submit a CRS update to the network.
-     * @param crs the updated CRS
+     *
+     * @param crs   the updated CRS
+     * @param proof the proof of the update
      * @return a future that completes when the update has been submitted
      */
-    public CompletableFuture<Void> submitUpdateCRS(@NonNull final Bytes crs, @NonNull final Bytes proof) {
+    public CompletableFuture<Void> submitCrsUpdate(@NonNull final Bytes crs, @NonNull final Bytes proof) {
         requireNonNull(crs);
         final var op = CrsPublicationTransactionBody.newBuilder()
                 .newCrs(crs)
                 .proof(proof)
                 .build();
-        return submit(b -> b.crsPublication(op), onFailure);
+        return submitIfActive(b -> b.crsPublication(op), onFailure);
     }
 
     /**
      * Submits a vote for the same hinTS preprocessing output for the given construction id that another
      * node with the given ID has already voted for.
-     * @param constructionId the construction ID to vote for
+     *
+     * @param constructionId  the construction ID to vote for
      * @param congruentNodeId the ID of the node that has already voted
      * @return a future that completes when the vote has been submitted
      */
@@ -84,12 +88,13 @@ public class HintsSubmissions extends TssSubmissions {
                         .congruentNodeId(congruentNodeId)
                         .build())
                 .build();
-        return submit(b -> b.hintsPreprocessingVote(op), onFailure);
+        return submitIfActive(b -> b.hintsPreprocessingVote(op), onFailure);
     }
 
     /**
      * Submits a vote for the given hinTS preprocessing output for the given construction id.
-     * @param constructionId the construction ID to vote for
+     *
+     * @param constructionId   the construction ID to vote for
      * @param preprocessedKeys the keys to vote for
      * @return a future that completes when the vote has been submitted
      */
@@ -101,22 +106,23 @@ public class HintsSubmissions extends TssSubmissions {
                         .preprocessedKeys(preprocessedKeys)
                         .build())
                 .build();
-        return submit(b -> b.hintsPreprocessingVote(op), onFailure);
+        return submitIfActive(b -> b.hintsPreprocessingVote(op), onFailure);
     }
 
     /**
      * Attempts to submit a hinTS partial signature.
+     *
      * @param message the message to sign
      * @return a future that completes when the vote has been submitted
      */
     public CompletableFuture<Void> submitPartialSignature(@NonNull final Bytes message) {
         requireNonNull(message);
         final long constructionId = context.constructionIdOrThrow();
-        return submit(
+        return submitIfActive(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
-                    b.hintsPartialSignature(
-                            new HintsPartialSignatureTransactionBody(constructionId, message, signature));
+                    b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(
+                            constructionId, message, requireNonNull(signature)));
                 },
                 onFailure);
     }

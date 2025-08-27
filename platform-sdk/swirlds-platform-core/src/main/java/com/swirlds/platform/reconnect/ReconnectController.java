@@ -5,14 +5,12 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.threading.BlockingResourceProvider;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.locks.locked.LockedResource;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
+import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,6 +20,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Responsible for executing the whole reconnect process
@@ -29,31 +28,43 @@ import org.apache.logging.log4j.Logger;
 public class ReconnectController implements Runnable {
     private static final Logger logger = LogManager.getLogger(ReconnectController.class);
 
-    private final ReconnectHelper helper;
+    private final ReconnectPlatformHelper platformHelper;
+    private final ReconnectNetworkHelper networkHelper;
     private final Semaphore threadRunning;
-    private final BlockingResourceProvider<Connection> connectionProvider;
     private final Runnable resumeGossip;
-    private final AtomicReference<SignedStateValidator> validator = new AtomicReference<>();
+    private final SignedStateValidator validator;
     private final ThreadManager threadManager;
     private final Duration minTimeBetweenReconnects;
+    /** throttles reconnect learner attempts */
+    private final ReconnectLearnerThrottle reconnectLearnerThrottle;
+
+    private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
 
     /**
      * @param reconnectConfig configuration for reconnect
      * @param threadManager   responsible for creating and managing threads
-     * @param helper          executes phases of a reconnect
+     * @param platformHelper  executes phases of a reconnect against rest of the platform
+     * @param networkHelper   performs reconnect against specific wire implementation (currently gossip network)
      * @param resumeGossip    starts gossip if previously suspended
+     * @param validator       validator used to determine if the state received in reconnect has sufficient valid
+     *                        signatures.
      */
     public ReconnectController(
             @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final ThreadManager threadManager,
-            @NonNull final ReconnectHelper helper,
-            @NonNull final Runnable resumeGossip) {
+            @NonNull final ReconnectPlatformHelper platformHelper,
+            @NonNull final ReconnectNetworkHelper networkHelper,
+            @NonNull final Runnable resumeGossip,
+            @NonNull final ReconnectLearnerThrottle reconnectLearnerThrottle,
+            @NonNull final SignedStateValidator validator) {
         this.threadManager = Objects.requireNonNull(threadManager);
-        this.helper = Objects.requireNonNull(helper);
+        this.platformHelper = Objects.requireNonNull(platformHelper);
+        this.networkHelper = Objects.requireNonNull(networkHelper);
         this.resumeGossip = Objects.requireNonNull(resumeGossip);
+        this.reconnectLearnerThrottle = Objects.requireNonNull(reconnectLearnerThrottle);
         this.threadRunning = new Semaphore(1);
-        this.connectionProvider = new BlockingResourceProvider<>();
         this.minTimeBetweenReconnects = reconnectConfig.minimumTimeBetweenReconnects();
+        this.validator = Objects.requireNonNull(validator);
     }
 
     /**
@@ -90,19 +101,23 @@ public class ReconnectController implements Runnable {
     }
 
     private boolean executeReconnect() throws InterruptedException {
-        helper.prepareForReconnect();
+        reconnectLearnerThrottle.exitIfReconnectIsDisabled();
+        platformHelper.prepareForReconnect();
 
         logger.info(RECONNECT.getMarker(), "waiting for reconnect connection");
-        try (final LockedResource<Connection> connection = connectionProvider.waitForResource()) {
+        try {
             logger.info(RECONNECT.getMarker(), "acquired reconnect connection");
-            try (final ReservedSignedState reservedState =
-                    helper.receiveSignedState(connection.getResource(), validator.get())) {
+            try (final ReservedSignedState reservedState = networkHelper.receiveSignedState(validator)) {
+                SignedStateFileReader.registerServiceStates(reservedState.get());
+                reconnectLearnerThrottle.successfulReconnect();
 
-                if (!helper.loadSignedState(reservedState.get())) {
+                if (!platformHelper.loadSignedState(reservedState.get())) {
+                    reconnectLearnerThrottle.handleFailedReconnect();
                     return false;
                 }
             }
         } catch (final RuntimeException e) {
+            reconnectLearnerThrottle.handleFailedReconnect();
             logger.info(RECONNECT.getMarker(), "receiving signed state failed", e);
             return false;
         }
@@ -111,52 +126,16 @@ public class ReconnectController implements Runnable {
     }
 
     /**
-     * Try to acquire a permit for negotiate a reconnect in the role of the learner
+     * Called from the wiring when platform status is changing
      *
-     * @return true if the permit has been acquired
+     * @param status new platform status
      */
-    public boolean acquireLearnerPermit() {
-        return connectionProvider.acquireProvidePermit();
-    }
-
-    /**
-     * Try to block the learner permit for reconnect. The method {@link #cancelLearnerPermit()} should be called
-     * to unblock the permit.
-     *
-     * @return true if the permit has been blocked
-     */
-    public boolean blockLearnerPermit() {
-        return connectionProvider.tryBlockProvidePermit();
-    }
-
-    /**
-     * Releases a previously acquired permit for reconnect
-     */
-    public void cancelLearnerPermit() {
-        connectionProvider.releaseProvidePermit();
-    }
-
-    /**
-     * Provides a connection over which a reconnect learner has been already negotiated. This method should only be
-     * called if {@link #acquireLearnerPermit()} has returned true previously. This method blocks until the reconnect is
-     * done.
-     *
-     * @param connection
-     * 		the connection to use to execute the reconnect learner protocol
-     * @throws InterruptedException
-     * 		if the calling thread is interrupted while the connection is being used
-     */
-    public void provideLearnerConnection(final Connection connection) throws InterruptedException {
-        connectionProvider.provide(connection);
-    }
-
-    /**
-     * Sets the validator used to determine if the state received in reconnect has sufficient valid signatures.
-     *
-     * @param validator
-     * 		the validator to use
-     */
-    public void setStateValidator(final SignedStateValidator validator) {
-        this.validator.set(validator);
+    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
+        final PlatformStatus previousState = platformStatus.getAndSet(status);
+        if (status != previousState) {
+            if (PlatformStatus.BEHIND == status) {
+                start();
+            }
+        }
     }
 }

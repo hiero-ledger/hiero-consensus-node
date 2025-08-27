@@ -27,11 +27,17 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     private final Function<HapiSpec, RecordStreamAssertion> assertionFactory;
 
+    private final boolean replayExistingFiles;
+
+    private boolean stopAfterFirstSuccess = false;
+
     /**
      * Once this op is submitted, the assertion to be tested.
      */
     @Nullable
     private RecordStreamAssertion assertion;
+
+    private boolean needsBackgroundTraffic = false;
 
     /**
      * Returns an {@link EventualRecordStreamAssertion} that will pass as long as the given assertion does not
@@ -41,7 +47,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     public static EventualRecordStreamAssertion eventuallyAssertingNoFailures(
             final Function<HapiSpec, RecordStreamAssertion> assertionFactory) {
-        return new EventualRecordStreamAssertion(assertionFactory, true);
+        return new EventualRecordStreamAssertion(assertionFactory, true, false).withBackgroundTraffic();
     }
 
     /**
@@ -52,7 +58,34 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     public static EventualRecordStreamAssertion eventuallyAssertingExplicitPass(
             final Function<HapiSpec, RecordStreamAssertion> assertionFactory) {
-        return new EventualRecordStreamAssertion(assertionFactory, false);
+        return new EventualRecordStreamAssertion(assertionFactory, false, false);
+    }
+
+    /**
+     * Returns an {@link EventualRecordStreamAssertion} that will pass only if the given assertion explicitly
+     * passes within the default timeout after receiving a replay of any existing files.
+     * @param assertionFactory the assertion factory
+     * @return the eventual record stream assertion that must pass
+     */
+    public static EventualRecordStreamAssertion eventuallyAssertingExplicitPassWithReplay(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
+            @NonNull final Duration timeout) {
+        requireNonNull(assertionFactory);
+        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true).withBackgroundTraffic();
+    }
+
+    @Override
+    public boolean needsBackgroundTraffic() {
+        return needsBackgroundTraffic;
+    }
+
+    /**
+     * Returns an {@link EventualRecordStreamAssertion} enabling background traffic.
+     * @return the eventual record stream assertion with background traffic
+     */
+    public EventualRecordStreamAssertion withBackgroundTraffic() {
+        this.needsBackgroundTraffic = true;
+        return this;
     }
 
     /**
@@ -66,22 +99,26 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
             @NonNull final Duration timeout) {
         requireNonNull(assertionFactory);
         requireNonNull(timeout);
-        return new EventualRecordStreamAssertion(assertionFactory, false, timeout);
-    }
-
-    private EventualRecordStreamAssertion(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
-            final boolean hasPassedIfNothingFailed) {
-        super(hasPassedIfNothingFailed);
-        this.assertionFactory = requireNonNull(assertionFactory);
+        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, false);
     }
 
     private EventualRecordStreamAssertion(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
             final boolean hasPassedIfNothingFailed,
-            @NonNull final Duration timeout) {
+            final boolean replayExistingFiles) {
+        super(hasPassedIfNothingFailed);
+        this.assertionFactory = requireNonNull(assertionFactory);
+        this.replayExistingFiles = replayExistingFiles;
+    }
+
+    private EventualRecordStreamAssertion(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
+            final boolean hasPassedIfNothingFailed,
+            @NonNull final Duration timeout,
+            final boolean replayExistingFiles) {
         super(hasPassedIfNothingFailed, timeout);
         this.assertionFactory = requireNonNull(assertionFactory);
+        this.replayExistingFiles = replayExistingFiles;
     }
 
     @Override
@@ -89,12 +126,20 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
         assertion = requireNonNull(assertionFactory.apply(spec));
         unsubscribe = STREAM_FILE_ACCESS.subscribe(recordStreamLocFor(spec), new StreamDataListener() {
             @Override
+            public boolean replayExistingFiles() {
+                return replayExistingFiles;
+            }
+
+            @Override
             public void onNewItem(@NonNull final RecordStreamItem item) {
                 requireNonNull(item);
                 if (assertion.isApplicableTo(item)) {
                     try {
                         if (assertion.test(item)) {
                             result.pass();
+                            if (stopAfterFirstSuccess) {
+                                unsubscribe.run();
+                            }
                         }
                     } catch (final AssertionError e) {
                         result.fail(e.getMessage());
@@ -142,5 +187,18 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     private static Path recordStreamLocFor(@NonNull final HapiSpec spec) {
         return spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(RECORD_STREAMS_DIR);
+    }
+
+    /**
+     * Configures this assertion to automatically unsubscribe from the record stream
+     * once a passing validation occurs. When enabled, the listener will stop receiving
+     * new record stream items immediately after the first successful validation,
+     * conserving system resources by preventing unnecessary processing.
+     *
+     * @return this instance for method chaining
+     */
+    public EventualRecordStreamAssertion stopAfterFirstSuccess() {
+        this.stopAfterFirstSuccess = true;
+        return this;
     }
 }

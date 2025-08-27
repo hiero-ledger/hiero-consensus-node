@@ -2,10 +2,10 @@
 package com.swirlds.demo.migration;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Utility methods for migration testing tool transactions

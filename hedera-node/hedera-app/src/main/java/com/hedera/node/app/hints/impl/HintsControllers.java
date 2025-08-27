@@ -3,14 +3,15 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -18,6 +19,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Logic to get or create a {@link HintsController} for source/target roster hashes
@@ -28,6 +31,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class HintsControllers {
+    private static final Logger log = LogManager.getLogger(HintsControllers.class);
+
     private static final long NO_CONSTRUCTION_ID = -1L;
 
     private final Executor executor;
@@ -37,6 +42,7 @@ public class HintsControllers {
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
     private final Supplier<Configuration> configurationSupplier;
+    private final OnHintsFinished onHintsFinished;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -53,7 +59,8 @@ public class HintsControllers {
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final Supplier<Configuration> configurationSupplier) {
+            @NonNull final Supplier<Configuration> configurationSupplier,
+            @NonNull final OnHintsFinished onHintsFinished) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.context = requireNonNull(context);
@@ -61,6 +68,7 @@ public class HintsControllers {
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+        this.onHintsFinished = requireNonNull(onHintsFinished);
     }
 
     /**
@@ -145,10 +153,23 @@ public class HintsControllers {
             return new InertHintsController(construction.constructionId());
         } else {
             final var numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
+            log.info(
+                    "Creating controller for construction #{} from nodes {} to {} with {} hinTS parties",
+                    construction.constructionId(),
+                    weights.sourceNodeIds(),
+                    weights.targetNodeIds(),
+                    numParties);
             final var publications = hintsStore.getHintsKeyPublications(weights.targetNodeIds(), numParties);
+            log.info(
+                    "Construction #{} already has {} relevant keys published [{}]",
+                    construction.constructionId(),
+                    publications.size(),
+                    publications.stream()
+                            .map(p -> "(" + p.nodeId() + " -> " + p.partyId() + ")")
+                            .collect(joining(", ")));
             final var votes = hintsStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
-            final var blsKeyPair = keyAccessor.getOrCreateBlsKeyPair(construction.constructionId());
+            final var blsKeyPair = keyAccessor.getOrCreateBlsPrivateKey(construction.constructionId());
             return new HintsControllerImpl(
                     selfId,
                     blsKeyPair,
@@ -161,7 +182,8 @@ public class HintsControllers {
                     submissions,
                     context,
                     configurationSupplier,
-                    hintsStore);
+                    hintsStore,
+                    onHintsFinished);
         }
     }
 

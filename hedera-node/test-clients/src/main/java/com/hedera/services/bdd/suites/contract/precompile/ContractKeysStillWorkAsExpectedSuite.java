@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -32,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustInc
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -184,7 +184,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                 cryptoCreate(B_WELL_KNOWN_RECEIVER)
                         .exposingCreatedIdTo(id -> bReceiverAddr.set(idAsHeadlongAddress(id))),
                 uploadInitCode(WELL_KNOWN_TREASURY_CONTRACT),
-                contractCreate(WELL_KNOWN_TREASURY_CONTRACT).gas(500_000L),
+                contractCreate(WELL_KNOWN_TREASURY_CONTRACT).gas(4_000_000L),
                 tokenCreate(WELL_KNOWN_FUNGIBLE_TOKEN)
                         .exposingAddressTo(fungibleTokenMirrorAddr::set)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -299,7 +299,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                 // Create an immutable contract with a method
                 // transferViaThresholdContractKey()
                 // that tries to transfer token units from a spender to a receiver
-                contractCreate(managementContract).gas(500_000L).omitAdminKey(),
+                contractCreate(managementContract).gas(4_000_000L).omitAdminKey(),
                 // Setup a 1/2 threshold key with this contract's ID as the first key
                 newKeyNamed(controlledSpenderKey).shape(threshKeyShape.signedWith(sigs(managementContract, ON))),
                 // Assign this key to an account
@@ -343,9 +343,9 @@ public class ContractKeysStillWorkAsExpectedSuite {
         return hapiTest(
                 uploadInitCode(managementContract, PAY_RECEIVABLE_CONTRACT),
                 newKeyNamed(tmpAdminKey),
-                contractCreate(managementContract).gas(500_000L).adminKey(tmpAdminKey),
+                contractCreate(managementContract).gas(4_000_000L).adminKey(tmpAdminKey),
                 // Just create some other contract to be the real admin key
-                contractCreate(PAY_RECEIVABLE_CONTRACT).gas(500_000L),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).gas(4_000_000L),
                 newKeyNamed(otherContractAsKey).shape(CONTRACT.signedWith(PAY_RECEIVABLE_CONTRACT)),
                 cryptoCreate(associatedAccount).keyShape(SECP256K1_ON).exposingEvmAddressTo(accountAddr::set),
                 tokenCreate(fungibleToken)

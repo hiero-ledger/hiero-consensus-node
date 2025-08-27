@@ -58,7 +58,7 @@ public class NegotiationProtocols {
     }
 
     /**
-     * The protocol initated has not been accepted
+     * The protocol initiated has not been accepted
      *
      * @throws IllegalStateException
      * 		if no protocol was previously initiated
@@ -105,6 +105,15 @@ public class NegotiationProtocols {
     private void throwIfNoneInitiated() {
         if (initiatedPeerProtocol == null) {
             throw new IllegalStateException("no protocol initiated");
+        }
+    }
+
+    /**
+     * Perform optional cleanup on all peer protocols
+     */
+    public void cleanup() {
+        for (final PeerProtocol peerProtocol : allPeerProtocols) {
+            peerProtocol.cleanup();
         }
     }
 }

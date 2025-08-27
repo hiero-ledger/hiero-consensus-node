@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 
 import com.hedera.hapi.streams.SidecarType;
@@ -38,21 +37,9 @@ public interface FeatureFlags {
      * Whether "implicit creation" of accounts via sending value or targeting a {@code CREATE2} to an EIP-1014 address
      * should be enabled for the given {@code frame}.
      *
-     * @param frame the {@link MessageFrame} to check
      * @return whether implicit creation should be enabled
      */
-    default boolean isImplicitCreationEnabled(@NonNull MessageFrame frame) {
-        return isImplicitCreationEnabled(configOf(frame));
-    }
-
-    /**
-     * Whether "implicit creation" of accounts via sending value or targeting a {@code CREATE2} to an EIP-1014 address
-     * should be enabled for the given {@code frame}.
-     *
-     * @param config the {@link Configuration} to check
-     * @return whether implicit creation should be enabled
-     */
-    boolean isImplicitCreationEnabled(@NonNull Configuration config);
+    boolean isImplicitCreationEnabled();
 
     /**
      * If true calls to non-existing contract addresses will result in a successful NOOP.  If false,

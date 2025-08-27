@@ -6,12 +6,38 @@ package com.swirlds.logging.test.fixtures.util;
  */
 public class Throwables {
 
-    public static final String METHOD_SIGNATURE_PATTERN =
-            "\\tat " + Throwables.class.getName().replace(".", "\\.") + "\\.createThrowableWithDeepCause\\("
-                    + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
-    public static final String CAUSE_METHOD_SIGNATURE_PATTERN =
-            "\\tat " + Throwables.class.getName().replace(".", "\\.") + "\\.createDeepThrowable\\("
-                    + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
+    private static String methodSignaturePatternModulePath() {
+        return "\\tat " + Throwables.class.getModule().getName() + "@"
+                + Throwables.class.getModule().getDescriptor().version().orElseThrow() + "/"
+                + Throwables.class.getName().replace(".", "\\.") + "\\.createThrowableWithDeepCause\\("
+                + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
+    }
+
+    private static String methodSignaturePatternClasspath() {
+        return "\\tat " + Throwables.class.getName().replace(".", "\\.") + "\\.createThrowableWithDeepCause\\("
+                + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
+    }
+
+    private static String causeMethodSignaturePatternModulePath() {
+        return "\\tat " + Throwables.class.getModule().getName() + "@"
+                + Throwables.class.getModule().getDescriptor().version().orElseThrow() + "/"
+                + Throwables.class.getName().replace(".", "\\.") + "\\.createDeepThrowable\\("
+                + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
+    }
+
+    private static String causeMethodSignaturePatternClasspath() {
+        return "\\tat " + Throwables.class.getName().replace(".", "\\.") + "\\.createDeepThrowable\\("
+                + Throwables.class.getSimpleName() + "\\.java:\\d+\\)";
+    }
+
+    public static String METHOD_SIGNATURE_PATTERN = Throwables.class.getModule().isNamed()
+            ? methodSignaturePatternModulePath()
+            : methodSignaturePatternClasspath();
+
+    public static String CAUSE_METHOD_SIGNATURE_PATTERN =
+            Throwables.class.getModule().isNamed()
+                    ? causeMethodSignaturePatternModulePath()
+                    : causeMethodSignaturePatternClasspath();
 
     private Throwables() {}
 

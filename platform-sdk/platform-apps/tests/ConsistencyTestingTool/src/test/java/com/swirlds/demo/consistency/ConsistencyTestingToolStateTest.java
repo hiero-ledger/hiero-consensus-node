@@ -2,28 +2,21 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.Transaction;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,6 +24,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,7 @@ public class ConsistencyTestingToolStateTest {
     private Transaction consensusTransaction;
     private StateSignatureTransaction stateSignatureTransaction;
     private InitTrigger initTrigger;
-    private SoftwareVersion softwareVersion;
+    private SemanticVersion softwareVersion;
     private Configuration configuration;
     private ConsistencyTestingToolConfig consistencyTestingToolConfig;
     private StateCommonConfig stateCommonConfig;
@@ -58,14 +57,14 @@ public class ConsistencyTestingToolStateTest {
     static void initState() {
         state = new ConsistencyTestingToolState();
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     @BeforeEach
     void setUp() {
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1);
+        softwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         consistencyTestingToolConfig = mock(ConsistencyTestingToolConfig.class);

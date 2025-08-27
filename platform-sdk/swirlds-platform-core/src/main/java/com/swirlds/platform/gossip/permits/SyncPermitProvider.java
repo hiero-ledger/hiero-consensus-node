@@ -3,8 +3,8 @@ package com.swirlds.platform.gossip.permits;
 
 import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -21,7 +21,9 @@ public class SyncPermitProvider {
     /**
      * The total number of available permits.
      */
-    private final int totalPermits;
+    private int totalPermits;
+
+    private final SyncConfig syncConfig;
 
     /**
      * The number of permits that are currently held by a sync operation.
@@ -86,7 +88,7 @@ public class SyncPermitProvider {
     /**
      * The minimum number of non-revoked permits while healthy. While unhealthy, the minimum number is always 0.
      */
-    private final int minimumUnrevokedPermitCount;
+    private int minimumUnrevokedPermitCount;
 
     /**
      * The metrics for this class.
@@ -102,14 +104,14 @@ public class SyncPermitProvider {
     public SyncPermitProvider(@NonNull final PlatformContext platformContext, final int totalPermits) {
         this.metrics = new SyncPermitMetrics(platformContext);
 
-        this.totalPermits = totalPermits;
         this.time = platformContext.getTime();
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        this.syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         permitsRevokedPerSecond = syncConfig.permitsRevokedPerSecond();
         permitsReturnedPerSecond = syncConfig.permitsReturnedPerSecond();
         unhealthyGracePeriod = syncConfig.unhealthyGracePeriod();
-        minimumUnrevokedPermitCount = Math.min(totalPermits, syncConfig.minimumHealthyUnrevokedPermitCount());
+
+        setTotalPermits(totalPermits);
 
         // We are healthy at startup time
         healthy = true;
@@ -154,6 +156,15 @@ public class SyncPermitProvider {
                 returnedPermitDelta = 0;
             }
         }
+    }
+
+    /**
+     * Check if system is healthy from point of view of permits. If it is not, it might be prudent to return long
+     * held permits
+     * @return true if system is health and things are going ok
+     */
+    public synchronized boolean isHealthy() {
+        return healthy;
     }
 
     /**
@@ -262,5 +273,23 @@ public class SyncPermitProvider {
      */
     private void updateMetrics() {
         metrics.reportPermits(getAvailablePermits(), revokedPermits, usedPermits);
+    }
+
+    /**
+     * Modify number of total permits
+     * @param totalPermits new number of total permits
+     */
+    public synchronized void setTotalPermits(int totalPermits) {
+        this.totalPermits = totalPermits;
+        this.minimumUnrevokedPermitCount =
+                Math.min(Math.max(totalPermits, 1), syncConfig.minimumHealthyUnrevokedPermitCount());
+    }
+
+    /**
+     * Set total number of permits to previous number + passed difference
+     * @param permitsDifference positive to add permits, negative to remove permits
+     */
+    public synchronized void adjustTotalPermits(int permitsDifference) {
+        setTotalPermits(Math.max(0, totalPermits + permitsDifference));
     }
 }

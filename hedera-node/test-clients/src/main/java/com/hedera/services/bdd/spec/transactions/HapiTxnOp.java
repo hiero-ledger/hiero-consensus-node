@@ -24,6 +24,9 @@ import static java.util.stream.Collectors.toList;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
@@ -99,6 +102,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected ResponseCodeEnum actualStatus = UNKNOWN;
     protected ResponseCodeEnum actualPrecheck = UNKNOWN;
     protected TransactionReceipt lastReceipt;
+    protected HederaFunctionality overriddenHederaFunctionality = null;
 
     @Nullable
     private Consumer<TransactionReceipt> receiptValidator;
@@ -113,6 +117,24 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
 
     protected List<Condition> conditions = new ArrayList<>();
+
+    /**
+     * Serializes a signed transaction from the given {@link Transaction}.
+     * @param tx the transaction to serialize
+     * @return the serialized signed transaction bytes
+     */
+    public static byte[] serializedSignedTxFrom(@NonNull final Transaction tx) {
+        return !tx.getSignedTransactionBytes().isEmpty()
+                ? tx.getSignedTransactionBytes().toByteArray()
+                : SignedTransaction.PROTOBUF
+                        .toBytes(SignedTransaction.newBuilder()
+                                .useSerializedTxMessageHashAlgorithm(true)
+                                .sigMap(CommonPbjConverters.protoToPbj(tx.getSigMap(), SignatureMap.class))
+                                .bodyBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                                        tx.getBodyBytes().toByteArray()))
+                                .build())
+                        .toByteArray();
+    }
 
     public T satisfies(@NonNull final Condition condition) {
         conditions.add(condition);
@@ -154,6 +176,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return expectedStatus.orElse(SUCCESS);
     }
 
+    public boolean isExpectedStatusSet() {
+        return expectedStatus.isPresent() || permissibleStatuses.isPresent();
+    }
+
     public ResponseCodeEnum getExpectedPrecheck() {
         return expectedPrecheck.orElse(OK);
     }
@@ -179,9 +205,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
+    public void setTransactionSubmitted(final Transaction txn) {
+        this.txnSubmitted = txn;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
         int retryCount = 1;
         while (true) {
@@ -197,8 +226,14 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 if (fiddler.isPresent()) {
                     txn = fiddler.get().apply(txn);
                 }
+                final var hederaFunctionality =
+                        overriddenHederaFunctionality != null ? overriddenHederaFunctionality : type();
                 response = submissionStrategy.submit(
-                        spec.targetNetworkOrThrow(), txn, type(), systemFunctionalityTarget(), targetNodeFor(spec));
+                        spec.targetNetworkOrThrow(),
+                        txn,
+                        hederaFunctionality,
+                        systemFunctionalityTarget(),
+                        targetNodeFor(spec));
             } catch (StatusRuntimeException e) {
                 if (respondToSRE(e, "submitting transaction")) {
                     continue;
@@ -230,7 +265,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
             } finally {
                 /* Used by superclass to perform standard housekeeping. */
-                txnSubmitted = txn;
+                setTransactionSubmitted(txn);
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
@@ -315,7 +350,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return !deferStatusResolution;
     }
 
-    private void resolveStatus(HapiSpec spec) throws Throwable {
+    public void resolveStatus(HapiSpec spec) throws Throwable {
         actualStatus = resolvedStatusOfSubmission(spec);
         spec.updateResolvedCounts(actualStatus);
         if (actualStatus == INSUFFICIENT_PAYER_BALANCE) {
@@ -776,9 +811,13 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public T setNode(String account) {
-        node = Optional.of(HapiPropertySource.asAccount(account));
+    public T setNode(String accountNum) {
+        node = Optional.of(accountNum);
+        return self();
+    }
 
+    public T setNode(long accountNum) {
+        node = Optional.of(Long.toString(accountNum));
         return self();
     }
 
@@ -837,6 +876,16 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    /**
+     * The hedera functionality is passed to the submissionStrategy and based on that it's decided
+     * to which gRPC endpoint the transaction will be sent. By overriding this property we are able to test
+     * what will happen if we send a call to the wrong endpoint.
+     */
+    public T withOverriddenHederaFunctionality(@NonNull final HederaFunctionality hederaFunctionality) {
+        this.overriddenHederaFunctionality = hederaFunctionality;
+        return self();
+    }
+
     public T hasSuccessReceipt(@NonNull final Consumer<TransactionReceipt> receiptValidator) {
         this.receiptValidator = requireNonNull(receiptValidator);
         return self();
@@ -869,7 +918,15 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public Optional<AccountID> getNode() {
+    public boolean hasBatchKey() {
+        return batchKey.isPresent();
+    }
+
+    public Optional<String> getNode() {
         return node;
+    }
+
+    public boolean shouldResolveStatus() {
+        return !deferStatusResolution && !fireAndForget;
     }
 }

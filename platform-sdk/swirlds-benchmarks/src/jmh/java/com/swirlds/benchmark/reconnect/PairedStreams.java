@@ -3,7 +3,6 @@ package com.swirlds.benchmark.reconnect;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.connectivity.SocketFactory;
@@ -13,6 +12,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class for generating paired streams for synchronization tests.

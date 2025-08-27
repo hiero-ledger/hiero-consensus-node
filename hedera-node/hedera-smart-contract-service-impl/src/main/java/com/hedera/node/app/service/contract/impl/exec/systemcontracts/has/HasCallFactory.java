@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
@@ -69,18 +70,20 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HasCallAttempt(
-                contractID,
                 input,
-                frame.getSenderAddress(),
-                addressChecks.hasParentDelegateCall(frame),
-                enhancement,
-                configOf(frame),
-                syntheticIds.converterFor(enhancement.nativeOperations()),
-                verificationStrategies,
-                signatureVerifier,
-                systemContractGasCalculatorOf(frame),
-                callTranslators,
-                systemContractMethodRegistry,
-                frame.isStatic());
+                new CallAttemptOptions<>(
+                        contractID,
+                        frame.getSenderAddress(),
+                        frame.getSenderAddress(),
+                        addressChecks.hasParentDelegateCall(frame),
+                        enhancement,
+                        configOf(frame),
+                        syntheticIds.converterFor(enhancement.nativeOperations()),
+                        verificationStrategies,
+                        systemContractGasCalculatorOf(frame),
+                        callTranslators,
+                        systemContractMethodRegistry,
+                        frame.isStatic()),
+                signatureVerifier);
     }
 }

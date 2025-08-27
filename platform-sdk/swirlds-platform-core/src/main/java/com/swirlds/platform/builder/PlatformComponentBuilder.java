@@ -16,31 +16,19 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.creation.DefaultEventCreationManager;
-import com.swirlds.platform.event.creation.EventCreationManager;
-import com.swirlds.platform.event.creation.EventCreator;
-import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
-import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
-import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
-import com.swirlds.platform.event.signing.DefaultSelfEventSigner;
-import com.swirlds.platform.event.signing.SelfEventSigner;
-import com.swirlds.platform.event.stale.DefaultStaleEventDetector;
-import com.swirlds.platform.event.stale.StaleEventDetector;
+import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
@@ -51,11 +39,7 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossip;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.modular.SyncGossipModular;
-import com.swirlds.platform.pool.DefaultTransactionPool;
-import com.swirlds.platform.pool.TransactionPool;
+import com.swirlds.platform.gossip.SyncGossipModular;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -76,7 +60,6 @@ import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.status.DefaultStatusStateMachine;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
@@ -85,6 +68,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
+import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
+import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -125,9 +118,6 @@ public class PlatformComponentBuilder {
     private IssDetector issDetector;
     private IssHandler issHandler;
     private Gossip gossip;
-    private StaleEventDetector staleEventDetector;
-    private TransactionResubmitter transactionResubmitter;
-    private TransactionPool transactionPool;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -150,7 +140,7 @@ public class PlatformComponentBuilder {
      * Constructor.
      *
      * @param blocks the build context for the platform under construction, contains all data needed to construct
-     *               platform components
+     * platform components
      */
     public PlatformComponentBuilder(@NonNull final PlatformBuildingBlocks blocks) {
         this.blocks = Objects.requireNonNull(blocks);
@@ -277,7 +267,10 @@ public class PlatformComponentBuilder {
             final boolean singleNodeNetwork =
                     blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
-                    blocks.platformContext(), singleNodeNetwork, blocks.intakeEventCounter());
+                    blocks.platformContext(),
+                    singleNodeNetwork,
+                    blocks.intakeEventCounter(),
+                    blocks.execution().getTransactionLimits());
         }
         return internalEventValidator;
     }
@@ -344,9 +337,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion().getPbjSemanticVersion(),
-                    blocks.rosterHistory().getPreviousRoster(),
-                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }
         return eventSignatureValidator;
@@ -427,7 +418,10 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext(), blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -477,16 +471,21 @@ public class PlatformComponentBuilder {
     public EventCreationManager buildEventCreationManager() {
         if (eventCreationManager == null) {
             final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext(),
-                    blocks.randomBuilder().buildNonCryptographicRandom(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    blocks.secureRandomSupplier().get(),
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion(),
-                    blocks.transactionPoolNexus());
+                    blocks.execution());
 
             eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext(), blocks.transactionPoolNexus(), eventCreator);
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    blocks.execution(),
+                    eventCreator);
         }
         return eventCreationManager;
     }
@@ -518,7 +517,10 @@ public class PlatformComponentBuilder {
     public ConsensusEngine buildConsensusEngine() {
         if (consensusEngine == null) {
             consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext(), blocks.rosterHistory().getCurrentRoster(), blocks.selfId());
+                    blocks.platformContext(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.freezeCheckHolder());
         }
         return consensusEngine;
     }
@@ -556,9 +558,8 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.isInFreezePeriodReference()
-                                    .get()
-                                    .test(event.getPlatformEvent().getConsensusTimestamp()));
+                            && blocks.freezeCheckHolder()
+                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
     }
@@ -694,7 +695,8 @@ public class PlatformComponentBuilder {
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
                         blocks.platformContext(),
                         blocks.initialPcesFiles(),
-                        blocks.selfId(),
+                        PcesUtilities.getDatabaseDirectory(
+                                blocks.platformContext().getConfiguration(), blocks.selfId()),
                         blocks.initialState().get().getRound());
                 inlinePcesWriter = new DefaultInlinePcesWriter(
                         blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
@@ -764,13 +766,15 @@ public class PlatformComponentBuilder {
                             .validateInitialState()
                     ? DO_NOT_IGNORE_ROUNDS
                     : initialStateRound;
+            final long latestFreezeRound = blocks.platformStateFacade()
+                    .latestFreezeRoundOf(blocks.initialState().get().getState());
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
-                    blocks.appVersion().getPbjSemanticVersion(),
                     ignorePreconsensusSignatures,
-                    roundToIgnore);
+                    roundToIgnore,
+                    latestFreezeRound);
         }
         return issDetector;
     }
@@ -815,102 +819,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a stale event detector in place of the platform's default stale event detector.
-     *
-     * @param staleEventDetector the stale event detector to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withStaleEventDetector(@NonNull final StaleEventDetector staleEventDetector) {
-        throwIfAlreadyUsed();
-        if (this.staleEventDetector != null) {
-            throw new IllegalStateException("Stale event detector has already been set");
-        }
-        this.staleEventDetector = Objects.requireNonNull(staleEventDetector);
-        return this;
-    }
-
-    /**
-     * Build the stale event detector if it has not yet been built. If one has been provided via
-     * {@link #withStaleEventDetector(StaleEventDetector)}, that detector will be used. If this method is called more
-     * than once, only the first call will build the stale event detector. Otherwise, the default detector will be
-     * created and returned.
-     *
-     * @return the stale event detector
-     */
-    @NonNull
-    public StaleEventDetector buildStaleEventDetector() {
-        if (staleEventDetector == null) {
-            staleEventDetector = new DefaultStaleEventDetector(blocks.platformContext(), blocks.selfId());
-        }
-        return staleEventDetector;
-    }
-
-    /**
-     * Provide a transaction resubmitter in place of the platform's default transaction resubmitter.
-     *
-     * @param transactionResubmitter the transaction resubmitter to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionResubmitter(
-            @NonNull final TransactionResubmitter transactionResubmitter) {
-        throwIfAlreadyUsed();
-        if (this.transactionResubmitter != null) {
-            throw new IllegalStateException("Transaction resubmitter has already been set");
-        }
-        this.transactionResubmitter = Objects.requireNonNull(transactionResubmitter);
-        return this;
-    }
-
-    /**
-     * Build the transaction resubmitter if it has not yet been built. If one has been provided via
-     * {@link #withTransactionResubmitter(TransactionResubmitter)}, that resubmitter will be used. If this method is
-     * called more than once, only the first call will build the transaction resubmitter. Otherwise, the default
-     * resubmitter will be created and returned.
-     *
-     * @return the transaction resubmitter
-     */
-    @NonNull
-    public TransactionResubmitter buildTransactionResubmitter() {
-        if (transactionResubmitter == null) {
-            transactionResubmitter = new DefaultTransactionResubmitter(blocks.platformContext());
-        }
-        return transactionResubmitter;
-    }
-
-    /**
-     * Provide a transaction pool in place of the platform's default transaction pool.
-     *
-     * @param transactionPool the transaction pool to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionPool(@NonNull final TransactionPool transactionPool) {
-        throwIfAlreadyUsed();
-        if (this.transactionPool != null) {
-            throw new IllegalStateException("Transaction pool has already been set");
-        }
-        this.transactionPool = Objects.requireNonNull(transactionPool);
-        return this;
-    }
-
-    /**
-     * Build the transaction pool if it has not yet been built. If one has been provided via
-     * {@link #withTransactionPool(TransactionPool)}, that pool will be used. If this method is called more than once,
-     * only the first call will build the transaction pool. Otherwise, the default pool will be created and returned.
-     *
-     * @return the transaction pool
-     */
-    @NonNull
-    public TransactionPool buildTransactionPool() {
-        if (transactionPool == null) {
-            transactionPool = new DefaultTransactionPool(blocks.transactionPoolNexus());
-        }
-        return transactionPool;
-    }
-
-    /**
      * Provide a gossip in place of the platform's default gossip.
      *
      * @param gossip the gossip to use
@@ -936,47 +844,21 @@ public class PlatformComponentBuilder {
     @NonNull
     public Gossip buildGossip() {
         if (gossip == null) {
-
-            var useModularizedGossip = blocks.platformContext()
-                    .getConfiguration()
-                    .getConfigData(GossipConfig.class)
-                    .useModularizedGossip();
-
-            if (useModularizedGossip) {
-                gossip = new SyncGossipModular(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            } else {
-                gossip = new SyncGossip(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            }
+            gossip = new SyncGossipModular(
+                    blocks.platformContext(),
+                    AdHocThreadManager.getStaticThreadManager(),
+                    blocks.keysAndCerts(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.appVersion(),
+                    blocks.swirldStateManager(),
+                    () -> blocks.getLatestCompleteStateReference().get().get(),
+                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
+                    state -> blocks.loadReconnectStateReference().get().accept(state),
+                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
+                    blocks.intakeEventCounter(),
+                    blocks.platformStateFacade(),
+                    blocks.createStateFromVirtualMap());
         }
         return gossip;
     }

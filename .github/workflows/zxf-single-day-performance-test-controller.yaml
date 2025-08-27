@@ -1,0 +1,565 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Single Day Performance Test Controller (SDPT)"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  verify-tag:
+    name: Verify Tag
+    runs-on: hiero-citr-linux-medium
+    continue-on-error: true
+    outputs:
+      build-number: ${{ steps.verify-tag.outputs.build-number }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Verify Tag
+        id: verify-tag
+        env:
+          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
+          CHECK_TAG: "${{ inputs.ref }}"
+        run: |
+          # Ensure the tag that we received is a build tag
+          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
+          # return the build tag as an output
+          # if the tag is not a build tag then we will fail the workflow
+          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
+            echo "The tag is a valid build tag."
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  run-single-day-performance-test:
+    name: Performance Test
+    needs:
+      - verify-tag
+    uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' }}
+    with:
+      test-asset: "SDPT1"
+      ref: "${{ inputs.ref }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      nlg-accounts: "100000000"
+      nlg-time: "330"
+      add-app-props: ""
+      add-settings: ""
+      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
+      crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  tag-sdpt-result:
+    name: Tag SDPT Result
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - run-single-day-performance-test
+      - verify-tag
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag SDPT Result
+        run: |
+          RESULT="${{ needs.run-single-day-performance-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          if [ "$RESULT" == "success" ]; then
+            TAG_NAME="sdpt-pass-${BUILD_NUM}"
+            MSG="Single Day Performance Test passed for build-${BUILD_NUM}"
+          elif [ "$RESULT" == "failure" ]; then
+            TAG_NAME="sdpt-fail-${BUILD_NUM}"
+            MSG="Single Day Performance Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
+          git push --set-upstream origin --tags
+
+          echo "### SDPT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDPT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+
+  get-commit-info:
+    name: Get Commit Information
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - verify-tag
+    outputs:
+      commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
+      commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
+      slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+        run: |
+          # Extract the commit and user information from the build tag
+          COMMIT=$(git rev-list -n 1 "${{ inputs.ref }}")
+          EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+
+  report-success:
+    name: Report SDPT execution success
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - verify-tag
+      - tag-sdpt-result
+      - run-single-day-performance-test
+      - get-commit-info
+    if: ${{ (needs.verify-tag.result == 'success' &&
+      needs.tag-sdpt-result.result == 'success' &&
+      needs.run-single-day-performance-test.outputs.result == 'success' &&
+      needs.get-commit-info.result == 'success') &&
+      !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#00FF00",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":tada: SDPT - Single Day Performance Test (${{ inputs.ref }}) Passed",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*SDPT Job Succeeded. Test panel status below*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Verify Tag for SDPT"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.verify-tag.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Run Single Day Performance Test"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.run-single-day-performance-test.outputs.result  }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Tag SDPT Passing"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.tag-sdpt-result.result }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow, Tag, and Commit Information*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Tag*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
+  report-failure:
+    name: Report SDPT execution failure
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - verify-tag
+      - run-single-day-performance-test
+      - tag-sdpt-result
+      - get-commit-info
+      - report-success
+    if: ${{ (needs.verify-tag.result != 'success' ||
+      needs.tag-sdpt-result.result != 'success' ||
+      needs.run-single-day-performance-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
+      !cancelled() && always() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Set Service Name
+        id: set-service
+        run: |
+          ROOTLY_SERVICE="CITR SDPT"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdpt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The SDPT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Performance Test: ${{ needs.run-single-day-performance-test.outputs.result }}"
+            echo "- Tag SDPT Result: ${{ needs.tag-sdpt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create Rootly Incident
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        continue-on-error: true # continue on error so we can get the slack reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Platform CI,Performance Engineering"
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":grey_exclamation: SDPT - Single Day Performance Test (${{ inputs.ref }}) Failed",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*SDPT Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Verify Tag for SDPT"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.verify-tag.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Run Single Day Performance Test"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.run-single-day-performance-test.outputs.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag SDPT Passing"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.tag-sdpt-result.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Get Commit Information"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.get-commit-info.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow, Tag, and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Tag*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.get-commit-info.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

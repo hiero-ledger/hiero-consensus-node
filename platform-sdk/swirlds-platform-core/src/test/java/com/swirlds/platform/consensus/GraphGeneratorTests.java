@@ -1,28 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
+import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
@@ -34,12 +31,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Sanity checks for the event generator utilities.
@@ -221,39 +221,39 @@ public class GraphGeneratorTests {
         System.out.println("Validate Parent Distribution");
 
         assertEquals(4, generator.getNumberOfSources());
-        final AddressBook addressBook = generator.getAddressBook();
+        final Roster roster = generator.getRoster();
 
         // Test even weights
         generator = generator.cleanCopy();
-        generator.getSource(addressBook.getNodeId(0)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(1)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(2)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(3)).setNewEventWeight(1.0);
+        generator.getSourceByIndex(0).setNewEventWeight(1.0);
+        generator.getSourceByIndex(1).setNewEventWeight(1.0);
+        generator.getSourceByIndex(2).setNewEventWeight(1.0);
+        generator.getSourceByIndex(3).setNewEventWeight(1.0);
 
         List<EventImpl> events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(0), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(1), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(2), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(3), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.25, 0.05);
 
         // Test un-even weights
         generator.reset();
-        generator.getSource(addressBook.getNodeId(0)).setNewEventWeight(0.5);
-        generator.getSource(addressBook.getNodeId(1)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(2)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(3)).setNewEventWeight(2.0);
+        generator.getSourceByIndex(0).setNewEventWeight(0.5);
+        generator.getSourceByIndex(1).setNewEventWeight(1.0);
+        generator.getSourceByIndex(2).setNewEventWeight(1.0);
+        generator.getSourceByIndex(3).setNewEventWeight(2.0);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(0), 0.5 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(1), 1.0 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(2), 1.0 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(3), 2.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.5 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 1.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 1.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 2.0 / 4.5, 0.05);
 
         // Test dynamic weights
         generator.reset();
-        generator.getSource(addressBook.getNodeId(0)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(1)).setNewEventWeight(1.0);
-        generator.getSource(addressBook.getNodeId(2)).setNewEventWeight(1.0);
+        generator.getSourceByIndex(0).setNewEventWeight(1.0);
+        generator.getSourceByIndex(1).setNewEventWeight(1.0);
+        generator.getSourceByIndex(2).setNewEventWeight(1.0);
         final DynamicValue<Double> dynamicWeight = (Random random, long eventIndex, Double previousValue) -> {
             if (eventIndex < 1000) {
                 return 0.0;
@@ -263,25 +263,25 @@ public class GraphGeneratorTests {
                 return 2.0;
             }
         };
-        generator.getSource(addressBook.getNodeId(3)).setNewEventWeight(dynamicWeight);
+        generator.getSourceByIndex(3).setNewEventWeight(dynamicWeight);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(0), 0.33, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(1), 0.33, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(2), 0.33, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(3), 0.0, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.33, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.33, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.33, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.0, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(0), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(1), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(2), 0.25, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(3), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.25, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(0), 0.2, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(1), 0.2, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(2), 0.2, 0.05);
-        verifyExpectedParentRatio(events, addressBook.getNodeId(3), 0.4, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.2, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.2, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.2, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.4, 0.05);
     }
 
     /**
@@ -304,7 +304,7 @@ public class GraphGeneratorTests {
 
         // Even distribution
         generator = generator.cleanCopy();
-        final AddressBook addressBook = generator.getAddressBook();
+        final Roster roster = generator.getRoster();
         StandardGraphGenerator baseGenerator = getBaseGenerator(generator);
         baseGenerator.setOtherParentAffinity(asList(
                 asList(0.0, 1.0, 1.0, 1.0),
@@ -312,10 +312,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 1.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         List<EventImpl> events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.25, 0.05);
 
         // Node 0 is never used as the other parent
         generator.reset();
@@ -326,10 +326,10 @@ public class GraphGeneratorTests {
                 asList(0.0, 1.0, 0.0, 1.0),
                 asList(0.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.0, 0.0);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.333, 0.05);
 
         // Node 3 is never used as the other parent
         generator.reset();
@@ -340,10 +340,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 0.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.0, 0.0);
 
         // Node 0 uses node 1 as the other parent twice as often as it uses either 2 or 3
         generator.reset();
@@ -354,10 +354,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 1.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.5 * 0.333 + 0.25 * 0.5, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.5 * 0.333 + 0.25 * 0.5, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
 
         // Dynamic other parent affinity
         generator.reset();
@@ -391,22 +391,22 @@ public class GraphGeneratorTests {
         baseGenerator.setOtherParentAffinity(affinityGenerator);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.25, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.0, 0.0);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.333, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(0), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(1), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(2), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, addressBook.getNodeId(3), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 3), 0.0, 0.0);
     }
 
     /**
@@ -415,7 +415,7 @@ public class GraphGeneratorTests {
     public void validateEventOrder(final GraphGenerator generator) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = generator.generateEvents(1000);
-        assertTrue(areGenerationNumbersValid(events, generator.getNumberOfSources()));
+        assertTrue(areBirthRoundNumbersValid(events, generator.getNumberOfSources()));
         assertTrue(isEventOrderValid(events));
 
         generator.reset();
@@ -432,7 +432,6 @@ public class GraphGeneratorTests {
         validateParentDistribution(generator);
         validateOtherParentDistribution(generator);
         validateEventOrder(generator);
-        validateMaxGeneration(generator);
         validateBirthRoundAdvancing(generator);
     }
 
@@ -453,51 +452,29 @@ public class GraphGeneratorTests {
         generator.reset();
     }
 
-    /**
-     * Assert that the max generation is updated correctly
-     */
-    public void validateMaxGeneration(final GraphGenerator generator) {
-        final List<EventImpl> events = generator.generateEvents(100);
-        final EventImpl lastEvent = events.get(events.size() - 1);
-        // validate only the last event to keep the validation simple
-        assertEquals(
-                lastEvent.getGeneration(),
-                generator.getMaxGeneration(lastEvent.getCreatorId()),
-                "last event should have the max generation");
-        generator.reset();
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Standard Generator")
-    public void testStandardGenerator(final boolean birthRoundAsAncientThreshold) {
-        final PlatformContext platformContext =
-                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
+    public void testStandardGenerator() {
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setNumNodes(4)
+                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
+                .build();
 
-        generatorSanityChecks(generator);
+        generatorSanityChecks(emitter.getGraphGenerator());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Forking Source Test")
-    public void forkingSourceTest(final boolean birthRoundAsAncientThreshold) {
+    public void forkingSourceTest() {
         final int numberOfEvents = 1000;
 
-        final PlatformContext platformContext =
-                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -506,7 +483,15 @@ public class GraphGeneratorTests {
 
         final List<EventImpl> events = generator.generateEvents(numberOfEvents);
 
-        assertFalse(areGenerationNumbersValid(events, 4));
+        final boolean multipleSelfParents = events.stream()
+                .map(EventImpl::getSelfParent)
+                .filter(Objects::nonNull)
+                .map(EventImpl::getBaseHash)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .values()
+                .stream()
+                .anyMatch(c -> c > 1);
+        assertTrue(multipleSelfParents, "Expected multiple self parents in the event list");
     }
 
     @Test
@@ -594,21 +579,18 @@ public class GraphGeneratorTests {
      * Sometimes an other parent is chosen not to be the most recent event from a node. These tests
      * verify that behavior.
      */
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Other Parent Age Tests")
     @Disabled("This test needs to be investigated")
-    public void otherParentAgeTests(final boolean birthRoundAsAncientThreshold) {
+    public void otherParentAgeTests() {
 
         final int numberOfEvents = 100_000;
 
         // A default generator uses a power distribution with alpha = 0.95
-        final PlatformContext platformContext =
-                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
         StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -622,7 +604,7 @@ public class GraphGeneratorTests {
 
         // Completely disable old other parents
         generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -637,7 +619,7 @@ public class GraphGeneratorTests {
 
         // One node is much more likely to create events with old other parents
         generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -666,7 +648,7 @@ public class GraphGeneratorTests {
 
         // One node likes to consistently provide old other parents, all others always provide most recent parent
         generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -698,20 +680,17 @@ public class GraphGeneratorTests {
      * Sanity checks on creation timestamps for events, make sure fraction of events with repeating timestamps
      * matches expected value.
      */
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Repeated Timestamp Tests")
-    void repeatedTimestampTests(final boolean birthRoundAsAncientThreshold) {
+    void repeatedTimestampTests() {
 
         final int numberOfEvents = 100_000;
 
         // A default generator uses a power distribution with alpha = 0.95
-        final PlatformContext platformContext =
-                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -744,17 +723,14 @@ public class GraphGeneratorTests {
     /**
      * Tests if the node removal functionality works as expected.
      */
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node Remove Test")
-    void nodeRemoveTest(final boolean birthRoundAsAncientThreshold) {
+    void nodeRemoveTest() {
         final int numberOfEvents = 10_000;
-        final PlatformContext platformContext =
-                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
+                DEFAULT_PLATFORM_CONTEXT,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -762,7 +738,7 @@ public class GraphGeneratorTests {
                 new StandardEventSource());
         generator.generateEvents(numberOfEvents / 2);
 
-        final NodeId removalNode = generator.getAddressBook().getNodeId(0);
+        final NodeId removalNode = RosterUtils.getNodeId(generator.getRoster(), 0);
         generator.removeNode(removalNode);
 
         final List<EventImpl> postRemovalEvents = generator.generateEvents(numberOfEvents / 2);

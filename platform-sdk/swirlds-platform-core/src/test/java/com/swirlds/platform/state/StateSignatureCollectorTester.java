@@ -3,12 +3,8 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
@@ -20,6 +16,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small
@@ -58,11 +58,9 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> addReservedState(@NonNull final ReservedSignedState reservedSignedState) {
-        final EventWindow window = new EventWindow(
-                reservedSignedState.get().getRound(),
-                1 /* ignored by this test */,
-                1 /* ignored by this test */,
-                AncientMode.GENERATION_THRESHOLD /* ignored by this test*/);
+        final EventWindow window = EventWindowBuilder.builder()
+                .setLatestConsensusRound(reservedSignedState.get().getRound())
+                .build();
 
         latestSignedState.updateEventWindow(window);
 
@@ -79,7 +77,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction signatureTransaction) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
                 new ConcurrentLinkedQueue<>();
-        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, signatureTransaction));
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, 0, signatureTransaction));
         handlePreconsensusSignatures(systemTransactions);
     }
 
@@ -93,7 +91,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction transaction) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
                 new ConcurrentLinkedQueue<>();
-        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, transaction));
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, 0, transaction));
         handlePostconsensusSignatures(systemTransactions);
     }
 

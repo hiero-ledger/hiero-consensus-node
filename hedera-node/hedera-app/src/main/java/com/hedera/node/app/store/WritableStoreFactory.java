@@ -18,6 +18,7 @@ import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
@@ -35,13 +36,13 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Factory for all writable stores. It creates new writable stores based on the {@link State}.
@@ -67,19 +68,12 @@ public class WritableStoreFactory {
         newMap.put(WritableNftStore.class, new StoreEntry(TokenService.NAME, WritableNftStore::new));
         newMap.put(WritableTokenStore.class, new StoreEntry(TokenService.NAME, WritableTokenStore::new));
         newMap.put(
-                WritableTokenRelationStore.class,
-                new StoreEntry(
-                        TokenService.NAME,
-                        (states, entityCounters) -> new WritableTokenRelationStore(states, entityCounters)));
+                WritableTokenRelationStore.class, new StoreEntry(TokenService.NAME, WritableTokenRelationStore::new));
         newMap.put(
                 WritableNetworkStakingRewardsStore.class,
                 new StoreEntry(
                         TokenService.NAME, (states, entityCounters) -> new WritableNetworkStakingRewardsStore(states)));
-        newMap.put(
-                WritableStakingInfoStore.class,
-                new StoreEntry(
-                        TokenService.NAME,
-                        (states, entityCounters) -> new WritableStakingInfoStore(states, entityCounters)));
+        newMap.put(WritableStakingInfoStore.class, new StoreEntry(TokenService.NAME, WritableStakingInfoStore::new));
         // FreezeService
         newMap.put(
                 WritableFreezeStore.class,
@@ -93,6 +87,7 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableContractStateStore.class,
                 new StoreEntry(ContractService.NAME, WritableContractStateStore::new));
+        newMap.put(WritableEvmHookStore.class, new StoreEntry(ContractService.NAME, WritableEvmHookStore::new));
         // EntityIdService
         newMap.put(
                 WritableEntityIdStore.class,
@@ -104,9 +99,7 @@ public class WritableStoreFactory {
                 WritableRosterStore.class,
                 new StoreEntry(RosterService.NAME, (states, entityCounters) -> new WritableRosterStore(states)));
         // HintsService
-        newMap.put(
-                WritableHintsStore.class,
-                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new WritableHintsStoreImpl(states)));
+        newMap.put(WritableHintsStore.class, new StoreEntry(HintsService.NAME, WritableHintsStoreImpl::new));
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
@@ -122,6 +115,7 @@ public class WritableStoreFactory {
      *
      * @param state       the {@link State} to use
      * @param serviceName the name of the service to create stores for
+     * @param entityCounters the {@link WritableEntityCounters} to use
      * @throws NullPointerException     if one of the arguments is {@code null}
      * @throws IllegalArgumentException if the service name is unknown
      */

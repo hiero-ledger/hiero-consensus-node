@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -10,7 +8,6 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.impl.HintsContext;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -37,19 +34,16 @@ public class V059HintsSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
 
-    private static final long MAX_HINTS = 1L << 31;
-    private static final long MAX_PREPROCESSING_VOTES = 1L << 31;
+    private static final long MAX_HINTS = 1L << 10;
+    private static final long MAX_PREPROCESSING_VOTES = 1L << 10;
 
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
     public static final String ACTIVE_HINT_CONSTRUCTION_KEY = "ACTIVE_HINT_CONSTRUCTION";
     public static final String NEXT_HINT_CONSTRUCTION_KEY = "NEXT_HINT_CONSTRUCTION";
     public static final String PREPROCESSING_VOTES_KEY = "PREPROCESSING_VOTES";
 
-    private final HintsContext signingContext;
-
-    public V059HintsSchema(@NonNull final HintsContext signingContext) {
+    public V059HintsSchema() {
         super(VERSION);
-        this.signingContext = requireNonNull(signingContext);
     }
 
     @Override
@@ -70,16 +64,5 @@ public class V059HintsSchema extends Schema {
         final var states = ctx.newStates();
         states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
         states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
-    }
-
-    @Override
-    public void restart(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        final var activeConstruction =
-                requireNonNull(states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
-                        .get());
-        if (activeConstruction.hasHintsScheme()) {
-            signingContext.setConstruction(activeConstruction);
-        }
     }
 }

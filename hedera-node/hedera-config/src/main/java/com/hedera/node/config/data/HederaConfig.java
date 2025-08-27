@@ -7,14 +7,22 @@ import com.hedera.node.config.types.Profile;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
+/**
+ * @param throttleTransactionQueueSize Stop accepting new non-system transactions into the transaction queue if it
+ *                                     exceeds this limit
+ * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
+ *                                     event headers. if a single transaction exceeds this limit, then the event will
+ *                                     contain the single transaction only
+ */
 @ConfigData("hedera")
 public record HederaConfig(
         @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hooksEnabled,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
-        @ConfigProperty(value = "transaction.eip2930.enabled", defaultValue = "true") @NetworkProperty
-                boolean eip2930Enabled,
+        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
+                int nodeTransactionMaxBytes,
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
                 int transactionMaxMemoUtf8Bytes,
@@ -28,10 +36,7 @@ public record HederaConfig(
                 int allowancesMaxTransactionLimit,
         @ConfigProperty(value = "allowances.maxAccountLimit", defaultValue = "100") @NetworkProperty
                 int allowancesMaxAccountLimit,
-        @ConfigProperty(value = "allowances.isEnabled", defaultValue = "true") @NetworkProperty
-                boolean allowancesIsEnabled,
         @ConfigProperty(defaultValue = "data/onboard/exportedAccount.txt") @NodeProperty String accountsExportPath,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean exportAccountsOnStartup,
         @ConfigProperty(value = "prefetch.queueCapacity", defaultValue = "70000") @NodeProperty
                 int prefetchQueueCapacity,
         @ConfigProperty(value = "prefetch.threadPoolSize", defaultValue = "4") @NodeProperty int prefetchThreadPoolSize,
@@ -41,6 +46,9 @@ public record HederaConfig(
         @ConfigProperty(value = "workflow.verificationTimeoutMS", defaultValue = "20000") @NetworkProperty
                 long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.
-        @ConfigProperty(value = "workflows.enabled", defaultValue = "true") @NetworkProperty String workflowsEnabled,
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
-                boolean ingestThrottleEnabled) {}
+                boolean ingestThrottleEnabled,
+        @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
+                int throttleTransactionQueueSize,
+        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "2621440") @NetworkProperty
+                int maxTransactionBytesPerEvent) {}

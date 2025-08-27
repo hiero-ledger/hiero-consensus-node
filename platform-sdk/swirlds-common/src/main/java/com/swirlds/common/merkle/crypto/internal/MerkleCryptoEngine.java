@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.crypto.internal;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -16,12 +11,17 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.config.CryptoConfig;
 
 public class MerkleCryptoEngine implements MerkleCryptography {
     /**
      * The cryptography instance used to compute digests for merkle trees.
      */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     /**
      * The digest provider instance that is used to generate hashes of MerkleInternal objects.

@@ -1,27 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.3.6" }
-
-// Downgrade 'dependency-analysis-gradle-plugin' as 2.8.0 delivers unexpected results
-// we need to investigate
-buildscript {
-    dependencies.constraints {
-        classpath("com.autonomousapps:dependency-analysis-gradle-plugin:2.7.0!!")
-    }
-}
+plugins { id("org.hiero.gradle.build") version "0.4.9" }
 
 javaModules {
     // This "intermediate parent project" should be removed
     module("platform-sdk") { artifact = "swirlds-platform" }
 
     // The Hedera API module
-    directory("hapi") {
-        group = "com.hedera.hashgraph"
-        module("hedera-protobuf-java-api") // raw proto files to be published separately
-    }
+    directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
     directory("platform-sdk") {
-        group = "com.swirlds"
+        group = "com.hedera.hashgraph"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
     }
@@ -55,11 +44,13 @@ javaModules {
     }
 
     // Platform-base demo applications
-    directory("example-apps") { group = "com.swirlds" }
+    directory("example-apps") { group = "com.hedera.hashgraph" }
+
+    module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 
     // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") { group = "com.swirlds" }
+    directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
 
     // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.swirlds" }
+    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

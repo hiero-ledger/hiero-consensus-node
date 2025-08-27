@@ -26,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -353,7 +355,7 @@ public final class MerkleDb {
         final int tableId = getNextTableId();
         tableConfigs.set(tableId, new TableMetadata(tableId, label, tableConfig));
         final MerkleDbDataSource dataSource =
-                new MerkleDbDataSource(this, label, tableId, tableConfig, dbCompactionEnabled, false);
+                new MerkleDbDataSource(this, configuration, label, tableId, tableConfig, dbCompactionEnabled, false);
         dataSources.set(tableId, dataSource);
         // New tables are always primary
         primaryTables.add(tableId);
@@ -383,7 +385,7 @@ public final class MerkleDb {
         final String label = dataSource.getTableName();
         final int tableId = getNextTableId();
         importDataSource(dataSource, tableId, !makeCopyPrimary, makeCopyPrimary); // import to itself == copy
-        return getDataSource(tableId, label, makeCopyPrimary, offlineUse);
+        return getDataSource(configuration, tableId, label, makeCopyPrimary, offlineUse);
     }
 
     private void importDataSource(
@@ -414,6 +416,10 @@ public final class MerkleDb {
         storeMetadata();
     }
 
+    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
+        return getDataSource(configuration, name, dbCompactionEnabled);
+    }
+
     /**
      * Returns a data source with the given name. If the data source isn't opened yet (e.g. on
      * restore from a snapshot), opens it first. If there is no table configuration for the given
@@ -424,17 +430,22 @@ public final class MerkleDb {
      *     data source. If the data source was previously opened, this flag is ignored
      * @return The datasource
      */
-    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
+    public MerkleDbDataSource getDataSource(
+            final Configuration config, final String name, final boolean dbCompactionEnabled) throws IOException {
         final TableMetadata metadata = getTableMetadata(name);
         if (metadata == null) {
             throw new IllegalStateException("Unknown table: " + name);
         }
         final int tableId = metadata.getTableId();
-        return getDataSource(tableId, name, dbCompactionEnabled, false);
+        return getDataSource(config, tableId, name, dbCompactionEnabled, false);
     }
 
     private MerkleDbDataSource getDataSource(
-            final int tableId, final String tableName, final boolean dbCompactionEnabled, final boolean useDiskIndices)
+            final Configuration config,
+            final int tableId,
+            final String tableName,
+            final boolean dbCompactionEnabled,
+            final boolean offlineUse)
             throws IOException {
         final MerkleDbTableConfig tableConfig = getTableConfig(tableId);
         if (tableConfig == null) {
@@ -447,7 +458,7 @@ public final class MerkleDb {
             }
             try {
                 return new MerkleDbDataSource(
-                        this, tableName, tableId, tableConfig, dbCompactionEnabled, useDiskIndices);
+                        this, config, tableName, tableId, tableConfig, dbCompactionEnabled, offlineUse);
             } catch (final IOException z) {
                 rethrowIO.set(z);
                 return null;
@@ -504,6 +515,18 @@ public final class MerkleDb {
         final TableMetadata metadata = tableConfigs.get(tableId);
         final MerkleDbTableConfig tableConfig = metadata != null ? metadata.getTableConfig() : null;
         return tableConfig;
+    }
+
+    public Map<String, MerkleDbTableConfig> getTableConfigs() {
+        final Map<String, MerkleDbTableConfig> result = new HashMap<>();
+        for (int i = 0; i < tableConfigs.length(); i++) {
+            final TableMetadata tableMetadata = tableConfigs.get(i);
+            if ((tableMetadata == null) || !primaryTables.contains(tableMetadata.getTableId())) {
+                continue;
+            }
+            result.put(tableMetadata.getTableName(), tableMetadata.getTableConfig());
+        }
+        return result;
     }
 
     /**
@@ -750,7 +773,7 @@ public final class MerkleDb {
         }
 
         /**
-         * Creates a new table metadata object by reading it from an input strem.
+         * Creates a new table metadata object by reading it from an input stream.
          *
          * @param in Input stream to read table metadata from
          */

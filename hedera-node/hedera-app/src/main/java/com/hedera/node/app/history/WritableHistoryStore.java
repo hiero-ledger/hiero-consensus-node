@@ -4,6 +4,7 @@ package com.hedera.node.app.history;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -63,14 +64,25 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     HistoryProofConstruction completeProof(long constructionId, @NonNull HistoryProof proof);
 
     /**
+     * Fails the construction with the given ID, providing a reason.
+     * @param constructionId the construction ID
+     * @param reason the reason
+     * @return the updated construction
+     */
+    HistoryProofConstruction failForReason(long constructionId, @NonNull String reason);
+
+    /**
      * Sets the ledger ID to the given bytes.
      * @param bytes the bytes
      */
     void setLedgerId(@NonNull Bytes bytes);
 
     /**
-     * Purges any state no longer needed after a given handoff.
-     * @return whether any state was purged
+     * Hands off from the active construction to the next construction if appropriate.
+     * @param fromRoster the roster to hand off from
+     * @param toRoster the roster to hand off to
+     * @param toRosterHash the hash of the roster to hand off to
+     * @return whether the handoff happened
      */
-    boolean purgeStateAfterHandoff(@NonNull ActiveRosters activeRosters);
+    boolean handoff(@NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash);
 }

@@ -52,7 +52,10 @@ public class BalanceOfCall extends AbstractRevertibleTokenViewCall {
         }
 
         final var tokenNum = token.tokenIdOrThrow().tokenNum();
-        final var relation = nativeOperations().getTokenRelation(ownerNum, tokenNum);
+        final var relation = nativeOperations()
+                .getTokenRelation(
+                        nativeOperations().entityIdFactory().newAccountId(ownerNum),
+                        nativeOperations().entityIdFactory().newTokenId(tokenNum));
         final var balance = relation == null ? 0 : relation.balance();
         final var output =
                 BalanceOfTranslator.BALANCE_OF.getOutputs().encode(Tuple.singleton(BigInteger.valueOf(balance)));

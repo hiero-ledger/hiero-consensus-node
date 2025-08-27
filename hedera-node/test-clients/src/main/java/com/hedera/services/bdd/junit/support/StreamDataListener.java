@@ -11,6 +11,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public interface StreamDataListener {
     /**
+     * Returns true if this listener should receive a replay of existing files.
+     */
+    default boolean replayExistingFiles() {
+        return false;
+    }
+
+    /**
      * Called when a new block is received.
      * @param block the new block
      */

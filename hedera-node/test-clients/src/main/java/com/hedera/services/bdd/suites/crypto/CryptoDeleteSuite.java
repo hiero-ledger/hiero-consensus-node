@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -13,6 +14,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -28,6 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
+import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -73,7 +76,7 @@ public class CryptoDeleteSuite {
 
     @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> deletedAccountCannotBePayer() {
-        final var submittingNodeAccount = "0.0.3";
+        final var submittingNodeAccount = "3";
         final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
         final var submittingNodePreTransfer = "submittingNodePreTransfer";
         final var submittingNodeAfterBalanceLoad = "submittingNodeAfterBalanceLoad";
@@ -87,9 +90,23 @@ public class CryptoDeleteSuite {
                 cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
                         .payingWith(ACCOUNT_TO_BE_DELETED)
                         .hasKnownStatus(PAYER_ACCOUNT_DELETED),
+                // since the account is already deleted, we have less signatures to verify
                 getAccountBalance(submittingNodeAccount)
-                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -100000, 50000))
+                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
                         .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> missingAliasDeletionFailsAtConsensus() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER),
+                cryptoDelete((spec, b) -> b.setTransferAccountID(spec.registry().getAccountID(CIVILIAN_PAYER))
+                                .setDeleteAccountID(AccountID.newBuilder()
+                                        .setAlias(ByteString.copyFrom(randomUtf8Bytes(20)))
+                                        .build()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     @HapiTest
@@ -193,12 +210,11 @@ public class CryptoDeleteSuite {
                         ACCOUNT_TO_BE_DELETED,
                         address -> cryptoTransfer((spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                 .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder().setAccountNum(2))
+                                        .setAccountID(asAccount(spec, 2))
                                         .setAmount(-ONE_HUNDRED_HBARS)
                                         .build())
                                 .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder()
-                                                .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                        .setAccountID(asAccount(spec, ByteString.copyFrom(explicitBytesOf(address))))
                                         .setAmount(ONE_HUNDRED_HBARS)
                                         .build())
                                 .build()))),
@@ -210,13 +226,12 @@ public class CryptoDeleteSuite {
                 withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer(
                                 (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(AccountAmount.newBuilder()
-                                                .setAccountID(
-                                                        AccountID.newBuilder().setAccountNum(2))
+                                                .setAccountID(asAccount(spec, 2))
                                                 .setAmount(-ONE_HUNDRED_HBARS)
                                                 .build())
                                         .addAccountAmounts(AccountAmount.newBuilder()
-                                                .setAccountID(AccountID.newBuilder()
-                                                        .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                                .setAccountID(
+                                                        asAccount(spec, ByteString.copyFrom(explicitBytesOf(address))))
                                                 .setAmount(ONE_HUNDRED_HBARS)
                                                 .build())
                                         .build()))

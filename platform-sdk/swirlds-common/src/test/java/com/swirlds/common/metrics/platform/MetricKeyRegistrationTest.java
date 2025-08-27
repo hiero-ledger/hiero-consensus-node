@@ -4,9 +4,9 @@ package com.swirlds.common.metrics.platform;
 import static com.swirlds.common.metrics.platform.DefaultPlatformMetrics.calculateMetricKey;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerGauge;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class MetricKeyRegistrationTest {

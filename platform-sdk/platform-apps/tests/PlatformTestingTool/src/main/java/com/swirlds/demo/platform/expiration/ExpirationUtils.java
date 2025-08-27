@@ -4,7 +4,6 @@ package com.swirlds.demo.platform.expiration;
 import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.MapValueFCQ;
 import com.swirlds.demo.merkle.map.internal.DummyExpectedFCMFamily;
@@ -21,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class used for Expiration of FCQueue transaction records

@@ -17,6 +17,7 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -97,7 +98,9 @@ public class HapiTokenFeeScheduleUpdate extends HapiTxnOp<HapiTokenFeeScheduleUp
         signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
         signers.add(spec -> {
             final var registry = spec.registry();
-            return registry.hasFeeScheduleKey(token) ? registry.getFeeScheduleKey(token) : Key.getDefaultInstance();
+            return registry.hasRoleKey(token, KeyRole.FEE_SCHEDULE)
+                    ? registry.getRoleKey(token, KeyRole.FEE_SCHEDULE)
+                    : Key.getDefaultInstance();
         });
         return signers;
     }

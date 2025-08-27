@@ -50,7 +50,11 @@ public class IsKycCall extends AbstractNonRevertibleTokenViewCall {
                     true);
         }
         var tokenRel = nativeOperations()
-                .getTokenRelation(accountNum, token.tokenIdOrThrow().tokenNum());
+                .getTokenRelation(
+                        nativeOperations().entityIdFactory().newAccountId(accountNum),
+                        nativeOperations()
+                                .entityIdFactory()
+                                .newTokenId(token.tokenIdOrThrow().tokenNum()));
         var result = tokenRel != null && tokenRel.kycGranted();
         return gasOnly(fullResultsFor(SUCCESS, gasCalculator.viewGasRequirement(), result), SUCCESS, true);
     }

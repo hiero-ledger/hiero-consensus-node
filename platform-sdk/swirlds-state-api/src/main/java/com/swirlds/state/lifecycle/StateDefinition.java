@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 
 /**
  * @param stateKey The "state key" that uniquely identifies this {@link ReadableKVState} within the
@@ -52,9 +53,11 @@ public record StateDefinition<K, V>(
             throw new IllegalArgumentException("A state cannot both be 'queue' and 'onDisk'");
         }
 
-        if (keyCodec == null && !singleton && !queue) {
-            throw new NullPointerException("keyCodec must be specified when using singleton or queue types");
+        if (!singleton && !queue) {
+            Objects.requireNonNull(keyCodec, "keyCodec must be specified unless using singleton or queue types");
         }
+
+        Objects.requireNonNull(valueCodec, "valueCodec must be specified");
     }
 
     /**

@@ -1,29 +1,39 @@
-##
-# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
-name: "ZXF: Extended Test Suite - Dry Run"
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Extended Test Suite - Dry Run"
 on:
   workflow_dispatch:
     inputs:
       commit_sha:
         required: true
-        description: 'The commit sha to check out'
+        description: "The commit sha, tag, or branch to check out"
       branch_name:
         required: true
-        description: 'The branch name, for JRS Panel output'
+        description: "The branch name, for JRS Panel output"
+      enable-extended-test-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Extended Test Suite"
+      enable-abbreviated-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Abbreviated JRS Panel"
+      enable-hedera-node-jrs-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Hedera Node JRS Panel"
+      enable-sdk-tck-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run SDK TCK Regression Panel"
+      enable-mirror-node-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Mirror Node Regression Panel"
 
 permissions:
   id-token: write
@@ -40,9 +50,10 @@ defaults:
 jobs:
   extended-test-suite:
     name: Execute eXtended Test Suite
+    if: ${{ inputs.enable-extended-test-suite == true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
-      custom-job-label: Execute eXtended Test Suite
+      custom-job-label: "Dry-Run: Execute eXtended Test Suite"
       enable-timing-sensitive-tests: true
       enable-time-consuming-tests: true
       enable-hammer-tests: true
@@ -56,9 +67,10 @@ jobs:
 
   abbreviated-panel:
     name: JRS Panel
+    if: ${{ inputs.enable-abbreviated-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
-      custom-job-name: "Platform SDK"
+      custom-job-name: "Dry-Run: Platform SDK"
       panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
       ref: ${{ inputs.commit_sha }}
       branch-name: ${{ inputs.branch_name }}
@@ -80,9 +92,10 @@ jobs:
 
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
+    if: ${{ inputs.enable-hedera-node-jrs-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
-      custom-job-name: "Abbrev Update Test"
+      custom-job-name: "Dry-Run: Abbrev Update Test"
       ref: ${{ inputs.commit_sha }}
       branch-name: ${{ inputs.branch_name }}
       hedera-tests-enabled: true
@@ -99,3 +112,27 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    if: ${{ inputs.enable-sdk-tck-regression-panel == true }}
+    uses: ./.github/workflows/zxc-tck-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Dry-Run: SDK TCK Regression"
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  mirror-node-regression-panel:
+    name: Mirror Node Regression Panel
+    if: ${{ inputs.enable-mirror-node-regression-panel == true }}
+    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
+      custom-job-name: "Mirror Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

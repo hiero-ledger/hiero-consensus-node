@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class AssociationsTranslatorTest extends CallTestBase {
+
     @Test
     void dispatchesAssociateType() {
         given(gasCalculator.gasRequirement(TransactionBody.DEFAULT, DispatchType.ASSOCIATE, AccountID.DEFAULT))

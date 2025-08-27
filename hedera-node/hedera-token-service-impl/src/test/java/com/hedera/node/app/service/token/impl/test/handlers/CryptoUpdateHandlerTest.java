@@ -15,10 +15,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.STAKING_NOT_ENABLED;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -58,6 +58,8 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -69,8 +71,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -199,7 +199,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     void cryptoUpdateUpdateAccountMissingFails() throws PreCheckException {
         final var txn = new CryptoUpdateBuilder().build();
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         ;
 
@@ -340,37 +340,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_STAKING_ID));
         assertEquals(-1, writableStore.get(updateAccountId).stakedNodeId());
-    }
-
-    @Test
-    void rejectsStakedIdIfStakingDisabled() {
-        final var txn = new CryptoUpdateBuilder().withStakedAccountId(3).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("staking.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(STAKING_NOT_ENABLED));
-        assertNull(writableStore.get(updateAccountId).stakedNodeId());
-    }
-
-    @Test
-    void rejectsDeclineRewardUpdateIfStakingDisabled() {
-        final var txn = new CryptoUpdateBuilder().withDeclineReward(false).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("staking.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(STAKING_NOT_ENABLED));
-        assertNull(writableStore.get(updateAccountId).stakedNodeId());
     }
 
     @Test
@@ -658,7 +627,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     void rejectsInvalidExpiryIfExpiryValidatorFails() {
         final var txn = new CryptoUpdateBuilder().withExpiration(1234567).build();
         givenTxnWith(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(INVALID_EXPIRATION_TIME));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -691,7 +660,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().withExpiration(10L).build();
         givenTxnWith(txn);
         assertEquals(1234567L, writableStore.get(updateAccountId).expirationSecond());
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(EXPIRATION_REDUCTION_NOT_ALLOWED));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -785,6 +754,141 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         InOrder inOrder = inOrder(feeCalculator);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(212L);
         inOrder.verify(feeCalculator, times(2)).addRamByteSeconds(0L);
+        inOrder.verify(feeCalculator, times(1)).calculate();
+    }
+
+    @Test
+    void testNullAccount() {
+        // mock the account memo to return null. calculateFees should not crash
+        FeeContext feeContext = mock(FeeContext.class);
+        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        FeeCalculator feeCalculator = mock(FeeCalculator.class);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+
+        // put a null account into the readable store
+        final var emptyStateBuilder = emptyReadableAccountStateBuilder();
+        emptyStateBuilder.value(account.accountId(), null);
+        readableAccounts = emptyStateBuilder.build();
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+
+        TransactionBody cryptoUpdateTransaction = new CryptoUpdateBuilder()
+                .withPayer(id)
+                .withAutoRenewPeriod(account.autoRenewSeconds())
+                .withReceiverSigReq(account.receiverSigRequired())
+                .withDeclineReward(account.declineReward())
+                .withStakedNodeId(account.stakedNodeId())
+                .withStakedAccountId(
+                        account.stakedAccountId() == null
+                                ? 0L
+                                : account.stakedAccountId().accountNum())
+                .withExpiration(account.expirationSecond())
+                .withMaxAutoAssociations(account.maxAutoAssociations())
+                .withKey(account.key())
+                .withTarget(id)
+                .build();
+
+        when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(readableStore);
+        when(feeContext.body()).thenReturn(cryptoUpdateTransaction);
+        when(feeContext.configuration()).thenReturn(config);
+        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
+        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
+        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+
+        assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
+
+        InOrder inOrder = inOrder(feeCalculator);
+        inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(212L);
+        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(0L);
+        inOrder.verify(feeCalculator, times(1)).calculate();
+    }
+
+    @Test
+    void testNullAccountMemo() {
+        // mock the account memo to return null. calculateFees should not crash
+        FeeContext feeContext = mock(FeeContext.class);
+        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        FeeCalculator feeCalculator = mock(FeeCalculator.class);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+
+        account = mock(Account.class);
+        given(account.keyOrElse(Key.DEFAULT)).willReturn(Key.DEFAULT);
+        given(account.memo()).willReturn(null);
+        updateReadableAccountStore(Map.of(accountNum, account));
+
+        TransactionBody cryptoUpdateTransaction = new CryptoUpdateBuilder()
+                .withPayer(id)
+                .withAutoRenewPeriod(account.autoRenewSeconds())
+                .withReceiverSigReq(account.receiverSigRequired())
+                .withDeclineReward(account.declineReward())
+                .withStakedNodeId(account.stakedNodeId())
+                .withStakedAccountId(
+                        account.stakedAccountId() == null
+                                ? 0L
+                                : account.stakedAccountId().accountNum())
+                .withExpiration(account.expirationSecond())
+                .withMaxAutoAssociations(account.maxAutoAssociations())
+                .withKey(account.key())
+                .withTarget(id)
+                .build();
+
+        when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(readableStore);
+        when(feeContext.body()).thenReturn(cryptoUpdateTransaction);
+        when(feeContext.configuration()).thenReturn(config);
+        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
+        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
+        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+
+        assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
+    }
+
+    @Test
+    void testUnlimitedAutoAssociationsDisabled() {
+        // disable unlimited auto associations
+        // and set a new max of 30
+        FeeContext feeContext = mock(FeeContext.class);
+        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        FeeCalculator feeCalculator = mock(FeeCalculator.class);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+                .getOrCreateConfig();
+
+        TransactionBody cryptoUpdateTransaction = new CryptoUpdateBuilder()
+                .withPayer(id)
+                .withAutoRenewPeriod(account.autoRenewSeconds())
+                .withReceiverSigReq(account.receiverSigRequired())
+                .withDeclineReward(account.declineReward())
+                .withStakedNodeId(account.stakedNodeId())
+                .withStakedAccountId(
+                        account.stakedAccountId() == null
+                                ? 0L
+                                : account.stakedAccountId().accountNum())
+                .withExpiration(account.expirationSecond())
+                .withMaxAutoAssociations(30) // set new max to 30
+                .withKey(account.key())
+                .withTarget(id)
+                .build();
+
+        when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(readableStore);
+        when(feeContext.body()).thenReturn(cryptoUpdateTransaction);
+        when(feeContext.configuration()).thenReturn(config);
+        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
+        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
+        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+
+        subject.calculateFees(feeContext);
+
+        InOrder inOrder = inOrder(feeCalculator);
+        inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(212L);
+        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(0L);
+        // slots increases, so we have a new fee
+        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(3732480000000L);
         inOrder.verify(feeCalculator, times(1)).calculate();
     }
 
@@ -950,7 +1054,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
             emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         ;
     }
@@ -961,7 +1065,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
             emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
-        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 

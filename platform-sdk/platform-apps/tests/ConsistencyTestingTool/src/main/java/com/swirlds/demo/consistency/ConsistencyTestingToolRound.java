@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 
-import com.swirlds.platform.system.Round;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * Represents a round in the ConsistencyTestingTool

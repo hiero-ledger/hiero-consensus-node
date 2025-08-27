@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.5.3;
+pragma solidity ^0.8.3;
 
 contract CircularTransfers {
     address[] nodes;
 
     constructor() public payable { }
 
-    function setNodes(uint64[] memory accounts) public payable {
+    function setNodes(uint160[] memory accounts) public payable {
         for (uint32 i = 0; i < accounts.length; i++) {
-            nodes.push(address(uint120(accounts[i])));
+            nodes.push(address(uint160(accounts[i])));
         }
     }
 
@@ -25,7 +25,7 @@ contract CircularTransfers {
             uint32 j = uint32((i + 1) % nodes.length);
             CircularTransfers next = CircularTransfers(nodes[j]);
             uint32 nextKeepAmountDivisor = keepAmountDivisor + uint32(1);
-            next.receiveAndSend.value(balanceToTransfer)(
+            next.receiveAndSend{value: balanceToTransfer}(
                 uint32(keepAmountDivisor + 1),
                 stopBalance
             );

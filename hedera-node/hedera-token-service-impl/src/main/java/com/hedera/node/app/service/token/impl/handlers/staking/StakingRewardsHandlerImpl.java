@@ -17,9 +17,9 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -91,7 +91,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         // Pay rewards to all possible reward receivers, returns all rewards paid
         final var recordBuilder = context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class);
         final var rewardsPaid = rewardsPayer.payRewardsIfPending(
-                rewardReceivers, writableStore, stakingRewardsStore, stakingInfoStore, consensusNow, recordBuilder);
+                rewardReceivers,
+                stakingRewardAccountId,
+                writableStore,
+                stakingRewardsStore,
+                stakingInfoStore,
+                consensusNow,
+                recordBuilder);
 
         // Decrease staking reward account balance by rewardPaid amount
         decreaseStakeRewardAccountBalance(rewardsPaid, stakingRewardAccountId, writableStore);
@@ -487,18 +493,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             for (final var value : rewardsPaid.values()) {
                 totalPaidRewards += value;
             }
-
-            final var stakingRewardAccount = writableAccountStore.get(stakingRewardAccountId);
-            final var finalBalance = stakingRewardAccount.tinybarBalance() - totalPaidRewards;
-            if (finalBalance < 0) {
-                log.warn("Staking reward account balance is negative after reward distribution, set it to 0");
+            if (totalPaidRewards > 0) {
+                final var stakingRewardAccount = writableAccountStore.get(stakingRewardAccountId);
+                final var finalBalance = stakingRewardAccount.tinybarBalance() - totalPaidRewards;
+                final var copy = stakingRewardAccount.copyBuilder();
+                copy.tinybarBalance(finalBalance);
+                writableAccountStore.put(copy.build());
             }
-            // At this place it is not possible for the staking reward account balance to be less than total rewards
-            // paid.
-            // Because EndOfStakingPeriodCalculator, sets the reward rate based on 0.0.800 balance.
-            final var copy = stakingRewardAccount.copyBuilder();
-            copy.tinybarBalance(finalBalance);
-            writableAccountStore.put(copy.build());
         }
     }
 

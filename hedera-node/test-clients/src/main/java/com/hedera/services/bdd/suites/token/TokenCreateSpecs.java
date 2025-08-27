@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.account
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -93,6 +94,7 @@ import com.hederahashgraph.api.proto.java.TokenKycStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+import java.time.Instant;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
@@ -121,12 +123,14 @@ public class TokenCreateSpecs {
     private static final String PAYER = "payer";
     public static final String INVALID_ACCOUNT = "999.999.999";
 
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     private static final String A_TOKEN = "TokenA";
     private static final String B_TOKEN = "TokenB";
     private static final String FIRST_USER = "Client1";
     private static final String SENTINEL_VALUE = "0.0.0";
+
+    private static final long ONE_MONTH_IN_SECONDS = 2592000;
 
     @HapiTest
     final Stream<DynamicTest> getInfoIdVariantsTreatedAsExpected() {
@@ -493,6 +497,7 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 tokenCreate(PRIMARY)
                         .supplyType(TokenSupplyType.FINITE)
@@ -512,6 +517,8 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY)
+                        .sigMapPrefixes(
+                                uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY))
                         .via(CREATE_TXN),
                 withOpContext((spec, opLog) -> {
                     var createTxn = getTxnRecord(CREATE_TXN);
@@ -642,6 +649,8 @@ public class TokenCreateSpecs {
 
     @HapiTest
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeCreated() {
+        final long negativeHtsFee = -100L;
+        final String invalidEntityId = "1.2.786";
         return defaultHapiSpec("OnlyValidCustomFeeScheduleCanBeCreated")
                 .given(
                         newKeyNamed(customFeesKey),
@@ -921,6 +930,7 @@ public class TokenCreateSpecs {
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN_KEY)
                                 .signedBy(PAYER)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER, ADMIN_KEY))
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         /* treasury must sign */
                         tokenCreate("shouldntWorkEither")
@@ -928,6 +938,7 @@ public class TokenCreateSpecs {
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER, ADMIN_KEY))
                                 .hasKnownStatus(INVALID_SIGNATURE));
     }
 
@@ -1036,6 +1047,178 @@ public class TokenCreateSpecs {
                         .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> autoRenewLessThenAMonth() {
+        return hapiTest(
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                tokenCreate("token")
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS - 1)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeWithFallback() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("feeCollector"),
+                tokenCreate("feeToken"),
+                tokenAssociate("feeCollector", "feeToken"),
+                tokenCreate("nonFungibleToken")
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey("supplyKey")
+                        .autoRenewAccount("autoRenewAccount")
+                        .withCustom(royaltyFeeWithFallback(
+                                Long.MIN_VALUE, 10L, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeWithFallback() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("feeCollector"),
+                tokenCreate("feeToken"),
+                tokenAssociate("feeCollector", "feeToken"),
+                tokenCreate("nonFungibleToken")
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey("supplyKey")
+                        .autoRenewAccount("autoRenewAccount")
+                        .withCustom(royaltyFeeWithFallback(
+                                1, Long.MIN_VALUE, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeNoFallback() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("feeCollector"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .withCustom(royaltyFeeNoFallback(Long.MIN_VALUE, 2, "feeCollector"))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeNoFallback() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("feeCollector"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .withCustom(royaltyFeeNoFallback(1, Long.MIN_VALUE, "feeCollector"))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> canOmitAutoRenewPeriod() {
+        String memo = "JUMP";
+        String saltedName = salted(PRIMARY);
+        final var pauseKey = "pauseKey";
+        final var expiry = Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS - 123L;
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed("freezeKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed("wipeKey"),
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed(pauseKey),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .omitAutoRenewPeriod()
+                        .expiry(expiry)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .adminKey(ADMIN_KEY)
+                        .freezeKey("freezeKey")
+                        .kycKey("kycKey")
+                        .supplyKey(SUPPLY_KEY)
+                        .wipeKey("wipeKey")
+                        .feeScheduleKey("feeScheduleKey")
+                        .pauseKey(pauseKey)
+                        .via(CREATE_TXN),
+                getTokenInfo(PRIMARY).hasAutoRenewPeriod(0L).logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeAutoRenewPeriod() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount("autoRenewAccount")
+                        .autoRenewPeriod(-1L)
+                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeMinAutoRenewPeriod() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount("autoRenewAccount")
+                        .autoRenewPeriod(-1)
+                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeExpiry() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .expiry(-1)
+                        .hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateWithAutoRenewPeriodAndNoAccount() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS));
+    }
+
     private final long hbarAmount = 1_234L;
     private final long htsAmount = 2_345L;
     private final long numerator = 1;
@@ -1047,7 +1230,5 @@ public class TokenCreateSpecs {
     private final String hbarCollector = "hbarFee";
     private final String htsCollector = "denomFee";
     private final String tokenCollector = "fractionalFee";
-    private final String invalidEntityId = "1.2.786";
-    private final long negativeHtsFee = -100L;
     private final String customFeesKey = "antique";
 }

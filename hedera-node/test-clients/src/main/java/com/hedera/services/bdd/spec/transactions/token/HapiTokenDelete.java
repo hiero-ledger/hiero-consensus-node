@@ -10,6 +10,8 @@ import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenDeleteUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -71,7 +73,7 @@ public class HapiTokenDelete extends HapiTxnOp<HapiTokenDelete> {
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), spec -> spec.registry()
-                .getAdminKey(token));
+                .getRoleKey(token, KeyRole.ADMIN));
     }
 
     @Override
@@ -84,32 +86,20 @@ public class HapiTokenDelete extends HapiTxnOp<HapiTokenDelete> {
         registry.forgetSymbol(token);
         registry.forgetTokenId(token);
         registry.forgetTreasury(token);
-        if (registry.hasKycKey(token)) {
-            registry.forgetKycKey(token);
-        }
-        if (registry.hasWipeKey(token)) {
-            registry.forgetWipeKey(token);
-        }
-        if (registry.hasSupplyKey(token)) {
-            registry.forgetSupplyKey(token);
-        }
-        if (registry.hasAdminKey(token)) {
-            registry.forgetAdminKey(token);
-        }
-        if (registry.hasFreezeKey(token)) {
-            registry.forgetFreezeKey(token);
-        }
-        if (registry.hasFeeScheduleKey(token)) {
-            registry.forgetFeeScheduleKey(token);
-        }
-        if (registry.hasPauseKey(token)) {
-            registry.forgetPauseKey(token);
-        }
+        forgetRoleKeys(registry);
     }
 
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         final MoreObjects.ToStringHelper helper = super.toStringHelper().add("token", token);
         return helper;
+    }
+
+    private void forgetRoleKeys(HapiSpecRegistry registry) {
+        for (KeyRole role : KeyRole.values()) {
+            if (registry.hasRoleKey(token, role)) {
+                registry.forgetRoleKey(token, role);
+            }
+        }
     }
 }

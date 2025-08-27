@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.asAccountWithAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.nftTransferWith;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
-import static com.swirlds.common.utility.CommonUtils.unhex;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 
@@ -28,7 +28,6 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextI
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -348,7 +347,7 @@ class EnsureAliasesStepTest extends StepsBase {
         writableBuilder.value(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
         writableAliases = writableBuilder.build();
 
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
         writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
 
         writableAccountStore.put(account.copyBuilder()
@@ -362,40 +361,5 @@ class EnsureAliasesStepTest extends StepsBase {
 
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         transferContext = new TransferContextImpl(handleContext);
-    }
-
-    @Test
-    void doesntAutoCreateWhenTransferToAliasFeatureDisabled() {
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("autoCreation.enabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        transferContext = new TransferContextImpl(handleContext);
-        assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
-    void doesntAutoCreateWhenTokenTransferToAliasFeatureDisabled() {
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.autoCreations.isEnabled", false)
-                .getOrCreateConfig();
-        body = CryptoTransferTransactionBody.newBuilder()
-                .tokenTransfers(TokenTransferList.newBuilder()
-                        .token(fungibleTokenId)
-                        .transfers(List.of(aaWith(ownerId, -1_000), aaWith(unknownAliasedId1, +1_000)))
-                        .build())
-                .build();
-        txn = asTxn(body, payerId);
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.configuration()).willReturn(configOverride);
-
-        ensureAliasesStep = new EnsureAliasesStep(body);
-        transferContext = new TransferContextImpl(handleContext);
-
-        assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
     }
 }

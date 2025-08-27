@@ -25,7 +25,6 @@ import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -36,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     private static final Logger LOG = LogManager.getLogger(HapiContractCallLocal.class);
@@ -235,8 +235,10 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
 
         final var effContract = contract.startsWith("0x") ? contract.substring(2) : contract;
         if (effContract.length() == HEXED_EVM_ADDRESS_LEN) {
-            opBuilder.setContractID(
-                    ContractID.newBuilder().setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effContract))));
+            opBuilder.setContractID(ContractID.newBuilder()
+                    .setShardNum(spec.shard())
+                    .setRealmNum(spec.realm())
+                    .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effContract))));
         } else {
             opBuilder.setContractID(TxnUtils.asContractId(contract, spec));
         }

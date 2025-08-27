@@ -7,11 +7,11 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConstants;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * The default implementation of {@link LatestCompleteStateNexus}.
@@ -69,7 +69,7 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
     public synchronized void updateEventWindow(@NonNull final EventWindow eventWindow) {
         // Any state older than this is unconditionally removed, even if it is the latest
         final long earliestPermittedRound =
-                eventWindow.getLatestConsensusRound() - stateConfig.roundsToKeepForSigning() + 1;
+                eventWindow.latestConsensusRound() - stateConfig.roundsToKeepForSigning() + 1;
 
         // Is the latest complete round older than the earliest permitted round?
         if (getRound() < earliestPermittedRound) {

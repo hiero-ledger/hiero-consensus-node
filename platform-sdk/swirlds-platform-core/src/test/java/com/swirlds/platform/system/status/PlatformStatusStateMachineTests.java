@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.status;
 
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.BEHIND;
-import static com.swirlds.platform.system.status.PlatformStatus.CATASTROPHIC_FAILURE;
-import static com.swirlds.platform.system.status.PlatformStatus.CHECKING;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZE_COMPLETE;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZING;
-import static com.swirlds.platform.system.status.PlatformStatus.OBSERVING;
-import static com.swirlds.platform.system.status.PlatformStatus.RECONNECT_COMPLETE;
-import static com.swirlds.platform.system.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;

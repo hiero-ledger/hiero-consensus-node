@@ -4,12 +4,13 @@ package com.swirlds.state.merkle.singleton;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class SingletonNodeTest extends MerkleTestBase {
 
     private SingletonNode<ProtoString> node;

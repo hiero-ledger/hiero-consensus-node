@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.OptionalInt;
@@ -47,7 +48,7 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public void advanceCRSWork(
+    public void advanceCrsWork(
             @NonNull final Instant now,
             @NonNull final WritableHintsStore hintsStore,
             final boolean currentPlatformStatus) {
@@ -62,7 +63,8 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public void addHintsKeyPublication(@NonNull final ReadableHintsStore.HintsKeyPublication publication) {
+    public void addHintsKeyPublication(
+            @NonNull final ReadableHintsStore.HintsKeyPublication publication, final Bytes crs) {
         requireNonNull(publication);
         // No-op
     }
@@ -84,7 +86,8 @@ public class InertHintsController implements HintsController {
     public void addCrsPublication(
             @NonNull final CrsPublicationTransactionBody publication,
             @NonNull final Instant consensusTime,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            final long creatorId) {
         requireNonNull(publication);
         requireNonNull(consensusTime);
         requireNonNull(hintsStore);
@@ -93,7 +96,9 @@ public class InertHintsController implements HintsController {
 
     @Override
     public void verifyCrsUpdate(
-            @NonNull final CrsPublicationTransactionBody publication, @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final CrsPublicationTransactionBody publication,
+            @NonNull final ReadableHintsStore hintsStore,
+            final long creatorId) {
         requireNonNull(publication);
         requireNonNull(hintsStore);
         // No-op

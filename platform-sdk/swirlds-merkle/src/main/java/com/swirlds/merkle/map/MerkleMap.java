@@ -7,7 +7,6 @@ import static com.swirlds.common.merkle.utility.MerkleUtils.findChildPositionInP
 import static com.swirlds.fchashmap.FCHashMap.REBUILD_SPLIT_FACTOR;
 import static com.swirlds.fchashmap.FCHashMap.REBUILD_THREAD_COUNT;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -40,6 +39,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
+import org.hiero.base.crypto.Hash;
 
 /**
  * <p>
@@ -56,6 +56,8 @@ import java.util.concurrent.locks.StampedLock;
  * This data structure does not support null keys or null values.
  * </p>
  *
+ * @deprecated should be removed once <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19002">Testing Tools support Virtual Mega Map state</a>.
+ *
  * @param <K> the type of the key. Must be effectively immutable. That is, after insertion into a map, no operation on
  *            this key should be capable of changing the behavior of its {@link Object#hashCode()} or
  *            {@link Object#equals(Object)} methods. It is STRONGLY recommended that this type not implement
@@ -65,6 +67,7 @@ import java.util.concurrent.locks.StampedLock;
  *            value is an internal node the key will need to be stored inside a descendant leaf node.
  */
 @DebugIterationEndpoint
+@Deprecated
 public class MerkleMap<K, V extends MerkleNode & Keyed<K>> extends PartialBinaryMerkleInternal
         implements Labeled, Map<K, V>, MerkleInternal {
 

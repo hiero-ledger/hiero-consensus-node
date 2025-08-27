@@ -74,8 +74,10 @@ public class ThrottleServiceManager {
      */
     public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
         requireNonNull(state);
-        // Apply configuration for gas throttles
+        // Apply configuration for gas, bytes and ops duration throttles
         applyGasConfig();
+        applyBytesConfig();
+        applyOpsDurationConfig();
         // Create backend/frontend throttles from the configured system file
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
@@ -114,6 +116,8 @@ public class ThrottleServiceManager {
      */
     public void refreshThrottleConfiguration() {
         applyGasConfig();
+        applyBytesConfig();
+        applyOpsDurationConfig();
         congestionMultipliers.resetExpectations();
     }
 
@@ -161,10 +165,13 @@ public class ThrottleServiceManager {
 
         final var gasThrottle = backendThrottle.gasLimitThrottle();
         final var gasThrottleSnapshot = gasThrottle.usageSnapshot();
+        final var opsDurationThrottle = backendThrottle.opsDurationThrottle();
+        final var opsDurationThrottleSnapshot = opsDurationThrottle.usageSnapshot();
 
         final WritableSingletonState<ThrottleUsageSnapshots> throttleSnapshots =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        throttleSnapshots.put(new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot));
+        throttleSnapshots.put(
+                new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot, opsDurationThrottleSnapshot));
     }
 
     private void saveCongestionLevelStartsTo(@NonNull final WritableStates serviceStates) {
@@ -186,6 +193,14 @@ public class ThrottleServiceManager {
     private void applyGasConfig() {
         ingestThrottle.applyGasConfig();
         backendThrottle.applyGasConfig();
+    }
+
+    private void applyBytesConfig() {
+        ingestThrottle.applyBytesConfig();
+    }
+
+    private void applyOpsDurationConfig() {
+        backendThrottle.applyDurationConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {
@@ -211,6 +226,9 @@ public class ThrottleServiceManager {
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
+        }
     }
 
     public void resetThrottlesUnconditionally(@NonNull final ReadableStates serviceStates) {
@@ -220,6 +238,9 @@ public class ThrottleServiceManager {
         resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
+        }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
         }
     }
 

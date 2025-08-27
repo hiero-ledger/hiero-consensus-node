@@ -12,11 +12,11 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -223,7 +223,7 @@ public class StakeInfoHelper {
                                 nCopies(numRewardHistoryStoredPeriods + 1, 0L).toArray(Long[]::new))
                         .weight(0)
                         .build();
-                store.put(nodeId.nodeId(), newNodeStakingInfo);
+                store.putAndIncrementCount(nodeId.nodeId(), newNodeStakingInfo);
             }
         }
     }

@@ -5,7 +5,7 @@ swirld, 123
 
 # app,		HelloSwirldDemo.jar
 # app,		CryptocurrencyDemo.jar
- app,		StatsDemo.jar,		   1, 3000, 0, 100, -1, 200
+ app,		StatsDemo.jar,		   100, 200
 
 
 # ** BEGIN REMOVE FROM SDK RELEASES **
@@ -64,8 +64,6 @@ swirld, 123
 
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
-
-# genesisFreezeTime, -1
 
 ###############################################################################################
 # The first line can be “swirld, “ and then a name for this swirld (shared world / ledger),
@@ -128,9 +126,9 @@ swirld, 123
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
 #         external port       - in range 50000-65535
 #
-#         stream IP address   - (optioanl) four numbers, each in the range 0-255, separated by dots
+#         stream IP address   - (optional) four numbers, each in the range 0-255, separated by dots
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
-#         stream port         - (optioanl) in range 50000-65535
+#         stream port         - (optional) in range 50000-65535
 #
 #
 # Each member should be listed only once, on a single line. If all the members are on the same

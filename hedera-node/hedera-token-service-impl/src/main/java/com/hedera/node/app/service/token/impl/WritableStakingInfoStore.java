@@ -33,7 +33,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
      * @param entityCounters
      */
     public WritableStakingInfoStore(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
-        super(states);
+        super(states, entityCounters);
         requireNonNull(states);
 
         this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFO_KEY);
@@ -41,7 +41,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     }
 
     /**
-     * Persists an updated {@link StakingNodeInfo} into state.
+     * Persists a {@link StakingNodeInfo} into state.
      *
      * @param nodeId the node's ID
      * @param stakingNodeInfo the staking info to persist
@@ -52,7 +52,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     }
 
     /**
-     * Persists a new {@link StakingNodeInfo} into state and increments the entity counter for staking info.
+     * Persists a {@link StakingNodeInfo} into state and increments the entity counter for staking info.
      * @param nodeId the node's ID
      * @param stakingNodeInfo the staking info to persist
      */

@@ -2,27 +2,27 @@
 package com.swirlds.demo.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
-import com.swirlds.platform.system.state.notifications.IssNotification;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * An application that can be made to ISS in controllable ways.
@@ -32,11 +32,12 @@ import org.apache.logging.log4j.Logger;
  * peers stop gossiping. Therefore, we can validate that a scheduled log error doesn't occur, due to consensus coming to
  * a halt, even if an ISS isn't detected.
  */
-public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
+public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     static {
         try {
@@ -69,7 +70,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public void init(final Platform platform, final NodeId id) {
         this.platform = platform;
-
         platform.getNotificationEngine().register(IssListener.class, this::issListener);
     }
 
@@ -88,7 +88,9 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
         final ISSTestingToolConfig testingToolConfig =
                 platform.getContext().getConfiguration().getConfigData(ISSTestingToolConfig.class);
 
-        new TransactionGenerator(new Random(), platform, testingToolConfig.transactionsPerSecond()).start();
+        new TransactionGenerator(
+                        new Random(), platform, getTransactionPool(), testingToolConfig.transactionsPerSecond())
+                .start();
     }
 
     /**
@@ -98,8 +100,19 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @NonNull
     public ISSTestingToolState newStateRoot() {
         final ISSTestingToolState state = new ISSTestingToolState();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -111,8 +124,8 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     /**
@@ -122,10 +135,5 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ISSTestingToolConfig.class);
-    }
-
-    @Override
-    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

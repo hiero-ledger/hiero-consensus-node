@@ -2,13 +2,13 @@
 package com.swirlds.common.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Random;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * An extension of the Random class that provides additional utility methods for generating random data.
@@ -209,5 +209,10 @@ public final class Randotron extends Random {
      */
     public long getSeed() {
         return seed;
+    }
+
+    @Override
+    public String toString() {
+        return "Randotron{" + seed + "L}";
     }
 }

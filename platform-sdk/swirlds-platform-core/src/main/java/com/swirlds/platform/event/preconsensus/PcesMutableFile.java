@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Represents a preconsensus event file that can be written to.
@@ -27,12 +27,10 @@ public class PcesMutableFile {
     /**
      * Create a new preconsensus event file that can be written to.
      *
-     * @param descriptor           a description of the file
-     * @param useFileChannelWriter whether to use a FileChannel to write to the file as opposed to an OutputStream
-     * @param syncEveryEvent       whether to sync the file after every event
+     * @param descriptor a description of the file
+     * @param pcesFileWriterType the type of writer
      */
-    PcesMutableFile(
-            @NonNull final PcesFile descriptor, final boolean useFileChannelWriter, final boolean syncEveryEvent)
+    PcesMutableFile(@NonNull final PcesFile descriptor, final @NonNull PcesFileWriterType pcesFileWriterType)
             throws IOException {
         if (Files.exists(descriptor.getPath())) {
             throw new IOException("File " + descriptor.getPath() + " already exists");
@@ -41,9 +39,7 @@ public class PcesMutableFile {
         Files.createDirectories(descriptor.getPath().getParent());
 
         this.descriptor = descriptor;
-        writer = useFileChannelWriter
-                ? new PcesFileChannelWriter(descriptor.getPath(), syncEveryEvent)
-                : new PcesOutputStreamFileWriter(descriptor.getPath(), syncEveryEvent);
+        this.writer = pcesFileWriterType.createWriter(descriptor.getPath());
         writer.writeVersion(PcesFileVersion.currentVersionNumber());
         highestAncientIdentifierInFile = descriptor.getLowerBound();
     }
@@ -63,14 +59,14 @@ public class PcesMutableFile {
      *
      * @param event the event to write
      */
-    public void writeEvent(final PlatformEvent event) throws IOException {
-        if (!descriptor.canContain(event.getAncientIndicator(descriptor.getFileType()))) {
+    public long writeEvent(final PlatformEvent event) throws IOException {
+        if (!descriptor.canContain(event.getBirthRound())) {
             throw new IllegalStateException("Cannot write event " + event.getHash() + " with ancient indicator "
-                    + event.getAncientIndicator(descriptor.getFileType()) + " to file " + descriptor);
+                    + event.getBirthRound() + " to file " + descriptor);
         }
-        writer.writeEvent(event.getGossipEvent());
-        highestAncientIdentifierInFile =
-                Math.max(highestAncientIdentifierInFile, event.getAncientIndicator(descriptor.getFileType()));
+        long size = writer.writeEvent(event.getGossipEvent());
+        highestAncientIdentifierInFile = Math.max(highestAncientIdentifierInFile, event.getBirthRound());
+        return size;
     }
 
     /**

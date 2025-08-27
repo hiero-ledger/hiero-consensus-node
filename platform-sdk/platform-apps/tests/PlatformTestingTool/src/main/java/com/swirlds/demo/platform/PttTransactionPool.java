@@ -8,10 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.google.protobuf.ByteString;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.crypto.ECDSASigningProvider;
-import com.swirlds.common.test.fixtures.crypto.ED25519SigningProvider;
-import com.swirlds.common.test.fixtures.crypto.SigningProvider;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMTransactionPool;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -41,6 +37,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.test.fixtures.ECDSASigningProvider;
+import org.hiero.base.crypto.test.fixtures.ED25519SigningProvider;
+import org.hiero.base.crypto.test.fixtures.SigningProvider;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with Ed25519 signatures.
@@ -53,6 +54,10 @@ public class PttTransactionPool implements FastCopyable {
 
     private static final Marker MARKER = MarkerManager.getMarker("DEMO_INFO");
     private static final Marker ERROR = MarkerManager.getMarker("EXCEPTION");
+    /**
+     * The minimum threshold to the current time to respect for setting the freeze time.
+     */
+    private static final int FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS = 15;
     /** Transaction pool for FCM operations */
     private FCMTransactionPool fcmTransactionPool;
 
@@ -72,7 +77,7 @@ public class PttTransactionPool implements FastCopyable {
     private final PayloadConfig config;
     private final TransactionPoolConfig transactionPoolConfig;
     /**
-     * the standard psuedo-random number generator
+     * the standard pseudo-random number generator
      */
     private final Random random;
 
@@ -127,6 +132,7 @@ public class PttTransactionPool implements FastCopyable {
      */
     public PttTransactionPool(
             final Platform platform,
+            final TransactionPoolNexus transactionPool,
             final long myID,
             final PayloadConfig config,
             final String myName,
@@ -146,8 +152,8 @@ public class PttTransactionPool implements FastCopyable {
         this.initTime = Instant.now();
 
         if (fcmConfig != null) {
-            fcmTransactionPool =
-                    new FCMTransactionPool(platform, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
+            fcmTransactionPool = new FCMTransactionPool(
+                    platform, transactionPool, myID, fcmConfig, submitter, this, expectedFCMFamily, config);
         }
 
         if (virtualMerkleConfig != null) {
@@ -170,6 +176,7 @@ public class PttTransactionPool implements FastCopyable {
 
     public PttTransactionPool(
             final Platform platform,
+            final TransactionPoolNexus transactionPool,
             final long myID,
             final PayloadConfig config,
             final String myName,
@@ -181,6 +188,7 @@ public class PttTransactionPool implements FastCopyable {
             final ExpectedFCMFamily expectedFCMFamily) {
         this(
                 platform,
+                transactionPool,
                 myID,
                 config,
                 myName,
@@ -366,8 +374,15 @@ public class PttTransactionPool implements FastCopyable {
     }
 
     public byte[] createFreezeTranBytes(final FreezeConfig freezeConfig) {
-        final Instant startFreezeTime = this.initTime.plus(freezeConfig.getStartFreezeAfterMin(), ChronoUnit.MINUTES);
-        return createFreezeTranByte(startFreezeTime);
+        final Instant futureThreshold = Instant.now().plusSeconds(FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS);
+        Instant configuedFreezeTime = this.initTime.plus(freezeConfig.getStartFreezeAfterMin(), ChronoUnit.MINUTES);
+
+        // If the freeze time is too soon, delay it to avoid collision in which the freeze
+        // time is set in the same round that crosses that boundary
+        if (futureThreshold.isAfter(configuedFreezeTime)) {
+            configuedFreezeTime = configuedFreezeTime.plusSeconds(FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS);
+        }
+        return createFreezeTranByte(configuedFreezeTime);
     }
 
     public byte[] createFreezeTranByte(final Instant startFreezeTime) {

@@ -910,7 +910,7 @@ public class LoggingSystemTest {
             // then
             org.assertj.core.api.Assertions.assertThat(statementsInFile.size()).isEqualTo(EXPECTED_STATEMENTS);
 
-            // Loglines should be 1 per statement in mirror + 1 for each stament
+            // Loglines should be 1 per statement in mirror + 1 for each statement
             final int expectedLineCountInFile = countLinesInStatements(statementsInMirror);
             org.assertj.core.api.Assertions.assertThat((long) logLines.size()).isEqualTo(expectedLineCountInFile);
             org.assertj.core.api.Assertions.assertThat(statementsInFile).isSubsetOf(statementsInMirror);

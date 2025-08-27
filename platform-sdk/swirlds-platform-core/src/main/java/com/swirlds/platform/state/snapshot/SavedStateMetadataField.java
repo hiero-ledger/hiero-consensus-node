@@ -34,10 +34,15 @@ public enum SavedStateMetadataField {
      */
     LEGACY_RUNNING_EVENT_HASH_MNEMONIC,
     /**
-     * The minimum generation of non-ancient events after this state reached consensus. Future work: this needs to be
-     * migrated once we have switched to {@link com.swirlds.platform.event.AncientMode#BIRTH_ROUND_THRESHOLD}.
+     * The minimum generation of non-ancient events after this state reached consensus. This field is used as an alias
+     * for reading old state metadata files that were created prior to birth round migration.
      */
+    @Deprecated(forRemoval = true)
     MINIMUM_GENERATION_NON_ANCIENT,
+    /**
+     * The minimum birthround of non-ancient events after this state reached consensus.
+     */
+    MINIMUM_BIRTH_ROUND_NON_ANCIENT,
     /**
      * The application software version that created this state.
      */

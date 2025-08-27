@@ -2,6 +2,7 @@
 package com.swirlds.platform.system.address;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Signals that a new roster has been selected. This happens once per round regardless of whether or not the new roster

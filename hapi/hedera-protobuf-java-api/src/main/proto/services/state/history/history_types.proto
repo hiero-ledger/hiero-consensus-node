@@ -140,6 +140,11 @@ message HistoryProofConstruction {
      * to the ledger id's chain of trust.
      */
     HistoryProof target_proof = 7;
+
+    /**
+     * If set, the reason the construction failed.
+     */
+    string failure_reason = 8;
   }
 }
 

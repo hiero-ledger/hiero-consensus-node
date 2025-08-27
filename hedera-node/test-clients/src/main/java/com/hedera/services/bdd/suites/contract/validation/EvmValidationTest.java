@@ -7,6 +7,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressString;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -17,10 +20,12 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -64,15 +69,15 @@ public class EvmValidationTest {
             @HapiTest
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
             public Stream<DynamicTest> lazyCreateToLongZeroFails() {
-                final var LONG_ZERO_ADDRESS = "00000000000000000000000000000000001117d0";
-                return callContractWithValue(LONG_ZERO_ADDRESS, CONTRACT_REVERT_EXECUTED);
+                final Function<HapiSpec, String> longZeroAddress = (spec) -> toAddressString("1117d0");
+                return callContractWithValue(longZeroAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
             public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
-                final var LONG_ZERO_BURN_ADDRESS = "000000000000000000000000000000000000dEaD";
-                return callContractWithValue(LONG_ZERO_BURN_ADDRESS, CONTRACT_REVERT_EXECUTED);
+                final Function<HapiSpec, String> longZeroBurnAddress = (spec) -> toAddressString("dEaD");
+                return callContractWithValue(longZeroBurnAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
@@ -107,6 +112,18 @@ public class EvmValidationTest {
                     .gas(100_000L)
                     .sending(ONE_HBAR)
                     .hasKnownStatus(expectedStatus));
+        }
+
+        private static Stream<DynamicTest> callContractWithValue(
+                Function<HapiSpec, String> address, final ResponseCodeEnum expectedStatus) {
+            return hapiTest(withOpContext((spec, log) -> {
+                final var addressValue = address.apply(spec);
+                final var callOp = contractCall(touchAccountContract, "touchAccount", asHeadlongAddress(addressValue))
+                        .gas(100_000L)
+                        .sending(ONE_HBAR)
+                        .hasKnownStatus(expectedStatus);
+                allRunFor(spec, callOp);
+            }));
         }
     }
 

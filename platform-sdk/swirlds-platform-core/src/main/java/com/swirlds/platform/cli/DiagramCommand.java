@@ -101,13 +101,13 @@ public final class DiagramCommand extends AbstractCommand {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {}, x -> {
-            return null;
-        });
+        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
 
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
+                .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
+        final PlatformWiring platformWiring =
+                new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
 
         final String diagramString = platformWiring
                 .getModel()

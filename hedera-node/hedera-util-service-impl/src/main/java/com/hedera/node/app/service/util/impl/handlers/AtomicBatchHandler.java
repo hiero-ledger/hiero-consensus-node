@@ -11,8 +11,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CALL;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CREATE_INSTANCE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -23,13 +29,15 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.util.impl.cache.InnerTxnCache;
+import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -44,12 +52,16 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AtomicBatchConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -66,7 +78,10 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
+    private final InnerTxnCache innerTxnCache;
 
+    private static final Set<TransactionBody.DataOneOfType> CONTRACT_OP_BODIES =
+            EnumSet.of(CONTRACT_CALL, CONTRACT_CREATE_INSTANCE, ETHEREUM_TRANSACTION);
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
 
@@ -74,9 +89,13 @@ public class AtomicBatchHandler implements TransactionHandler {
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
-    public AtomicBatchHandler(@NonNull final AppContext appContext) {
+    public AtomicBatchHandler(
+            @NonNull final AppContext appContext, @NonNull final TransactionParser transactionParser) {
         requireNonNull(appContext);
+        requireNonNull(transactionParser);
         this.appFeeCharging = appContext.feeChargingSupplier();
+        this.innerTxnCache =
+                new InnerTxnCache(transactionParser, appContext.configSupplier().get());
     }
 
     /**
@@ -87,29 +106,26 @@ public class AtomicBatchHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final List<Transaction> innerTxs = context.body().atomicBatchOrThrow().transactions();
+        final List<Bytes> innerTxs = context.body().atomicBatchOrThrow().transactions();
         if (innerTxs.isEmpty()) {
             throw new PreCheckException(BATCH_LIST_EMPTY);
         }
 
         Set<TransactionID> txIds = new HashSet<>();
-        for (final var innerTx : innerTxs) {
-            if (!innerTx.hasBody()) {
-                throw new PreCheckException(BATCH_TRANSACTION_IN_BLACKLIST);
-            }
-            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
+        for (final var innerTxBytes : innerTxs) {
+            final TransactionBody txBody;
+            // use the checked version to throw PreCheckException if we cant parse the transaction
+            txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
 
             // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
-            // validate batch key exists on each inner transaction
+            // validates a batch key exists on each inner transaction
             validateTruePreCheck(txBody.hasBatchKey(), MISSING_BATCH_KEY);
 
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
                 throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
             }
-
-            context.dispatchPureChecks(txBody);
         }
     }
 
@@ -121,9 +137,9 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
         final var txns = atomicBatchTransactionBody.transactions();
-        // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
-        for (final var txn : txns) {
-            final var innerTxBody = txn.bodyOrThrow();
+        // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
+        for (final var txnBytes : txns) {
+            final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
             validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
@@ -148,26 +164,60 @@ public class AtomicBatchHandler implements TransactionHandler {
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        for (final var txn : txns) {
-            final var body = txn.bodyOrThrow();
-            final var payerId = body.transactionIDOrThrow().accountIDOrThrow();
-            // all the inner transactions' keys are verified in PreHandleWorkflow
-            final var dispatchOptions =
-                    atomicBatchDispatch(payerId, body, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
+        final Map<AccountID, Long> nonceAdjustments = new HashMap<>();
+        boolean batchHasMoreThanOneContractOp = false;
+        for (int i = 0, n = txns.size(); i < n; i++) {
+            final var txnBytes = txns.get(i);
+            // Use the unchecked get because if the transaction is correct, it should be in the cache by now
+            final var innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
+            final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
+            // Set txn bytes as dispatch metadata. Used to pre-handle inner transaction while dispatching them.
+            final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
+            final var dispatchOptions = atomicBatchDispatch(
+                    payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
+            if (innerTxnBody.hasEthereumTransaction()) {
+                // record nonce updates for Ethereum transactions, so we can replay them after failure
+                final BiConsumer<AccountID, Long> nonceUpdateCallback = nonceAdjustments::put;
+                dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
+            }
+            if (CONTRACT_OP_BODIES.contains(innerTxnBody.data().kind())) {
+                if (!batchHasMoreThanOneContractOp) {
+                    batchHasMoreThanOneContractOp = includesContractOp(txns.subList(i + 1, n));
+                }
+                dispatchMetadata.putMetadata(EXPLICIT_WRITE_TRACING, batchHasMoreThanOneContractOp);
+            }
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
-                throw new HandleException(
-                        INNER_TRANSACTION_FAILED,
-                        ctx -> recordedFeeCharging.forEachRecorded((builder, charges) -> {
-                            final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                            charges.forEach(charge ->
-                                    charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
-                            builder.setReplayedFees(asTransferList(adjustments));
-                        }));
+                final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+                throw new HandleException(INNER_TRANSACTION_FAILED, ctx -> {
+                    recordedFeeCharging.forEachRecorded((builder, charges) -> {
+                        final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
+                        charges.forEach(
+                                charge -> charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
+                        builder.setReplayedFees(asTransferList(adjustments));
+                    });
+                    // replay nonce increments for Ethereum transactions
+                    nonceAdjustments.forEach(tokenServiceApi::setNonce);
+                });
             }
         }
+    }
+
+    /**
+     * Checks if the given list of transactions includes any contract operation.
+     * @param txns the list of transaction bytes to check
+     * @return true if any transaction in the list is a contract operation, false otherwise
+     */
+    private boolean includesContractOp(@NonNull final List<Bytes> txns) {
+        for (final var txnBytes : txns) {
+            final var innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
+            if (CONTRACT_OP_BODIES.contains(innerTxnBody.data().kind())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -200,7 +250,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     /**
      * A {@link FeeCharging} strategy that records all balance adjustments made by the delegate.
      */
-    static class RecordedFeeCharging implements FeeCharging {
+    public static class RecordedFeeCharging implements FeeCharging {
         /**
          * Represents a charge that can be replayed on a {@link Context}.
          */
@@ -273,9 +323,14 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         @Override
-        public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+        public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
             final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
-            delegate.charge(recordingContext, validation, fees);
+            return delegate.charge(recordingContext, validation, fees);
+        }
+
+        @Override
+        public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+            delegate.refund(ctx, fees);
         }
 
         /**
@@ -285,28 +340,53 @@ public class AtomicBatchHandler implements TransactionHandler {
             private final Context delegate;
             private final Consumer<Charge> chargeCb;
 
+            @Override
+            public AccountID payerId() {
+                return delegate.payerId();
+            }
+
+            @Override
+            public AccountID nodeAccountId() {
+                return delegate.nodeAccountId();
+            }
+
             public RecordingContext(@NonNull final Context delegate, @NonNull final Consumer<Charge> chargeCb) {
                 this.delegate = requireNonNull(delegate);
                 this.chargeCb = requireNonNull(chargeCb);
             }
 
             @Override
-            public void charge(
+            public Fees charge(
                     @NonNull final AccountID payerId,
                     @NonNull final Fees fees,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
-                delegate.charge(payerId, fees, cb);
+                final var chargedFees = delegate.charge(payerId, fees, cb);
                 chargeCb.accept(new Charge(payerId, fees, null));
+                return chargedFees;
             }
 
             @Override
-            public void charge(
+            public void refund(
+                    @NonNull final AccountID payerId,
+                    @NonNull final Fees fees,
+                    @NonNull final AccountID nodeAccountId) {
+                delegate.refund(payerId, fees, nodeAccountId);
+            }
+
+            @Override
+            public void refund(@NonNull final AccountID receiverId, @NonNull final Fees fees) {
+                delegate.refund(receiverId, fees);
+            }
+
+            @Override
+            public Fees charge(
                     @NonNull final AccountID payerId,
                     @NonNull final Fees fees,
                     @NonNull final AccountID nodeAccountId,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
-                delegate.charge(payerId, fees, nodeAccountId, cb);
+                final var chargedFees = delegate.charge(payerId, fees, nodeAccountId, cb);
                 chargeCb.accept(new Charge(payerId, fees, nodeAccountId));
+                return chargedFees;
             }
 
             @Override

@@ -7,12 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
@@ -20,17 +14,15 @@ import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,40 +30,20 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 public abstract class VirtualMapReconnectTestBase {
 
-    protected static final TestKey A_KEY = new TestKey('a');
-    protected static final TestKey B_KEY = new TestKey('b');
-    protected static final TestKey C_KEY = new TestKey('c');
-    protected static final TestKey D_KEY = new TestKey('d');
-    protected static final TestKey E_KEY = new TestKey('e');
-    protected static final TestKey F_KEY = new TestKey('f');
-    protected static final TestKey G_KEY = new TestKey('g');
-
-    protected static final TestValue APPLE = new TestValue("APPLE");
-    protected static final TestValue BANANA = new TestValue("BANANA");
-    protected static final TestValue CHERRY = new TestValue("CHERRY");
-    protected static final TestValue DATE = new TestValue("DATE");
-    protected static final TestValue EGGPLANT = new TestValue("EGGPLANT");
-    protected static final TestValue FIG = new TestValue("FIG");
-    protected static final TestValue GRAPE = new TestValue("GRAPE");
-
-    protected static final TestValue AARDVARK = new TestValue("AARDVARK");
-    protected static final TestValue BEAR = new TestValue("BEAR");
-    protected static final TestValue CUTTLEFISH = new TestValue("CUTTLEFISH");
-    protected static final TestValue DOG = new TestValue("DOG");
-    protected static final TestValue EMU = new TestValue("EMU");
-    protected static final TestValue FOX = new TestValue("FOX");
-    protected static final TestValue GOOSE = new TestValue("GOOSE");
-
-    protected static final KeySerializer<TestKey> KEY_SERIALIZER = new TestKeySerializer();
-    protected static final ValueSerializer<TestValue> VALUE_SERIALIZER = new TestValueSerializer();
-
-    protected VirtualMap<TestKey, TestValue> teacherMap;
-    protected VirtualMap<TestKey, TestValue> learnerMap;
+    protected VirtualMap teacherMap;
+    protected VirtualMap learnerMap;
     protected BrokenBuilder teacherBuilder;
     protected BrokenBuilder learnerBuilder;
 
@@ -82,18 +54,19 @@ public abstract class VirtualMapReconnectTestBase {
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
-    protected abstract VirtualDataSourceBuilder createBuilder() throws IOException;
+    protected abstract VirtualDataSourceBuilder createBuilder(String postfix) throws IOException;
 
     @BeforeEach
     void setupEach() throws Exception {
         // Some tests set custom default VirtualMap settings, e.g. StreamEventParserTest calls
         // Browser.populateSettingsCommon(). These custom settings can't be used to run VM reconnect
         // tests. As a workaround, set default settings here explicitly
-        final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
-        teacherBuilder = new BrokenBuilder(dataSourceBuilder);
-        learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap<>("Teacher", KEY_SERIALIZER, VALUE_SERIALIZER, teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap<>("Learner", KEY_SERIALIZER, VALUE_SERIALIZER, learnerBuilder, CONFIGURATION);
+        final VirtualDataSourceBuilder teacherDataSourceBuilder = createBuilder("Teacher");
+        teacherBuilder = new BrokenBuilder(teacherDataSourceBuilder);
+        final VirtualDataSourceBuilder learnerDataSourceBuilder = createBuilder("Learner");
+        learnerBuilder = new BrokenBuilder(learnerDataSourceBuilder);
+        teacherMap = new VirtualMap("Test", teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap("Test", learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll
@@ -101,19 +74,17 @@ public abstract class VirtualMapReconnectTestBase {
         loadLog4jContext();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMapState.class, VirtualMapState::new));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualRootNode.class,
-                () -> new VirtualRootNode<>(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
-        registry.registerConstructable(new ClassConstructorPair(TestKey.class, TestKey::new));
-        registry.registerConstructable(new ClassConstructorPair(TestValue.class, TestValue::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(ExternalVirtualMapMetadata.class, ExternalVirtualMapMetadata::new));
+        registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
         registry.registerConstructable(new ClassConstructorPair(BrokenBuilder.class, BrokenBuilder::new));
     }
 
-    protected MerkleInternal createTreeForMap(VirtualMap<TestKey, TestValue> map) {
+    protected MerkleInternal createTreeForMap(VirtualMap map) {
         final var tree = MerkleTestUtils.buildLessSimpleTree();
         tree.getChild(1).asInternal().setChild(3, map);
         tree.reserve();
@@ -126,7 +97,7 @@ public abstract class VirtualMapReconnectTestBase {
 
     protected void reconnectMultipleTimes(int attempts) {
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap<TestKey, TestValue> copy = teacherMap.copy();
+        final VirtualMap copy = teacherMap.copy();
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
         try {
             for (int i = 0; i < attempts; i++) {
@@ -269,8 +240,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.loadLeafRecord(key, keyHashCode);
+        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
+            return delegate.loadLeafRecord(key);
         }
 
         @Override
@@ -279,8 +250,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public long findKey(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.findKey(key, keyHashCode);
+        public long findKey(final Bytes key) throws IOException {
+            return delegate.findKey(key);
         }
 
         @Override
@@ -322,17 +293,10 @@ public abstract class VirtualMapReconnectTestBase {
         public void stopAndDisableBackgroundCompaction() {
             delegate.stopAndDisableBackgroundCompaction();
         }
+    }
 
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
+    @AfterEach
+    void tearDown() {
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

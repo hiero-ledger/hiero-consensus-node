@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * This component is responsible for handling the response to an ISS event.

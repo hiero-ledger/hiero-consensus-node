@@ -4,16 +4,16 @@ package com.swirlds.merkle.test.map;
 import static com.swirlds.common.utility.CommonUtils.byteCountToDisplaySize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
 import java.util.function.BiConsumer;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -31,7 +31,9 @@ class MerkleMapMemoryTests {
 
     @BeforeAll
     static void startup() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero");
     }
 
     /**

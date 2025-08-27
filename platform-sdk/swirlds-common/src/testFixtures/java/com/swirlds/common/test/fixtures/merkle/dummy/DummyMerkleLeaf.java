@@ -3,16 +3,18 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class DummyMerkleLeaf extends PartialMerkleLeaf implements DummyMerkleNode, MerkleLeaf {
 
@@ -186,7 +188,7 @@ public class DummyMerkleLeaf extends PartialMerkleLeaf implements DummyMerkleNod
      * in position 0, and that leaf will equal this node.
      */
     @Override
-    public MerkleNode migrate(final int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, final int version) {
         return migrationMapper.apply(this, version);
     }
 }

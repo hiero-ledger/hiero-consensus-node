@@ -2,13 +2,12 @@
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Iterates over events from a sequence of preconsensus event files.
@@ -16,7 +15,6 @@ import java.util.Objects;
 public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
 
     private final Iterator<PcesFile> fileIterator;
-    private final AncientMode fileType;
     private PcesFileIterator currentIterator;
     private final long lowerBound;
     private PlatformEvent next;
@@ -28,16 +26,11 @@ public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
      * @param lowerBound   the minimum ancient indicator of events to return, events with lower ancient indicators are
      *                     not returned
      * @param fileIterator an iterator that walks over event files
-     * @param fileType     the type of file to read
      */
-    public PcesMultiFileIterator(
-            final long lowerBound,
-            @NonNull final Iterator<PcesFile> fileIterator,
-            @NonNull final AncientMode fileType) {
+    public PcesMultiFileIterator(final long lowerBound, @NonNull final Iterator<PcesFile> fileIterator) {
 
         this.fileIterator = Objects.requireNonNull(fileIterator);
         this.lowerBound = lowerBound;
-        this.fileType = Objects.requireNonNull(fileType);
     }
 
     /**
@@ -46,7 +39,7 @@ public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
     private void findNext() throws IOException {
         if (currentIterator == null) { // on first call
             if (fileIterator.hasNext()) {
-                currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound, fileType);
+                currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound);
             } else {
                 return;
             }
@@ -74,7 +67,7 @@ public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
                 return;
             }
 
-            currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound, fileType);
+            currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound);
         }
     }
 

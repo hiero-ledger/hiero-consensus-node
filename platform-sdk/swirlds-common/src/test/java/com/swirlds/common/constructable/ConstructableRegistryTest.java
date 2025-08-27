@@ -10,8 +10,15 @@ import com.swirlds.common.constructable.constructables.scannable.ConstructableEx
 import com.swirlds.common.constructable.constructables.scannable.StringConstructable;
 import com.swirlds.common.constructable.constructables.scannable.subpackage.SubpackageConstructable;
 import com.swirlds.common.constructable.constructors.StringConstructor;
-import com.swirlds.common.crypto.Hash;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ClassIdFormatter;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.ConstructableRegistryFactory;
+import org.hiero.base.constructable.ConstructorRegistry;
+import org.hiero.base.constructable.NoArgsConstructor;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -105,7 +112,7 @@ class ConstructableRegistryTest {
                 "generated class ID string should match expected");
 
         assertEquals(
-                "com.swirlds.common.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
+                "org.hiero.base.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
                 ClassIdFormatter.classIdString(new Hash()),
                 "generated class ID string should match expected");
     }

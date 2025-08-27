@@ -64,6 +64,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hederahashgraph.api.proto.java.TokenID;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,7 +89,7 @@ public class TokenAssociationSpecs {
     final Stream<DynamicTest> canHandleInvalidAssociateTransactions() {
         final String alice = "ALICE";
         final String bob = "BOB";
-        final String unknownID = "0.0." + Long.MAX_VALUE;
+        final String unknownID = String.valueOf(Long.MAX_VALUE);
         return defaultHapiSpec("CanHandleInvalidAssociateTransactions")
                 .given(
                         newKeyNamed(MULTI_KEY),
@@ -231,6 +232,27 @@ public class TokenAssociationSpecs {
                 .given(tokenCreate(misc))
                 .when(createDefaultContract(contract).omitAdminKey())
                 .then(tokenAssociate(contract, misc).hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> associateNeedsAccountSignature() {
+        String token = "someToken";
+        String alice = "alice";
+        String bob = "bob";
+        return hapiTest(
+                // create token with admin = alice
+                newKeyNamed(alice),
+                tokenCreate(token).adminKey(alice),
+                // create account bob
+                cryptoCreate(bob).balance(0L).maxAutomaticTokenAssociations(0),
+                // associate token *without* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // associate token *with* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS),
+                // dissociate token *without* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // dissociate token *with* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
@@ -582,5 +604,40 @@ public class TokenAssociationSpecs {
                         .supplyKey(supplyKey)
                         .hasKnownStatus(SUCCESS),
                 tokenAssociate(accountToDelete, token).hasKnownStatus(ACCOUNT_DELETED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> dissociateDeletedToken() {
+        final var account = "account";
+        final var tokenToDelete = "anyToken";
+        final var supplyKey = "supplyKey";
+        final var adminKey = "adminKey";
+        return hapiTest(
+                newKeyNamed(supplyKey),
+                newKeyNamed(adminKey),
+                cryptoCreate(account),
+                tokenCreate(tokenToDelete)
+                        .treasury(DEFAULT_PAYER)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .supplyKey(supplyKey)
+                        .adminKey(adminKey),
+                tokenAssociate(account, tokenToDelete),
+                tokenDelete(tokenToDelete).signedByPayerAnd(adminKey),
+                getAccountInfo(account).hasToken(relationshipWith(tokenToDelete)),
+                tokenDissociate(account, tokenToDelete),
+                getAccountInfo(account).hasNoTokenRelationship(tokenToDelete));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> dissociateWithInvalidToken() {
+        return hapiTest(withOpContext((spec, oplog) -> {
+            final var bogusTokenId = TokenID.newBuilder().setTokenNum(9999L);
+            spec.registry().saveTokenId("nonexistentToken", bogusTokenId.build());
+            allRunFor(
+                    spec,
+                    cryptoCreate("acc"),
+                    tokenDissociate("acc", "nonexistentToken").hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+        }));
     }
 }

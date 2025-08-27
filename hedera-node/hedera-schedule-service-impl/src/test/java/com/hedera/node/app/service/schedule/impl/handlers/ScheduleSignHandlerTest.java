@@ -11,8 +11,8 @@ import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.spi.fixtures.Assertions;
-import com.hedera.node.app.spi.key.KeyComparator;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -45,7 +45,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     void vanilla() throws PreCheckException {
         final TransactionBody testTransaction = scheduleSignTransaction(null);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
         assertThat(realPreContext.payer()).isEqualTo(scheduler);
@@ -58,7 +58,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
         final ScheduleID badScheduleID = ScheduleID.newBuilder().scheduleNum(1L).build();
         final TransactionBody testTransaction = scheduleSignTransaction(badScheduleID);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
     }
 

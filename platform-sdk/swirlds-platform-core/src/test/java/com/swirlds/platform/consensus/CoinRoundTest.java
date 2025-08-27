@@ -6,8 +6,6 @@ import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
@@ -17,13 +15,27 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class CoinRoundTest extends PlatformTest {
 
+    /**
+     * A test that reads in a set of PCES event files and checks that the coin round occurred. The test expects the
+     * following directory structure:
+     * <ol>
+     *     <li>supplied-dir/config.txt</li>
+     *     <li>supplied-dir/events/*.pces</li>
+     * </ol>
+     */
     @ParameterizedTest
-    @ValueSource(strings = {"coin-round-test/0.60-20250225-114602/", "coin-round-test/0.59-20250302-104332/"})
+    @ValueSource(strings = {"coin-round-test/0.62-20250514-101342/"})
+    @Disabled("This test used to work with PCES files that had generations in them but not birth rounds. "
+            + "Since ancient threshold migration we no longer support these old files. "
+            + "Once a coin round occurs with birth rounds new PCES files can be added and this test can be re-enabled.")
     void coinRound(final String resources) throws URISyntaxException, IOException {
         final PlatformContext context = createDefaultPlatformContext();
 
@@ -33,17 +45,16 @@ public class CoinRoundTest extends PlatformTest {
         PcesUtilities.compactPreconsensusEventFiles(dir);
 
         final PcesFileTracker pcesFileTracker =
-                PcesFileReader.readFilesFromDisk(context, dir, 0, false, AncientMode.GENERATION_THRESHOLD);
+                PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
         final LegacyConfigProperties legacyConfigProperties =
                 LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));
-        final TestIntake intake = new TestIntake(context, legacyConfigProperties.getAddressBook());
+        final TestIntake intake =
+                new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
 
-        long maxGen = 0;
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
-            maxGen = Math.max(maxGen, event.getGeneration());
             intake.addEvent(event);
         }
 

@@ -21,12 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.MapValueData;
@@ -59,6 +53,13 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -726,6 +727,7 @@ class ExpectedFCMFamilyTest {
     private FCMTransaction createTransaction(TransactionType type) {
         pttTransactionPool = new PttTransactionPool(
                 platform,
+                Mockito.mock(TransactionPoolNexus.class),
                 0,
                 config,
                 "test",

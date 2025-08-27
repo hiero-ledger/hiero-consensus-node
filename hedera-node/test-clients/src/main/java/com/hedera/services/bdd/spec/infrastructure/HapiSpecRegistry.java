@@ -4,19 +4,21 @@ package com.hedera.services.bdd.spec.infrastructure;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asScheduleString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.listeners.TokenAccountRegistryRel;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCallLocal;
 import com.hedera.services.bdd.spec.infrastructure.meta.SupportedContract;
+import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.utilops.inventory.TypedKey;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -39,7 +41,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,9 +59,8 @@ public class HapiSpecRegistry {
 
     public HapiSpecRegistry(HapiSpecSetup setup) throws Exception {
         this.setup = setup;
-
-        final var key = setup.payerKeyAsEd25519();
-        final var genesisKey = asPublicKey(CommonUtils.hex(key.getAbyte()));
+        final var key = TypedKey.from(setup.payerKey());
+        final var genesisKey = asPublicKey(key.pubKey(), key.type());
 
         saveAccountId(setup.genesisAccountName(), setup.genesisAccount());
         saveKey(setup.genesisAccountName(), asKeyList(genesisKey));
@@ -131,10 +131,14 @@ public class HapiSpecRegistry {
         return Key.getDefaultInstance();
     }
 
-    private Key asPublicKey(String pubKeyHex) {
-        return Key.newBuilder()
-                .setEd25519(ByteString.copyFrom(CommonUtils.unhex(pubKeyHex)))
-                .build();
+    private Key asPublicKey(byte[] pubKey, SigControl control) {
+        if (control == SigControl.SECP256K1_ON) {
+            return Key.newBuilder()
+                    .setECDSASecp256K1(ByteString.copyFrom(pubKey))
+                    .build();
+        } else {
+            return Key.newBuilder().setEd25519(ByteString.copyFrom(pubKey)).build();
+        }
     }
 
     private Key asKeyList(Key key) {
@@ -194,6 +198,14 @@ public class HapiSpecRegistry {
         return get(name, Long.class);
     }
 
+    public void saveTokenBalanceSnapshot(String token, String name, Long balance) {
+        put(token + "-" + name, balance);
+    }
+
+    public long getTokenBalanceSnapshot(String token, String name) {
+        return get(token + "-" + name, Long.class);
+    }
+
     public Timestamp getTimestamp(String label) {
         return get(label, Timestamp.class);
     }
@@ -213,62 +225,6 @@ public class HapiSpecRegistry {
         put(name, key, Key.class);
     }
 
-    public void forgetAdminKey(String name) {
-        remove(name + "Admin", Key.class);
-    }
-
-    public void saveAdminKey(String name, Key key) {
-        put(name + "Admin", key, Key.class);
-    }
-
-    public boolean hasAdminKey(String name) {
-        return has(name + "Admin", Key.class);
-    }
-
-    public void saveFreezeKey(String name, Key key) {
-        put(name + "Freeze", key, Key.class);
-    }
-
-    public boolean hasFeeScheduleKey(String name) {
-        return has(name + "FeeSchedule", Key.class);
-    }
-
-    public void forgetFeeScheduleKey(String name) {
-        remove(name + "FeeSchedule", Key.class);
-    }
-
-    public void saveFeeScheduleKey(String name, Key key) {
-        put(name + "FeeSchedule", key, Key.class);
-    }
-
-    public Key getFeeScheduleKey(String name) {
-        return get(name + "FeeSchedule", Key.class);
-    }
-
-    public void savePauseKey(String name, Key key) {
-        put(name + "Pause", key, Key.class);
-    }
-
-    public boolean hasPauseKey(String name) {
-        return has(name + "Pause", Key.class);
-    }
-
-    public Key getPauseKey(String name) {
-        return get(name + "Pause", Key.class);
-    }
-
-    public void forgetPauseKey(String name) {
-        remove(name + "Pause", Key.class);
-    }
-
-    public boolean hasFreezeKey(String name) {
-        return has(name + "Freeze", Key.class);
-    }
-
-    public void forgetFreezeKey(String name) {
-        remove(name + "Freeze", Key.class);
-    }
-
     public void saveExpiry(String name, Long value) {
         put(name + "Expiry", value, Long.class);
     }
@@ -277,40 +233,20 @@ public class HapiSpecRegistry {
         put(name + "CreationTime", value, Timestamp.class);
     }
 
-    public void saveSupplyKey(String name, Key key) {
-        put(name + "Supply", key, Key.class);
+    public Key getRoleKey(String tokenName, KeyRole role) {
+        return getOrElse(getRoleKeyName(tokenName, role), Key.class, null);
     }
 
-    public boolean hasSupplyKey(String name) {
-        return has(name + "Supply", Key.class);
+    public void saveRoleKey(String name, KeyRole role, Key key) {
+        put(getRoleKeyName(name, role), key);
     }
 
-    public void saveWipeKey(String name, Key key) {
-        put(name + "Wipe", key, Key.class);
+    public void forgetRoleKey(String name, KeyRole role) {
+        remove(getRoleKeyName(name, role), Key.class);
     }
 
-    public boolean hasWipeKey(String name) {
-        return has(name + "Wipe", Key.class);
-    }
-
-    public void forgetWipeKey(String name) {
-        remove(name + "Wipe", Key.class);
-    }
-
-    public void forgetSupplyKey(String name) {
-        remove(name + "Supply", Key.class);
-    }
-
-    public boolean hasKycKey(String name) {
-        return has(name + "Kyc", Key.class);
-    }
-
-    public void saveKycKey(String name, Key key) {
-        put(name + "Kyc", key, Key.class);
-    }
-
-    public void forgetKycKey(String name) {
-        remove(name + "Kyc", Key.class);
+    public boolean hasRoleKey(String name, KeyRole role) {
+        return has(getRoleKeyName(name, role), Key.class);
     }
 
     public void saveSymbol(String token, String symbol) {
@@ -355,26 +291,6 @@ public class HapiSpecRegistry {
 
     public Key getKey(String name) {
         return get(name, Key.class);
-    }
-
-    public Key getAdminKey(String name) {
-        return get(name + "Admin", Key.class);
-    }
-
-    public Key getFreezeKey(String name) {
-        return get(name + "Freeze", Key.class);
-    }
-
-    public Key getSupplyKey(String name) {
-        return get(name + "Supply", Key.class);
-    }
-
-    public Key getWipeKey(String name) {
-        return get(name + "Wipe", Key.class);
-    }
-
-    public Key getKycKey(String name) {
-        return getOrElse(name + "Kyc", Key.class, null);
     }
 
     public Long getExpiry(String name) {
@@ -422,6 +338,9 @@ public class HapiSpecRegistry {
         }
         if (txn.hasMemo()) {
             meta.setMemo(txn.getMemo().getValue());
+        }
+        if (txn.hasCustomFees()) {
+            meta.addAllCustomFees(txn.getCustomFees().getFeesList());
         }
         put(name, meta.build());
         if (txn.hasExpirationTime()) {
@@ -615,11 +534,11 @@ public class HapiSpecRegistry {
         return get(name, AccountID.class);
     }
 
-    public AccountID keyAliasIdFor(String keyName) {
+    public AccountID keyAliasIdFor(HapiSpec spec, String keyName) {
         final var key = get(keyName, Key.class);
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(key.toByteString())
                 .build();
     }
@@ -648,6 +567,10 @@ public class HapiSpecRegistry {
 
     public TopicID getTopicID(String name) {
         return get(name, TopicID.class);
+    }
+
+    public boolean hasTopicID(String name) {
+        return registry.containsKey(full(name, TopicID.class));
     }
 
     public TokenID getTokenID(String name) {
@@ -683,6 +606,16 @@ public class HapiSpecRegistry {
 
     public void saveContractId(String name, ContractID id) {
         put(name, id);
+    }
+
+    public void saveContractId(String name, HapiSpec spec, ByteString evmAddress) {
+        put(
+                name,
+                ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(evmAddress)
+                        .build());
     }
 
     public ContractID getContractId(String name) {
@@ -826,18 +759,6 @@ public class HapiSpecRegistry {
         return typeName + "-" + name;
     }
 
-    public void forgetMetadataKey(String name) {
-        remove(name + "Metadata", Key.class);
-    }
-
-    public void saveMetadataKey(String name, Key metadataKey) {
-        put(name + "Metadata", metadataKey, Key.class);
-    }
-
-    public Key getMetadataKey(String name) {
-        return get(name + "Metadata", Key.class);
-    }
-
     public void saveMetadata(String token, String metadata) {
         put(token + "Metadata", metadata, String.class);
     }
@@ -875,5 +796,9 @@ public class HapiSpecRegistry {
         builder.addAllGossipEndpoint(txn.getGossipEndpointList());
         builder.addAllServiceEndpoint(txn.getServiceEndpointList());
         put(name, builder.build());
+    }
+
+    private String getRoleKeyName(String tokenName, KeyRole role) {
+        return String.format("%s_%s_KEY", tokenName, role);
     }
 }

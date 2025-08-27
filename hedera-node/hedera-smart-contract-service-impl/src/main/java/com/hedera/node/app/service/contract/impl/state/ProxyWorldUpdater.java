@@ -153,7 +153,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return entityIdFactory().newContractId(pendingCreation.number());
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(entityIdFactory(), address)
+                    return isLongZero(address)
                             ? asNumberedContractId(entityIdFactory(), address)
                             : asEvmContractId(entityIdFactory(), address);
                 }
@@ -186,15 +186,15 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectGasFee(@NonNull final AccountID payerId, final long amount, final boolean withNonceIncrement) {
         requireNonNull(payerId);
-        enhancement.operations().collectFee(payerId, amount);
+        enhancement.operations().collectGasFee(payerId, amount, withNonceIncrement);
     }
 
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
-        enhancement.operations().refundFee(payerId, amount);
+        enhancement.operations().refundGasFee(payerId, amount);
     }
 
     /**
@@ -287,8 +287,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public @NonNull List<StorageAccesses> pendingStorageUpdates() {
-        return evmFrameState.getStorageChanges();
+    public @NonNull TxStorageUsage getTxStorageUsage() {
+        throw new UnsupportedOperationException("Only root updater can summarize transaction storage usage");
     }
 
     /**
@@ -298,6 +298,15 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     public Optional<ExceptionalHaltReason> tryTrackingSelfDestructBeneficiary(
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         return evmFrameState.tryTrackingSelfDestructBeneficiary(deleted, beneficiary, frame);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void trackSelfDestructBeneficiary(
+            @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
+        evmFrameState.trackSelfDestructBeneficiary(deleted, beneficiary, frame);
     }
 
     /**
@@ -335,16 +344,11 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number,
-                            requireNonNull(pendingCreation.body()),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                            number, requireNonNull(pendingCreation.body()), pendingCreation.aliasIfApplicable());
         } else {
             enhancement
                     .operations()
-                    .createContract(
-                            number,
-                            pendingCreation.parentNumber(),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                    .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
@@ -354,7 +358,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
-        if (isLongZero(entityIdFactory(), address)) {
+        if (isLongZero(address)) {
             enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
         } else {
             enhancement.operations().deleteAliasedContract(aliasFrom(address));
@@ -491,7 +495,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @Nullable final Address alias) {
         final var number = enhancement.operations().peekNextEntityNumber();
         pendingCreation = new PendingCreation(
-                alias == null ? asLongZeroAddress(entityIdFactory(), number) : alias,
+                alias == null ? asLongZeroAddress(number) : alias,
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);

@@ -2,12 +2,12 @@
 package com.swirlds.demo.platform;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class RandomDelayCfg implements SelfSerializable, FastCopyable {
 
@@ -82,7 +82,7 @@ public class RandomDelayCfg implements SelfSerializable, FastCopyable {
                 int low = 0;
                 int high = 0;
 
-                // random select a deley type
+                // random select a delay type
                 for (int i = 0; i < possibilities.length; i++) {
                     if (randomNumber >= sum && randomNumber < (sum + possibilities[i])) {
                         delayTypeSelected = delayType[i];

@@ -15,12 +15,15 @@ tasks.withType<JavaCompile>().configureEach {
 application.mainClass = "com.swirlds.demo.platform.PlatformTestingToolMain"
 
 testModuleInfo {
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.apache.logging.log4j.core")
     requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.params")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.assertj.core")
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.merkledb.test.fixtures")
 }
 
 timingSensitiveModuleInfo {
@@ -33,9 +36,15 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkle.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.config.api")
+    requires("org.hiero.base.crypto")
+    requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.base.utility")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+    requires("org.hiero.consensus.model")
 }
 
 protobuf { protoc { artifact = "com.google.protobuf:protoc" } }

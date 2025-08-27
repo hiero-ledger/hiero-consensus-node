@@ -6,8 +6,8 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.tokenInfoTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.address_0x167.TokenInfoTranslator.TOKEN_INFO_167;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.address_0x16c.TokenInfoTranslator.TOKEN_INFO_16C;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
@@ -35,7 +35,7 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
             final boolean isStaticCall,
             @Nullable final Token token,
             @NonNull final Configuration configuration,
-            Function function) {
+            @NonNull final Function function) {
         super(gasCalculator, enhancement, token);
         this.configuration = requireNonNull(configuration);
         this.isStaticCall = isStaticCall;
@@ -69,14 +69,15 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
             return revertResult(status, gasRequirement);
         }
 
-        return function.getName().equals(TOKEN_INFO.methodName())
+        return function.getName().equals(TOKEN_INFO_167.methodName())
+                        && function.getOutputs().equals(TOKEN_INFO_167.getOutputs())
                 ? successResult(
-                        TOKEN_INFO
+                        TOKEN_INFO_167
                                 .getOutputs()
                                 .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 1))),
                         gasRequirement)
                 : successResult(
-                        TOKEN_INFO_V2
+                        TOKEN_INFO_16C
                                 .getOutputs()
                                 .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 2))),
                         gasRequirement);

@@ -4,13 +4,11 @@ package com.swirlds.platform.config;
 import com.google.auto.service.AutoService;
 import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -19,7 +17,6 @@ import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -33,7 +30,10 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.event.creator.impl.EventCreationConfig;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Registers configuration types for the platform.
@@ -75,7 +75,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 TemporaryFileConfig.class,
                 FileSystemManagerConfig.class,
                 ThreadConfig.class,
-                TransactionConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

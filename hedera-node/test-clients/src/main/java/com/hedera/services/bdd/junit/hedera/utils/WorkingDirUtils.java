@@ -19,7 +19,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -40,6 +39,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.roster.AddressBook;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -83,6 +83,8 @@ public class WorkingDirUtils {
 
     private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
 
+    private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
+
     private WorkingDirUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
@@ -109,7 +111,8 @@ public class WorkingDirUtils {
      * @param workingDir the path to the working directory
      * @param configTxt the contents of the <i>config.txt</i> file
      */
-    public static void recreateWorkingDir(@NonNull final Path workingDir, @NonNull final String configTxt) {
+    public static void recreateWorkingDir(
+            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
         requireNonNull(workingDir);
         requireNonNull(configTxt);
 
@@ -130,7 +133,7 @@ public class WorkingDirUtils {
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
-        updateLog4j2XmlOutputDir(workingDir);
+        updateLog4j2XmlOutputDir(workingDir, nodeId);
     }
 
     /**
@@ -184,7 +187,7 @@ public class WorkingDirUtils {
     public @NonNull static SemanticVersion workingDirVersion() {
         final var loc = Paths.get(System.getProperty("user.dir")).endsWith("hedera-services")
                 ? "version.txt"
-                : "../version.txt";
+                : "../../version.txt";
         final var versionLiteral = readStringUnchecked(Paths.get(loc)).trim();
         return requireNonNull(new SemanticVersionConverter().convert(versionLiteral));
     }
@@ -195,7 +198,7 @@ public class WorkingDirUtils {
                 : Path.of(TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC);
     }
 
-    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir) {
+    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir, long nodeId) {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
@@ -229,7 +232,9 @@ public class WorkingDirUtils {
                                  \s""")
                 .replace(
                         "output/",
-                        workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/");
+                        workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/")
+                // Differentiate between node outputs in combined logging
+                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + "n" + nodeId + "&gt;");
         writeStringUnchecked(path, updatedLog4j2Xml, StandardOpenOption.WRITE);
     }
 
@@ -403,19 +408,22 @@ public class WorkingDirUtils {
                     final var cert = certs.get(nodeId);
                     final var metadata = NodeMetadata.newBuilder()
                             .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
+                    final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
                     if (onlyRoster == OnlyRoster.NO) {
                         metadata.node(new Node(
                                 nodeId,
-                                toPbj(HapiPropertySource.asAccount(parts[9])),
+                                nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
-                                List.of(),
+                                List.of(endpointFrom(parts[5], parts[6])),
                                 cert,
                                 // The gRPC certificate hash is irrelevant for PR checks
                                 Bytes.EMPTY,
                                 weight,
                                 false,
-                                CLASSIC_ADMIN_KEY));
+                                CLASSIC_ADMIN_KEY,
+                                false,
+                                null));
                     }
                     return metadata.build();
                 })

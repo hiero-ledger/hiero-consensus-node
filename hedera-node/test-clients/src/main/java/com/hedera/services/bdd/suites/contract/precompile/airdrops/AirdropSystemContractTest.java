@@ -18,7 +18,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_REFERENC
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -34,12 +35,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-@OrderedInIsolation
 public class AirdropSystemContractTest {
 
     @Contract(contract = "Airdrop", creationGas = 20_000_000L)
@@ -55,7 +54,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(1)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop token")
     public Stream<DynamicTest> airdropToken(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
@@ -70,7 +69,6 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Airdrop NFT")
     public Stream<DynamicTest> airdropNft(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
@@ -84,7 +82,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(3)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Multiple Airdrop token transactions")
     public Stream<DynamicTest> airdropTokens(
             @NonNull @FungibleToken(name = "token1", initialSupply = 1_000_000L) final SpecFungibleToken token1,
@@ -124,7 +122,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(4)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Multiple Airdrop NFT transactions")
     public Stream<DynamicTest> airdropNfts(
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft1,
@@ -168,7 +166,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(5)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop token and NFT")
     public Stream<DynamicTest> airdropTokenAndNft(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
@@ -236,7 +234,6 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(6)
     @DisplayName("Airdrop 10 token and NFT")
     public Stream<DynamicTest> airdrop10TokenAndNft(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
@@ -326,7 +323,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(7)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Should fail Airdrop 11 token and NFT")
     public Stream<DynamicTest> airdrop11TokenAndNft(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
@@ -417,7 +414,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(8)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop fails when the sender does not have enough balance")
     public Stream<DynamicTest> airdropFailsWhenSenderDoesNotHaveEnoughBalance(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
@@ -431,7 +428,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(9)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop fails when the receiver does not have a valid account")
     public Stream<DynamicTest> airdropFailsWhenReceiverDoesNotHaveValidAccount(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token,
@@ -446,7 +443,6 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(10)
     @DisplayName("Airdrop fails when the token does not exist")
     public Stream<DynamicTest> airdropFailsWhenTokenDoesNotExist(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
@@ -458,7 +454,6 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(11)
     @DisplayName("Airdrop fails with nft serials out of bound")
     public Stream<DynamicTest> failToUpdateNFTsMetadata(
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft,
@@ -482,7 +477,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(12)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Distribute NFTs to multiple accounts")
     public Stream<DynamicTest> distributeNfts(
             @NonNull @NonFungibleToken(numPreMints = 3) final SpecNonFungibleToken nft,
@@ -519,7 +514,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(13)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot Distribute 11 NFTs to multiple accounts")
     public Stream<DynamicTest> distributeNftsOutOfBound(
             @NonNull @NonFungibleToken(numPreMints = 11) final SpecNonFungibleToken nft,
@@ -587,7 +582,7 @@ public class AirdropSystemContractTest {
     }
 
     @HapiTest
-    @Order(14)
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot distribute NFTs to multiple accounts when some of the NFTs do not exist")
     public Stream<DynamicTest> failToDistributeNfts(
             @NonNull @NonFungibleToken(numPreMints = 6) final SpecNonFungibleToken nft,

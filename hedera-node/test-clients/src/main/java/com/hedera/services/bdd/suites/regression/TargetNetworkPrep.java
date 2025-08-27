@@ -25,7 +25,6 @@ import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,8 +33,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class TargetNetworkPrep {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
 
     @LeakyHapiTest(requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
@@ -65,7 +62,6 @@ public class TargetNetworkPrep {
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
-                                .expiry(33197904000L, 0)
                                 .key(emptyKey)
                                 .memo("")
                                 .noAlias()
@@ -73,13 +69,12 @@ public class TargetNetworkPrep {
                 getAccountDetails(NODE_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
-                                .expiry(33197904000L, 0)
                                 .key(emptyKey)
                                 .memo("")
                                 .noAlias()
                                 .noAllowances()),
                 withOpContext((spec, opLog) -> {
-                    final var genesisInfo = getAccountInfo(String.format("%s.%s.2", SHARD, REALM));
+                    final var genesisInfo = getAccountInfo("2");
                     allRunFor(spec, genesisInfo);
                     final var key = genesisInfo
                             .getResponse()
@@ -88,7 +83,7 @@ public class TargetNetworkPrep {
                             .getKey();
                     final var cloneConfirmations = inParallel(IntStream.rangeClosed(200, 750)
                             .filter(i -> i < 350 || i >= 400)
-                            .mapToObj(i -> getAccountInfo(String.format("%s.%s.%d", SHARD, REALM, i))
+                            .mapToObj(i -> getAccountInfo(String.valueOf(i))
                                     .noLogging()
                                     .payingWith(GENESIS)
                                     .has(AccountInfoAsserts.accountWith().key(key)))

@@ -2,6 +2,9 @@
 package com.hedera.node.app.blocks.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -14,14 +17,17 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -62,6 +68,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A temporary implementation of {@link StreamBuilder} that forwards all mutating calls to an
@@ -101,16 +108,32 @@ public class PairedStreamBuilder
 
     public PairedStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         recordStreamBuilder = new RecordStreamBuilder(reversingBehavior, customizer, category);
         blockStreamBuilder = new BlockStreamBuilder(reversingBehavior, customizer, category);
     }
 
     @Override
+    public List<StateChange> getStateChanges() {
+        return blockStreamBuilder.getStateChanges();
+    }
+
+    @Override
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         blockStreamBuilder.stateChanges(stateChanges);
         return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        blockStreamBuilder.testForIdenticalKeys(test);
+        return this;
+    }
+
+    @Override
+    public @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return blockStreamBuilder.logicallyIdenticalValueTest();
     }
 
     public BlockStreamBuilder blockStreamBuilder() {
@@ -122,9 +145,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public @NonNull PairedStreamBuilder transaction(@NonNull final Transaction transaction) {
-        recordStreamBuilder.transaction(transaction);
-        blockStreamBuilder.transaction(transaction);
+    public @NonNull PairedStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        recordStreamBuilder.signedTx(signedTx);
+        blockStreamBuilder.signedTx(signedTx);
         return this;
     }
 
@@ -136,9 +159,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public PairedStreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        recordStreamBuilder.serializedTransaction(serializedTransaction);
-        blockStreamBuilder.serializedTransaction(serializedTransaction);
+    public PairedStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        recordStreamBuilder.serializedSignedTx(serializedSignedTx);
+        blockStreamBuilder.serializedSignedTx(serializedSignedTx);
         return this;
     }
 
@@ -150,11 +173,6 @@ public class PairedStreamBuilder
     @Override
     public ScheduleID scheduleID() {
         return blockStreamBuilder.scheduleID();
-    }
-
-    @Override
-    public Transaction transaction() {
-        return recordStreamBuilder.transaction();
     }
 
     @Override
@@ -251,13 +269,6 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public StreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
-        recordStreamBuilder.transactionBytes(transactionBytes);
-        blockStreamBuilder.transactionBytes(transactionBytes);
-        return this;
-    }
-
-    @Override
     public StreamBuilder exchangeRate(@Nullable ExchangeRateSet exchangeRate) {
         recordStreamBuilder.exchangeRate(exchangeRate);
         blockStreamBuilder.exchangeRate(exchangeRate);
@@ -316,11 +327,6 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public ContractFunctionResult contractFunctionResult() {
-        return recordStreamBuilder.contractFunctionResult();
-    }
-
-    @Override
     public List<Long> serialNumbers() {
         return recordStreamBuilder.serialNumbers();
     }
@@ -343,9 +349,58 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(final long senderNonce) {
+        blockStreamBuilder.newSenderNonce(senderNonce);
+        return this;
+    }
+
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractId the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public PairedStreamBuilder createdContractID(@Nullable final ContractID contractId) {
+        recordStreamBuilder.createdContractID(contractId);
+        blockStreamBuilder.createdContractID(contractId);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder createdEvmAddress(@Nullable Bytes evmAddress) {
+        blockStreamBuilder.createdEvmAddress(evmAddress);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        blockStreamBuilder.changedNonceInfo(nonceInfos);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        blockStreamBuilder.createdContractIds(contractIds);
+        return this;
+    }
+
+    @NonNull
+    @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
-        blockStreamBuilder.contractCreateResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        blockStreamBuilder.addLogs(logs);
         return this;
     }
 
@@ -368,16 +423,28 @@ public class PairedStreamBuilder
     public ContractOperationStreamBuilder addContractActions(
             @NonNull ContractActions contractActions, boolean isMigration) {
         recordStreamBuilder.addContractActions(contractActions, isMigration);
-        blockStreamBuilder.addContractActions(contractActions, isMigration);
         return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addContractBytecode(
-            @NonNull ContractBytecode contractBytecode, boolean isMigration) {
+            @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
         recordStreamBuilder.addContractBytecode(contractBytecode, isMigration);
-        blockStreamBuilder.addContractBytecode(contractBytecode, isMigration);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        blockStreamBuilder.addActions(actions);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
+        blockStreamBuilder.addInitcode(initcode);
         return this;
     }
 
@@ -386,7 +453,13 @@ public class PairedStreamBuilder
     public ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration) {
         recordStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
-        blockStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        blockStreamBuilder.addContractSlotUsages(slotUsages);
         return this;
     }
 
@@ -466,7 +539,7 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public CryptoTransferStreamBuilder transferList(@NonNull TransferList hbarTransfers) {
+    public CryptoTransferStreamBuilder transferList(@NonNull final TransferList hbarTransfers) {
         recordStreamBuilder.transferList(hbarTransfers);
         blockStreamBuilder.transferList(hbarTransfers);
         return this;
@@ -512,7 +585,20 @@ public class PairedStreamBuilder
     @Override
     public PairedStreamBuilder contractCallResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCallResult(result);
-        blockStreamBuilder.contractCallResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+        blockStreamBuilder.evmCallTransactionResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable final EvmTransactionResult result) {
+        blockStreamBuilder.evmCreateTransactionResult(result);
         return this;
     }
 

@@ -68,7 +68,7 @@ public class RejectTokensTranslator extends AbstractCallTranslator<HtsCallAttemp
                 attempt.configuration().getConfigData(ContractsConfig.class).systemContractRejectTokensEnabled();
 
         if (!rejectEnabled) return Optional.empty();
-        return attempt.isTokenRedirect()
+        return attempt.isRedirect()
                 ? attempt.isMethod(HRC_TOKEN_REJECT_FT, HRC_TOKEN_REJECT_NFT)
                 : attempt.isMethod(TOKEN_REJECT);
     }

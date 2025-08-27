@@ -6,6 +6,7 @@ import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A state machine that processes {@link PlatformStatusAction}s

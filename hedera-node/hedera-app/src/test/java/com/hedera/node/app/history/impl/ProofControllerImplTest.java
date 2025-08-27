@@ -27,8 +27,8 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -53,7 +53,7 @@ class ProofControllerImplTest {
     private static final Bytes PROOF = Bytes.wrap("P");
     private static final Bytes SIGNATURE = Bytes.wrap("S");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    private static final TssKeyPair PROOF_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
+    private static final SchnorrKeyPair PROOF_KEY_PAIR = new SchnorrKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final ProofKeyPublication SELF_KEY_PUBLICATION =
             new ProofKeyPublication(SELF_ID, Bytes.EMPTY, CONSENSUS_NOW);
     private static final HistorySignaturePublication SELF_SIGNATURE_PUBLICATION =
@@ -157,6 +157,7 @@ class ProofControllerImplTest {
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         final var mockHistory = new History(Bytes.EMPTY, METADATA);
         given(library.signSchnorr(any(), any())).willReturn(Bytes.EMPTY);
+        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
         final var expectedSignature = new HistorySignature(mockHistory, Bytes.EMPTY);
         given(submissions.submitAssemblySignature(CONSTRUCTION_ID, expectedSignature))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -171,6 +172,7 @@ class ProofControllerImplTest {
 
     @Test
     void startsSigningFutureOnceAssemblyScheduledButInsufficientSignaturesKnown() {
+        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION, List.of(), List.of(), Map.of(), LEDGER_ID);
 
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
@@ -220,6 +222,7 @@ class ProofControllerImplTest {
 
     @Test
     void startsProofWithSufficientSignatures() {
+        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(library.verifySchnorr(any(), any(), any())).willReturn(true);
         setupWith(
@@ -251,6 +254,7 @@ class ProofControllerImplTest {
 
     @Test
     void usesSourceProofIfAvailable() {
+        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(library.verifySchnorr(any(), any(), any())).willReturn(true);
         setupWith(
@@ -330,6 +334,7 @@ class ProofControllerImplTest {
 
     @Test
     void votingWorksAsExpectedWithUnknownLedgerId() {
+        given(library.snarkVerificationKey()).willReturn(Bytes.EMPTY);
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF, List.of(), List.of(), Map.of(), null);
         subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 

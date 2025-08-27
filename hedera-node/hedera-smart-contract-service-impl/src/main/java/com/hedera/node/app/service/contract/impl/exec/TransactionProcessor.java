@@ -3,33 +3,37 @@ package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.sponsorCustomizedCreation;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.txStorageUsageFrom;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.function.Supplier;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
@@ -91,7 +95,6 @@ public class TransactionProcessor {
      *
      * @param transaction the transaction to process
      * @param updater the world updater to commit to
-     * @param feesOnlyUpdater if base commit fails, a fees-only updater
      * @param context the context to use
      * @param tracer the tracer to use
      * @param config the node configuration
@@ -100,21 +103,22 @@ public class TransactionProcessor {
     public HederaEvmTransactionResult processTransaction(
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final HederaEvmContext context,
             @NonNull final ActionSidecarContentTracer tracer,
-            @NonNull final Configuration config) {
+            @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter) {
         final var parties = computeInvolvedPartiesOrAbort(transaction, updater, config);
-        return processTransactionWithParties(transaction, updater, feesOnlyUpdater, context, tracer, config, parties);
+        return processTransactionWithParties(
+                transaction, updater, context, tracer, config, opsDurationCounter, parties);
     }
 
     private HederaEvmTransactionResult processTransactionWithParties(
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final HederaEvmContext context,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
         final var gasCharges =
                 gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
@@ -123,6 +127,7 @@ public class TransactionProcessor {
                 updater,
                 context,
                 config,
+                opsDurationCounter,
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
@@ -143,7 +148,7 @@ public class TransactionProcessor {
         initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
 
         // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
-        return safeCommit(result, transaction, updater, feesOnlyUpdater, context, config);
+        return safeCommit(result, transaction, updater, context, accessTrackerFor(initialFrame));
     }
 
     private InvolvedParties computeInvolvedPartiesOrAbort(
@@ -155,7 +160,7 @@ public class TransactionProcessor {
         } catch (HandleException e) {
             throw e;
         } catch (Exception e) {
-            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
 
@@ -163,36 +168,23 @@ public class TransactionProcessor {
             @NonNull final HederaEvmTransactionResult result,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final HederaEvmContext context,
-            @NonNull final Configuration config) {
+            @Nullable final StorageAccessTracker accessTracker) {
         try {
             updater.commit();
+            if (result.isSuccess()) {
+                final var txStorageUsage = txStorageUsageFrom((ProxyWorldUpdater) updater, accessTracker, true);
+                if (txStorageUsage != null) {
+                    return result.withTxStorageUsage(txStorageUsage);
+                }
+            }
+            return result;
         } catch (ResourceExhaustedException e) {
-
-            // Behind the scenes there is only one savepoint stack; so we need to revert the root updater
-            // before creating a new fees-only updater (even though from a Besu perspective, these two
-            // updaters appear independent, they are not)
             updater.revert();
-            return commitResourceExhaustion(transaction, feesOnlyUpdater.get(), context, e.getStatus(), config);
+            final var sender = updater.getHederaAccount(transaction.senderId());
+            return resourceExhaustionFrom(
+                    requireNonNull(sender).hederaId(), transaction.gasLimit(), context.gasPrice(), e.getStatus());
         }
-        return result;
-    }
-
-    private HederaEvmTransactionResult commitResourceExhaustion(
-            @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater updater,
-            @NonNull final HederaEvmContext context,
-            @NonNull final ResponseCodeEnum reason,
-            @NonNull final Configuration config) {
-        // Note that computing involved parties and charging for gas are guaranteed to succeed here,
-        // or processTransaction() would have aborted right away
-        final var parties = computeInvolvedParties(transaction, updater, config);
-        gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
-        // (FUTURE) Once fee charging is more consumable in the HandleContext, we will also want
-        // to re-charge top-level HAPI fees in this edge case (not only gas); not urgent though
-        updater.commit();
-        return resourceExhaustionFrom(parties.senderId(), transaction.gasLimit(), context.gasPrice(), reason);
     }
 
     /**
@@ -304,15 +296,19 @@ public class TransactionProcessor {
                 updater.setupTopLevelLazyCreate(requireNonNull(parties.receiverAddress));
             } else {
                 updater.setContractNotRequired();
-                parties =
-                        new InvolvedParties(sender, relayer, contractIDToBesuAddress(transaction.contractIdOrThrow()));
+                parties = new InvolvedParties(
+                        sender,
+                        relayer,
+                        contractIDToBesuAddress(updater.entityIdFactory(), transaction.contractIdOrThrow()));
             }
         } else {
             updater.setContractNotRequired();
             parties = new InvolvedParties(
                     sender,
                     relayer,
-                    to != null ? to.getAddress() : contractIDToBesuAddress(transaction.contractIdOrThrow()));
+                    to != null
+                            ? to.getAddress()
+                            : contractIDToBesuAddress(updater.entityIdFactory(), transaction.contractIdOrThrow()));
         }
         return parties;
     }
@@ -321,6 +317,6 @@ public class TransactionProcessor {
             @NonNull final HederaEvmTransaction transaction,
             @Nullable final HederaEvmAccount to,
             @NonNull final Configuration config) {
-        return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled(config);
+        return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled();
     }
 }

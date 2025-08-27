@@ -3,36 +3,36 @@ package com.swirlds.platform.builder;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
+import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
+import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -56,10 +56,9 @@ import java.util.function.Supplier;
  *                                               not been enabled
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
- * @param randomBuilder                          a builder for creating random number generators
- * @param transactionPoolNexus                   provides transactions to be added to new events
- * @param isInFreezePeriodReference              a reference to a predicate that determines if a timestamp is in the
- *                                               freeze period, this can be deleted as soon as the CES is retired.
+ * @param secureRandomSupplier                   a source of secure random number generator instances
+ * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
+ *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
  *                                               argument is a string explaining why we are getting this state (for
  *                                               debugging). Return value may be null (implementation detail of
@@ -84,6 +83,9 @@ import java.util.function.Supplier;
  *                                               reconnect, can be removed once reconnect is made compatible with the
  *                                               wiring framework
  * @param platformStateFacade                    the facade to access the platform state
+ * @param execution                              the instance of the execution layer, which allows consensus to interact
+ *                                               with the execution layer
+ * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformWiring platformWiring,
@@ -93,16 +95,15 @@ public record PlatformBuildingBlocks(
         @NonNull NodeId selfId,
         @NonNull String mainClassName,
         @NonNull String swirldName,
-        @NonNull SoftwareVersion appVersion,
+        @NonNull SemanticVersion appVersion,
         @NonNull ReservedSignedState initialState,
         @NonNull RosterHistory rosterHistory,
         @NonNull ApplicationCallbacks applicationCallbacks,
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull RandomBuilder randomBuilder,
-        @NonNull TransactionPoolNexus transactionPoolNexus,
-        @NonNull AtomicReference<Predicate<Instant>> isInFreezePeriodReference,
+        @NonNull Supplier<SecureRandom> secureRandomSupplier,
+        @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
@@ -115,7 +116,9 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade) {
+        @NonNull PlatformStateFacade platformStateFacade,
+        @NonNull ExecutionLayer execution,
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -130,9 +133,8 @@ public record PlatformBuildingBlocks(
         requireNonNull(rosterHistory);
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
-        requireNonNull(randomBuilder);
-        requireNonNull(transactionPoolNexus);
-        requireNonNull(isInFreezePeriodReference);
+        requireNonNull(secureRandomSupplier);
+        requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
         requireNonNull(consensusEventStreamName);
@@ -143,5 +145,9 @@ public record PlatformBuildingBlocks(
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(loadReconnectStateReference);
         requireNonNull(clearAllPipelinesForReconnectReference);
+        requireNonNull(consensusStateEventHandler);
+        requireNonNull(platformStateFacade);
+        requireNonNull(execution);
+        requireNonNull(createStateFromVirtualMap);
     }
 }

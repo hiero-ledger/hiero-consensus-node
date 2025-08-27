@@ -3,6 +3,8 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
 import com.hedera.cryptography.rpm.HistoryLibraryBridge;
 import com.hedera.cryptography.rpm.ProvingAndVerifyingSnarkKeys;
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
@@ -12,27 +14,29 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.SplittableRandom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
+    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
+
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
-    private static final ProvingAndVerifyingSnarkKeys SNARK_KEYS;
-
-    static {
+    private static final Supplier<ProvingAndVerifyingSnarkKeys> SNARK_KEYS = Suppliers.memoize(() -> {
         try {
-            final var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
-            SNARK_KEYS = BRIDGE.snarkVerificationKey(elf);
+            var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
+            return BRIDGE.snarkVerificationKey(elf);
         } catch (IOException e) {
             throw new IllegalStateException("Could not load HistoryLibrary ELF", e);
         }
-    }
+    });
 
     @Override
     public Bytes snarkVerificationKey() {
-        return Bytes.wrap(SNARK_KEYS.verifyingKey());
+        return Bytes.wrap(SNARK_KEYS.get().verifyingKey());
     }
 
     @Override
@@ -70,56 +74,52 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public Bytes hashHintsVerificationKey(@NonNull final Bytes hintsVerificationKey) {
+        requireNonNull(hintsVerificationKey);
         return Bytes.wrap(BRIDGE.hashHintsVerificationKey(hintsVerificationKey.toByteArray()));
     }
 
     @NonNull
     @Override
     public Bytes proveChainOfTrust(
-            @NonNull final Bytes ledgerId,
+            @NonNull final Bytes genesisAddressBookHash,
             @Nullable final Bytes sourceProof,
             @NonNull final long[] currentAddressBookWeights,
             @NonNull final byte[][] currentAddressBookVerifyingKeys,
             @NonNull final long[] nextAddressBookWeights,
             @NonNull final byte[][] nextAddressBookVerifyingKeys,
             @NonNull byte[][] sourceSignatures,
-            @NonNull final Bytes targetMetadata) {
-        requireNonNull(ledgerId);
+            @NonNull final Bytes targetMetadataHash) {
+        requireNonNull(genesisAddressBookHash);
         requireNonNull(currentAddressBookWeights);
         requireNonNull(currentAddressBookVerifyingKeys);
         requireNonNull(nextAddressBookWeights);
         requireNonNull(nextAddressBookVerifyingKeys);
         requireNonNull(sourceSignatures);
-        requireNonNull(targetMetadata);
+        requireNonNull(targetMetadataHash);
         if (currentAddressBookWeights.length != currentAddressBookVerifyingKeys.length) {
             throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
         }
         if (nextAddressBookWeights.length != nextAddressBookVerifyingKeys.length) {
             throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
         }
-        return Bytes.wrap(BRIDGE.proveChainOfTrust(
-                SNARK_KEYS.provingKey(),
-                SNARK_KEYS.verifyingKey(),
-                ledgerId.toByteArray(),
+        final var proof = BRIDGE.proveChainOfTrust(
+                SNARK_KEYS.get().provingKey(),
+                SNARK_KEYS.get().verifyingKey(),
+                genesisAddressBookHash.toByteArray(),
                 currentAddressBookVerifyingKeys,
                 currentAddressBookWeights,
                 nextAddressBookVerifyingKeys,
                 nextAddressBookWeights,
                 sourceProof == null ? null : sourceProof.toByteArray(),
-                targetMetadata.toByteArray(),
-                sourceSignatures));
+                targetMetadataHash.toByteArray(),
+                sourceSignatures);
+        requireNonNull(proof);
+        return Bytes.wrap(proof);
     }
 
     @Override
-    public boolean verifyChainOfTrust(
-            @NonNull final Bytes ledgerId,
-            @NonNull final Bytes addressBookHash,
-            @NonNull final Bytes metadata,
-            @NonNull final Bytes proof) {
-        requireNonNull(ledgerId);
-        requireNonNull(addressBookHash);
-        requireNonNull(metadata);
+    public boolean verifyChainOfTrust(@NonNull final Bytes proof) {
         requireNonNull(proof);
-        return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
+        return BRIDGE.verifyChainOfTrust(SNARK_KEYS.get().verifyingKey(), proof.toByteArray());
     }
 }

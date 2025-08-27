@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.deterministic;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.TraceableWiringModel;
@@ -35,12 +35,10 @@ public class DeterministicHeartbeatScheduler extends AbstractHeartbeatScheduler 
      * Constructor.
      *
      * @param model the wiring model containing this heartbeat scheduler
-     * @param time  provides wall clock time
-     * @param name  the name of the heartbeat scheduler
+     * @param time provides wall clock time
      */
-    public DeterministicHeartbeatScheduler(
-            @NonNull final TraceableWiringModel model, @NonNull final Time time, @NonNull final String name) {
-        super(model, time, name);
+    public DeterministicHeartbeatScheduler(@NonNull final TraceableWiringModel model, @NonNull final Time time) {
+        super(model, time);
     }
 
     /**

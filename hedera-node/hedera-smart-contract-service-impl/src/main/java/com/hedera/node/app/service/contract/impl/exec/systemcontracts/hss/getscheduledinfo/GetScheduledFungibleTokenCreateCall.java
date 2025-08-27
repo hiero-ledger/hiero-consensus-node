@@ -40,22 +40,27 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
     @NonNull
     @Override
     public PricedResult execute(MessageFrame frame) {
-        final var schedule = nativeOperations().getSchedule(scheduleID.scheduleNum());
+        final var schedule = nativeOperations().getSchedule(scheduleID);
         // Validate that given schedule exists
         if (schedule == null) {
-            return gasOnly(revertResult(RECORD_NOT_FOUND, gasCalculator.viewGasRequirement()), RECORD_NOT_FOUND, true);
+            return gasOnly(
+                    revertResult(RECORD_NOT_FOUND, gasCalculator.viewGasRequirement()), RECORD_NOT_FOUND, isViewCall);
         }
         // Validate that give schedule is a token creation schedule
         if (schedule.scheduledTransaction() == null
                 || schedule.scheduledTransaction().tokenCreation() == null) {
             return gasOnly(
-                    revertResult(INVALID_SCHEDULE_ID, gasCalculator.viewGasRequirement()), INVALID_SCHEDULE_ID, true);
+                    revertResult(INVALID_SCHEDULE_ID, gasCalculator.viewGasRequirement()),
+                    INVALID_SCHEDULE_ID,
+                    isViewCall);
         }
         // Validate that given schedule is a fungible token creation schedule
         final var tokenCreation = schedule.scheduledTransaction().tokenCreation();
         if (tokenCreation.tokenType() != TokenType.FUNGIBLE_COMMON) {
             return gasOnly(
-                    revertResult(INVALID_SCHEDULE_ID, gasCalculator.viewGasRequirement()), INVALID_SCHEDULE_ID, true);
+                    revertResult(INVALID_SCHEDULE_ID, gasCalculator.viewGasRequirement()),
+                    INVALID_SCHEDULE_ID,
+                    isViewCall);
         }
 
         // Return the token create transaction body parsed to fungible token info tuple
@@ -69,6 +74,6 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
                                         SUCCESS.protoOrdinal(), fungibleTokenInfoTupleFor(tokenCreation, ledgerId, 1))),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
-                true);
+                isViewCall);
     }
 }

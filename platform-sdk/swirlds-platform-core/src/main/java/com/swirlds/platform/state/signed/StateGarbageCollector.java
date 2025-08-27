@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -14,9 +13,9 @@ public interface StateGarbageCollector {
      * Register a signed state with the garbage collector. The garbage collector will eventually delete the state when
      * it is no longer needed.
      *
-     * @param stateAndRound the state to register
+     * @param reservedSignedState the state to register
      */
-    void registerState(@NonNull StateAndRound stateAndRound);
+    void registerState(@NonNull ReservedSignedState reservedSignedState);
 
     /**
      * This method is called periodically to give the signed state manager a chance to delete states.

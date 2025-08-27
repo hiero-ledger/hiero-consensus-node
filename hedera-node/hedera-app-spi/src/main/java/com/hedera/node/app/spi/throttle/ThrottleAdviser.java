@@ -16,4 +16,18 @@ public interface ThrottleAdviser {
      * at the instant for which throttling should be calculated
      */
     boolean shouldThrottleNOfUnscaled(int n, HederaFunctionality function);
+
+    /**
+     * Returns the available ops duration capacity for the execution.
+     * Takes into account the amount leaked from the bucket up to the current consensus time.
+     */
+    long availableOpsDurationCapacity();
+
+    /**
+     * Consumes a given amount of ops duration units from the throttle's capacity.
+     * Takes into account the amount leaked from the bucket up to the current consensus time.
+     * If the amount to consume is greater than the available amount then consumes
+     * the available amount and returns (does not fail).
+     */
+    void consumeOpsDurationThrottleCapacity(long opsDurationUnitsToConsume);
 }

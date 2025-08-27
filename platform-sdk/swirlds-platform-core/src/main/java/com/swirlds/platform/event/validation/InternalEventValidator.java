@@ -2,9 +2,9 @@
 package com.swirlds.platform.event.validation;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Validates that events are internally complete and consistent.

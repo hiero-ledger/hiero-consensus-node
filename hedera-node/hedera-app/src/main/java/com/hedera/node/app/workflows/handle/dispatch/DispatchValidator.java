@@ -4,12 +4,13 @@ package com.hedera.node.app.workflows.handle.dispatch;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
+import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newGenesisWaiver;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
@@ -18,7 +19,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -30,6 +30,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,6 +45,9 @@ public class DispatchValidator {
     private final TransactionChecker transactionChecker;
     private final AppFeeCharging feeCharging;
 
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     /**
      * Creates an error reporter with the given dependencies.
      *
@@ -54,10 +58,12 @@ public class DispatchValidator {
     public DispatchValidator(
             @NonNull final HederaRecordCache recordCache,
             @NonNull final TransactionChecker transactionChecker,
-            @NonNull final AppFeeCharging feeCharging) {
+            @NonNull final AppFeeCharging feeCharging,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     /**
@@ -69,6 +75,9 @@ public class DispatchValidator {
      * @return the error report
      */
     public FeeCharging.Validation validateFeeChargingScenario(@NonNull final Dispatch dispatch) {
+        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
+            return newGenesisWaiver(dispatch.creatorInfo().accountId());
+        }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
@@ -77,7 +86,7 @@ public class DispatchValidator {
                     getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
             final var category = dispatch.txnCategory();
             // Check payer signature for all batch inner transactions, scheduled, and user transactions
-            final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH;
+            final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
             if (requiresPayerSig && !isHollow(payer)) {
                 // Skip payer verification for hollow accounts because ingest only submits valid signatures
                 // for hollow payers; and if an account is still hollow here, its alias cannot have changed
@@ -86,7 +95,7 @@ public class DispatchValidator {
                     return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
                 }
             }
-            final var duplicateCheckResult = category != USER && category != NODE && category != BATCH
+            final var duplicateCheckResult = category != USER && category != NODE && category != BATCH_INNER
                     ? NO_DUPLICATE
                     : recordCache.hasDuplicate(
                             dispatch.txnInfo().txBody().transactionIDOrThrow(),
@@ -97,10 +106,6 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
-    }
-
-    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
-        return txnBody.hasBatchKey();
     }
 
     /**
@@ -132,10 +137,11 @@ public class DispatchValidator {
         }
         return switch (duplicateStatus) {
             case DUPLICATE -> newPayerDuplicateError(creatorId, payer);
-            case NO_DUPLICATE -> dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
-                    ? validation
-                    : newPayerUniqueError(
-                            creatorId, payer, dispatch.preHandleResult().responseCode());
+            case NO_DUPLICATE ->
+                dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
+                        ? validation
+                        : newPayerUniqueError(
+                                creatorId, payer, dispatch.preHandleResult().responseCode());
         };
     }
 
@@ -164,7 +170,7 @@ public class DispatchValidator {
      */
     @Nullable
     private ResponseCodeEnum getExpiryError(final @NonNull Dispatch dispatch) {
-        if (dispatch.txnCategory() != USER && dispatch.txnCategory() != NODE && dispatch.txnCategory() != BATCH) {
+        if (dispatch.txnCategory() != USER && dispatch.txnCategory() != NODE && dispatch.txnCategory() != BATCH_INNER) {
             return null;
         }
         try {
@@ -197,10 +203,18 @@ public class DispatchValidator {
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
-            case USER, NODE, BATCH -> {
-                if (account == null || account.deleted() || account.smartContract()) {
-                    throw new IllegalStateException("Category " + category
-                            + " payer account should have resulted in failure upstream " + account);
+            case USER, NODE, BATCH_INNER -> {
+                if (account == null) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s does not exists", category, accountID));
+                }
+                if (account.deleted()) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s is deleted", category, accountID));
+                }
+                if (account.smartContract()) {
+                    throw new IllegalStateException(String.format(
+                            "Category %s payer account with id %s is a smart contract", category, accountID));
                 }
                 yield account;
             }

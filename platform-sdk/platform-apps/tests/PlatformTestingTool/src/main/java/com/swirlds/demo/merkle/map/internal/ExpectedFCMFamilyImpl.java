@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map.internal;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.Crypto;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.FCQ;
@@ -12,9 +11,9 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Cre
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Delete;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Expire;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Rebuild;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -51,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementation of {#link ExpectedFCMFamily} that keeps track of keys available in either of the FCMs from
@@ -344,7 +344,7 @@ public final class ExpectedFCMFamilyImpl implements ExpectedFCMFamily {
      * 		if it is true, return a MapKey in corresponding selfEntitiesList
      * @param restrictedCount
      * 		if non-zero, this will only select a subset of this many items out of the appropriate entity list
-     * 		convering the range.  So if there were 9 entities in the list and this was 2, you'd get either 0 or 8
+     * 		covering the range.  So if there were 9 entities in the list and this was 2, you'd get either 0 or 8
      * 		randomly. 3 would select from 0, 4, and 8, etc.
      * @return MapKey if found
      */
@@ -501,7 +501,7 @@ public final class ExpectedFCMFamilyImpl implements ExpectedFCMFamily {
      * 		corresponding SelfEntitiesList
      * @param restrictedCount
      * 		if non-zero, this will only select a subset of this many items out of the appropriate entity list
-     * 		convering the range.  So if there were 9 entities in the list and this was 2, you'd get either 0 or 8
+     * 		covering the range.  So if there were 9 entities in the list and this was 2, you'd get either 0 or 8
      * 		randomly. 3 would select from 0, 4, and 8, etc.
      * @return Random MapKey
      */

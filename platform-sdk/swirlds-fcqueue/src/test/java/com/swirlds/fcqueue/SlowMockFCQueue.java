@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 import static com.swirlds.fcqueue.internal.FCQHashAlgorithm.HASH_RADIX;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
 import com.swirlds.fcqueue.internal.FCQHashAlgorithm;
 import com.swirlds.fcqueue.internal.FCQueueNode;
@@ -20,6 +15,11 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A threadsafe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  * a write to that queue, but it is unaffected by writes to other queues in that queue group.
  */
 public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> extends FCQueue<E> {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static final long CLASS_ID = 0x69c284363f531bccL;
 

@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -39,21 +38,18 @@ import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -88,9 +84,6 @@ class TransactionModuleTest {
     private SystemContractOperations systemContractOperations;
 
     @Mock
-    private EvmFrameStateFactory factory;
-
-    @Mock
     private EthereumCallDataHydration hydration;
 
     @Mock
@@ -111,16 +104,6 @@ class TransactionModuleTest {
     @Test
     void createsEvmActionTracer() {
         assertInstanceOf(EvmActionTracer.class, provideEvmActionTracer());
-    }
-
-    @Test
-    void feesOnlyUpdaterIsProxyUpdater() {
-        final var enhancement =
-                new HederaWorldUpdater.Enhancement(hederaOperations, nativeOperations, systemContractOperations);
-        assertInstanceOf(
-                ProxyWorldUpdater.class,
-                TransactionModule.provideFeesOnlyUpdater(enhancement, factory).get());
-        verify(hederaOperations).begin();
     }
 
     @Test
@@ -149,7 +132,7 @@ class TransactionModuleTest {
 
     @Test
     void providesCorrespondingKeyForAvailableEthTxData() {
-        final var hydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA);
+        final var hydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false);
         given(ethTxSigsCache.computeIfAbsent(ETH_DATA_WITH_CALL_DATA))
                 .willReturn(
                         new EthTxSigs(A_SECP256K1_KEY.ecdsaSecp256k1OrThrow().toByteArray(), new byte[0]));
@@ -157,11 +140,12 @@ class TransactionModuleTest {
     }
 
     @Test
-    void providesExpectedEvmContext() {
+    void providesExpectedEvmContextWithExplicitTracingOff() {
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
         final var stack = mock(HandleContext.SavepointStack.class);
+        final var metadata = mock(HandleContext.DispatchMetadata.class);
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
@@ -170,7 +154,7 @@ class TransactionModuleTest {
                 context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
-        assertSame(recordBuilder, result.recordBuilder());
+        assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
     }
 
@@ -182,7 +166,7 @@ class TransactionModuleTest {
         final var body =
                 TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
         given(context.body()).willReturn(body);
-        final var expectedHydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA);
+        final var expectedHydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false);
         given(hydration.tryToHydrate(ethTxn, fileStore, DEFAULT_HEDERA_CONFIG.firstUserEntity()))
                 .willReturn(expectedHydration);
         assertSame(

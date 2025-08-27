@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.base.crypto.Hash;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the
@@ -48,7 +47,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     /**
      * The version of the application software that was responsible for creating this state.
      */
-    private SoftwareVersion creationSoftwareVersion;
+    private SemanticVersion creationSoftwareVersion;
 
     private boolean creationSoftwareVersionUpdated;
 
@@ -73,6 +72,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     private boolean freezeTimeUpdated;
 
+    private long latestFreezeRound;
+
+    private boolean latestFreezeRoundUpdated;
+
     /**
      * the last time when a freeze was performed
      */
@@ -80,37 +83,14 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     private boolean lastFrozenTimeUpdated;
 
-    /**
-     * Null if birth round migration has not yet happened, otherwise the software version that was first used when the
-     * birth round migration was performed.
-     */
-    private SoftwareVersion firstVersionInBirthRoundMode;
-
-    private boolean firstVersionInBirthRoundModeUpdated;
-
-    /**
-     * The last round before the birth round mode was enabled, or -1 if birth round mode has not yet been enabled.
-     */
-    private long lastRoundBeforeBirthRoundMode = -1;
-
-    private boolean lastRoundBeforeBirthRoundModeUpdated;
-
-    /**
-     * The lowest judge generation before the birth round mode was enabled, or -1 if birth round mode has not yet been
-     * enabled.
-     */
-    private long lowestJudgeGenerationBeforeBirthRoundMode = -1;
-
-    private boolean lowestJudgeGenerationBeforeBirthRoundModeUpdated;
-
     @NonNull
     @Override
-    public SoftwareVersion getCreationSoftwareVersion() {
+    public SemanticVersion getCreationSoftwareVersion() {
         return creationSoftwareVersion;
     }
 
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         this.creationSoftwareVersion = Objects.requireNonNull(creationVersion);
         creationSoftwareVersionUpdated = true;
     }
@@ -189,8 +169,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * than this value are ancient.
      *
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
      *
      * @return the ancient threshold after this round has reached consensus
@@ -208,7 +187,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
                     "No minimum judge info found in state for round " + round + ", list is empty");
         }
 
-        return minimumJudgeInfo.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfo.getFirst().minimumJudgeBirthRound();
     }
 
     /**
@@ -285,6 +264,11 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         return lastFrozenTime;
     }
 
+    @Override
+    public long getLatestFreezeRound() {
+        return latestFreezeRound;
+    }
+
     /**
      * Sets the last freezeTime based on which the nodes were frozen.
      *
@@ -296,71 +280,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         lastFrozenTimeUpdated = true;
     }
 
-    /**
-     * Get the first software version where the birth round migration happened, or null if birth round migration has not
-     * yet happened.
-     *
-     * @return the first software version where the birth round migration happened
-     */
     @Override
-    @Nullable
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
-        return firstVersionInBirthRoundMode;
-    }
-
-    /**
-     * Set the first software version where the birth round migration happened.
-     *
-     * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
-     */
-    @Override
-    public void setFirstVersionInBirthRoundMode(final SoftwareVersion firstVersionInBirthRoundMode) {
-        this.firstVersionInBirthRoundMode = firstVersionInBirthRoundMode;
-        firstVersionInBirthRoundModeUpdated = true;
-    }
-
-    /**
-     * Get the last round before the birth round mode was enabled, or -1 if birth round mode has not yet been enabled.
-     *
-     * @return the last round before the birth round mode was enabled
-     */
-    @Override
-    public long getLastRoundBeforeBirthRoundMode() {
-        return lastRoundBeforeBirthRoundMode;
-    }
-
-    /**
-     * Set the last round before the birth round mode was enabled.
-     *
-     * @param lastRoundBeforeBirthRoundMode the last round before the birth round mode was enabled
-     */
-    @Override
-    public void setLastRoundBeforeBirthRoundMode(final long lastRoundBeforeBirthRoundMode) {
-        this.lastRoundBeforeBirthRoundMode = lastRoundBeforeBirthRoundMode;
-        lastRoundBeforeBirthRoundModeUpdated = true;
-    }
-
-    /**
-     * Get the lowest judge generation before the birth round mode was enabled, or -1 if birth round mode has not yet
-     * been enabled.
-     *
-     * @return the lowest judge generation before the birth round mode was enabled
-     */
-    @Override
-    public long getLowestJudgeGenerationBeforeBirthRoundMode() {
-        return lowestJudgeGenerationBeforeBirthRoundMode;
-    }
-
-    /**
-     * Set the lowest judge generation before the birth round mode was enabled.
-     *
-     * @param lowestJudgeGenerationBeforeBirthRoundMode the lowest judge generation before the birth round mode was
-     *                                                  enabled
-     */
-    @Override
-    public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
-        this.lowestJudgeGenerationBeforeBirthRoundMode = lowestJudgeGenerationBeforeBirthRoundMode;
-        lowestJudgeGenerationBeforeBirthRoundModeUpdated = true;
+    public void setLatestFreezeRound(final long latestFreezeRound) {
+        this.latestFreezeRound = latestFreezeRound;
+        latestFreezeRoundUpdated = true;
     }
 
     public boolean isRoundUpdated() {
@@ -395,16 +318,8 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         return lastFrozenTimeUpdated;
     }
 
-    public boolean isFirstVersionInBirthRoundModeUpdated() {
-        return firstVersionInBirthRoundModeUpdated;
-    }
-
-    public boolean isLastRoundBeforeBirthRoundModeUpdated() {
-        return lastRoundBeforeBirthRoundModeUpdated;
-    }
-
-    public boolean isLowestJudgeGenerationBeforeBirthRoundModeUpdated() {
-        return lowestJudgeGenerationBeforeBirthRoundModeUpdated;
+    public boolean isLatestFreezeRoundUpdated() {
+        return latestFreezeRoundUpdated;
     }
 
     @Override

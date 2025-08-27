@@ -66,18 +66,21 @@ message EventCore {
   proto.Timestamp time_created = 3;
 
   /**
-   * A list of EventDescriptors representing the parents of this event.<br/>
-   * The list of parents SHALL include zero or one self parents, and zero or more other parents.<br/>
-   * The first element of the list SHALL be the self parent, if one exists.<br/>
-   * The list of parents SHALL NOT include more than one parent from the same creator.
+   * A random number used in the unlikely case that the consensus algorithm gets to a coin vote.<br/>
+   * This number SHALL be used to break ties in the consensus algorithm.<br/>
+   * The number SHALL be between 0 and the size of the roster (inclusive) for the event's birth round.<br/>
+   * For example, if the roster size is 10, the minimum value is 0 and the maximum value is 10.<br/>
    */
-  repeated EventDescriptor parents = 4;
+  int64 coin = 5;
 
   /**
-   * The event specification version.<br/>
-   * The specification described by this version SHALL encompass the format of the `GossipEvent` message, and also the
-   * format of all contained messages.<br/>
-   * This SHALL exactly match the specification version passed into the platform at construction.
+   * Used to be a list of EventDescriptors representing the parents of this event.<br/>
+   * This field has been moved to GossipEvent.
    */
-  proto.SemanticVersion version = 17; // This field is temporary until birth_round migration is complete. Field number 17 chosen to avoid polluting cheaper 1 byte field numbers 1-16
+  reserved 4;
+
+  /**
+   * Previously used as the software version of the node that created this event.
+   */
+  reserved 17;
 }

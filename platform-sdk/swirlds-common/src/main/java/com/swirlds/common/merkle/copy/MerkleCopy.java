@@ -3,13 +3,13 @@ package com.swirlds.common.merkle.copy;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.MerkleCopyException;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.util.LinkedList;
 import java.util.Queue;
+import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * A collection of utility methods for performing copies of a merkle tree.
@@ -86,7 +86,7 @@ public final class MerkleCopy {
      * </p>
      *
      * @param parent
-     * 		the destination parent where that will hold the subree
+     * 		the destination parent where that will hold the subtree
      * @param index
      * 		the destination index where the subtree will sit
      * @param child

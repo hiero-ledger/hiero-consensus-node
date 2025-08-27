@@ -9,12 +9,12 @@ import com.swirlds.cli.commands.EventStreamCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 
 @CommandLine.Command(

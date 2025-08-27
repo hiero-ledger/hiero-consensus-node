@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.RES
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -24,15 +23,13 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(ND_RECONNECT)
 public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
 
     @HapiTest
     final Stream<DynamicTest> reconnectMixedOps() {
         return defaultHapiSpec("RestartMixedOps")
                 .given(
                         // Validate we can initially submit transactions to node2
-                        cryptoCreate("nobody").setNode(String.format("%s.%s.5", SHARD, REALM)),
+                        cryptoCreate("nobody").setNode("5"),
                         // Run some mixed transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                         // Stop node 2
@@ -50,6 +47,6 @@ public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
                         // Run some more transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                         // And validate we can still submit transactions to node2
-                        cryptoCreate("somebody").setNode(String.format("%s.%s.5", SHARD, REALM)));
+                        cryptoCreate("somebody").setNode("5"));
     }
 }

@@ -24,19 +24,19 @@ import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHan
 import com.hedera.node.app.service.token.records.ChildStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.FinalizeContext;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -55,18 +55,31 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
     private final AccountsConfig accountsConfig;
     private final EntityIdFactory entityIdFactory;
 
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     /**
      * Constructs a {@link FinalizeRecordHandler} instance.
      * @param stakingRewardsHandler the {@link StakingRewardsHandler} instance
+     * @param configProvider the {@link ConfigProvider} instance
+     * @param entityIdFactory the {@link EntityIdFactory} instance
+     * @param systemEntitiesCreatedFlag the system entity creation flag, if not already done
      */
     @Inject
     public FinalizeRecordHandler(
             @NonNull final StakingRewardsHandler stakingRewardsHandler,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.stakingRewardsHandler = stakingRewardsHandler;
         this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
         this.entityIdFactory = entityIdFactory;
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+    }
+
+    @Override
+    protected boolean systemEntitiesCreated() {
+        return systemEntitiesCreatedFlag == null || systemEntitiesCreatedFlag.get();
     }
 
     public void finalizeStakingRecord(
@@ -96,10 +109,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         final var writableAccountStore = context.writableStore(WritableAccountStore.class);
         final var writableTokenRelStore = context.writableStore(WritableTokenRelationStore.class);
         final var writableNftStore = context.writableStore(WritableNftStore.class);
-        final var stakingConfig = context.configuration().getConfigData(StakingConfig.class);
         final var writableTokenStore = context.writableStore(WritableTokenStore.class);
 
-        if (stakingConfig.isEnabled() && explicitRewardReceivers != null && prePaidRewards != null) {
+        if (explicitRewardReceivers != null && prePaidRewards != null) {
             // staking rewards are triggered for any balance changes to account's that are staked to
             // a node. They are also triggered if staking related fields are modified
             // Calculate staking rewards and add them also to hbarChanges here, before assessing

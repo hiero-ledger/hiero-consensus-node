@@ -4,9 +4,6 @@ package com.swirlds.platform.test.fixtures.event;
 import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 public final class EventUtils {
     /**
@@ -79,21 +79,21 @@ public final class EventUtils {
     }
 
     /**
-     * Check to see if all events have increasing generation numbers for each node.
+     * Check to see if all events have increasing birth round numbers for each node.
      */
-    public static boolean areGenerationNumbersValid(
+    public static boolean areBirthRoundNumbersValid(
             @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {
         Objects.requireNonNull(events, "events must not be null");
-        final Map<NodeId, Long> previousGenNumber = new HashMap<>(numberOfNodes);
+        final Map<NodeId, Long> previousBirthRound = new HashMap<>(numberOfNodes);
 
         for (final EventImpl event : events) {
             final NodeId nodeId = event.getCreatorId();
-            if (previousGenNumber.containsKey(nodeId)) {
-                if (previousGenNumber.get(nodeId) >= event.getGeneration()) {
+            if (previousBirthRound.containsKey(nodeId)) {
+                if (previousBirthRound.get(nodeId) > event.getBirthRound()) {
                     return false;
                 }
             }
-            previousGenNumber.put(nodeId, event.getGeneration());
+            previousBirthRound.put(nodeId, event.getBirthRound());
         }
         return true;
     }

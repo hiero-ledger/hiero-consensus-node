@@ -4,12 +4,13 @@ package com.swirlds.benchmark;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class BenchmarkKey implements VirtualKey {
 
@@ -25,6 +26,12 @@ public class BenchmarkKey implements VirtualKey {
 
     public static int getKeySize() {
         return keySize;
+    }
+
+    public static Bytes longToKey(long seed) {
+        final byte[] keyBytes = new byte[keySize];
+        Utils.toBytes(seed, keyBytes);
+        return Bytes.wrap(keyBytes);
     }
 
     public BenchmarkKey() {

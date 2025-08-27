@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.infrastructure.providers.ops.token;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FREEZE_KEY;
@@ -80,7 +81,8 @@ public class RandomTokenUpdate implements OpProvider {
             INVALID_RENEWAL_PERIOD,
             NO_REMAINING_AUTOMATIC_ASSOCIATIONS,
             INVALID_AUTORENEW_ACCOUNT,
-            INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+            INVALID_TREASURY_ACCOUNT_FOR_TOKEN,
+            AUTORENEW_DURATION_NOT_IN_RANGE);
 
     public RandomTokenUpdate(
             EntityNameProvider keys,

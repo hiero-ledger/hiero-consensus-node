@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -13,10 +13,10 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class AppEntityIdFactory implements EntityIdFactory {

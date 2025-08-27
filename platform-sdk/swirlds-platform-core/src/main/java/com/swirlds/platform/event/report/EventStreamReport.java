@@ -11,9 +11,9 @@ import com.swirlds.common.formatting.HorizontalAlignment;
 import com.swirlds.common.formatting.TextHistogram;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.formatting.UnitFormatter;
-import com.swirlds.platform.system.events.CesEvent;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Useful information about an event stream
@@ -98,10 +98,6 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                         "consensus order",
                         commaSeparatedNumber(firstEvent.getPlatformEvent().getConsensusOrder()),
                         commaSeparatedNumber(lastEvent.getPlatformEvent().getConsensusOrder()))
-                .addRow(
-                        "generation",
-                        commaSeparatedNumber(firstEvent.getPlatformEvent().getGeneration()),
-                        commaSeparatedNumber(lastEvent.getPlatformEvent().getGeneration()))
                 .addRow(
                         "creator ID",
                         firstEvent.getPlatformEvent().getCreatorId(),

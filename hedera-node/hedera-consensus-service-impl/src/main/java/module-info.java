@@ -20,14 +20,15 @@ module com.hedera.node.app.service.consensus.impl {
     requires com.swirlds.config.api;
     requires com.google.common;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.consensus.ConsensusService with
             ConsensusServiceImpl;
 
     exports com.hedera.node.app.service.consensus.impl to
             com.hedera.node.app,
-            com.hedera.node.test.clients;
+            com.hedera.node.test.clients,
+            com.hedera.state.validator;
     exports com.hedera.node.app.service.consensus.impl.handlers;
     exports com.hedera.node.app.service.consensus.impl.handlers.customfee;
     exports com.hedera.node.app.service.consensus.impl.records;

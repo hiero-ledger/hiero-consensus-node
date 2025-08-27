@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.observers;
 
-import com.swirlds.platform.internal.ConsensusRound;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 public class SimpleConsensusRoundTracker {
     private final Map<ObservationType, Set<Long>> consensusRoundsObserved;

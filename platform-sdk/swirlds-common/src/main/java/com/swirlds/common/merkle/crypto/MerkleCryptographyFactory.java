@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.crypto;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.crypto.internal.MerkleCryptoEngine;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.config.CryptoConfig;
 
 /**
  * Builds {@link MerkleCryptography} instances.

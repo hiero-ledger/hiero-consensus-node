@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 public class VisibleItemsAssertion implements RecordStreamAssertion {
     private static final long FIRST_USER_NUM = 1001L;
+    public static final String ALL_TX_IDS = "all-tx-ids";
 
     private static final Logger log = LogManager.getLogger(VisibleItemsAssertion.class);
 
@@ -30,6 +31,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
     private final boolean withLogging = true;
+    private final boolean viewAll;
 
     @Nullable
     private String lastSeenId = null;
@@ -54,6 +56,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                 addAll(List.of(specTxnIds));
             }
         };
+        viewAll = unseenIds.contains(ALL_TX_IDS);
     }
 
     @Override
@@ -63,43 +66,57 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
 
     @Override
     public synchronized boolean isApplicableTo(@NonNull final RecordStreamItem item) {
-        new ArrayList<>(unseenIds)
-                .stream()
-                        .filter(id -> spec.registry()
-                                .getMaybeTxnId(id)
-                                .filter(txnId ->
-                                        baseFieldsMatch(txnId, item.getRecord().getTransactionID()))
-                                .isPresent())
-                        .findFirst()
-                        .ifPresentOrElse(
-                                seenId -> {
-                                    final var entry = RecordStreamEntry.from(item);
-                                    final var isSynthItem = isSynthItem(entry);
-                                    if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
-                                        if (withLogging) {
-                                            log.info(
-                                                    "Saw {} as {}",
-                                                    seenId,
-                                                    item.getRecord().getTransactionID());
+        if (viewAll) {
+            final var entry = RecordStreamEntry.from(item);
+            final var isSynthItem = isSynthItem(entry);
+            if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
+                items.computeIfAbsent(ALL_TX_IDS, ignore -> newVisibleItems())
+                        .entries()
+                        .add(entry);
+            }
+        } else {
+            new ArrayList<>(unseenIds)
+                    .stream()
+                            .filter(id -> spec.registry()
+                                    .getMaybeTxnId(id)
+                                    .filter(txnId -> baseFieldsMatch(
+                                            txnId, item.getRecord().getTransactionID()))
+                                    .isPresent())
+                            .findFirst()
+                            .ifPresentOrElse(
+                                    seenId -> {
+                                        final var entry = RecordStreamEntry.from(item);
+                                        final var isSynthItem = isSynthItem(entry);
+                                        if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
+                                            if (withLogging) {
+                                                log.info(
+                                                        "Saw {} as {}",
+                                                        seenId,
+                                                        item.getRecord().getTransactionID());
+                                            }
+                                            items.computeIfAbsent(seenId, ignore -> newVisibleItems())
+                                                    .entries()
+                                                    .add(entry);
+                                            if (!seenId.equals(lastSeenId)) {
+                                                maybeFinishLastSeen();
+                                            }
+                                            lastSeenId = seenId;
+                                        } else {
+                                            items.computeIfAbsent(seenId, ignore -> newVisibleItems())
+                                                    .trackSkippedSynthItem();
                                         }
-                                        items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                                .entries()
-                                                .add(entry);
-                                        if (!seenId.equals(lastSeenId)) {
-                                            maybeFinishLastSeen();
-                                        }
-                                        lastSeenId = seenId;
-                                    } else {
-                                        items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                                                .trackSkippedSynthItem();
-                                    }
-                                },
-                                this::maybeFinishLastSeen);
+                                    },
+                                    this::maybeFinishLastSeen);
+        }
         return true;
     }
 
     @Override
     public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
+        if (viewAll) {
+            validator.assertValid(spec, items);
+            return false;
+        }
         if (unseenIds.isEmpty()) {
             validator.assertValid(spec, items);
             return true;

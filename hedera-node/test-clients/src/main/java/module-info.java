@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.hedera.node.test.clients {
+import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
+import org.junit.platform.launcher.LauncherSessionListener;
+
+open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.dsl;
     exports com.hedera.services.bdd.spec.dsl.contracts;
     exports com.hedera.services.bdd.spec.dsl.utils;
@@ -53,6 +56,7 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.assertions.matchers;
     exports com.hedera.services.bdd.junit;
     exports com.hedera.services.bdd.junit.hedera;
+    exports com.hedera.services.bdd.junit.hedera.utils;
     exports com.hedera.services.bdd.junit.hedera.embedded;
     exports com.hedera.services.bdd.junit.hedera.embedded.fakes;
     exports com.hedera.services.bdd.junit.hedera.subprocess;
@@ -63,12 +67,19 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.support.validators.block;
     exports com.hedera.services.bdd.utils;
     exports com.hedera.services.bdd.junit.restart;
+    exports com.hedera.services.bdd.junit.hedera.remote;
+    exports com.hedera.services.bdd.spec.remote;
+    exports com.hedera.services.bdd.suites.utils.sysfiles;
+
+    provides LauncherSessionListener with
+            SharedNetworkLauncherSessionListener;
 
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.contract.impl;
+    requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.schedule;
     requires com.hedera.node.app.service.token.impl;
@@ -84,10 +95,17 @@ module com.hedera.node.test.clients {
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
+    requires com.swirlds.metrics.impl;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
+    requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
+    requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
@@ -110,6 +128,7 @@ module com.hedera.node.test.clients {
     requires org.assertj.core;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.datatypes;
+    requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;

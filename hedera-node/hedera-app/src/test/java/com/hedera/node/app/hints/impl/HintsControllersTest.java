@@ -10,10 +10,9 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,8 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HintsControllersTest {
-    private static final TssKeyPair BLS_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
-
     private static final HintsConstruction ONE_CONSTRUCTION =
             HintsConstruction.newBuilder().constructionId(1L).build();
 
@@ -59,6 +56,9 @@ class HintsControllersTest {
     @Mock
     private HintsContext context;
 
+    @Mock
+    private OnHintsFinished onHintsFinished;
+
     private HintsControllers subject;
 
     @BeforeEach
@@ -70,7 +70,8 @@ class HintsControllersTest {
                 submissions,
                 context,
                 selfNodeInfoSupplier,
-                HederaTestConfigBuilder::createConfig);
+                HederaTestConfigBuilder::createConfig,
+                onHintsFinished);
     }
 
     @Test
@@ -94,7 +95,7 @@ class HintsControllersTest {
     void returnsActiveControllerWhenSourceNodesHaveTargetThresholdWeight() {
         given(activeRosters.transitionWeights()).willReturn(weights);
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
-        given(keyAccessor.getOrCreateBlsKeyPair(1L)).willReturn(BLS_KEY_PAIR);
+        given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(Bytes.EMPTY);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
 

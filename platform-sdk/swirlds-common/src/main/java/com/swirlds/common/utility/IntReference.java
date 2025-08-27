@@ -3,6 +3,7 @@ package com.swirlds.common.utility;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import java.util.Objects;
+import org.hiero.base.ValueReference;
 
 /**
  * An object wrapper for an int that allows it to mutate, unlike {@link Integer}. Similar to {@link ValueReference} but

@@ -4,8 +4,7 @@ package com.swirlds.component.framework.model.internal.monitor;
 import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.CompareTo;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.CompareTo;
 
 /**
  * Encapsulates logging for the wiring health monitor.
@@ -36,13 +36,13 @@ public class HealthMonitorLogger {
     /**
      * Constructor.
      *
-     * @param platformContext    the platform context
+     * @param time    the time
      * @param schedulers         the task schedulers being monitored
      * @param healthLogThreshold the amount of time that must pass before we start logging health information
      * @param healthLogPeriod    the period at which we log health information
      */
     public HealthMonitorLogger(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Time time,
             @NonNull final List<TaskScheduler<?>> schedulers,
             @NonNull final Duration healthLogThreshold,
             @NonNull final Duration healthLogPeriod) {
@@ -50,8 +50,7 @@ public class HealthMonitorLogger {
         this.healthLogThreshold = healthLogThreshold;
         for (final TaskScheduler<?> scheduler : schedulers) {
             final String schedulerName = scheduler.getName();
-            final RateLimitedLogger rateLimitedLogger =
-                    new RateLimitedLogger(logger, platformContext.getTime(), healthLogPeriod);
+            final RateLimitedLogger rateLimitedLogger = new RateLimitedLogger(logger, time, healthLogPeriod);
             schedulerLoggers.put(schedulerName, rateLimitedLogger);
         }
     }

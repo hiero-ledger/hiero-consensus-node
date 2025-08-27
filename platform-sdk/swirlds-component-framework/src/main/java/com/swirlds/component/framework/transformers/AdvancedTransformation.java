@@ -41,6 +41,8 @@ public interface AdvancedTransformation<A, B> {
     void outputCleanup(@NonNull B b);
 
     /**
+     * Return the name of this transformer.
+     *
      * @return the name of this transformer
      */
     @NonNull

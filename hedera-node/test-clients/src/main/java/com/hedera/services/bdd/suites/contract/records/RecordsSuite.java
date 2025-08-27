@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.records;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -24,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
@@ -38,7 +40,6 @@ import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -98,16 +99,12 @@ public class RecordsSuite {
                     // validate transfer list
                     final List<AccountAmount> expectedTransfers = new ArrayList<>(2);
                     final var receiverTransfer = AccountAmount.newBuilder()
-                            .setAccountID(AccountID.newBuilder()
-                                    .setAccountNum(parent.getContractNum())
-                                    .build())
+                            .setAccountID(asAccount(spec, parent.getContractNum()))
                             .setAmount(-10_000L)
                             .build();
                     expectedTransfers.add(receiverTransfer);
                     final var contractTransfer = AccountAmount.newBuilder()
-                            .setAccountID(AccountID.newBuilder()
-                                    .setAccountNum(child.getContractNum())
-                                    .build())
+                            .setAccountID(asAccount(spec, child.getContractNum()))
                             .setAmount(10_000L)
                             .build();
                     expectedTransfers.add(contractTransfer);
@@ -170,7 +167,7 @@ public class RecordsSuite {
                             firstCallRecord.getContractCallResult().getLogInfoList();
                     final var firstCallTimeLogData =
                             firstCallLogs.get(0).getData().toByteArray();
-                    final var firstCallTimestamp =
+                    final var firstCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(firstCallTimeLogData, 24, 32));
 
                     final var secondCallRecord = recordOp.getResponseRecord();
@@ -178,25 +175,17 @@ public class RecordsSuite {
                             secondCallRecord.getContractCallResult().getLogInfoList();
                     final var secondCallTimeLogData =
                             secondCallLogs.get(0).getData().toByteArray();
-                    final var secondCallTimestamp =
+                    final var secondCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(secondCallTimeLogData, 24, 32));
 
-                    final var blockPeriod = spec.startupProperties().getLong("hedera.recordStream.logPeriod");
-                    final var firstBlockPeriod =
-                            canonicalBlockPeriod(firstCallRecord.getConsensusTimestamp(), blockPeriod);
-                    final var secondBlockPeriod =
-                            canonicalBlockPeriod(secondCallRecord.getConsensusTimestamp(), blockPeriod);
-
-                    // In general both calls will be handled in the same block period, and should hence have the
-                    // same Ethereum block timestamp; but timing fluctuations in CI _can_ cause them to be handled
-                    // in different block periods, so we allow for that here as well
-                    if (firstBlockPeriod < secondBlockPeriod) {
+                    final var blockPeriod = spec.startupProperties().getConfigDuration("blockStream.blockPeriod");
+                    final var firstTime = asInstant(firstCallRecord.getConsensusTimestamp());
+                    final var secondTime = asInstant(secondCallRecord.getConsensusTimestamp());
+                    if (!firstTime.plus(blockPeriod).isAfter(secondTime)) {
                         assertTrue(
-                                firstCallTimestamp < secondCallTimestamp,
-                                "Block timestamps should change from period " + firstBlockPeriod + " to "
-                                        + secondBlockPeriod);
-                    } else {
-                        assertEquals(firstCallTimestamp, secondCallTimestamp, "Block timestamps should be equal");
+                                firstCallBlockTime < secondCallBlockTime,
+                                "Block timestamps should definitely change between " + firstTime + " and "
+                                        + secondTime);
                     }
                 }));
     }

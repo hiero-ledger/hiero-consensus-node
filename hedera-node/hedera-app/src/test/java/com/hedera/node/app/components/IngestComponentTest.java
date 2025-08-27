@@ -18,7 +18,7 @@ import com.hedera.node.app.HederaInjectionComponent;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -32,13 +32,17 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -49,15 +53,14 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.InstantSource;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,6 +72,9 @@ class IngestComponentTest {
 
     @Mock
     private Platform platform;
+
+    @Mock
+    private TransactionPoolNexus transactionPool;
 
     @Mock
     private Throttle.Factory throttleFactory;
@@ -87,7 +93,7 @@ class IngestComponentTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY);
+            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
 
     @BeforeEach
     void setUp() {
@@ -101,7 +107,10 @@ class IngestComponentTest {
                 AccountID.newBuilder().accountNum(1001).build(),
                 10,
                 List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
-                Bytes.wrap("cert7"));
+                Bytes.wrap("cert7"),
+                List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
+                false,
+                null);
 
         final var configProvider = new ConfigProviderImpl(false);
         final var appContext = new AppContextImpl(
@@ -118,7 +127,11 @@ class IngestComponentTest {
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), configuration);
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                new HintsLibraryImpl(),
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()
@@ -127,19 +140,20 @@ class IngestComponentTest {
                 .bootstrapConfigProviderImpl(new BootstrapConfigProviderImpl())
                 .fileServiceImpl(new FileServiceImpl())
                 .contractServiceImpl(new ContractServiceImpl(appContext, NO_OP_METRICS))
+                .utilServiceImpl(new UtilServiceImpl(appContext, (signedTxn, config) -> null))
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
+                .transactionPool(transactionPool)
                 .self(selfNodeInfo)
-                .maxSignedTxnSize(1024)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)
                 .servicesRegistry(mock(ServicesRegistry.class))
                 .instantSource(InstantSource.system())
                 .softwareVersion(mock(SemanticVersion.class))
                 .metrics(metrics)
-                .kvStateChangeListener(new KVStateChangeListener())
+                .immediateStateChangeListener(new ImmediateStateChangeListener())
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
-                        new StoreMetricsServiceImpl(metrics), () -> configProvider.getConfiguration()))
+                        new StoreMetricsServiceImpl(metrics), configProvider::getConfiguration))
                 .migrationStateChanges(List.of())
                 .hintsService(hintsService)
                 .historyService(historyService)

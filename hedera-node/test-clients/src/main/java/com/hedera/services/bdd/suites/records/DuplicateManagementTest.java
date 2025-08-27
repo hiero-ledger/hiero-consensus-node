@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BA
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -28,7 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -46,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -56,7 +54,7 @@ import org.junit.jupiter.api.DynamicTest;
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
     public static final String TXN_ID = "txnId";
-    private static final String TO = "0.0.3";
+    private static final String TO = "3";
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
@@ -114,18 +112,18 @@ public class DuplicateManagementTest {
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
-    @DisplayName("only warns of missing creator if event version is current")
+    @DisplayName("only warns of missing creator if event birth round is greater than last freeze round")
     final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
-                        .withSubmissionStrategy(usingVersion(PAST))
+                        .setNode("666")
+                        .withSubmissionStrategy(usingEventBirthRound(0L))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
+                        .setNode("666")
+                        .withSubmissionStrategy(usingEventBirthRound(42L))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogContains(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));
@@ -134,7 +132,7 @@ public class DuplicateManagementTest {
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = "4";
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
@@ -153,7 +151,7 @@ public class DuplicateManagementTest {
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> payerSolvencyStillCheckedEvenForDuplicateTransaction() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = "4";
         final AtomicLong preDuplicateBalance = new AtomicLong();
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -214,7 +212,7 @@ public class DuplicateManagementTest {
                 uncheckedSubmit(cryptoCreate("nope")
                                 .txnId(TXN_ID)
                                 .payingWith(CIVILIAN)
-                                .setNode("0.0.4"))
+                                .setNode("4"))
                         .logged(),
                 uncheckedSubmit(
                         cryptoCreate("sure").txnId(TXN_ID).payingWith(CIVILIAN).setNode(TO)),

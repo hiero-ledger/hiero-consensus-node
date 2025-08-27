@@ -14,30 +14,33 @@ import java.util.*;
  * @param <V> The value type
  */
 public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V> implements WritableKVState<K, V> {
+
     /** A map of all modified values buffered in this mutable state */
     private final Map<K, V> modifications;
-    /**
-     * A list of listeners to be notified of changes to the state.
-     */
+
+    /** A list of listeners to be notified of changes to the state */
     private final List<KVChangeListener<K, V>> listeners = new ArrayList<>();
 
     /**
      * Create a new StateBase.
      *
+     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateKey The state key. Cannot be null.
      */
-    protected WritableKVStateBase(@NonNull final String stateKey) {
-        this(stateKey, new LinkedHashMap<>());
+    protected WritableKVStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        this(serviceName, stateKey, new LinkedHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
+     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateKey The state key. Cannot be null.
      * @param modifications A map that is used to init the cache.
      */
-    protected WritableKVStateBase(@NonNull final String stateKey, @NonNull final Map<K, V> modifications) {
-        super(stateKey);
+    protected WritableKVStateBase(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Map<K, V> modifications) {
+        super(serviceName, stateKey);
         this.modifications = Objects.requireNonNull(modifications);
     }
 
@@ -45,6 +48,7 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * Register a listener to be notified of changes to the state on {@link #commit()}. We do not support unregistering
      * a listener, as the lifecycle of a {@link WritableKVState} is scoped to the set of mutations made to a state in a
      * round; and there is no use case where an application would only want to be notified of a subset of those changes.
+     *
      * @param listener the listener to register
      */
     public void registerListener(@NonNull final KVChangeListener<K, V> listener) {

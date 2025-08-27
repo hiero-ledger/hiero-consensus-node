@@ -13,6 +13,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -25,13 +26,14 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
     requires com.swirlds.base;
-    requires com.swirlds.common;
+    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
-    requires static com.github.spotbugs.annotations;
+    requires org.slf4j;
+    requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
 
     exports com.hedera.node.app.service.contract.impl;
@@ -42,6 +44,7 @@ module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.state to
             com.hedera.node.services.cli,
             com.hedera.node.app.service.contract.impl.test,
+            com.hedera.node.test.clients,
             com.hedera.node.app;
 
     opens com.hedera.node.app.service.contract.impl.utils to

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -51,6 +53,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
@@ -95,7 +98,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+@Tag(LONG_RUNNING)
 public class CryptoTransferHTSSuite {
 
     private static final Logger log = LogManager.getLogger(CryptoTransferHTSSuite.class);
@@ -438,7 +441,7 @@ public class CryptoTransferHTSSuite {
 
     @HapiTest
     final Stream<DynamicTest> hapiTransferFromForNFTWithInvalidAddressesFails() {
-        final var NON_EXISTING_ADDRESS = "0x0000000000000000000000000000000000123456";
+        final var NON_EXISTING_CONTACT_NUM = 123456;
         final var TXN_TO_NON_EXISTING_ADDRESS = "TXN_TO_NON_EXISTING_ADDRESS";
         final var TXN_FROM_NON_EXISTING_ADDRESS = "TXN_FROM_NON_EXISTING_ADDRESS";
         final var TXN_WITH_NON_EXISTING_NFT = "TXN_WITH_NON_EXISTING_NFT";
@@ -470,7 +473,8 @@ public class CryptoTransferHTSSuite {
                                                 asAddress(spec.registry().getTokenID(NFT_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(OWNER))),
-                                        HapiParserUtil.asHeadlongAddress(NON_EXISTING_ADDRESS),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asSolidityAddress(spec, NON_EXISTING_CONTACT_NUM)),
                                         BigInteger.ONE)
                                 .gas(100_000_00L)
                                 .via(TXN_TO_NON_EXISTING_ADDRESS)
@@ -482,7 +486,8 @@ public class CryptoTransferHTSSuite {
                                         HTS_TRANSFER_FROM_NFT,
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(NFT_TOKEN))),
-                                        HapiParserUtil.asHeadlongAddress(NON_EXISTING_ADDRESS),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asSolidityAddress(spec, NON_EXISTING_CONTACT_NUM)),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(RECEIVER))),
                                         BigInteger.ONE)
@@ -520,7 +525,7 @@ public class CryptoTransferHTSSuite {
 
     @HapiTest
     final Stream<DynamicTest> hapiTransferFromForFungibleTokenWithInvalidAddressesFails() {
-        final var NON_EXISTING_ADDRESS = "0x0000000000000000000000000000000000123456";
+        final var NON_EXISTING_CONTACT_NUM = 123456;
         final var TXN_TO_NON_EXISTING_ADDRESS = "TXN_TO_NON_EXISTING_ADDRESS";
         final var TXN_FROM_NON_EXISTING_ADDRESS = "TXN_FROM_NON_EXISTING_ADDRESS";
         final var TXN_WITH_NON_EXISTING_TOKEN = "TXN_WITH_NON_EXISTING_TOKEN";
@@ -548,7 +553,8 @@ public class CryptoTransferHTSSuite {
                                                 asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(OWNER))),
-                                        HapiParserUtil.asHeadlongAddress(NON_EXISTING_ADDRESS),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asSolidityAddress(spec, NON_EXISTING_CONTACT_NUM)),
                                         BigInteger.valueOf(5L))
                                 .gas(100_000_00L)
                                 .via(TXN_TO_NON_EXISTING_ADDRESS)
@@ -560,7 +566,8 @@ public class CryptoTransferHTSSuite {
                                         HTS_TRANSFER_FROM,
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                        HapiParserUtil.asHeadlongAddress(NON_EXISTING_ADDRESS),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asSolidityAddress(spec, NON_EXISTING_CONTACT_NUM)),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(RECEIVER))),
                                         BigInteger.valueOf(5L))
@@ -779,6 +786,7 @@ public class CryptoTransferHTSSuite {
                     final var sender = spec.registry().getAccountID(OWNER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
+                            .logged()
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
                                             .logs(inOrder(logWith()
@@ -793,10 +801,7 @@ public class CryptoTransferHTSSuite {
                                                                     receiver.getShardNum(),
                                                                     receiver.getRealmNum(),
                                                                     receiver.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    2L)))))))
+                                                            parsedToByteString(0, 0, 2L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);
@@ -1682,7 +1687,7 @@ public class CryptoTransferHTSSuite {
                                                 asAddress(spec.registry().getTokenID(NFT_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(OWNER))),
-                                        mirrorAddrWith(nonExistingSystemAccounts.get(finalI)),
+                                        mirrorAddrWith(spec, nonExistingSystemAccounts.get(finalI)),
                                         BigInteger.TWO)
                                 .via("nftTransfer" + finalI)
                                 .gas(1000000)
@@ -1724,10 +1729,7 @@ public class CryptoTransferHTSSuite {
             opsArray[i] = withOpContext((spec, opLog) -> {
                 final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
                 final var sender = spec.registry().getAccountID(SENDER);
-                final var receiver = AccountID.newBuilder()
-                        .setAccountNum(existingSystemAccounts.get(finalI))
-                        .build();
-
+                final var receiver = asAccount(spec, existingSystemAccounts.get(finalI));
                 allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, contract))),
@@ -1766,6 +1768,6 @@ public class CryptoTransferHTSSuite {
     }
 
     private String toTokenIdString(TokenID tokenId) {
-        return String.format("%d.%d.%d", tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
+        return asEntityString(tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
     }
 }

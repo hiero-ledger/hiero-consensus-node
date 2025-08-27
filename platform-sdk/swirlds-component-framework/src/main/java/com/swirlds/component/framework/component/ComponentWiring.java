@@ -192,6 +192,21 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
      */
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final BiFunction<COMPONENT_TYPE, INPUT_TYPE, OUTPUT_TYPE> handler) {
+        return getInputWire(handler, null);
+    }
+
+    /**
+     * Get an input wire for this component.
+     *
+     * @param handler      the component method that will handle the input, e.g. "MyComponent::handleInput". Should be a
+     *                     method on the class, not a method on a specific instance.
+     * @param name         the optional name of the input wire. It is only used if the {@code InputWire} has not been
+     *                     created yet.
+     * @param <INPUT_TYPE> the type of the input
+     * @return the input wire
+     */
+    public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
+            @NonNull final BiFunction<COMPONENT_TYPE, INPUT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
 
@@ -204,7 +219,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
                     e);
         }
 
-        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), handler, null, null, null);
+        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), handler, null, null, null, name);
     }
 
     /**
@@ -616,6 +631,36 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @Nullable final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handlerWithoutReturn,
             @Nullable final Function<COMPONENT_TYPE, OUTPUT_TYPE> handlerWithoutParameter,
             @Nullable final Consumer<COMPONENT_TYPE> handlerWithoutReturnAndWithoutParameter) {
+        return getOrBuildInputWire(
+                method,
+                handlerWithReturn,
+                handlerWithoutReturn,
+                handlerWithoutParameter,
+                handlerWithoutReturnAndWithoutParameter,
+                null);
+    }
+
+    /**
+     * Get the input wire for a specified method.
+     *
+     * @param method                                  the method that will handle data on the input wire
+     * @param handlerWithReturn                       the handler for the method if it has a return type
+     * @param handlerWithoutReturn                    the handler for the method if it does not have a return type
+     * @param handlerWithoutParameter                 the handler for the method if it does not have a parameter
+     * @param handlerWithoutReturnAndWithoutParameter the handler for the method if it does not have a return type and
+     *                                                does not have a parameter
+     * @param name                                    the optional name of the input wire. It is only used if the
+     *                                                {@code InputWire} has not been created yet.
+     * @param <INPUT_TYPE>                            the input type
+     * @return the input wire
+     */
+    private <INPUT_TYPE> InputWire<INPUT_TYPE> getOrBuildInputWire(
+            @NonNull final Method method,
+            @Nullable final BiFunction<COMPONENT_TYPE, INPUT_TYPE, OUTPUT_TYPE> handlerWithReturn,
+            @Nullable final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handlerWithoutReturn,
+            @Nullable final Function<COMPONENT_TYPE, OUTPUT_TYPE> handlerWithoutParameter,
+            @Nullable final Consumer<COMPONENT_TYPE> handlerWithoutReturnAndWithoutParameter,
+            @Nullable final String name) {
 
         if (inputWires.containsKey(method)) {
             // We've already created this wire
@@ -623,11 +668,15 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
         }
 
         final String label;
-        final InputWireLabel inputWireLabel = method.getAnnotation(InputWireLabel.class);
-        if (inputWireLabel == null) {
-            label = method.getName();
+        if (name != null) {
+            label = name;
         } else {
-            label = inputWireLabel.value();
+            final InputWireLabel inputWireLabel = method.getAnnotation(InputWireLabel.class);
+            if (inputWireLabel == null) {
+                label = method.getName();
+            } else {
+                label = inputWireLabel.value();
+            }
         }
 
         final BindableInputWire<INPUT_TYPE, OUTPUT_TYPE> inputWire = scheduler.buildInputWire(label);

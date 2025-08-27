@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.listeners;
 
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -43,18 +45,16 @@ class WriteStateToDiskListenerTest {
     @BeforeEach
     void setUp() {
         subject = new WriteStateToDiskListener(
-                stateAccessor,
-                executor,
-                configProvider,
-                startupNetworks,
-                ServicesSoftwareVersion::new,
-                entityIdFactory);
+                stateAccessor, executor, configProvider, startupNetworks, SemanticVersion.DEFAULT, entityIdFactory);
     }
 
     @Test
-    void archivesStartupNetworkFilesOnceFileWritten() {
+    void archivesStartupNetworkFilesOnceFileWrittenIfRoundNotZero() {
+        given(notification.getRoundNumber()).willReturn(0L, 1L);
+
+        subject.notify(notification);
         subject.notify(notification);
 
-        verify(startupNetworks).archiveStartupNetworks();
+        verify(startupNetworks, times(1)).archiveStartupNetworks();
     }
 }

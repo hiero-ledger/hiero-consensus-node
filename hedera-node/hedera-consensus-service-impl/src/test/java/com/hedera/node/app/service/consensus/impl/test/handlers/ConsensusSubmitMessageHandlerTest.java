@@ -375,7 +375,14 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         // The fees wouldn't be free in this scenario, but we don't care about the actual return
         // value here since we're using a mock calculator
         given(feeCalc.calculate()).willReturn(Fees.FREE);
-
+        readableStore = mock(ReadableTopicStore.class);
+        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(readableStore.getTopic(topicId))
+                .willReturn(Topic.newBuilder()
+                        .runningHash(Bytes.wrap(new byte[48]))
+                        .sequenceNumber(1L)
+                        .build());
         subject.calculateFees(feeCtx);
 
         verify(feeCalc).addBytesPerTransaction(28);

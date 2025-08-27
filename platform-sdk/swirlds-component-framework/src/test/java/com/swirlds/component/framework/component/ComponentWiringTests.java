@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -134,11 +134,8 @@ public class ComponentWiringTests {
      */
     @Test
     void methodNotOnComponentTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -156,11 +153,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 2, 3})
     void simpleComponentTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -246,11 +241,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void transformerTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -316,11 +309,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void filterTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -388,11 +379,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void splitterTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -428,11 +417,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void filteredSplitterTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -477,11 +464,9 @@ public class ComponentWiringTests {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void transformedSplitterTest(final int bindLocation) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(platformContext).build();
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 

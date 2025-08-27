@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
-import static com.swirlds.platform.system.status.PlatformStatus.*;
+import static org.hiero.consensus.model.status.PlatformStatus.*;
 
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A record of an attempt to look up the status of a Hedera node.

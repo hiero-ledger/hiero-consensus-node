@@ -9,8 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
-import static com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion.YES;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -29,18 +28,21 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -56,15 +58,16 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final AccountID fundingAccountID;
     private final AccountID stakingRewardAccountID;
     private final AccountID nodeRewardAccountID;
+    private final NodesConfig nodesConfig;
     private final StakingConfig stakingConfig;
     private final Predicate<CryptoTransferTransactionBody> customFeeTest;
 
     /**
      * Constructs a {@link TokenServiceApiImpl}.
      *
-     * @param config         the configuration
+     * @param config the configuration
      * @param writableStates the writable states
-     * @param customFeeTest  a predicate for determining if a transfer has custom fees
+     * @param customFeeTest a predicate for determining if a transfer has custom fees
      * @param entityCounters the entity counters
      */
     public TokenServiceApiImpl(
@@ -76,6 +79,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(config);
         this.accountStore = new WritableAccountStore(writableStates, entityCounters);
 
+        nodesConfig = config.getConfigData(NodesConfig.class);
         // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
 
@@ -100,7 +104,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     @Override
     public void assertValidStakingElectionForCreation(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -108,18 +111,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         StakingValidator.validateStakedIdForCreation(
-                isStakingEnabled,
-                hasDeclineRewardChange,
-                stakedIdKind,
-                stakedAccountIdInOp,
-                stakedNodeIdInOp,
-                accountStore,
-                networkInfo);
+                hasDeclineRewardChange, stakedIdKind, stakedAccountIdInOp, stakedNodeIdInOp, accountStore, networkInfo);
     }
 
     @Override
     public void assertValidStakingElectionForUpdate(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -127,13 +123,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         StakingValidator.validateStakedIdForUpdate(
-                isStakingEnabled,
-                hasDeclineRewardChange,
-                stakedIdKind,
-                stakedAccountIdInOp,
-                stakedNodeIdInOp,
-                accountStore,
-                networkInfo);
+                hasDeclineRewardChange, stakedIdKind, stakedAccountIdInOp, stakedNodeIdInOp, accountStore, networkInfo);
     }
 
     /**
@@ -203,7 +193,14 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // from the contract account.
         final var evmAddress = contract.alias();
         accountStore.removeAlias(evmAddress);
-        accountStore.put(contract.copyBuilder().alias(Bytes.EMPTY).deleted(true).build());
+        final var builder = contract.copyBuilder().deleted(true);
+        final var originalContract = accountStore.getOriginalValue(contract.accountIdOrThrow());
+        // If this contract was just created in the same EVM transaction, we need to externalize its alias in the
+        // block stream state changes for parity with with legacy record streams
+        if (originalContract != null && originalContract.smartContract()) {
+            builder.alias(Bytes.EMPTY);
+        }
+        accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the
         // contract account itself. This shouldn't happen because it means that somehow we were able to look up the
@@ -316,34 +313,73 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     @Override
-    public boolean chargeNetworkFee(
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var account = accountStore.get(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("No account found for ID " + accountId);
+        }
+        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        if (newSlotsUsed < 0) {
+            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
+                    + account.numberLambdaStorageSlots()
+                    + ") by "
+                    + netChangeInSlotsUsed
+                    + " for account "
+                    + accountId);
+        }
+        accountStore.put(
+                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
+    }
+
+    @Override
+    public Fees chargeFee(
             @NonNull final AccountID payerId,
             final long amount,
-            @NonNull final FeeStreamBuilder rb,
+            @NonNull final StreamBuilder streamBuilder,
             @Nullable final ObjLongConsumer<AccountID> cb) {
-        requireNonNull(rb);
         requireNonNull(payerId);
-
+        requireNonNull(streamBuilder);
+        if (!(streamBuilder instanceof FeeStreamBuilder feeBuilder)) {
+            throw new IllegalArgumentException("StreamBuilder must be a FeeStreamBuilder");
+        }
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
-        rb.transactionFee(rb.transactionFee() + amountToCharge);
+        // The callback is not null for the atomic batch transactions.
+        // For each atomic batch transaction, the transaction fee of inner transactions is
+        // accumulated in the inner transaction
+        if (cb == null) {
+            feeBuilder.transactionFee(feeBuilder.transactionFee() + amountToCharge);
+        }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
-        return amountToCharge == amount;
+        return new Fees(0, amountToCharge, 0);
     }
 
     @Override
-    public void chargeFees(
+    public void refundFee(@NonNull final AccountID payerId, final long amount, @NonNull final FeeStreamBuilder rb) {
+        requireNonNull(payerId);
+        requireNonNull(rb);
+        final long retractedAmount = retractFromNetworkFundingAccounts(amount);
+        final var payerAccount = lookupAccount("Payer", payerId);
+        refundPayer(payerAccount, retractedAmount);
+        rb.transactionFee(Math.max(0, rb.transactionFee() - retractedAmount));
+    }
+
+    @Override
+    public Fees chargeFees(
             @NonNull AccountID payerId,
             @NonNull final AccountID nodeAccountId,
             @NonNull Fees fees,
             @NonNull final FeeStreamBuilder rb,
-            @Nullable final ObjLongConsumer<AccountID> cb) {
+            @Nullable final ObjLongConsumer<AccountID> cb,
+            @NonNull final LongConsumer onNodeFee) {
         requireNonNull(rb);
         requireNonNull(fees);
         requireNonNull(payerId);
         requireNonNull(nodeAccountId);
+        requireNonNull(onNodeFee);
 
         // Note: these four accounts (payer, funding, staking reward, node reward) MUST exist for the transaction to be
         // valid and for fees to be processed. If any of them do not exist, the entire transaction will fail. There is
@@ -378,12 +414,44 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             if (cb != null) {
                 cb.accept(nodeAccountId, chargeableNodeFee);
             }
+            onNodeFee.accept(chargeableNodeFee);
+        }
+        if (amountToCharge == fees.totalFee()) {
+            // Everything was charged, so we can return the fees as-is
+            return fees;
+        } else {
+            return fees.withChargedNodeComponent(chargeableNodeFee);
         }
     }
 
     @Override
-    public void refundFees(@NonNull AccountID receiver, @NonNull Fees fees, @NonNull final FeeStreamBuilder rb) {
-        throw new UnsupportedOperationException("Not yet implemented");
+    public void refundFees(
+            @NonNull final AccountID payerId,
+            @NonNull final AccountID nodeAccountId,
+            @NonNull final Fees fees,
+            @NonNull final FeeStreamBuilder rb,
+            @NonNull final LongConsumer onNodeRefund) {
+        requireNonNull(payerId);
+        requireNonNull(nodeAccountId);
+        requireNonNull(fees);
+        requireNonNull(rb);
+        requireNonNull(onNodeRefund);
+        long amountRetracted = 0;
+        if (fees.nodeFee() > 0) {
+            final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+            final long nodeBalance = nodeAccount.tinybarBalance();
+            final long amountToRetract = Math.min(fees.nodeFee(), nodeBalance);
+            accountStore.put(nodeAccount
+                    .copyBuilder()
+                    .tinybarBalance(nodeBalance - amountToRetract)
+                    .build());
+            onNodeRefund.accept(amountToRetract);
+            amountRetracted += amountToRetract;
+        }
+        amountRetracted += retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
+        final var payerAccount = lookupAccount("Payer", payerId);
+        refundPayer(payerAccount, amountRetracted);
+        rb.transactionFee(Math.max(0, rb.transactionFee() - amountRetracted));
     }
 
     @Override
@@ -404,7 +472,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      *
      * @param payerAccount the account to charge
      * @param amount the maximum amount to charge
-     * @throws IllegalStateException if the payer account doesn't exist
      */
     private void chargePayer(
             @NonNull final Account payerAccount, final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
@@ -420,6 +487,21 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (cb != null) {
             cb.accept(payerAccount.accountId(), -amount);
         }
+    }
+
+    /**
+     * A utility method that refunds (credits) the payer the given amount. If the payer account doesn't exist,
+     * then an exception is thrown.
+     *
+     * @param payerAccount the account to refund
+     * @param amount the amount to refund
+     */
+    private void refundPayer(@NonNull final Account payerAccount, final long amount) {
+        final long currentBalance = payerAccount.tinybarBalance();
+        accountStore.put(payerAccount
+                .copyBuilder()
+                .tinybarBalance(currentBalance + amount)
+                .build());
     }
 
     /**
@@ -440,6 +522,24 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     /**
+     * Retracts the given amount from the node reward account the given amount. If the node reward account doesn't
+     * exist, an exception is thrown.
+     * @param amount The amount to debit the node reward account.
+     * @throws IllegalStateException if the node rewards account doesn't exist
+     */
+    private long retractNodeRewardAccount(final long amount) {
+        if (amount == 0) return 0L;
+        final var nodeAccount = lookupAccount("Node reward", nodeRewardAccountID);
+        final long balance = nodeAccount.tinybarBalance();
+        final long amountToRetract = Math.min(amount, balance);
+        accountStore.put(nodeAccount
+                .copyBuilder()
+                .tinybarBalance(balance - amountToRetract)
+                .build());
+        return amountToRetract;
+    }
+
+    /**
      * Pays the staking reward account the given amount. If the staking reward account doesn't exist, an exception is
      * thrown. This account *should* have been created at genesis, so it should always exist, even if staking rewards
      * are disabled.
@@ -454,6 +554,24 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(stakingAccount.tinybarBalance() + amount)
                 .build());
+    }
+
+    /**
+     * Retracts the given amount from the node staking account the given amount. If the node reward account doesn't
+     * exist, an exception is thrown.
+     * @param amount The amount to debit the node staking account.
+     * @throws IllegalStateException if the node staking account doesn't exist
+     */
+    private long retractStakingRewardAccount(final long amount) {
+        if (amount == 0) return 0L;
+        final var stakingAccount = lookupAccount("Staking reward", stakingRewardAccountID);
+        final long balance = stakingAccount.tinybarBalance();
+        final long amountToRetract = Math.min(amount, balance);
+        accountStore.put(stakingAccount
+                .copyBuilder()
+                .tinybarBalance(balance - amountToRetract)
+                .build());
+        return amountToRetract;
     }
 
     /**
@@ -493,8 +611,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final FreeAliasOnDeletion freeAliasOnDeletion) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
         final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator);
@@ -504,10 +621,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // commit the account with deleted flag set to true
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
-        if (freeAliasOnDeletion == YES) {
-            accountStore.removeAlias(updatedDeleteAccount.alias());
-            builder.alias(Bytes.EMPTY);
-        }
+        accountStore.removeAlias(updatedDeleteAccount.alias());
+        builder.alias(Bytes.EMPTY);
         accountStore.put(builder.build());
 
         // add the transfer account for this deleted account to record builder.
@@ -582,8 +697,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // whatever is left over goes to the funding account.
         long balance = amount;
 
-        // We only pay node and staking rewards if the feature is enabled
-        if (stakingConfig.isEnabled()) {
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        final boolean preservingRewardBalance =
+                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
+        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
             final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
             balance -= nodeReward;
             payNodeRewardAccount(nodeReward);
@@ -597,16 +714,56 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             if (cb != null) {
                 cb.accept(stakingRewardAccountID, stakingReward);
             }
-        }
 
-        // Whatever is left over goes to the funding account
-        final var fundingAccount = lookupAccount("Funding", fundingAccountID);
-        accountStore.put(fundingAccount
-                .copyBuilder()
-                .tinybarBalance(fundingAccount.tinybarBalance() + balance)
-                .build());
-        if (cb != null) {
-            cb.accept(fundingAccountID, balance);
+            // Whatever is left over goes to the funding account
+            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
+            accountStore.put(fundingAccount
+                    .copyBuilder()
+                    .tinybarBalance(fundingAccount.tinybarBalance() + balance)
+                    .build());
+            if (cb != null) {
+                cb.accept(fundingAccountID, balance);
+            }
+        } else {
+            payNodeRewardAccount(balance);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, balance);
+            }
+        }
+    }
+
+    /**
+     * Retracts up to the given amount from the network funding accounts.
+     * @param amount The amount to retract from the network funding accounts.
+     * @return The amount that was actually retracted from the funding account.
+     */
+    private long retractFromNetworkFundingAccounts(final long amount) {
+        // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
+        // whatever is left over goes to the funding account.
+        long balance = amount;
+
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        final boolean preservingRewardBalance =
+                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
+        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
+            long amountRetracted = 0;
+            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+            balance -= nodeReward;
+            amountRetracted += retractNodeRewardAccount(nodeReward);
+            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+            balance -= stakingReward;
+            amountRetracted += retractStakingRewardAccount(stakingReward);
+            // Whatever is left over goes to the funding account
+            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
+            final long fundingBalance = fundingAccount.tinybarBalance();
+            final long amountToRetract = Math.min(balance, fundingBalance);
+            accountStore.put(fundingAccount
+                    .copyBuilder()
+                    .tinybarBalance(fundingBalance - amountToRetract)
+                    .build());
+            return (amountRetracted + amountToRetract);
+        } else {
+            return retractNodeRewardAccount(balance);
         }
     }
 }

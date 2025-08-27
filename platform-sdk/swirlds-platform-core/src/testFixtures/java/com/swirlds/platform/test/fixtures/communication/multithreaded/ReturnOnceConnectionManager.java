@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 
@@ -24,6 +25,7 @@ public class ReturnOnceConnectionManager implements ConnectionManager {
         return connection;
     }
 
+    @VisibleForTesting
     @Override
     public Connection getConnection() {
         throw new IllegalStateException("unsupported");

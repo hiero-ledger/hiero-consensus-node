@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.simulated;
 
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.stream.Signer;
 import java.util.Random;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.Signer;
 
 /**
  * Creates random signatures with the source provided

@@ -1,60 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.fromPbjTimestamp;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Function;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Gives read-only access to the platform state, encapsulating conversion from PBJ types to the current types
  * in use by the platform.
  */
 public class ReadablePlatformStateStore implements PlatformStateAccessor {
-    public static final Function<SemanticVersion, SoftwareVersion> UNKNOWN_VERSION_FACTORY = version -> {
-        throw new IllegalStateException("State store was not initialized with a version factory");
-    };
 
     private final ReadableSingletonState<PlatformState> state;
 
-    private Function<SemanticVersion, SoftwareVersion> versionFactory;
-
     /**
-     * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link State}.
-     * @param readableStates the readable states
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public ReadablePlatformStateStore(
-            @NonNull final ReadableStates readableStates,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.state = requireNonNull(readableStates).getSingleton(PLATFORM_STATE_KEY);
-        this.versionFactory = requireNonNull(versionFactory);
-    }
-
-    /**
-     * Constructor that does not support getting full {@link SoftwareVersion} information from the platform state.
+     * Constructor
+     * Must be used from within {@link State}.
      * @param readableStates the readable states
      */
     public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
-        this(readableStates, UNKNOWN_VERSION_FACTORY);
-    }
-
-    public void setVersionFactory(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.versionFactory = requireNonNull(versionFactory);
+        this.state = requireNonNull(readableStates).getSingleton(PLATFORM_STATE_KEY);
     }
 
     /**
@@ -62,8 +39,8 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
      */
     @Override
     @NonNull
-    public SoftwareVersion getCreationSoftwareVersion() {
-        return versionFactory.apply(stateOrThrow().creationSoftwareVersionOrThrow());
+    public SemanticVersion getCreationSoftwareVersion() {
+        return stateOrThrow().creationSoftwareVersionOrThrow();
     }
 
     /**
@@ -114,7 +91,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }
-        return minimumJudgeInfos.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfos.getFirst().minimumJudgeBirthRound();
     }
 
     /**
@@ -152,30 +129,9 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
         return fromPbjTimestamp(stateOrThrow().lastFrozenTime());
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
     @Override
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
-        final var version = stateOrThrow().firstVersionInBirthRoundMode();
-        return version == null ? null : versionFactory.apply(version);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLastRoundBeforeBirthRoundMode() {
-        return stateOrThrow().lastRoundBeforeBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLowestJudgeGenerationBeforeBirthRoundMode() {
-        return stateOrThrow().lowestJudgeGenerationBeforeBirthRoundMode();
+    public long getLatestFreezeRound() {
+        return stateOrThrow().latestFreezeRound();
     }
 
     private @NonNull PlatformState stateOrThrow() {

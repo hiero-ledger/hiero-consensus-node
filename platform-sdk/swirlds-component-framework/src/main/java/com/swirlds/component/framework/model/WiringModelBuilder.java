@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
@@ -11,8 +13,6 @@ import java.util.concurrent.ForkJoinPool;
  * Builds a {@link WiringModel}.
  */
 public class WiringModelBuilder {
-
-    private final PlatformContext platformContext;
 
     private boolean deterministicModeEnabled;
     private ForkJoinPool defaultPool = ForkJoinPool.commonPool();
@@ -23,25 +23,32 @@ public class WiringModelBuilder {
     private Duration healthMonitorPeriod = Duration.ofMillis(100);
     private Duration healthLogThreshold = Duration.ofSeconds(5);
     private Duration healthLogPeriod = Duration.ofMinutes(10);
+    private final Metrics metrics;
+    private final Time time;
+    private Duration healthyReportThreshold = Duration.ofSeconds(1);
+    private UncaughtExceptionHandler taskSchedulerExceptionHandler = null;
 
     /**
      * Create a new builder.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
+     * @param time the time
      * @return the builder
      */
     @NonNull
-    public static WiringModelBuilder create(@NonNull final PlatformContext platformContext) {
-        return new WiringModelBuilder(platformContext);
+    public static WiringModelBuilder create(final Metrics metrics, final Time time) {
+        return new WiringModelBuilder(metrics, time);
     }
 
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
+     * @param time the time
      */
-    private WiringModelBuilder(@NonNull final PlatformContext platformContext) {
-        this.platformContext = Objects.requireNonNull(platformContext);
+    private WiringModelBuilder(@NonNull final Metrics metrics, @NonNull final Time time) {
+        this.metrics = Objects.requireNonNull(metrics);
+        this.time = Objects.requireNonNull(time);
     }
 
     /**
@@ -159,6 +166,32 @@ public class WiringModelBuilder {
     }
 
     /**
+     * Set the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withHealthyReportThreshold(@NonNull final Duration healthyReportThreshold) {
+        this.healthyReportThreshold = Objects.requireNonNull(healthyReportThreshold);
+        return this;
+    }
+
+    /**
+     * Set the global {@link UncaughtExceptionHandler}. Default is {@code null}. Allows to set a global uncaught
+     * exception handler for all threads created by the wiring model. This is useful for tests and during development
+     * while in production the default handler should be used.
+     *
+     * @param taskSchedulerExceptionHandler the global uncaught exception handler
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withUncaughtExceptionHandler(
+            @NonNull final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
+        this.taskSchedulerExceptionHandler = Objects.requireNonNull(taskSchedulerExceptionHandler);
+        return this;
+    }
+
+    /**
      * Build the wiring model.
      *
      * @param <T> the type of wiring model
@@ -168,20 +201,10 @@ public class WiringModelBuilder {
     @NonNull
     public <T extends WiringModel> T build() {
         if (deterministicModeEnabled) {
-            return (T) new DeterministicWiringModel(platformContext);
+            return (T) new DeterministicWiringModel(metrics, time, taskSchedulerExceptionHandler);
         } else {
             return (T) new StandardWiringModel(this);
         }
-    }
-
-    /**
-     * Get the platform context.
-     *
-     * @return the platform context
-     */
-    @NonNull
-    PlatformContext getPlatformContext() {
-        return platformContext;
     }
 
     /**
@@ -259,5 +282,45 @@ public class WiringModelBuilder {
     @NonNull
     Duration getHealthLogPeriod() {
         return healthLogPeriod;
+    }
+
+    /**
+     * Get the metrics
+     *
+     * @return the metrics
+     */
+    @NonNull
+    Metrics getMetrics() {
+        return metrics;
+    }
+
+    /**
+     * Get the time
+     *
+     * @return the time
+     */
+    @NonNull
+    Time getTime() {
+        return time;
+    }
+
+    /**
+     * Get the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return the healthyReportThreshold
+     */
+    @NonNull
+    Duration getHealthyReportThreshold() {
+        return healthyReportThreshold;
+    }
+
+    /**
+     * Get the global {@link UncaughtExceptionHandler}.
+     *
+     * @return the global {@code UncaughtExceptionHandler}
+     */
+    @NonNull
+    UncaughtExceptionHandler getTaskSchedulerExceptionHandler() {
+        return taskSchedulerExceptionHandler;
     }
 }

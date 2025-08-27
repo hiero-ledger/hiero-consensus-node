@@ -9,17 +9,15 @@ import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -38,13 +36,13 @@ public class ReconnectListener implements ReconnectCompleteListener {
     private final EntityIdFactory entityIdFactory;
 
     @NonNull
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     @Inject
     public ReconnectListener(
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);
@@ -62,7 +60,7 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 notification.getRoundNumber(),
                 notification.getSequence());
         final State state = notification.getState();
-        final var readableStoreFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(state);
         final var freezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
         final var upgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
         final var upgradeNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);

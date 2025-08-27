@@ -1,26 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.internal.deterministic.DeterministicHeartbeatScheduler;
 import com.swirlds.component.framework.model.internal.deterministic.DeterministicTaskSchedulerBuilder;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.wires.output.NoOpOutputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A deterministic implementation of a wiring model. Suitable for testing, not intended for production use cases.
  */
 public class DeterministicWiringModel extends TraceableWiringModel {
 
-    private final PlatformContext platformContext;
-
+    /**
+     * Metrics instance used to report status.
+     */
+    private final Metrics metrics;
     /**
      * Work that we will perform in the current cycle.
      */
@@ -33,15 +40,23 @@ public class DeterministicWiringModel extends TraceableWiringModel {
 
     private final DeterministicHeartbeatScheduler heartbeatScheduler;
 
+    private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
+
     /**
      * Constructor.
      *
-     * @param platformContext the context for this node
+     * @param metrics the metrics
+     * @param time the time
+     * @param taskSchedulerExceptionHandler the global {@link UncaughtExceptionHandler}
      */
-    DeterministicWiringModel(@NonNull final PlatformContext platformContext) {
+    DeterministicWiringModel(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @Nullable final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
         super(false);
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, platformContext.getTime(), "heartbeat");
+        this.metrics = Objects.requireNonNull(metrics);
+        this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, time);
+        this.taskSchedulerExceptionHandler = taskSchedulerExceptionHandler;
     }
 
     /**
@@ -76,7 +91,10 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
-        return new DeterministicTaskSchedulerBuilder<>(platformContext, this, name, this::submitWork);
+        final DeterministicTaskSchedulerBuilder<O> builder =
+                new DeterministicTaskSchedulerBuilder<>(metrics, this, name, this::submitWork);
+        builder.withUncaughtExceptionHandler(getUncaughtExceptionHandler());
+        return builder;
     }
 
     /**
@@ -85,7 +103,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
-        return heartbeatScheduler.buildHeartbeatWire(period);
+        return heartbeatScheduler.buildHeartbeatWire(period, getUncaughtExceptionHandler());
     }
 
     /**
@@ -112,7 +130,17 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        return heartbeatScheduler.buildHeartbeatWire(frequency);
+        return heartbeatScheduler.buildHeartbeatWire(frequency, getUncaughtExceptionHandler());
+    }
+
+    /**
+     * Get the uncaught exception handler for task schedulers if it has been set, otherwise return a default
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    private UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return Optional.ofNullable(taskSchedulerExceptionHandler).orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
     }
 
     /**
@@ -131,5 +159,6 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @Override
     public void stop() {
         throwIfNotStarted();
+        heartbeatScheduler.stop();
     }
 }

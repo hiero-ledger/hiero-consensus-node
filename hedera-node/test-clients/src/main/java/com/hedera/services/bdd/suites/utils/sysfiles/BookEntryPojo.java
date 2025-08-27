@@ -29,7 +29,7 @@ public class BookEntryPojo {
         private static String asReadableIp(final ByteString octets) {
             final byte[] raw = octets.toByteArray();
             final var sb = new StringBuilder();
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < raw.length; i++) {
                 sb.append("" + (0xff & raw[i]));
                 if (i != 3) {
                     sb.append(".");
@@ -267,7 +267,7 @@ public class BookEntryPojo {
         try {
             final var crtBytes = Files.readAllBytes(Paths.get(baseDir, String.format("node%d.crt", nodeId)));
             final var crtHash = CommonUtils.noThrowSha384HashOf(crtBytes);
-            return com.swirlds.common.utility.CommonUtils.hex(crtHash);
+            return org.hiero.base.utility.CommonUtils.hex(crtHash);
         } catch (final Exception e) {
             throw new IllegalStateException(e);
         }
@@ -276,7 +276,7 @@ public class BookEntryPojo {
     static String asHexEncodedDerPubKey(final String baseDir, final long nodeId) {
         try {
             final var pubKeyBytes = Files.readAllBytes(Paths.get(baseDir, String.format("node%d.der", nodeId)));
-            return com.swirlds.common.utility.CommonUtils.hex(pubKeyBytes);
+            return org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
         } catch (final Exception e) {
             throw new IllegalStateException(e);
         }

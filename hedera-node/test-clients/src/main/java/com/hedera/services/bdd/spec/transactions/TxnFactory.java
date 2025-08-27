@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import com.hedera.hapi.node.hooks.legacy.LambdaSStoreTransactionBody;
 import com.hedera.hapi.platform.event.legacy.StateSignatureTransaction;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
@@ -35,9 +36,11 @@ import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleSignTransactionBody;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Timestamp;
@@ -313,13 +316,13 @@ public class TxnFactory {
                 .setGas(setup.defaultCreateGas())
                 .setInitialBalance(setup.defaultContractBalance())
                 .setMemo(setup.defaultMemo())
-                .setShardID(setup.defaultShard())
-                .setRealmID(setup.defaultRealm());
+                .setShardID(shardID())
+                .setRealmID(realmID());
     }
 
     public Consumer<FileCreateTransactionBody.Builder> defaultDefFileCreateTransactionBody() {
-        return builder -> builder.setRealmID(setup.defaultRealm())
-                .setShardID(setup.defaultShard())
+        return builder -> builder.setRealmID(realmID())
+                .setShardID(shardID())
                 .setContents(ByteString.copyFrom(setup.defaultFileContents()));
     }
 
@@ -460,5 +463,17 @@ public class TxnFactory {
 
     public Consumer<AtomicBatchTransactionBody.Builder> defaultDefAtomicBatchTransactionBody() {
         return builder -> {};
+    }
+
+    public Consumer<LambdaSStoreTransactionBody.Builder> defaultDefLambdaSStoreTransactionBody() {
+        return builder -> {};
+    }
+
+    private ShardID shardID() {
+        return ShardID.newBuilder().setShardNum(setup.shard()).build();
+    }
+
+    private RealmID realmID() {
+        return RealmID.newBuilder().setRealmNum(setup.realm()).build();
     }
 }

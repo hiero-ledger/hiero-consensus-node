@@ -23,6 +23,8 @@ import java.time.Duration;
  *                                       considered to be unhealthy and starts to write log warnings
  * @param healthLogPeriod                the minimum amount of time that must pass between health log messages for the
  *                                       same scheduler
+ * @param healthyReportThreshold         indicates how long between two consecutive reports when the system is healthy.
+ *
  */
 @ConfigData("platform.wiring")
 public record WiringConfig(
@@ -33,4 +35,5 @@ public record WiringConfig(
         @ConfigProperty(defaultValue = "500") int healthMonitorSchedulerCapacity,
         @ConfigProperty(defaultValue = "1ms") Duration healthMonitorHeartbeatPeriod,
         @ConfigProperty(defaultValue = "1s") Duration healthLogThreshold,
-        @ConfigProperty(defaultValue = "10m") Duration healthLogPeriod) {}
+        @ConfigProperty(defaultValue = "10m") Duration healthLogPeriod,
+        @ConfigProperty(defaultValue = "1s") Duration healthyReportThreshold) {}

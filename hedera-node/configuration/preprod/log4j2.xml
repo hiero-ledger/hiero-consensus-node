@@ -6,6 +6,14 @@
       <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n"/>
     </Console>
 
+    <RollingFile name="GrpcAccessLog" fileName="output/grpc-access.log" filePattern="output/grpc-access.log-%i.log">
+      <PatternLayout>
+        <pattern>%m{nolookups}%n</pattern>
+      </PatternLayout>
+      <SizeBasedTriggeringPolicy size="100 MB" />
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
     <RollingFile name="RollingFile" fileName="output/hgcaa.log"
       filePattern="output/hgcaa-%i.log">
       <PatternLayout>
@@ -371,6 +379,9 @@
     <Logger name="hsqldb.db" level="ERROR" additivity="false">
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="grpc-access-log" level="INFO" additivity="false">
+      <AppenderRef ref="GrpcAccessLog" />
     </Logger>
   </Loggers>
 </Configuration>

@@ -8,7 +8,7 @@ import java.util.List;
 
 @ConfigData("stats")
 public record StatsConfig(
-        @ConfigProperty(defaultValue = "<GAS>,ThroughputLimits,CreationLimits") @NodeProperty
+        @ConfigProperty(defaultValue = "<GAS>,ThroughputLimits,CreationLimits,<OPS_DURATION>") @NodeProperty
                 List<String> consThrottlesToSample,
         @ConfigProperty(
                         defaultValue =

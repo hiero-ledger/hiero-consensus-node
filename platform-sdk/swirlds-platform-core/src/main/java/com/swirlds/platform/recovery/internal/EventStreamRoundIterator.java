@@ -3,7 +3,6 @@ package com.swirlds.platform.recovery.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.platform.system.events.CesEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -11,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Takes an iterator that walks over events and returns an iterator that walks over rounds.

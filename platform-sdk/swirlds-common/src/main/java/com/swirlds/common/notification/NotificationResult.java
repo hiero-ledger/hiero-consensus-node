@@ -3,6 +3,7 @@ package com.swirlds.common.notification;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
  * Provides information and errors as the result of a given {@link NotificationEngine#dispatch(Class, Notification)}

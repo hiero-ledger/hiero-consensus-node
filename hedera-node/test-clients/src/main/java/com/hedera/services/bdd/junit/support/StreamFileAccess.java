@@ -8,6 +8,7 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.TEST_CLIENTS_PREFIX;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
@@ -20,9 +21,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -53,9 +54,7 @@ public enum StreamFileAccess {
     /** A bit of infrastructure that runs the polling loop for all the listeners. */
     private final FileAlterationMonitor monitor = new FileAlterationMonitor(MONITOR_INTERVAL_MS);
 
-    public record RecordStreamData(List<RecordWithSidecars> records, List<RecordStreamFile> files) {
-        public static RecordStreamData EMPTY_DATA = new RecordStreamData(List.of(), List.of());
-    }
+    public record RecordStreamData(List<RecordWithSidecars> records, List<RecordStreamFile> files) {}
 
     /**
      * Registers a listener for the record stream file at the given path. Returns a runnable that can
@@ -69,9 +68,23 @@ public enum StreamFileAccess {
         requireNonNull(path);
         requireNonNull(listener);
         try {
+            final List<File> maybeExistingFiles = new ArrayList<>();
+            if (listener.replayExistingFiles()) {
+                try (final var stream = Files.walk(path)) {
+                    maybeExistingFiles.addAll(
+                            stream.map(Path::toFile).filter(File::isFile).toList());
+                }
+            }
+            if (listener.replayExistingFiles()) {
+                final var mockAlterationListener = new StreamFileAlterationListener();
+                mockAlterationListener.subscribe(listener);
+                CompletableFuture.runAsync(() -> maybeExistingFiles.forEach(mockAlterationListener::onFileCreate));
+            }
             final var alterationListener =
                     getOrCreateListener(path.toAbsolutePath().normalize().toString());
             final var unsubscribe = alterationListener.subscribe(listener);
+            // WARNING - replay is only meant for something like @GenesisHapiTest where there is
+            // at most one subscriber and a small number of files to replay; use with caution
             return () -> {
                 try {
                     unsubscribe.run();
@@ -155,9 +168,7 @@ public enum StreamFileAccess {
                     fullRecordFiles.add(recordFile);
                     return new RecordWithSidecars(
                             recordFile,
-                            sidecarFilesByRecordFile
-                                    .getOrDefault(parseRecordFileConsensusTime(f), Collections.emptyList())
-                                    .stream()
+                            sidecarFilesByRecordFile.getOrDefault(parseRecordFileConsensusTime(f), emptyList()).stream()
                                     .map(StreamFileAccess::ensurePresentSidecarFile)
                                     .toList());
                 })

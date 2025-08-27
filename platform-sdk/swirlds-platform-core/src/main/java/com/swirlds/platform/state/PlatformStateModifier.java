@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This interface represents the platform state and provide methods for modifying the state.
@@ -19,7 +19,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      *
      * @param creationVersion the creation version
      */
-    void setCreationSoftwareVersion(@NonNull SoftwareVersion creationVersion);
+    void setCreationSoftwareVersion(@NonNull SemanticVersion creationVersion);
 
     /**
      * Set the round when this state was generated.
@@ -72,26 +72,10 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
     void setLastFrozenTime(@Nullable Instant lastFrozenTime);
 
     /**
-     * Set the first software version where the birth round migration happened.
-     *
-     * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
+     * Set the last freeze round.
+     * @param latestFreezeRound the round number of the latest freeze round
      */
-    void setFirstVersionInBirthRoundMode(SoftwareVersion firstVersionInBirthRoundMode);
-
-    /**
-     * Set the last round before the birth round mode was enabled.
-     *
-     * @param lastRoundBeforeBirthRoundMode the last round before the birth round mode was enabled
-     */
-    void setLastRoundBeforeBirthRoundMode(long lastRoundBeforeBirthRoundMode);
-
-    /**
-     * Set the lowest judge generation before the birth round mode was enabled.
-     *
-     * @param lowestJudgeGenerationBeforeBirthRoundMode the lowest judge generation before the birth round mode was
-     *                                                  enabled
-     */
-    void setLowestJudgeGenerationBeforeBirthRoundMode(long lowestJudgeGenerationBeforeBirthRoundMode);
+    void setLatestFreezeRound(long latestFreezeRound);
 
     /**
      * This is a convenience method to update multiple fields in the platform state in a single operation.

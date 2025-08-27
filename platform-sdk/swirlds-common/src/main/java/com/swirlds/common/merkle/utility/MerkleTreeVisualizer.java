@@ -7,8 +7,6 @@ import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
 import static com.swirlds.common.formatting.TextEffect.GRAY;
 import static com.swirlds.common.formatting.TextEffect.WHITE;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
@@ -17,7 +15,10 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteUtils;
 import com.swirlds.common.utility.Labeled;
+import com.swirlds.common.utility.Mnemonics;
 import java.util.function.Predicate;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A utility for drawing merkle trees in a human viewable format.
@@ -215,7 +216,7 @@ public class MerkleTreeVisualizer {
                 }
 
                 if (useMnemonics) {
-                    final String mnemonic = hash == null ? "" : hash.toMnemonic();
+                    final String mnemonic = hash == null ? "" : Mnemonics.generateMnemonic(hash);
                     final String formattedMnemonic = useColors ? WHITE.apply(mnemonic) : mnemonic;
                     table.addToRow(formattedMnemonic);
                 }

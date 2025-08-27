@@ -3,8 +3,8 @@ package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,7 +24,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
-import com.hedera.hapi.node.file.FileInfo;
+import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
@@ -36,7 +36,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.crypto.CryptographyFactory;
+import org.hiero.base.crypto.CryptographyProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -212,7 +212,7 @@ class FileGetInfoTest extends FileTestBase {
     }
 
     private FileInfo getExpectedUpgradeInfo() {
-        final var upgradeHash = hex(CryptographyFactory.create().digestBytesSync(contents));
+        final var upgradeHash = hex(CryptographyProvider.getInstance().digestBytesSync(contents));
         return FileInfo.newBuilder()
                 .memo(upgradeHash)
                 .fileID(fileUpgradeFileId)

@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.equivAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.solidityIdFrom;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.doGasLookup;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
+import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractGetInfoResponse;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -27,10 +29,11 @@ import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.InvocationTargetException;
@@ -44,16 +47,13 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreate> {
     static final Key DEPRECATED_CID_ADMIN_KEY = Key.newBuilder()
-            .setContractID(ContractID.newBuilder()
-                    .setShardNum(shard)
-                    .setRealmNum(realm)
-                    .setContractNum(1_234L))
+            .setContractID(ContractID.newBuilder().setShardNum(0).setRealmNum(0).setContractNum(1_234L))
             .build();
 
     public HapiContractCreate(String contract) {
@@ -74,13 +74,29 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<String> autoRenewAccount = Optional.empty();
     private Optional<Integer> maxAutomaticTokenAssociations = Optional.empty();
     private Optional<ByteString> inlineInitcode = Optional.empty();
+    private Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
+    private Optional<Consumer<Address>> addressObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
     @Nullable
     private BiConsumer<HapiSpec, ContractCreateTransactionBody.Builder> spec;
 
-    public HapiContractCreate exposingNumTo(LongConsumer obs) {
-        newNumObserver = Optional.of(obs);
+    public HapiContractCreate exposingContractIdTo(Consumer<ContractID> obs) {
+        newIdObserver = Optional.of(obs);
+        return this;
+    }
+
+    public HapiContractCreate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
+        return this;
+    }
+
+    public HapiContractCreate exposingAddressTo(Consumer<Address> obs) {
+        addressObserver = Optional.of(obs);
         return this;
     }
 
@@ -260,6 +276,9 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         }
         final var newId = lastReceipt.getContractID();
         newNumObserver.ifPresent(obs -> obs.accept(newId.getContractNum()));
+        newIdObserver.ifPresent(obs -> obs.accept(newId));
+        addressObserver.ifPresent(obs -> obs.accept(asHeadlongAddress(asAddress(newId))));
+
         if (shouldAlsoRegisterAsAccount) {
             spec.registry().saveAccountId(contract, equivAccount(lastReceipt.getContractID()));
         }
@@ -367,6 +386,15 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
+
+                            b.setRealmID(RealmID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm()));
+                            b.setShardID(ShardID.newBuilder().setShardNum(spec.shard()));
                         });
         return b -> b.setContractCreateInstance(opBody);
     }
@@ -442,10 +470,6 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
 
     public Optional<String> getCustomTxnId() {
         return customTxnId;
-    }
-
-    public Optional<AccountID> getNode() {
-        return node;
     }
 
     public OptionalDouble getUsdFee() {

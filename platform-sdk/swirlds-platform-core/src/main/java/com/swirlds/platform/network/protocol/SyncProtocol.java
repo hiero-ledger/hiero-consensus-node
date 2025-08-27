@@ -1,108 +1,88 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for sync protocol
  */
-public class SyncProtocol implements Protocol {
+public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> {
+
+    private static final Logger logger = LogManager.getLogger(SyncProtocol.class);
 
     private final PlatformContext platformContext;
-    private final ShadowgraphSynchronizer synchronizer;
     private final FallenBehindManager fallenBehindManager;
-    private final SyncPermitProvider permitProvider;
-    private final IntakeEventCounter intakeEventCounter;
-    private final BooleanSupplier gossipHalted;
     private final Duration sleepAfterSync;
     private final SyncMetrics syncMetrics;
-    private final Supplier<PlatformStatus> platformStatusSupplier;
+    private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
 
     /**
      * Constructs a new sync protocol
      *
-     * @param platformContext        the platform context
-     * @param synchronizer           the shadow graph synchronizer, responsible for actually doing the sync
-     * @param fallenBehindManager    manager to determine whether this node has fallen behind
-     * @param permitProvider         provides permits to sync
-     * @param intakeEventCounter     keeps track of how many events have been received from each peer
-     * @param gossipHalted           returns true if gossip is halted, false otherwise
-     * @param sleepAfterSync         the amount of time to sleep after a sync
-     * @param syncMetrics            metrics tracking syncing
-     * @param platformStatusSupplier provides the current platform status
+     * @param platformContext     the platform context
+     * @param synchronizer        the shadow graph synchronizer, responsible for actually doing the sync
+     * @param fallenBehindManager manager to determine whether this node has fallen behind
+     * @param intakeEventCounter  keeps track of how many events have been received from each peer
+     * @param sleepAfterSync      the amount of time to sleep after a sync
+     * @param syncMetrics         metrics tracking syncing
      */
     public SyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ShadowgraphSynchronizer synchronizer,
             @NonNull final FallenBehindManager fallenBehindManager,
-            @NonNull final SyncPermitProvider permitProvider,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final BooleanSupplier gossipHalted,
             @NonNull final Duration sleepAfterSync,
             @NonNull final SyncMetrics syncMetrics,
-            @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
+            final int rosterSize) {
 
+        super(synchronizer, platformContext, rosterSize, intakeEventCounter);
         this.platformContext = Objects.requireNonNull(platformContext);
-        this.synchronizer = Objects.requireNonNull(synchronizer);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
-        this.permitProvider = Objects.requireNonNull(permitProvider);
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
-        this.gossipHalted = Objects.requireNonNull(gossipHalted);
         this.sleepAfterSync = Objects.requireNonNull(sleepAfterSync);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
     }
 
     /**
      * Utility method for creating SyncProtocol from shared state, while staying compatible with pre-refactor code
-     * @param platformContext       the platform context
-     * @param sharedState           temporary class to share state between various protocols in modularized gossip, to be removed
-     * @param intakeEventCounter    keeps track of how many events have been received from each peer
-     * @param rosterSize            estimated roster size
+     *
+     * @param platformContext      the platform context
+     * @param fallenBehindManager  tracks if we have fallen behind
+     * @param intakeEventCounter   keeps track of how many events have been received from each peer
+     * @param rosterSize           estimated roster size
+     * @param syncMetrics          metrics of synchronization process
      * @return constructed SyncProtocol
      */
     public static SyncProtocol create(
             @NonNull final PlatformContext platformContext,
-            @NonNull final SyncGossipSharedProtocolState sharedState,
+            @NonNull final ShadowgraphSynchronizer synchronizer,
+            @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            final int rosterSize) {
-
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics());
-
-        var syncShadowgraphSynchronizer = new ShadowgraphSynchronizer(
-                platformContext,
-                sharedState.shadowgraph(),
-                rosterSize,
-                syncMetrics,
-                event -> sharedState.receivedEventHandler().accept(event),
-                sharedState.syncManager(),
-                intakeEventCounter,
-                sharedState.shadowgraphExecutor());
+            final int rosterSize,
+            final SyncMetrics syncMetrics) {
 
         return new SyncProtocol(
                 platformContext,
-                syncShadowgraphSynchronizer,
-                sharedState.syncManager(),
-                sharedState.syncPermitProvider(),
+                synchronizer,
+                fallenBehindManager,
                 intakeEventCounter,
-                sharedState.gossipHalted()::get,
                 Duration.ZERO,
                 syncMetrics,
-                sharedState.currentPlatformStatus()::get);
+                rosterSize);
     }
 
     /**
@@ -118,9 +98,27 @@ public class SyncProtocol implements Protocol {
                 fallenBehindManager,
                 permitProvider,
                 intakeEventCounter,
-                gossipHalted,
+                gossipHalted::get,
                 sleepAfterSync,
                 syncMetrics,
-                platformStatusSupplier);
+                platformStatus::get);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
+        platformStatus.set(status);
+    }
+
+    /**
+     * Used by legacy testing to check available permits. Package-private to avoid polluting public space
+     *
+     * @return internal permit provider
+     */
+    @VisibleForTesting
+    SyncPermitProvider getPermitProvider() {
+        return permitProvider;
     }
 }

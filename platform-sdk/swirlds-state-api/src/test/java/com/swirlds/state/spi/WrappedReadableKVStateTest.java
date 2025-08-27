@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.Iterator;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,16 +17,17 @@ import org.mockito.Mock;
  */
 class WrappedReadableKVStateTest extends StateTestBase {
     @Mock
-    private ReadableKVState<String, String> delegate;
+    private ReadableKVState<ProtoBytes, ProtoBytes> delegate;
 
     @Mock
-    private Iterator<String> keys;
+    private Iterator<ProtoBytes> keys;
 
-    private WrappedReadableKVState<String, String> state;
+    private WrappedReadableKVState<ProtoBytes, ProtoBytes> state;
 
     @BeforeEach
     void setUp() {
         openMocks(this);
+        when(delegate.getServiceName()).thenReturn(FRUIT_SERVICE_NAME);
         when(delegate.getStateKey()).thenReturn(FRUIT_STATE_KEY);
         state = new WrappedReadableKVState<>(delegate);
     }

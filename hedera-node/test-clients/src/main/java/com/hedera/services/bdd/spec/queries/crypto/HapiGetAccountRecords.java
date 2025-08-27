@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureD
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.rethrowSummaryError;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.nonStakingRecordsFrom;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.io.ByteSink;
@@ -47,6 +48,9 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
     @Nullable
     private Consumer<List<TransactionRecord>> observer = null;
 
+    @Nullable
+    private Consumer<List<TransactionRecord>> nonStakingObserver = null;
+
     public HapiGetAccountRecords has(ErroringAssertsProvider<List<TransactionRecord>> provider) {
         expectation = Optional.of(provider);
         return this;
@@ -70,6 +74,12 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
 
     public HapiGetAccountRecords exposingTo(@NonNull final Consumer<List<TransactionRecord>> observer) {
         this.observer = observer;
+        return this;
+    }
+
+    public HapiGetAccountRecords exposingNonStakingRecordsTo(
+            @NonNull final Consumer<List<TransactionRecord>> observer) {
+        this.nonStakingObserver = observer;
         return this;
     }
 
@@ -103,6 +113,10 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
         List<TransactionRecord> records = response.getCryptoGetAccountRecords().getRecordsList();
         if (observer != null) {
             observer.accept(records);
+        }
+        if (nonStakingObserver != null) {
+            final var nonStakingRecords = nonStakingRecordsFrom(records);
+            nonStakingObserver.accept(nonStakingRecords);
         }
         if (verboseLoggingOn) {
             if (customLog.isPresent()) {

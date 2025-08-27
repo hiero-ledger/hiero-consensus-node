@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.writeRandomBytes;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.event.preconsensus.PcesFile.EVENT_FILE_SEPARATOR;
 import static com.swirlds.platform.event.preconsensus.PcesFile.MAXIMUM_BIRTH_ROUND_PREFIX;
-import static com.swirlds.platform.event.preconsensus.PcesFile.MAXIMUM_GENERATION_PREFIX;
 import static com.swirlds.platform.event.preconsensus.PcesFile.MINIMUM_BIRTH_ROUND_PREFIX;
-import static com.swirlds.platform.event.preconsensus.PcesFile.MINIMUM_GENERATION_PREFIX;
 import static com.swirlds.platform.event.preconsensus.PcesFile.ORIGIN_PREFIX;
 import static com.swirlds.platform.event.preconsensus.PcesFile.SEQUENCE_NUMBER_PREFIX;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,10 +20,7 @@ import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
-import com.swirlds.platform.event.AncientMode;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,14 +35,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("PcesFile Tests")
 class PcesFileTests {
@@ -71,47 +62,29 @@ class PcesFileTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<Arguments> buildArguments() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Invalid Parameters Test")
-    void invalidParametersTest(@NonNull final AncientMode ancientMode) {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), -1, 1, 2, 0, Path.of("foo")));
+    void invalidParametersTest() {
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), -1, 1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), 1, -1, 2, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, -1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), 1, -2, -1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, -2, -1, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), 1, 1, -1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 1, -1, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), 1, 2, 1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 2, 1, 0, Path.of("foo")));
 
-        assertThrows(NullPointerException.class, () -> PcesFile.of(ancientMode, null, 1, 1, 2, 0, Path.of("foo")));
+        assertThrows(NullPointerException.class, () -> PcesFile.of(null, 1, 1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of(ancientMode, Instant.now(), 1, 1, 2, -1, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 1, 2, -1, Path.of("foo")));
 
-        assertThrows(NullPointerException.class, () -> PcesFile.of(ancientMode, Instant.now(), 1, 1, 2, 0, null));
+        assertThrows(NullPointerException.class, () -> PcesFile.of(Instant.now(), 1, 1, 2, 0, null));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("File Name Test")
-    void fileNameTest(@NonNull final AncientMode ancientMode) {
+    void fileNameTest() {
         final Random random = getRandomPrintSeed();
 
         int count = 100;
@@ -122,29 +95,23 @@ class PcesFileTests {
             final long origin = random.nextLong(1000);
             final Instant timestamp = RandomUtils.randomInstant(random);
 
-            final String lowerBoundPrefix =
-                    ancientMode == GENERATION_THRESHOLD ? MINIMUM_GENERATION_PREFIX : MINIMUM_BIRTH_ROUND_PREFIX;
-            final String upperBoundPrefix =
-                    ancientMode == GENERATION_THRESHOLD ? MAXIMUM_GENERATION_PREFIX : MAXIMUM_BIRTH_ROUND_PREFIX;
-
             final String expectedName =
                     timestamp.toString().replace(":", "+") + EVENT_FILE_SEPARATOR + SEQUENCE_NUMBER_PREFIX
-                            + sequenceNumber + EVENT_FILE_SEPARATOR + lowerBoundPrefix
-                            + lowerBound + EVENT_FILE_SEPARATOR + upperBoundPrefix
+                            + sequenceNumber + EVENT_FILE_SEPARATOR + MINIMUM_BIRTH_ROUND_PREFIX
+                            + lowerBound + EVENT_FILE_SEPARATOR + MAXIMUM_BIRTH_ROUND_PREFIX
                             + upperBound + EVENT_FILE_SEPARATOR + ORIGIN_PREFIX + origin + ".pces";
 
-            final PcesFile file = PcesFile.of(
-                    ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"));
+            final PcesFile file =
+                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"));
 
             assertEquals(expectedName, file.getFileName());
             assertEquals(expectedName, file.toString());
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("File Path Test")
-    void filePathTest(@NonNull final AncientMode ancientMode) {
+    void filePathTest() {
         final Random random = getRandomPrintSeed();
 
         int count = 100;
@@ -166,23 +133,15 @@ class PcesFileTests {
 
             assertEquals(
                     expectedPath,
-                    PcesFile.of(
-                                    ancientMode,
-                                    timestamp,
-                                    sequenceNumber,
-                                    lowerBound,
-                                    upperBound,
-                                    origin,
-                                    Path.of("foo/bar"))
+                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"))
                             .getPath()
                             .getParent());
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Parsing Test")
-    void parsingTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void parsingTest() throws IOException {
         final Random random = getRandomPrintSeed();
 
         int count = 100;
@@ -195,8 +154,7 @@ class PcesFileTests {
 
             final Path directory = Path.of("foo/bar/baz");
 
-            final PcesFile expected =
-                    PcesFile.of(ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
+            final PcesFile expected = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
 
             final PcesFile parsed = PcesFile.of(expected.getPath());
 
@@ -206,7 +164,6 @@ class PcesFileTests {
             assertEquals(upperBound, parsed.getUpperBound());
             assertEquals(origin, parsed.getOrigin());
             assertEquals(timestamp, parsed.getTimestamp());
-            assertEquals(ancientMode, parsed.getFileType());
         }
     }
 
@@ -234,10 +191,9 @@ class PcesFileTests {
     }
 
     @SuppressWarnings("resource")
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Deletion Test")
-    void deletionTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void deletionTest() throws IOException {
         final Random random = getRandomPrintSeed();
         final Instant now = Instant.now();
 
@@ -264,7 +220,7 @@ class PcesFileTests {
         for (int index = 0; index < times.size(); index++) {
             final Instant timestamp = times.get(index);
             // We don't care about ancient indicators for this test
-            final PcesFile file = PcesFile.of(ancientMode, timestamp, index, 0, 0, 0, testDirectory);
+            final PcesFile file = PcesFile.of(timestamp, index, 0, 0, 0, testDirectory);
 
             writeRandomBytes(random, file.getPath(), 100);
             files.add(file);
@@ -301,10 +257,9 @@ class PcesFileTests {
     }
 
     @SuppressWarnings("resource")
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Recycle Test")
-    void recycleTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void recycleTest() throws IOException {
         final Random random = getRandomPrintSeed();
         final Instant now = Instant.now();
 
@@ -345,7 +300,7 @@ class PcesFileTests {
         for (int index = 0; index < times.size(); index++) {
             final Instant timestamp = times.get(index);
             // We don't care about ancient indicators for this test
-            final PcesFile file = PcesFile.of(ancientMode, timestamp, index, 0, 0, 0, streamDirectory);
+            final PcesFile file = PcesFile.of(timestamp, index, 0, 0, 0, streamDirectory);
 
             writeRandomBytes(random, file.getPath(), 100);
             files.add(file);
@@ -386,10 +341,9 @@ class PcesFileTests {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("compareTo() Test")
-    void compareToTest(@NonNull final AncientMode ancientMode) {
+    void compareToTest() {
         final Random random = getRandomPrintSeed();
 
         final Path directory = Path.of("foo/bar/baz");
@@ -405,30 +359,17 @@ class PcesFileTests {
             final long upperBoundB = random.nextLong(lowerBoundB, lowerBoundB + 100);
 
             final PcesFile a = PcesFile.of(
-                    ancientMode,
-                    randomInstant(random),
-                    sequenceA,
-                    lowerBoundA,
-                    upperBoundA,
-                    random.nextLong(1000),
-                    directory);
+                    randomInstant(random), sequenceA, lowerBoundA, upperBoundA, random.nextLong(1000), directory);
             final PcesFile b = PcesFile.of(
-                    ancientMode,
-                    randomInstant(random),
-                    sequenceB,
-                    lowerBoundB,
-                    upperBoundB,
-                    random.nextLong(1000),
-                    directory);
+                    randomInstant(random), sequenceB, lowerBoundB, upperBoundB, random.nextLong(1000), directory);
 
             assertEquals(Long.compare(sequenceA, sequenceB), a.compareTo(b));
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("canContain() Test")
-    void canContainTest(@NonNull final AncientMode ancientMode) {
+    void canContainTest() {
         final Random random = getRandomPrintSeed();
 
         final Path directory = Path.of("foo/bar/baz");
@@ -439,8 +380,7 @@ class PcesFileTests {
             final long upperBound = random.nextLong(lowerBound + 1, lowerBound + 1000);
             final Instant timestamp = RandomUtils.randomInstant(random);
 
-            final PcesFile file =
-                    PcesFile.of(ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, 0, directory);
+            final PcesFile file = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, 0, directory);
 
             // An event with a sequence number that is too small
             assertFalse(file.canContain(lowerBound - random.nextLong(1, 100)));
@@ -459,10 +399,9 @@ class PcesFileTests {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Span Compression Test")
-    void spanCompressionTest(@NonNull final AncientMode ancientMode) {
+    void spanCompressionTest() {
         final Random random = getRandomPrintSeed();
 
         final Path directory = Path.of("foo/bar/baz");
@@ -473,8 +412,7 @@ class PcesFileTests {
         final long origin = random.nextLong(1000);
         final Instant timestamp = randomInstant(random);
 
-        final PcesFile file =
-                PcesFile.of(ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
+        final PcesFile file = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
 
         assertThrows(IllegalArgumentException.class, () -> file.buildFileWithCompressedSpan(lowerBound - 1));
         assertThrows(IllegalArgumentException.class, () -> file.buildFileWithCompressedSpan(upperBound + 1));

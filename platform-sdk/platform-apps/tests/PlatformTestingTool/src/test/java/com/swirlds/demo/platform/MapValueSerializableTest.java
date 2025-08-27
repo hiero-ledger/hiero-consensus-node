@@ -2,13 +2,11 @@
 package com.swirlds.demo.platform;
 
 import static com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord.DEFAULT_EXPIRATION_TIME;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
@@ -44,6 +42,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,9 @@ class MapValueSerializableTest {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero");
         cryptography = TestMerkleCryptoFactory.getInstance();
     }
 
@@ -315,7 +318,8 @@ class MapValueSerializableTest {
 
             final ByteArrayInputStream inStream = new ByteArrayInputStream(outStream.toByteArray());
             final MerkleDataInputStream inputStream = new MerkleDataInputStream(inStream);
-            final MerkleMap<MapKey, T> deserializedMap = inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+            final MerkleMap<MapKey, T> deserializedMap =
+                    inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
             cryptography.digestTreeSync(deserializedMap);
 
             assertEquals(map, deserializedMap);

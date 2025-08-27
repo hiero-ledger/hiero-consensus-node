@@ -46,6 +46,7 @@ public class DataFileCollectionBench extends BaseBench {
                         return recordData != null ? serializer.deserialize(recordData) : null;
                     }
                 };
+        store.updateValidKeyRange(0, maxKey);
         final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
         System.out.println();
 
@@ -57,10 +58,10 @@ public class DataFileCollectionBench extends BaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
                 BenchmarkRecord record = new BenchmarkRecord(id, nextValue());
-                index.put(id, store.storeDataItem(record::serialize, BenchmarkRecord.getSerializedSize()));
+                index.put(id, store.storeDataItem(record::serialize, record.getSizeInBytes()));
                 if (verify) map[(int) id] = record;
             }
-            store.endWriting(0, maxKey).setFileCompleted();
+            store.endWriting();
         }
         System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
 

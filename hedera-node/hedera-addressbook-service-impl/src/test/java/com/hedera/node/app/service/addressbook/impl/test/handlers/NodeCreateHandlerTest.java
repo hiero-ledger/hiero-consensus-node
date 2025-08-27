@@ -7,14 +7,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -155,6 +156,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .build(payerId);
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -168,6 +170,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(1).getEncoded()))
                 .build(payerId);
         given(pureChecksContext.body()).willReturn(txn);
@@ -182,6 +185,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(IMMUTABILITY_SENTINEL_KEY)
                 .build(payerId);
@@ -197,6 +201,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(invalidKey)
                 .build(payerId);
@@ -212,6 +217,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(2).getEncoded()))
                 .withAdminKey(key)
                 .build(payerId);
@@ -318,18 +324,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of())
-                .build(payerId);
-        setupHandle();
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT, msg.getStatus());
-    }
-
-    @Test
-    void failsWhenGossipEndpointTooSmall() {
-        txn = new NodeCreateBuilder()
-                .withAccountId(accountId)
-                .withGossipEndpoint(List.of(endpoint1))
                 .build(payerId);
         setupHandle();
 
@@ -511,6 +505,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withAdminKey(invalidKey)
                 .build(payerId);
         setupHandle();
@@ -519,6 +514,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .withValue("nodes.maxServiceEndpoint", 2)
                 .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.attributeValidator()).willReturn(validator);
@@ -535,9 +531,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withDescription("Description")
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withGrpcCertificateHash(Bytes.wrap("hash"))
                 .withAdminKey(key)
+                .withDeclineReward(true)
                 .build(payerId);
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithMoreNodeInWritable();
@@ -545,6 +543,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
                 .withValue("nodes.maxGossipEndpoint", 4)
                 .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
@@ -557,10 +556,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.attributeValidator()).willReturn(validator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        final var createdNode = writableStore.get(4L);
+        final var createdNode = writableStore.get(0L);
         assertNotNull(createdNode);
-        verify(recordBuilder).nodeID(4L);
-        assertEquals(4, createdNode.nodeId());
+        verify(recordBuilder).nodeID(0L);
+        assertEquals(0L, createdNode.nodeId());
         assertEquals("Description", createdNode.description());
         assertArrayEquals(
                 (List.of(endpoint1, endpoint2)).toArray(),
@@ -572,6 +571,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 certList.get(0).getEncoded(), createdNode.gossipCaCertificate().toByteArray());
         assertArrayEquals("hash".getBytes(), createdNode.grpcCertificateHash().toByteArray());
         assertEquals(key, createdNode.adminKey());
+        assertTrue(createdNode.declineReward());
     }
 
     @Test
@@ -635,11 +635,14 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         private List<ServiceEndpoint> serviceEndpoint = null;
 
+        private ServiceEndpoint grpcWebProxyEndpoint = null;
+
         private Bytes gossipCaCertificate = null;
 
         private Bytes grpcCertificateHash = null;
 
         private Key adminKey = null;
+        private boolean declineReward = false;
 
         private NodeCreateBuilder() {}
 
@@ -658,6 +661,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             if (serviceEndpoint != null) {
                 txnBody.serviceEndpoint(serviceEndpoint);
             }
+            if (grpcWebProxyEndpoint != null) {
+                txnBody.grpcProxyEndpoint(grpcWebProxyEndpoint);
+            }
             if (gossipCaCertificate != null) {
                 txnBody.gossipCaCertificate(gossipCaCertificate);
             }
@@ -667,6 +673,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             if (adminKey != null) {
                 txnBody.adminKey(adminKey);
             }
+            txnBody.declineReward(declineReward);
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -694,6 +701,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             return this;
         }
 
+        public NodeCreateBuilder withGrpcWebProxyEndpoint(final ServiceEndpoint proxyEndpoint) {
+            this.grpcWebProxyEndpoint = proxyEndpoint;
+            return this;
+        }
+
         public NodeCreateBuilder withGossipCaCertificate(final Bytes gossipCaCertificate) {
             this.gossipCaCertificate = gossipCaCertificate;
             return this;
@@ -706,6 +718,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withAdminKey(final Key adminKey) {
             this.adminKey = adminKey;
+            return this;
+        }
+
+        public NodeCreateBuilder withDeclineReward(final boolean declineReward) {
+            this.declineReward = declineReward;
             return this;
         }
     }

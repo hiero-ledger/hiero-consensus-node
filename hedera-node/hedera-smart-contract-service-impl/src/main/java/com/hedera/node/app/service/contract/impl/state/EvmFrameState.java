@@ -4,10 +4,9 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -104,6 +103,20 @@ public interface EvmFrameState {
      * @return an optional {@link ExceptionalHaltReason} with the reason deletion could not be tracked
      */
     Optional<ExceptionalHaltReason> tryTrackingSelfDestructBeneficiary(
+            @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
+
+    /**
+     * Tracks the given deletion of an account with the designated beneficiary.
+     *
+     * @param deleted the address of the account being deleted, a contract
+     * @param beneficiary the address of the beneficiary of the deletion
+     * @param frame
+     *
+     * `Beneficiary` must not be a token or a schedule.  Contract `deleted` must not be any token's
+     * treasury.  Contract `deleted` must not own any tokens.  These conditions are _not_ checked
+     * by this method.
+     */
+    void trackSelfDestructBeneficiary(
             @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
 
     /**
@@ -338,12 +351,12 @@ public interface EvmFrameState {
     long getIdNumber(@NonNull Address address);
 
     /**
-     * Returns the full list of account-scoped storage changes in the current scope.
+     * Returns a {@link TxStorageUsage} summarizing the storage changes made by the transaction.
      *
      * @return the full list of account-scoped storage changes
      */
     @NonNull
-    List<StorageAccesses> getStorageChanges();
+    TxStorageUsage getTxStorageUsage(boolean includeChangedSlotKeys);
 
     /**
      * Returns the size of the underlying K/V state for contract storage.

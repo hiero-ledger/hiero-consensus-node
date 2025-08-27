@@ -126,12 +126,14 @@ public class HapiUtils {
     public static int countOfCryptographicKeys(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case ECDSA_384, ED25519, RSA_3072, ECDSA_SECP256K1 -> 1;
-            case KEY_LIST -> key.keyListOrThrow().keys().stream()
-                    .mapToInt(HapiUtils::countOfCryptographicKeys)
-                    .sum();
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
-                    .mapToInt(HapiUtils::countOfCryptographicKeys)
-                    .sum();
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().stream()
+                        .mapToInt(HapiUtils::countOfCryptographicKeys)
+                        .sum();
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
+                        .mapToInt(HapiUtils::countOfCryptographicKeys)
+                        .sum();
             case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET -> 0;
         };
     }
@@ -182,6 +184,8 @@ public class HapiUtils {
             case CRYPTO_DELETE_LIVE_HASH -> HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
             case CRYPTO_TRANSFER -> HederaFunctionality.CRYPTO_TRANSFER;
             case ETHEREUM_TRANSACTION -> HederaFunctionality.ETHEREUM_TRANSACTION;
+            case LAMBDA_SSTORE -> HederaFunctionality.LAMBDA_S_STORE;
+            case HOOK_DISPATCH -> HederaFunctionality.HOOK_DISPATCH;
             case FILE_APPEND -> HederaFunctionality.FILE_APPEND;
             case FILE_CREATE -> HederaFunctionality.FILE_CREATE;
             case FILE_UPDATE -> HederaFunctionality.FILE_UPDATE;
@@ -292,12 +296,12 @@ public class HapiUtils {
      * @return The corresponding {@link AccountID}
      * @throws IllegalArgumentException if the string is not a dot-separated triplet of numbers
      */
-    public static AccountID parseAccount(@NonNull final String string) {
+    public static AccountID parseAccountFromLegacy(@NonNull final String string, final long shard, final long realm) {
         try {
             final var parts = string.split("\\.");
             return AccountID.newBuilder()
-                    .shardNum(Long.parseLong(parts[0]))
-                    .realmNum(Long.parseLong(parts[1]))
+                    .shardNum(shard)
+                    .realmNum(realm)
                     .accountNum(Long.parseLong(parts[2]))
                     .build();
         } catch (final NumberFormatException | ArrayIndexOutOfBoundsException e) {

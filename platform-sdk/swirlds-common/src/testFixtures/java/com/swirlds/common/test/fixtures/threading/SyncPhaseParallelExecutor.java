@@ -5,14 +5,24 @@ import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
- * A parallel executor that executes a {@link Runnable} after a specified sync phase (not step).
+ * A parallel executor that executes a {@link Runnable} after a specified sync phase (not step). It also has a special
+ * behaviour of calling foreground task in separate thread (rather than caller thread) due to compatibility issues with
+ * old sync tests.
+ * <p>
+ * This method assumes that this instance of {@link SyncPhaseParallelExecutor} is used for both the caller and the
+ * listener. The caller and listener threads can enter the
+ * {@link SyncPhaseParallelExecutor#doParallelWithHandler(Runnable, Callable, ThrowingRunnable...) method at the same
+ * time, each with their 2 tasks, resulting in 4 tasks executing at once.
  */
 public class SyncPhaseParallelExecutor implements ParallelExecutor {
 
@@ -75,39 +85,30 @@ public class SyncPhaseParallelExecutor implements ParallelExecutor {
         return phase;
     }
 
-    @Override
-    public <T> T doParallel(final Callable<T> task1, final Callable<Void> task2, final Runnable onThrow)
-            throws ParallelExecutionException {
-        return doParallel(task1, task2);
-    }
-
     /**
-     * Execute two tasks in parallel, then executes a {@link Runnable} after {@link SyncPhaseParallelExecutor#phase}.
-     *
-     * This method assumes that this instance of {@link SyncPhaseParallelExecutor} is used for both the caller and the
-     * listener. The caller and listener threads can enter the {@link SyncPhaseParallelExecutor#doParallel(Callable,
-     * Callable)} method at the same time, each with their 2 tasks, resulting in 4 tasks executing at once.
-     *
-     * @param task1
-     * 		a task to execute in parallel
-     * @param task2
-     * 		a task to execute in parallel
-     * @throws ParallelExecutionException
-     * 		if anything goes wrong
+     * {@inheritDoc}
      */
     @Override
-    public <T> T doParallel(final Callable<T> task1, final Callable<Void> task2) throws ParallelExecutionException {
+    public <T> T doParallelWithHandler(
+            final Runnable errorHandler, final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks)
+            throws ParallelExecutionException {
 
         if (phase == PHASE_3) {
             beforePhase3.run();
         }
 
-        // Executes the 2 caller or 2 listener tasks simultaneously.
-        T result = null;
+        final List<Future<Void>> futures =
+                Arrays.stream(backgroundTasks).map(executor::submit).toList();
+
+        final T result;
         try {
-            final Future<T> future1 = executor.submit(task1);
-            task2.call();
-            result = future1.get();
+            final Future<T> foregroundFuture = executor.submit(foregroundTask);
+
+            for (final Future<Void> future : futures) {
+                future.get();
+            }
+
+            result = foregroundFuture.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ParallelExecutionException(e);

@@ -5,6 +5,7 @@ import com.swirlds.common.notification.DispatchMode;
 import com.swirlds.common.notification.DispatchModel;
 import com.swirlds.common.notification.DispatchOrder;
 import com.swirlds.common.notification.Listener;
+import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * Listener for fatal ISS events (i.e. of type SELF or CATASTROPHIC). This listener is ordered and asynchronous.

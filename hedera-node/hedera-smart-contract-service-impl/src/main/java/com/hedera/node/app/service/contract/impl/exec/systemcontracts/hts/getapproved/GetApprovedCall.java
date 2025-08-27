@@ -66,7 +66,7 @@ public class GetApprovedCall extends AbstractRevertibleTokenViewCall {
                         revertResult(INVALID_TOKEN_ID, gasCalculator.viewGasRequirement()), INVALID_TOKEN_ID, true);
             }
         }
-        final var nft = nativeOperations().getNft(token.tokenId().tokenNum(), serialNo);
+        final var nft = nativeOperations().getNft(token.tokenId(), serialNo);
         if (nft == null || !nft.hasNftId()) {
             return gasOnly(
                     revertResult(INVALID_TOKEN_NFT_SERIAL_NUMBER, gasCalculator.viewGasRequirement()),

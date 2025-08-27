@@ -5,12 +5,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.notification.IssNotification;
 
 @Singleton
 public class FatalIssListenerImpl implements AsyncFatalIssListener {

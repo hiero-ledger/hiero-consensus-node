@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stream;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.stream.MultiStream;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.system.events.CesEvent;
+import com.swirlds.platform.recovery.RecoveryTestUtils;
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -27,14 +29,15 @@ class ConsensusEventStreamTest {
     private static final MultiStream<CesEvent> multiStreamMock = mock(MultiStream.class);
     private static final ConsensusEventStream CONSENSUS_EVENT_STREAM = new DefaultConsensusEventStream(
             Time.getCurrent(), multiStreamMock, ConsensusEventStreamTest::isFreezeEvent);
+    private static final Random RANDOM = RandomUtils.getRandomPrintSeed();
 
-    private static final CesEvent freezeEvent = mock(CesEvent.class);
+    private static final CesEvent freezeEvent = createRandomEvent();
 
     @Test
     void addEventTest() {
         final int nonFreezeEventsNum = 10;
         for (int i = 0; i < nonFreezeEventsNum; i++) {
-            final CesEvent event = mock(CesEvent.class);
+            final CesEvent event = createRandomEvent();
             CONSENSUS_EVENT_STREAM.addEvents(List.of(event));
 
             verify(multiStreamMock).addObject(event);
@@ -42,9 +45,8 @@ class ConsensusEventStreamTest {
             verify(multiStreamMock, never()).close();
         }
 
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,
@@ -58,7 +60,7 @@ class ConsensusEventStreamTest {
         // for freeze event, multiStream should be closed after adding it
         verify(multiStreamMock).close();
 
-        final CesEvent eventAddAfterFrozen = mock(CesEvent.class);
+        final CesEvent eventAddAfterFrozen = createRandomEvent();
         CONSENSUS_EVENT_STREAM.addEvents(List.of(eventAddAfterFrozen));
         // after frozen, when adding event to the EventStreamManager, multiStream.add(event) should not be called
         verify(multiStreamMock, never()).addObject(eventAddAfterFrozen);
@@ -70,9 +72,8 @@ class ConsensusEventStreamTest {
         final Random random = RandomUtils.getRandomPrintSeed();
         final Hash runningHash = randomHash(random);
 
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,
@@ -94,5 +95,13 @@ class ConsensusEventStreamTest {
      */
     private static boolean isFreezeEvent(final CesEvent event) {
         return event == freezeEvent;
+    }
+
+    /**
+     * Creates a random CesEvent
+     * @return a random CesEvent
+     */
+    private static CesEvent createRandomEvent() {
+        return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }

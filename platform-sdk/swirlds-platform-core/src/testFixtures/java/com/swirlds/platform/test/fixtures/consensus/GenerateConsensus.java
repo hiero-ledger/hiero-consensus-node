@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.consensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
@@ -12,6 +11,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Test utility for generating consensus events
@@ -36,7 +36,7 @@ public final class GenerateConsensus {
         final List<EventSource> eventSources = new ArrayList<>();
         IntStream.range(0, numNodes).forEach(i -> eventSources.add(new StandardEventSource(false)));
         final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
-        final TestIntake intake = new TestIntake(platformContext, generator.getAddressBook());
+        final TestIntake intake = new TestIntake(platformContext, generator.getRoster());
 
         // generate events and feed them to consensus
         for (int i = 0; i < numEvents; i++) {

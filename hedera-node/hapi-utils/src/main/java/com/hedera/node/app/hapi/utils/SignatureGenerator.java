@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
-import static com.swirlds.common.crypto.SignatureType.ECDSA_SECP256K1;
+import static org.hiero.base.crypto.SignatureType.ECDSA_SECP256K1;
 
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;

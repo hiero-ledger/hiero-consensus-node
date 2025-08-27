@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,6 +38,9 @@ public record KeyMetadata(
 
     private static final Registration DEFAULT_REGISTRATION = HapiSpecRegistry::saveKey;
 
+    public static Registration roleBasedRegistration(KeyRole role) {
+        return (registry, name, key) -> registry.saveRoleKey(name, role, key);
+    }
     /**
      * Constructs a {@link KeyMetadata} instance from the given protoc key and {@link HapiSpec}
      * with the default registration.

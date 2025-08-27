@@ -18,8 +18,8 @@ import java.util.Set;
  * for both the contract storage and bytecode.
  */
 public class V0490ContractSchema extends Schema {
-    private static final int MAX_BYTECODES = 50_000_000;
-    private static final int MAX_STORAGE_ENTRIES = 1_000_000_000;
+    private static final int MAX_BYTECODES = 50_000;
+    private static final int MAX_STORAGE_ENTRIES = 1_000_000;
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 

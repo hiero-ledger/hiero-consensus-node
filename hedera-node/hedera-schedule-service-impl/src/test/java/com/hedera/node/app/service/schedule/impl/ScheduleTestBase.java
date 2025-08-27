@@ -8,6 +8,9 @@ import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSch
 import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -68,10 +71,13 @@ import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
+import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -80,7 +86,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -408,7 +413,12 @@ public class ScheduleTestBase {
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         childBuilder.utilPrng(UtilPrngTransactionBody.newBuilder());
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
-
+        childBuilder.nodeCreate(NodeCreateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.nodeUpdate(NodeUpdateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.nodeDelete(NodeDeleteTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         return listOfOptions;
     }
 
@@ -463,13 +473,14 @@ public class ScheduleTestBase {
         scheduledOrders = new HashMap<>(0);
         scheduledUsages = new HashMap<>(0);
         accountsMapById = new HashMap<>(0);
-        writableById = new MapWritableKVState<>(SCHEDULES_BY_ID_KEY, scheduleMapById);
-        writableByEquality = new MapWritableKVState<>(SCHEDULE_ID_BY_EQUALITY_KEY, scheduleMapByEquality);
-        writableScheduledCounts = new MapWritableKVState<>(SCHEDULED_COUNTS_KEY, scheduledCounts);
-        writableScheduledOrders = new MapWritableKVState<>(SCHEDULED_ORDERS_KEY, scheduledOrders);
-        writableScheduledUsages = new MapWritableKVState<>(SCHEDULED_USAGES_KEY, scheduledUsages);
-        accountById = new MapWritableKVState<>(ACCOUNT_STATE_KEY, accountsMapById);
-        accountAliases = new MapWritableKVState<>(ACCOUNT_ALIAS_STATE_KEY, new HashMap<>(0));
+        writableById = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULES_BY_ID_KEY, scheduleMapById);
+        writableByEquality =
+                new MapWritableKVState<>(ScheduleService.NAME, SCHEDULE_ID_BY_EQUALITY_KEY, scheduleMapByEquality);
+        writableScheduledCounts = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULED_COUNTS_KEY, scheduledCounts);
+        writableScheduledOrders = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULED_ORDERS_KEY, scheduledOrders);
+        writableScheduledUsages = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULED_USAGES_KEY, scheduledUsages);
+        accountById = new MapWritableKVState<>(TokenService.NAME, ACCOUNT_STATE_KEY, accountsMapById);
+        accountAliases = new MapWritableKVState<>(TokenService.NAME, ACCOUNT_ALIAS_STATE_KEY, new HashMap<>(0));
         writableStatesMap = new TreeMap<>();
         writableStatesMap.put(SCHEDULES_BY_ID_KEY, writableById);
         writableStatesMap.put(SCHEDULE_ID_BY_EQUALITY_KEY, writableByEquality);

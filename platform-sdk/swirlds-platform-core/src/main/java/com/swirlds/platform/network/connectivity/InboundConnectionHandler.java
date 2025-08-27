@@ -6,8 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
@@ -22,10 +20,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.Socket;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Accept inbound connections and executes the platform handshake. This class is thread-safe
@@ -48,7 +49,7 @@ public class InboundConnectionHandler {
      *
      * @param platformContext       the platform context
      * @param connectionTracker     connection tracker for all platform connections
-     * @param networkPeerIdentifier network peer identifier for new connections
+     * @param peers                 the list of peers
      * @param selfId                self's node id
      * @param newConnectionConsumer new connection consumer
      * @param time                  platform time
@@ -56,7 +57,7 @@ public class InboundConnectionHandler {
     public InboundConnectionHandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
-            @NonNull final NetworkPeerIdentifier networkPeerIdentifier,
+            @NonNull final List<PeerInfo> peers,
             @NonNull final NodeId selfId,
             @NonNull final InterruptableConsumer<Connection> newConnectionConsumer,
             @NonNull final Time time) {
@@ -67,7 +68,7 @@ public class InboundConnectionHandler {
         this.time = Objects.requireNonNull(time);
         this.socketExceptionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
-        this.networkPeerIdentifier = networkPeerIdentifier;
+        this.networkPeerIdentifier = new NetworkPeerIdentifier(platformContext, Objects.requireNonNull(peers));
     }
 
     /**
@@ -78,7 +79,9 @@ public class InboundConnectionHandler {
     public void handle(@NonNull final Socket clientSocket) {
         final long acceptTime = time.currentTimeMillis();
         Objects.requireNonNull(clientSocket);
+        String remoteIp = "unknown";
         try {
+            remoteIp = clientSocket.getInetAddress().toString();
             clientSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
             clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
 
@@ -112,7 +115,7 @@ public class InboundConnectionHandler {
             logger.warn(
                     SOCKET_EXCEPTIONS.getMarker(),
                     "Inbound connection from {} to {} was interrupted: {}",
-                    "unknown",
+                    remoteIp,
                     selfId,
                     formattedException);
             NetworkUtils.close(clientSocket);
@@ -121,7 +124,7 @@ public class InboundConnectionHandler {
             socketExceptionLogger.warn(
                     SOCKET_EXCEPTIONS.getMarker(),
                     "Inbound connection from {} to {} had IOException: {}",
-                    "unknown",
+                    remoteIp,
                     selfId,
                     formattedException);
             NetworkUtils.close(clientSocket);
@@ -136,5 +139,21 @@ public class InboundConnectionHandler {
                     e);
             NetworkUtils.close(clientSocket);
         }
+    }
+
+    /**
+     * Creates a copy of handler with a set of new peers applied internally, everything else is copied directly
+     *
+     * @param newPeers list of new peers to accept
+     * @return copy of curren handler with new set of peers
+     */
+    public InboundConnectionHandler withNewPeers(@NonNull final List<PeerInfo> newPeers) {
+        return new InboundConnectionHandler(
+                this.platformContext,
+                this.connectionTracker,
+                newPeers,
+                this.selfId,
+                this.newConnectionConsumer,
+                this.time);
     }
 }

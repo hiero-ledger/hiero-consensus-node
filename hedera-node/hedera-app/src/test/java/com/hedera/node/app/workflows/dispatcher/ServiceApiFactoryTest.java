@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,9 +17,10 @@ import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +44,8 @@ class ServiceApiFactoryTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ServiceApiFactory(stack, DEFAULT_CONFIG);
+        subject =
+                new ServiceApiFactory(stack, DEFAULT_CONFIG, Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
     }
 
     @Test
@@ -50,12 +56,14 @@ class ServiceApiFactoryTest {
     @Test
     void canCreateTokenServiceApi() {
         given(stack.getWritableStates(TokenService.NAME)).willReturn(writableStates);
-        given(writableStates.get(any())).willReturn(new MapWritableKVState<>("ACCOUNTS"));
+        given(writableStates.get(any())).willReturn(new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY));
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
-        given(entityIdStates.getSingleton("ENTITY_ID"))
-                .willReturn(new WritableSingletonStateBase<>("ENTITY_ID", () -> null, (a) -> {}));
-        given(entityIdStates.getSingleton("ENTITY_COUNTS"))
-                .willReturn(new WritableSingletonStateBase<>("ENTITY_COUNTS", () -> null, (a) -> {}));
+        given(entityIdStates.getSingleton(ENTITY_ID_STATE_KEY))
+                .willReturn(new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> null, (a) -> {}));
+        given(entityIdStates.getSingleton(ENTITY_COUNTS_KEY))
+                .willReturn(new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> null, (a) -> {}));
         assertNotNull(subject.getApi(TokenServiceApi.class));
     }
 

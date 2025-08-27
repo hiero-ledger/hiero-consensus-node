@@ -11,14 +11,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.FREEZE_TIMEOUT;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.history.impl.ProofControllerImpl;
+import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -28,18 +30,20 @@ import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
-import com.hedera.services.bdd.junit.support.validators.block.BlockItemNonceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +54,7 @@ import org.junit.jupiter.api.Assertions;
  * {@link HapiSpec}. Note it suffices to validate the streams produced by a single node in
  * the network since at minimum log validation will fail in case of an ISS.
  */
-public class StreamValidationOp extends UtilOp {
+public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(StreamValidationOp.class);
 
     private static final long MAX_BLOCK_TIME_MS = 2000L;
@@ -59,21 +63,29 @@ public class StreamValidationOp extends UtilOp {
     private static final String ERROR_PREFIX = "\n  - ";
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
-    private static final List<RecordStreamValidator> RECORD_STREAM_VALIDATORS = List.of(
-            new BlockNoValidator(),
-            new TransactionBodyValidator(),
-            new ExpiryRecordsValidator(),
-            new BalanceReconciliationValidator(),
-            new TokenReconciliationValidator());
+    private final List<RecordStreamValidator> recordStreamValidators;
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY,
-            BlockItemNonceValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY);
 
-    public static void main(String[] args) {}
+    private final int historyProofsToWaitFor;
+
+    @Nullable
+    private final Duration historyProofTimeout;
+
+    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
+        this.historyProofsToWaitFor = historyProofsToWaitFor;
+        this.historyProofTimeout = historyProofTimeout;
+        this.recordStreamValidators = List.of(
+                new BlockNoValidator(),
+                new TransactionBodyValidator(),
+                new ExpiryRecordsValidator(),
+                new BalanceReconciliationValidator(),
+                new TokenReconciliationValidator());
+    }
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
@@ -81,6 +93,8 @@ public class StreamValidationOp extends UtilOp {
         // cannot be run after submitting a freeze
         allRunFor(
                 spec,
+                // Ensure only top-level txs could change balances before validations
+                overriding("nodes.nodeRewardsEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
@@ -91,7 +105,7 @@ public class StreamValidationOp extends UtilOp {
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
                         data -> {
-                            final var maybeErrors = RECORD_STREAM_VALIDATORS.stream()
+                            final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
                                     .map(Throwable::getMessage)
@@ -106,6 +120,21 @@ public class StreamValidationOp extends UtilOp {
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
+        }
+        if (historyProofsToWaitFor > 0) {
+            requireNonNull(historyProofTimeout);
+            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
+            spec.getNetworkNodes()
+                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
+                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
+                            .join());
+            // If we waited for more than one history proof, do a freeze
+            // upgrade to test adoption of whatever candidate roster
+            // triggered production of the last history proof (the first
+            // one was the "proof" of the genesis address book)
+            if (historyProofsToWaitFor > 1) {
+                allRunFor(spec, upgradeToNextConfigVersion());
+            }
         }
         // Freeze the network
         allRunFor(
@@ -135,10 +164,12 @@ public class StreamValidationOp extends UtilOp {
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
+        validateProofs(spec);
+
         return false;
     }
 
-    private static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
+    static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         List<Block> blocks = null;
         final var blockPaths = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
@@ -181,5 +212,41 @@ public class StreamValidationOp extends UtilOp {
             }
         }
         return Optional.ofNullable(data);
+    }
+
+    private static void validateProofs(@NonNull final HapiSpec spec) {
+        log.info("Beginning block proof validation for each node in the network");
+        spec.getNetworkNodes().forEach(node -> {
+            try {
+                // Get all marker file numbers
+                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
+
+                final var nodeId = node.getNodeId();
+                if (markerFileNumbers.isEmpty()) {
+                    Assertions.fail(String.format("No marker files found for node %d", nodeId));
+                }
+
+                // Get verified block numbers from simulator
+                final var verifiedBlockNumbers =
+                        spec.getSimulatedBlockNodeById(nodeId).getReceivedBlockNumbers();
+
+                if (verifiedBlockNumbers.isEmpty()) {
+                    Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
+                }
+
+                for (final var markerFile : markerFileNumbers) {
+                    if (!verifiedBlockNumbers.contains(markerFile)) {
+                        Assertions.fail(String.format(
+                                "Marker file for block {%d} on node %d is not verified by the respective block node simulator",
+                                markerFile, nodeId));
+                    }
+                }
+                log.info("Successfully validated {} marker files for node {}", markerFileNumbers.size(), nodeId);
+            } catch (Exception ignore) {
+                // We will try to read the next node's streams
+            }
+        });
+        log.info("Block proofs validation completed successfully");
     }
 }

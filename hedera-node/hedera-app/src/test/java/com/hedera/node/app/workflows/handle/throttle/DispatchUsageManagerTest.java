@@ -25,14 +25,16 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
@@ -46,8 +48,6 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
@@ -98,15 +98,20 @@ class DispatchUsageManagerTest {
                     .build())
             .build();
     private static final TransactionInfo ETH_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, ETH_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
+            SignedTransaction.DEFAULT, ETH_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
     private static final TransactionInfo CRYPTO_TRANSFER_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, NONDESCRIPT_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+            SignedTransaction.DEFAULT, NONDESCRIPT_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
     private static final TransactionInfo CONTRACT_CALL_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, CONTRACT_CALL_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
+            SignedTransaction.DEFAULT, CONTRACT_CALL_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
     private static final TransactionInfo CONTRACT_CREATE_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, CONTRACT_CREATE_TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CREATE, null);
+            SignedTransaction.DEFAULT,
+            CONTRACT_CREATE_TXN_BODY,
+            SignatureMap.DEFAULT,
+            Bytes.EMPTY,
+            CONTRACT_CREATE,
+            null);
     private static final TransactionInfo SUBMIT_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT,
+            SignedTransaction.DEFAULT,
             NONDESCRIPT_TXN_BODY,
             SignatureMap.DEFAULT,
             Bytes.EMPTY,
@@ -178,7 +183,7 @@ class DispatchUsageManagerTest {
     }
 
     @Test
-    void throwsNativeThrottleExceptionIfGasThrottled() {
+    void throwsNativeThrottleExceptionIfThrottled() {
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
         given(dispatch.stack()).willReturn(stack);
@@ -212,7 +217,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
@@ -225,7 +230,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(SUBMIT_TXN_INFO);
         given(dispatch.stack()).willReturn(stack);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
 
         subject.finalizeAndSaveUsage(dispatch);
 
@@ -239,7 +244,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
 
@@ -256,7 +261,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_CREATE_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
 
@@ -274,7 +279,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(ETH_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -292,7 +297,7 @@ class DispatchUsageManagerTest {
     void doesNotLeakUnusedGasForContractOperationWithoutResult() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
@@ -306,7 +311,7 @@ class DispatchUsageManagerTest {
     void reclaimsSelfFrontendCapacityOnFailedImplicitCreation() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -326,7 +331,7 @@ class DispatchUsageManagerTest {
     void doesNotReclaimSelfFrontendCapacityOnZeroFailedImplicitCreation() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -344,7 +349,7 @@ class DispatchUsageManagerTest {
     void doesntReclaimSelfFrontendCapacityOnFailedImplicitCreationFromOtherNode() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);

@@ -4,19 +4,19 @@ package com.swirlds.component.framework.schedulers.builders.internal;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.MultiObjectCounter;
 import com.swirlds.component.framework.counters.NoOpObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.counters.StandardObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -57,24 +57,23 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
 
     protected Duration sleepDuration = Duration.ofNanos(100);
 
-    protected final PlatformContext platformContext;
-
+    protected final Metrics metrics;
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
      * @param model           the wiring model
      * @param name            the name of the task scheduler. Used for metrics and debugging. Must be unique. Must only
      *                        contain alphanumeric characters and underscores.
      * @param defaultPool     the default fork join pool, if none is provided then this pool will be used
      */
     public AbstractTaskSchedulerBuilder(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final ForkJoinPool defaultPool) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
+        this.metrics = Objects.requireNonNull(metrics);
         this.model = Objects.requireNonNull(model);
 
         // The reason why wire names have a restricted character set is because downstream consumers of metrics
@@ -268,8 +267,7 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         if (uncaughtExceptionHandler != null) {
             return uncaughtExceptionHandler;
         } else {
-            return (thread, throwable) ->
-                    logger.error(EXCEPTION.getMarker(), "Uncaught exception in scheduler {}", name, throwable);
+            return ExceptionHandlers.defaultExceptionHandler(name);
         }
     }
 

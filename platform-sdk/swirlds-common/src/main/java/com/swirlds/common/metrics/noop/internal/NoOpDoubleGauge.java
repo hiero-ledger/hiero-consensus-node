@@ -27,4 +27,10 @@ public class NoOpDoubleGauge extends AbstractNoOpMetric implements DoubleGauge {
      */
     @Override
     public void set(final double newValue) {}
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void add(final double change) {}
 }

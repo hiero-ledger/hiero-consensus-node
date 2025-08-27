@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
@@ -16,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -32,6 +34,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -117,7 +120,19 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
 
-        final var nodeBuilder = updateNode(op, existingNode);
+        boolean proxyIsSentinelValue = false;
+        if (op.hasGrpcProxyEndpoint()) {
+            validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
+
+            // Check for a sentinel value, which indicates that the gRPC proxy endpoint should be unset
+            if (Objects.equals(op.grpcProxyEndpointOrThrow(), ServiceEndpoint.DEFAULT)) {
+                proxyIsSentinelValue = true;
+            } else {
+                addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            }
+        }
+
+        final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);
         nodeStore.put(nodeBuilder.build());
     }
 
@@ -134,7 +149,8 @@ public class NodeUpdateHandler implements TransactionHandler {
         return calculator.calculate();
     }
 
-    private Node.Builder updateNode(@NonNull final NodeUpdateTransactionBody op, @NonNull final Node node) {
+    private Node.Builder updateNode(
+            @NonNull final NodeUpdateTransactionBody op, @NonNull final Node node, final boolean unsetWebProxy) {
         requireNonNull(op);
         requireNonNull(node);
 
@@ -159,6 +175,12 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
         if (op.hasAdminKey()) {
             nodeBuilder.adminKey(op.adminKey());
+        }
+        if (op.hasDeclineReward()) {
+            nodeBuilder.declineReward(op.declineReward());
+        }
+        if (op.hasGrpcProxyEndpoint()) {
+            nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
         return nodeBuilder;
     }

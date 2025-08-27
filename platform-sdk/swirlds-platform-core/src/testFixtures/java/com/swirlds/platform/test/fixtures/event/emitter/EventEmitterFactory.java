@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
@@ -20,8 +20,8 @@ public class EventEmitterFactory {
 
     /** the random number generator to use */
     private final Random random;
-    /** the address book to use */
-    private final AddressBook addressBook;
+    /** the roster to use */
+    private final Roster roster;
     /**
      * Seed used for the standard generator. Must be same for all instances to ensure the same events are
      * generated for different instances. Differences in the graphs are managed in other ways and are defined in each
@@ -38,16 +38,16 @@ public class EventEmitterFactory {
      *
      * @param platformContext the platform context
      * @param random          the random number generator to use
-     * @param addressBook     the address book to use
+     * @param roster          the roster to use
      */
     public EventEmitterFactory(
             @NonNull final PlatformContext platformContext,
             @NonNull final Random random,
-            @NonNull final AddressBook addressBook) {
+            @NonNull final Roster roster) {
         this.random = Objects.requireNonNull(random);
-        this.addressBook = Objects.requireNonNull(addressBook);
+        this.roster = Objects.requireNonNull(roster);
         this.commonSeed = random.nextLong();
-        this.sourceFactory = new EventSourceFactory(addressBook);
+        this.sourceFactory = new EventSourceFactory(roster.rosterEntries().size());
         this.platformContext = Objects.requireNonNull(platformContext);
     }
 
@@ -72,7 +72,7 @@ public class EventEmitterFactory {
      * @return the new {@link ShuffledEventEmitter}
      */
     public ShuffledEventEmitter newForkingShuffledGenerator() {
-        final int numNetworkNodes = addressBook.getSize();
+        final int numNetworkNodes = roster.rosterEntries().size();
         // No more than 1/3 of the nodes can create forks for consensus to be successful
         final int maxNumForkingSources = (int) Math.floor(numNetworkNodes / 3.0);
 
@@ -90,18 +90,11 @@ public class EventEmitterFactory {
     }
 
     private StandardGraphGenerator newStandardGraphGenerator(final List<EventSource> eventSources) {
-        if (addressBook == null) {
-            return new StandardGraphGenerator(
-                    platformContext,
-                    commonSeed, // standard seed must be the same across all generators
-                    eventSources);
-        } else {
-            return new StandardGraphGenerator(
-                    platformContext,
-                    commonSeed, // standard seed must be the same across all generators
-                    eventSources,
-                    addressBook);
-        }
+        return new StandardGraphGenerator(
+                platformContext,
+                commonSeed, // standard seed must be the same across all generators
+                eventSources,
+                roster);
     }
 
     private ShuffledEventEmitter newShuffledEmitter(final List<EventSource> eventSources) {

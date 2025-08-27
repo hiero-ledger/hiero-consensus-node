@@ -3,13 +3,10 @@ package com.swirlds.merkle.test.map.benchmark;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.benchmark.Benchmark;
 import com.swirlds.common.test.fixtures.benchmark.BenchmarkConfiguration;
 import com.swirlds.common.test.fixtures.benchmark.BenchmarkOperation;
 import com.swirlds.common.test.fixtures.benchmark.BenchmarkStatistic;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkAccount;
 import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkKey;
@@ -23,6 +20,9 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

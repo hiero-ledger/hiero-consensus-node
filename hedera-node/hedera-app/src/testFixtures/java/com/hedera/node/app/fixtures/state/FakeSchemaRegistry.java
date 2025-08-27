@@ -10,15 +10,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
@@ -33,13 +30,13 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class FakeSchemaRegistry implements SchemaRegistry {
     private static final Logger logger = LogManager.getLogger(FakeSchemaRegistry.class);
+
     private final SchemaApplications schemaApplications = new SchemaApplications();
 
     /**
@@ -58,37 +55,23 @@ public class FakeSchemaRegistry implements SchemaRegistry {
     public void migrate(
             @NonNull final String serviceName,
             @NonNull final FakeState state,
-            @NonNull final NetworkInfo networkInfo,
             @NonNull final StartupNetworks startupNetworks) {
-        migrate(
-                serviceName,
-                state,
-                CURRENT_VERSION,
-                networkInfo,
-                DEFAULT_CONFIG,
-                DEFAULT_CONFIG,
-                new HashMap<>(),
-                new AtomicLong(),
-                startupNetworks);
+        migrate(serviceName, state, CURRENT_VERSION, DEFAULT_CONFIG, DEFAULT_CONFIG, new HashMap<>(), startupNetworks);
     }
 
     public void migrate(
             @NonNull final String serviceName,
             @NonNull final FakeState state,
             @Nullable final SemanticVersion previousVersion,
-            @NonNull final NetworkInfo networkInfo,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
             @NonNull final Map<String, Object> sharedValues,
-            @NonNull final AtomicLong nextEntityNum,
             @NonNull final StartupNetworks startupNetworks) {
         requireNonNull(serviceName);
         requireNonNull(state);
-        requireNonNull(networkInfo);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
         requireNonNull(sharedValues);
-        requireNonNull(nextEntityNum);
         requireNonNull(startupNetworks);
         if (schemas.isEmpty()) {
             logger.info("Service {} does not use state", serviceName);
@@ -124,11 +107,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
                     newStates,
                     appConfig,
                     platformConfig,
-                    networkInfo,
-                    nextEntityNum,
                     sharedValues,
-                    startupNetworks,
-                    new AppEntityIdFactory(appConfig));
+                    startupNetworks);
             if (applications.contains(MIGRATION)) {
                 schema.migrate(context);
             }
@@ -184,11 +164,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @NonNull final WritableStates writableStates,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @NonNull final NetworkInfo networkInfo,
-            @NonNull final AtomicLong nextEntityNum,
             @NonNull final Map<String, Object> sharedValues,
-            @NonNull final StartupNetworks startupNetworks,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final StartupNetworks startupNetworks) {
         return new MigrationContext() {
             @Override
             public void copyAndReleaseOnDiskState(String stateKey) {
@@ -233,22 +210,6 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @Override
             public Configuration platformConfig() {
                 return platformConfig;
-            }
-
-            @Override
-            public NetworkInfo genesisNetworkInfo() {
-                return networkInfo;
-            }
-
-            @NonNull
-            @Override
-            public EntityIdFactory entityIdFactory() {
-                return entityIdFactory;
-            }
-
-            @Override
-            public long newEntityNumForAccount() {
-                return nextEntityNum.getAndIncrement();
             }
 
             @Override

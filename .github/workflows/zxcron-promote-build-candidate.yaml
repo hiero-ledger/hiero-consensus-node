@@ -1,34 +1,36 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXCron: Promote Build Candidate"
+name: "ZXCron: [CITR] Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:
-    # Runs Promote Build Candidate at 2000 hours
-    - cron: "0 20 * * *"
+    # Runs Promote Build Candidate at 0100 hours UTC Tuesday to Saturday
+    # (8:00 PM CDT Monday to Friday)
+    - cron: "0 1 * * 2-6"
 
 permissions:
   actions: write
   contents: write
   statuses: write
+  id-token: write
 
 defaults:
   run:
     shell: bash
 
 env:
-  XTS_PASS_GREP_PATTERN: "xts-pass-*"
+  XTS_PASS_GREP_PATTERN: "xts-pass-[0-9]*"
   PROMOTED_GREP_PATTERN: "build-.{5}"
 
 jobs:
   determine-build-candidate:
     name: Fetch Latest Build Candidate
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -77,14 +79,14 @@ jobs:
 
   promote-build-candidate:
     name: Promote Build Candidate
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -99,7 +101,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -115,12 +117,20 @@ jobs:
           BUILD_TAG="$(printf "build-%05d" "${BUILD_INDEX}")"
           git tag --annotate ${BUILD_TAG} --message "chore: tagging commit for build promotion"
           git push --set-upstream origin --tags
+
+          PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
+
+          COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${PREV_BUILD_TAG}..${BUILD_TAG}")"
+
           echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
+
           echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
           echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Increment Build Promotion Index
-        uses: step-security/increment@c2cdc97bbfdf3f5ef530d5c1f28311ff8f0c70f4 # v2.0.1
+        uses: step-security/increment@f07ae8bfe2d5ddd67e68f0eb153010db6e5fdbd1 # v2.14.0
         id: increment
         with:
           name: "XTS_BUILD_PROMOTION_INDEX"
@@ -134,9 +144,54 @@ jobs:
           echo "### Preview Next Build Tag" >> "${GITHUB_STEP_SUMMARY}"
           echo "Next build tag is: ${NEXT_BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - promote-build-candidate
+    if: ${{ needs.promote-build-candidate.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: "Trigger ZXF: [CITR] Single Day Performance Test (SDPT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
+      - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-longevity-test-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
+      - name: "Trigger ZXF: [CITR] Single Day Canonical Test (SDCT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-canonical-test.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
   report-promotion:
     name: Report Build Promotion
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
@@ -145,12 +200,12 @@ jobs:
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Report Promoted Build
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -165,7 +220,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
                         "emoji": true
                       }
                     },
@@ -184,16 +239,24 @@ jobs:
                           "text": "Build Candidate Commit"
                         },
                         {
-                          "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.outputs.build-candidate-commit }}"
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
                         },
                         {
                           "type": "plain_text",
                           "text": "Promoted Build Tag"
                         },
                         {
-                          "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "Workflow Run"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
                     }
@@ -203,98 +266,149 @@ jobs:
             }
 
   report-failure:
-    name: Report XTS execution failure
-    runs-on: hiero-network-node-linux-medium
+    name: Report Build Promotion failure
+    runs-on: hiero-citr-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
-    if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
+      - deploy-ci-trigger
+      - report-promotion
+    if: ${{ (needs.determine-build-candidate.result != 'success' ||
+      needs.promote-build-candidate.result != 'success' ||
+      needs.deploy-ci-trigger.result != 'success' ||
+      needs.report-promotion.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
-      - name: Report failure (PagerDuty)
+      - name: Build Rootly Summary
+        id: rootly-summary
         run: |
-          curl --request 'POST' \
-          --url 'https://events.pagerduty.com/v2/enqueue' \
-          --header 'Content-Type: application/json' \
-          --data '{
-            "payload": {
-              "summary": "Hedera Services - eXtended Test Suite Failure",
-              "severity": "error",
-              "source": "GitHub Actions - eXtended Test Suite",
-              "custom_details": {
-                "Fetch Latest Build Candidate": "${{ needs.determine-build-candidate.result }}",
-                "Promote Build Candidate": "${{ needs.promote-build-candidate.result }}",
-                "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>",
-                "Workflow Run": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-              }
-            },
-            "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
-            "event_action": "trigger"
-          }'
+          summary="The Promote Build Candidate job failed"
+          if [[ -n "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}" ]]; then
+            summary="The Promote Build Candidate job failed (${{ needs.promote-build-candidate.outputs.build-candidate-tag }})."
+          fi
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Determine Build Candidate: ${{ needs.determine-build-candidate.result }}"
+            echo "- Promote Build Candidate: ${{ needs.promote-build-candidate.result }}"
+            echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
+            echo "- Report Promotion: ${{ needs.report-promotion.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
 
-      - name: Report failure (slack)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Report Failure (Rootly)
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#FF0000",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - Build Candidate Promotion Error Report",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
+                        "text": "Fetch Latest Build Candidate"
                       },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch Latest Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Promote Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.result }}"
-                        }
-                      ]
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.determine-build-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Promote Build Candidate"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.promote-build-candidate.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Additional Information:*"
                     },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
+                    "fields":[
+                      {
                         "type": "mrkdwn",
                         "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                       }
-                    }
-                  ]
-                }
-              ]
-            }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

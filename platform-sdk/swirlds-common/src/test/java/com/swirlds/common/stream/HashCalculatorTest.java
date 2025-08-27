@@ -9,12 +9,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
 import org.junit.jupiter.api.Test;
 
 class HashCalculatorTest {
@@ -25,7 +25,7 @@ class HashCalculatorTest {
     void nextStreamTest() throws InterruptedException {
         LinkedObjectStream<ObjectForTestStream> queueThread = mock(QueueThreadObjectStream.class);
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>(queueThread);
-        Hash hash = RandomUtils.randomHash();
+        Hash hash = CryptoRandomUtils.randomHash();
         hashCalculator.setRunningHash(hash);
         verify(queueThread).setRunningHash(hash);
 
@@ -44,7 +44,7 @@ class HashCalculatorTest {
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>();
         assertNull(object.getHash(), "the object's Hash should be null after initialization");
         // calculate expected Hash
-        Hash expected = CryptographyFactory.create().digestSync((SelfSerializable) object);
+        Hash expected = CryptographyProvider.getInstance().digestSync((SelfSerializable) object);
         assertNotNull(expected, "the object's expected Hash should not be null");
         assertNull(object.getHash(), "the object's Hash should be null after calculated expected Hash");
         // hashCalculator calculates and set Hash for this object

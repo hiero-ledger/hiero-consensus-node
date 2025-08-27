@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
@@ -45,7 +46,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -75,6 +75,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANC
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_DELEGATING_SPENDER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -86,6 +87,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -100,7 +102,6 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -266,20 +267,16 @@ public class CryptoApproveAllowanceSuite {
     @HapiTest
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
-        final var contractNum = new AtomicLong();
         final var contract = "PayableConstructor";
         return hapiTest(
                 newKeyNamed(cryptoAdminKey),
                 uploadInitCode(contract),
-                contractCreate(contract)
-                        .adminKey(cryptoAdminKey)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .exposingNumTo(contractNum::set),
-                sourcing(() -> cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
+                contractCreate(contract).adminKey(cryptoAdminKey).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
                         .fee(ONE_HBAR)
-                        .payingWith("0.0." + contractNum.longValue())
+                        .payingWith(contract)
                         .signedBy(cryptoAdminKey)
-                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND)));
+                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND));
     }
 
     @HapiTest
@@ -1208,6 +1205,42 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
+    public final Stream<DynamicTest> chargedUsdScalesWithAllowances() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ANOTHER_SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SECOND_SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(THIRD_SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoApproveAllowance()
+                        .payingWith(SPENDER)
+                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                        .via(BASE_APPROVE_TXN)
+                        .blankMemo()
+                        .logged(),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
+                cryptoApproveAllowance()
+                        .payingWith(SPENDER)
+                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
+                        .via(BASE_APPROVE_TXN)
+                        .blankMemo()
+                        .logged(),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0505, 0.1),
+                cryptoApproveAllowance()
+                        .payingWith(SPENDER)
+                        .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
+                        .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
+                        .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
+                        .via(BASE_APPROVE_TXN)
+                        .blankMemo()
+                        .logged(),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0509, 0.1));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> happyPathWorks() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1594,5 +1627,104 @@ public class CryptoApproveAllowanceSuite {
                 getAccountBalance(SPENDER).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                 getAccountBalance(SPENDER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> approveAllowanceForDeletedToken() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(
+                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                tokenDelete(FUNGIBLE_TOKEN),
+                tokenDelete(NON_FUNGIBLE_TOKEN),
+                // try to approve allowance for deleted fungible token
+                cryptoApproveAllowance()
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+
+                // try to approve allowance for deleted nft token
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(TOKEN_WAS_DELETED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> approveAllowanceToOwner() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenCreate(FUNGIBLE_TOKEN).supplyKey(SUPPLY_KEY).treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(
+                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+
+                // try to approve allowance to the owner
+                cryptoApproveAllowance()
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(SUCCESS),
+
+                // try to approve allowance to the owner
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
+        final var SECOND_SPENDER = "secondSpender";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SECOND_SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(SECOND_SPENDER, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                        .signedByPayerAnd(OWNER),
+                cryptoDelete(SPENDER),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, SPENDER, false, List.of(1L))
+                        .signedByPayerAnd(SPENDER)
+                        .hasKnownStatus(INVALID_DELEGATING_SPENDER));
     }
 }

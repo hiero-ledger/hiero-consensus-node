@@ -32,12 +32,20 @@ public interface EthereumTransactionStreamBuilder extends ContractOperationStrea
     EthereumTransactionStreamBuilder contractID(@Nullable ContractID contractId);
 
     /**
+     * Tracks the nonce of the sender after the HAPI Ethereum transaction.
+     * @return this builder
+     */
+    @NonNull
+    EthereumTransactionStreamBuilder newSenderNonce(long senderNonce);
+
+    /**
      * Tracks the result of a HAPI Ethereum transaction performing a top-level contract call.
      *
      * @param result the {@link ContractFunctionResult} of the contract call
      * @return this builder
      */
     @NonNull
+    @Deprecated
     EthereumTransactionStreamBuilder contractCallResult(@Nullable ContractFunctionResult result);
 
     /**
@@ -47,6 +55,7 @@ public interface EthereumTransactionStreamBuilder extends ContractOperationStrea
      * @return this builder
      */
     @NonNull
+    @Deprecated
     EthereumTransactionStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result);
 
     /**

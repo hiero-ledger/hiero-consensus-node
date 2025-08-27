@@ -4,9 +4,8 @@ package com.hedera.node.app.state;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
@@ -15,6 +14,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * A {@link State} that wraps another {@link State} and provides a {@link #commit()} method that
@@ -39,8 +40,13 @@ public class WrappedState implements State, Hashable {
      * {@inheritDoc}
      */
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
-        delegate.init(time, metrics, merkleCryptography, roundSupplier);
+    public void init(
+            Time time,
+            Configuration configuration,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier) {
+        delegate.init(time, configuration, metrics, merkleCryptography, roundSupplier);
     }
 
     /**
@@ -91,7 +97,7 @@ public class WrappedState implements State, Hashable {
      */
     public void commit() {
         for (final var writableStates : writableStatesMap.values()) {
-            writableStates.commit();
+            writableStates.commit(delegate.isStartUpMode());
         }
     }
 
@@ -101,5 +107,13 @@ public class WrappedState implements State, Hashable {
     @Override
     public void setHash(Hash hash) {
         delegate.setHash(hash);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isStartUpMode() {
+        return delegate.isStartUpMode();
     }
 }

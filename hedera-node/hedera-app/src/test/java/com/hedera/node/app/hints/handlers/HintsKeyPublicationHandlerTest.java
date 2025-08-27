@@ -2,23 +2,25 @@
 package com.hedera.node.app.hints.handlers;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.HintsControllers;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Optional;
@@ -99,19 +101,20 @@ class HintsKeyPublicationHandlerTest {
     void handleForwardsPublicationGivenCorrectPartyIdAndImmediatelyAdoptedKey() {
         givenPublicationWith(1, 2, HINTS_KEY);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(controllers.getInProgressForNumParties(2)).willReturn(Optional.of(controller));
+        given(controllers.getInProgressForNumParties(anyInt())).willReturn(Optional.of(controller));
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(controller.partyIdOf(NODE_ID)).willReturn(OptionalInt.of(1));
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHintsStore.class)).willReturn(store);
         given(store.setHintsKey(NODE_ID, 1, 2, HINTS_KEY, CONSENSUS_NOW)).willReturn(true);
+        given(store.getCrsState()).willReturn(CRSState.newBuilder().build());
 
         subject.handle(context);
 
         verify(controller)
                 .addHintsKeyPublication(
-                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW));
+                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW), Bytes.EMPTY);
     }
 
     @Test
@@ -129,7 +132,7 @@ class HintsKeyPublicationHandlerTest {
 
         verify(controller, never())
                 .addHintsKeyPublication(
-                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW));
+                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW), Bytes.EMPTY);
     }
 
     private void givenPublicationWith(final int partyId, final int numParties, @NonNull final Bytes hintsKey) {

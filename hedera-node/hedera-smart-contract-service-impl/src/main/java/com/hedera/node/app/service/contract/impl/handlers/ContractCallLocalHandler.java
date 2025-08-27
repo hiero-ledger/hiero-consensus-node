@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -17,7 +18,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.contract.ContractCallLocalResponse;
 import com.hedera.hapi.node.transaction.Query;
@@ -29,13 +29,13 @@ import com.hedera.node.app.service.contract.impl.exec.QueryComponent.Factory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import javax.inject.Inject;
@@ -92,8 +92,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final ContractCallLocalQuery op = query.contractCallLocalOrThrow();
         final var requestedGas = op.gas();
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
-        final var maxGasLimit =
-                context.configuration().getConfigData(ContractsConfig.class).maxGasPerSec();
+        final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
                 org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false);
@@ -106,19 +105,18 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
                     op.contractID().evmAddressOrThrow().length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
         }
         // A contract or token contract corresponding to that contract ID must exist in state (otherwise we have
-        // nothing
-        // to call)
+        // nothing to call)
         final var contract = context.createStore(ReadableAccountStore.class).getContractById(contractID);
         if (contract == null) {
             var tokenNum = contractID.contractNumOrElse(0L);
             // For convenience also translate a long-zero address to a token ID
             if (contractID.hasEvmAddress()) {
                 final var evmAddress = contractID.evmAddressOrThrow().toByteArray();
-                if (isLongZeroAddress(entityIdFactory, evmAddress)) {
+                if (isLongZeroAddress(evmAddress)) {
                     tokenNum = numberOfLongZero(evmAddress);
                 }
             }
-            final var tokenID = TokenID.newBuilder().tokenNum(tokenNum).build();
+            final var tokenID = entityIdFactory.newTokenId(tokenNum);
             final var tokenContract =
                     context.createStore(ReadableTokenStore.class).get(tokenID);
             mustExist(tokenContract, INVALID_CONTRACT_ID);

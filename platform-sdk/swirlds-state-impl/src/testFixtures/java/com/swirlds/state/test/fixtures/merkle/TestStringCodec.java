@@ -20,9 +20,27 @@ import java.util.Objects;
 @Deprecated
 @SuppressWarnings("Singleton")
 public class TestStringCodec implements Codec<String> {
+
     public static final TestStringCodec SINGLETON = new TestStringCodec();
 
+    private static final String DEFAULT_VALUE = "";
+
     private TestStringCodec() {}
+
+    @Override
+    public String getDefaultInstance() {
+        return DEFAULT_VALUE;
+    }
+
+    @NonNull
+    @Override
+    public String parse(
+            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        Objects.requireNonNull(input);
+        final var len = input.readInt();
+        return len == 0 ? "" : input.readBytes(len).asUtf8String();
+    }
 
     @NonNull
     @Override

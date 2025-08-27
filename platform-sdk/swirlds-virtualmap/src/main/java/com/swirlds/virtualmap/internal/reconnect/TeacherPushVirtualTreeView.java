@@ -8,10 +8,8 @@ import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
@@ -26,13 +24,11 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
@@ -41,17 +37,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements TeacherTreeView<Long> {
+public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
 
     private static final Logger logger = LogManager.getLogger(TeacherPushVirtualTreeView.class);
 
@@ -122,20 +114,25 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor<K, V> records;
+    private RecordAccessor records;
 
     /**
      * This latch counts down when the view is fully initialized and ready for use.
      */
-    private final CountDownLatch ready = new CountDownLatch(1);
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+
+    /**
+     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
+     */
+    private final AtomicBoolean ready = new AtomicBoolean(false);
 
     /**
      * Create a new {@link TeacherPushVirtualTreeView}.
      *
      * @param threadManager
      * 		responsible for creating and managing threads
-     * @param root
-     * 		The root node on the teacher side of the saved state that we are going to reconnect.
+     * @param map
+     * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
      * 		The state of the virtual tree that we are synchronizing.
      * @param pipeline
@@ -144,16 +141,20 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
     public TeacherPushVirtualTreeView(
             final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final VirtualStateAccessor state,
-            final VirtualPipeline<K, V> pipeline) {
+            final VirtualMap map,
+            final VirtualMapMetadata state,
+            final VirtualPipeline pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(root, state, state);
+        super(map, state, state);
         this.reconnectConfig = reconnectConfig;
         new ThreadConfiguration(threadManager)
                 .setRunnable(() -> {
-                    records = pipeline.pausePipelineAndRun("copy", root::detach);
-                    ready.countDown();
+                    try {
+                        records = pipeline.pausePipelineAndRun("copy", map::detach);
+                        ready.set(true);
+                    } finally {
+                        readyLatch.countDown();
+                    }
                 })
                 .setComponent("virtualmap")
                 .setThreadName("detacher")
@@ -190,7 +191,10 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public void waitUntilReady() throws InterruptedException {
-        ready.await();
+        readyLatch.await();
+        if (!ready.get()) {
+            throw new RuntimeException("Failed to wait until teacher view is ready");
+        }
     }
 
     /**
@@ -327,9 +331,9 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
     @Override
     public void serializeLeaf(final SerializableDataOutputStream out, final Long leaf) throws IOException {
         checkValidLeaf(leaf, reconnectState);
-        final VirtualLeafRecord<K, V> leafRecord = records.findLeafRecord(leaf, false);
+        final VirtualLeafBytes leafRecord = records.findLeafRecord(leaf);
         assert leafRecord != null : "Unexpected null leaf record at path=" + leaf;
-        out.writeSerializable(leafRecord, false);
+        VirtualReconnectUtils.writeLeafRecord(out, leafRecord);
     }
 
     /**
@@ -403,7 +407,7 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
     public void close() {
         try {
             waitUntilReady();
-            records.getDataSource().close();
+            records.close();
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
         } catch (final InterruptedException e) {

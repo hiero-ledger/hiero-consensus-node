@@ -12,8 +12,6 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.RosterStateId;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.State;
@@ -24,6 +22,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A utility class to help set up mock states with given current/previous rosters.
@@ -79,7 +79,9 @@ public final class RosterServiceStateMock {
 
         if (currentRoster != null) {
             final Bytes rosterHash = RosterUtils.hash(currentRoster).getBytes();
-            when(rosterMap.get(eq(new ProtoBytes(rosterHash)))).thenReturn(currentRoster);
+            final ProtoBytes value = new ProtoBytes(rosterHash);
+            when(rosterMap.get(eq(value))).thenReturn(currentRoster);
+            when(rosterMap.contains(eq(value))).thenReturn(true);
             roundRosterPairs.add(new RoundRosterPair(round, rosterHash));
         }
 
@@ -90,11 +92,13 @@ public final class RosterServiceStateMock {
                                 + Roster.JSON.toJSON(previousRoster));
             }
             final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
-            when(rosterMap.get(eq(new ProtoBytes(previousRosterHash)))).thenReturn(previousRoster);
+            final ProtoBytes value = new ProtoBytes(previousRosterHash);
+            when(rosterMap.get(eq(value))).thenReturn(previousRoster);
+            when(rosterMap.contains(eq(value))).thenReturn(true);
             roundRosterPairs.add(new RoundRosterPair(0, previousRosterHash));
         }
 
-        final RosterState rosterState = new RosterState(Bytes.EMPTY, roundRosterPairs);
+        final RosterState rosterState = new RosterState(Bytes.EMPTY, roundRosterPairs, false);
         final ReadableSingletonState<RosterState> rosterReadableState = mock(ReadableSingletonState.class);
         when(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATES_KEY))
                 .thenReturn(rosterReadableState);

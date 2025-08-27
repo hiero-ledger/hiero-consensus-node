@@ -1,26 +1,16 @@
-##
-# Copyright (C) 2023-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
-name: "ZXF: Prepare Extended Test Suite"
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Prepare Extended Test Suite"
 on:
   workflow_dispatch:
     inputs:
       ref:
         description: Git Commit Reference for the XTS prep tag
         required: true
+      dry-run-enabled:
+        description: "If true, the workflow will not create a tag, but will validate the commit."
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -39,10 +29,10 @@ env:
 jobs:
   tag-for-xts:
     name: Tag for XTS promotion
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -75,7 +65,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -108,7 +98,7 @@ jobs:
 
       # move the tag if successful
       - name: Tag Code and push
-        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' }}
+        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' && !inputs.dry-run-enabled }}
         run: |
           # Check if the tag exists
           set +e
@@ -126,9 +116,26 @@ jobs:
           git tag --annotate "${XTS_CANDIDATE_TAG}" --message "chore: tagging commit for XTS promotion"
           git push --set-upstream origin --tags
 
-      - name: Report failure
-        if: ${{ !cancelled() && failure() && always() }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+      - name: Report Failure (Rootly)
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "Hiero Consensus Node - XTS Candidate Tagging Failed"
+          details: |
+            The tagging of commit `${{ inputs.ref }}` for the Extended Test Suite (XTS) promotion has failed.
+            Please investigate the issue to ensure the commit is properly tagged for further testing and deployment processes.
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Report Failure (Slack)
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -143,7 +150,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Tagging Failed",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Tagging Failed",
                         "emoji": true
                       }
                     },
@@ -154,7 +161,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
                       }
                     }
                   ]

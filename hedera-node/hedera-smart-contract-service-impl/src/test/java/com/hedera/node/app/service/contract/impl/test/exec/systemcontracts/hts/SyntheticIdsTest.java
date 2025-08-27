@@ -3,13 +3,13 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -34,10 +34,13 @@ class SyntheticIdsTest {
     @Test
     void returnsNumericIdIfAddressIsCanonicalReference() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        given(nativeOperations.resolveAlias(0, 0, ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
-        given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convert(asHeadlongAddress(EIP_1014_ADDRESS));
         assertEquals(TestHelpers.A_NEW_ACCOUNT_ID, synthId);
@@ -56,7 +59,7 @@ class SyntheticIdsTest {
     void returnsAliasIdIfMissingLongZeroCredit() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -69,7 +72,7 @@ class SyntheticIdsTest {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -79,10 +82,9 @@ class SyntheticIdsTest {
 
     @Test
     void returnsLazyCreateToZeroAddressIfLongZeroCreditWithNonCanonicalReference() {
-        final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, 0L)))
-                .build();
-        given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        final var expectedId =
+                AccountID.newBuilder().alias(Bytes.wrap(asEvmAddress(0L))).build();
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var nonCanonicalLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);

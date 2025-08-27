@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
-import com.swirlds.common.platform.NodeId;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Generates a hashgraph of events.
@@ -31,6 +32,12 @@ public interface GraphGenerator {
      * Get the event source for a particular node ID.
      */
     EventSource getSource(@NonNull final NodeId nodeID);
+
+    /**
+     * Get the event source for a particular node index.
+     */
+    @NonNull
+    EventSource getSourceByIndex(final int nodeIndex);
 
     /**
      * Get an exact copy of this event generator in its current state. The events returned by this
@@ -92,16 +99,14 @@ public interface GraphGenerator {
      * Get an address book that represents the collection of nodes that are generating the events.
      */
     @NonNull
+    @Deprecated(forRemoval = true)
     AddressBook getAddressBook();
 
     /**
-     * Returns the maximum generation of this event generator.
-     *
-     * @param creatorId
-     * 		the event creator
-     * @return the maximum event generation for the supplied creator
+     * Get the roster that represents the collection of nodes that are generating the events.
      */
-    long getMaxGeneration(@Nullable final NodeId creatorId);
+    @NonNull
+    Roster getRoster();
 
     /**
      * Returns the maximum birth round of this event generator.
@@ -111,11 +116,6 @@ public interface GraphGenerator {
      * @return the maximum event birth round for the supplied creator
      */
     long getMaxBirthRound(@Nullable final NodeId creatorId);
-
-    /**
-     * Returns the maximum generation of all events created by this generator
-     */
-    long getMaxGeneration();
 
     /**
      * Set the affinity of each node for choosing the parents of its events.

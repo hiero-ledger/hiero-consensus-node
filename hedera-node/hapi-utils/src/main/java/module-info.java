@@ -19,6 +19,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.common;
+    requires transitive org.hiero.base.utility;
     requires transitive com.esaulpaugh.headlong;
     requires transitive com.google.protobuf;
     requires transitive dagger;
@@ -30,6 +31,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive org.hyperledger.besu.nativelib.secp256k1;
     requires transitive tuweni.bytes;
     requires com.swirlds.base;
+    requires org.hiero.base.crypto;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
     requires com.sun.jna;
@@ -38,5 +40,5 @@ module com.hedera.node.app.hapi.utils {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

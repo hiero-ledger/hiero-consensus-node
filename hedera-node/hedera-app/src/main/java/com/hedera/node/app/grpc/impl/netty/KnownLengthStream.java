@@ -5,15 +5,17 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import io.grpc.Drainable;
 import io.grpc.KnownLength;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * An {@link InputStream} that implements {@link KnownLength} which allows the gRPC server to do
  * some smarter things when returning responses to clients. This stream is backed by a {@link
  * BufferedData}, with optimal implementations for the InputStream methods.
  */
-final class KnownLengthStream extends InputStream implements KnownLength {
+final class KnownLengthStream extends InputStream implements KnownLength, Drainable {
     private final BufferedData buf;
 
     public KnownLengthStream(final BufferedData buf) {
@@ -72,5 +74,14 @@ final class KnownLengthStream extends InputStream implements KnownLength {
     @Override
     public int available() {
         return (int) buf.remaining();
+    }
+
+    @Override
+    public int drainTo(OutputStream outputStream) {
+        final int remaining = available();
+        if (remaining > 0) {
+            buf.writeTo(outputStream);
+        }
+        return remaining;
     }
 }

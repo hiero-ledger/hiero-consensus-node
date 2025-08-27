@@ -3,9 +3,15 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
+import static com.hedera.hapi.streams.SidecarType.CONTRACT_BYTECODE;
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VALIDATION_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
@@ -76,14 +82,15 @@ public class FrameBuilder {
             @NonNull final HederaWorldUpdater worldUpdater,
             @NonNull final HederaEvmContext context,
             @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
             final long intrinsicGas) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var nominalCoinbase = asLongZeroAddress(worldUpdater.entityIdFactory(), ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, context);
+        final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
+        final var contextVariables = contextVariablesFrom(config, opsDurationCounter, context);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -109,20 +116,34 @@ public class FrameBuilder {
     }
 
     private Map<String, Object> contextVariablesFrom(
-            @NonNull final Configuration config, @NonNull final HederaEvmContext context) {
+            @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter,
+            @NonNull final HederaEvmContext context) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
         contextEntries.put(SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE, context.systemContractGasCalculator());
         contextEntries.put(PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE, new PropagatedCallFailureRef());
-        if (config.getConfigData(ContractsConfig.class).sidecars().contains(CONTRACT_STATE_CHANGE)) {
+        final var contractConfig = config.getConfigData(ContractsConfig.class);
+        final var sidecars = contractConfig.sidecars();
+        if (sidecars.contains(CONTRACT_STATE_CHANGE)) {
             contextEntries.put(TRACKER_CONTEXT_VARIABLE, new StorageAccessTracker());
         }
+        if (sidecars.contains(CONTRACT_ACTION)) {
+            contextEntries.put(ACTION_SIDECARS_VARIABLE, true);
+            if (contractConfig.sidecarValidationEnabled()) {
+                contextEntries.put(ACTION_SIDECARS_VALIDATION_VARIABLE, true);
+            }
+        }
+        if (sidecars.contains(CONTRACT_BYTECODE)) {
+            contextEntries.put(BYTECODE_SIDECARS_VARIABLE, true);
+        }
         if (context.isTransaction()) {
-            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.recordBuilder());
+            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
+        contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
         return contextEntries;
     }
 

@@ -49,7 +49,7 @@ public class ERC1155ContractInteractions {
                                         .getECDSASecp256K1()
                                         .toByteArray()))))),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(500_000L).via("contractCreate").payingWith(ACCOUNT2),
+                contractCreate(CONTRACT).gas(2_500_000L).via("contractCreate").payingWith(ACCOUNT2),
                 getTxnRecord("contractCreate"),
                 getAccountBalance(ACCOUNT2),
                 getAccountInfo(ACCOUNT1).savingSnapshot(ACCOUNT1 + "Info"),

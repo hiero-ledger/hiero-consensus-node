@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Temporary internal only class to facilitate an incremental refactor of the {@code com.swirlds.platform.Browser} class.

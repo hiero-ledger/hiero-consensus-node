@@ -4,8 +4,8 @@ package com.swirlds.component.framework.wires;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -31,9 +31,8 @@ public class OutputWireTests {
     @ParameterizedTest()
     @ValueSource(ints = {10_000})
     void orderedSolderToTest(final int count) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<Integer> intForwarder = model.<Integer>schedulerBuilder("intForwarder")
                 .withType(TaskSchedulerType.DIRECT)
@@ -84,9 +83,8 @@ public class OutputWireTests {
      */
     @Test
     void orderedSolderToThrows() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("schedulerA")
                 .withType(TaskSchedulerType.DIRECT)

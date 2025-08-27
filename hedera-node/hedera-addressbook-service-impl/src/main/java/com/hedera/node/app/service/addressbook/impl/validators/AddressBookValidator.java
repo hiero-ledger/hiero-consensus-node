@@ -15,10 +15,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOIN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
-import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
-import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -93,9 +93,6 @@ public class AddressBookValidator {
 
         validateFalse(endpointList == null || endpointList.isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalse(endpointList.size() > nodesConfig.maxGossipEndpoint(), GOSSIP_ENDPOINTS_EXCEEDED_LIMIT);
-        // for phase 2: The first in the list is used as the Internal IP address in config.txt,
-        // the second in the list is used as the External IP address in config.txt
-        validateFalse(endpointList.size() < 2, INVALID_GOSSIP_ENDPOINT);
 
         for (final var endpoint : endpointList) {
             validateFalse(
@@ -146,7 +143,7 @@ public class AddressBookValidator {
                 !requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
     }
 
-    private void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+    public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
         requireNonNull(nodesConfig);
 
@@ -155,8 +152,27 @@ public class AddressBookValidator {
         validateFalse(addressLen == 0 && endpoint.domainName().trim().isEmpty(), INVALID_ENDPOINT);
         validateFalse(
                 addressLen != 0 && !endpoint.domainName().trim().isEmpty(), IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT);
-        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
+        validateFqdnSize(endpoint, nodesConfig);
         validateFalse(addressLen != 0 && addressLen != 4, INVALID_IPV4_ADDRESS);
+    }
+
+    /**
+     * Validates that a {@code ServiceEndpoint} <b>only</b> contains a valid FQDN (with no IPv4 address)
+     *
+     * @param endpoint the endpoint to validate
+     * @param nodesConfig the nodes configuration
+     */
+    public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoint);
+        requireNonNull(nodesConfig);
+
+        validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateFqdnSize(endpoint, nodesConfig);
+        validateFalse(endpoint.ipAddressV4().length() > 0, INVALID_SERVICE_ENDPOINT);
+    }
+
+    private void validateFqdnSize(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
     }
 
     /**

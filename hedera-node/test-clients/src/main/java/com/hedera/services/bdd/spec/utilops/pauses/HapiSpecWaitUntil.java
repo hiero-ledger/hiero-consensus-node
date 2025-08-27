@@ -117,6 +117,6 @@ public class HapiSpecWaitUntil extends UtilOp {
 
         String currDateTimeInString = currDateInString + " " + timeOfDay;
 
-        return dateMonthYearTime.parse(currDateTimeInString).getTime() * 1000L;
+        return dateMonthYearTime.parse(currDateTimeInString).toInstant().toEpochMilli();
     }
 }

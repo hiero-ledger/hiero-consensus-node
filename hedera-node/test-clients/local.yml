@@ -1,0 +1,4 @@
+shard: 0
+realm: 0
+nodes:
+  - { id: 0, accountNum: 3, host: '127.0.0.1', port: 50211 }

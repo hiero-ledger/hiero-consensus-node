@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -21,16 +20,8 @@ import com.swirlds.demo.platform.iss.IssLeaf;
 import com.swirlds.demo.platform.nft.NftId;
 import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,6 +37,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
@@ -207,6 +202,12 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
         super.addDeserializedChildren(children, version);
     }
 
+    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+    @Override
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+        return this;
+    }
+
     PayloadCfgSimple getConfig() {
         return getChild(ChildIndices.CONFIG);
     }
@@ -223,30 +224,27 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
         setChild(ChildIndices.NEXT_SEQUENCE_CONSENSUS, nextSeqCons);
     }
 
-    public VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> getVirtualMap() {
+    public VirtualMap getVirtualMap() {
         return getChild(ChildIndices.VIRTUAL_MERKLE);
     }
 
-    public void setVirtualMap(final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> virtualMap) {
+    public void setVirtualMap(final VirtualMap virtualMap) {
         setChild(ChildIndices.VIRTUAL_MERKLE, virtualMap);
     }
 
-    public VirtualMap<SmartContractMapKey, SmartContractMapValue> getVirtualMapForSmartContracts() {
+    public VirtualMap getVirtualMapForSmartContracts() {
         return getChild(ChildIndices.VIRTUAL_MERKLE_SMART_CONTRACTS);
     }
 
-    public void setVirtualMapForSmartContracts(
-            final VirtualMap<SmartContractMapKey, SmartContractMapValue> virtualMap) {
+    public void setVirtualMapForSmartContracts(final VirtualMap virtualMap) {
         setChild(ChildIndices.VIRTUAL_MERKLE_SMART_CONTRACTS, virtualMap);
     }
 
-    public VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
-            getVirtualMapForSmartContractsByteCode() {
+    public VirtualMap getVirtualMapForSmartContractsByteCode() {
         return getChild(ChildIndices.VIRTUAL_MERKLE_SMART_CONTRACTS_BYTE_CODE);
     }
 
-    public void setVirtualMapForSmartContractsByteCode(
-            final VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> virtualMap) {
+    public void setVirtualMapForSmartContractsByteCode(final VirtualMap virtualMap) {
         setChild(ChildIndices.VIRTUAL_MERKLE_SMART_CONTRACTS_BYTE_CODE, virtualMap);
     }
 

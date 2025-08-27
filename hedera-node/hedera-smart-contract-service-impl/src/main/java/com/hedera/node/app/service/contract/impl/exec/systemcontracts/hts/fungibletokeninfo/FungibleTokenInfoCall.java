@@ -6,8 +6,8 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.fungibleTokenInfoTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.address_0x167.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.address_0x16c.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO_16C;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
@@ -71,13 +71,14 @@ public class FungibleTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         }
 
         return function.getName().equals(FUNGIBLE_TOKEN_INFO.methodName())
+                        && function.getOutputs().equals(FUNGIBLE_TOKEN_INFO.getOutputs())
                 ? successResult(
                         FUNGIBLE_TOKEN_INFO
                                 .getOutputs()
                                 .encode(Tuple.of(status.protoOrdinal(), fungibleTokenInfoTupleFor(token, ledgerId, 1))),
                         gasRequirement)
                 : successResult(
-                        FUNGIBLE_TOKEN_INFO_V2
+                        FUNGIBLE_TOKEN_INFO_16C
                                 .getOutputs()
                                 .encode(Tuple.of(status.protoOrdinal(), fungibleTokenInfoTupleFor(token, ledgerId, 2))),
                         gasRequirement);

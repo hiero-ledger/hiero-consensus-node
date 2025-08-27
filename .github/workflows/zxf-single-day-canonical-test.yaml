@@ -1,0 +1,266 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Single Day Canonical Test (SDCT)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit."
+        type: string
+      build-tag:
+        required: true
+        description: "build-XXXXX tag associated with the ref input."
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  canonical-test:
+    name: Canonical
+    runs-on: hiero-citr-linux-medium
+
+    permissions:
+      contents: read
+      id-token: write
+
+    timeout-minutes: 90 # max one hour timeout
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ github.token }}
+          persist-credentials: false
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
+          token_format: "access_token"
+          create_credentials_file: true
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+        with:
+          version: "latest"
+          install_components: "gsutil"
+
+      - name: Install Utility Tools
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            jq=1.6-* curl=7.81.0-*
+
+          log_info "Verifying tool installations..."
+          echo "JQ Version: $(jq --version)"
+          echo "Curl Version: $(curl --version | head -1)"
+          echo "GSUtil Version: $(gsutil version | head -1)"
+
+          log_pass "All tools successfully installed and verified"
+
+      - name: Verify Workflow Parameters
+        id: parameters
+        env:
+          REF_INPUT: ${{ inputs.ref }}
+          BUILD_TAG_INPUT: ${{ inputs.build-tag }}
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+
+          set -euo pipefail
+
+          BRANCH_NAME="${REF_INPUT//[^a-zA-Z0-9\-_]/_}"
+          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
+          BUILD_ARTIFACT="${BUILD_TAG_INPUT//[^a-zA-Z0-9\-_.]/_}"
+
+          log_info "Parameters: Branch: ${BRANCH_NAME}, Build: ${BUILD_ARTIFACT}"
+          if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
+            TAG_COMMIT_SHA=$(git rev-list -n 1 "${BUILD_ARTIFACT}") || {
+              log_error "Failed to get commit SHA for tag: ${BUILD_ARTIFACT}"
+              log_info "Available tags:"
+              git tag -l | head -10
+              exit 1
+            }
+            TAG_COMMIT_SHORT="${TAG_COMMIT_SHA:0:8}"
+            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
+            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
+          fi
+          log_pass "Parameter verification completed"
+          echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
+
+          # Update Summary
+          {
+            echo "## Parameter Processing Results"
+            echo "- **Input Branch/Ref**: ${BRANCH_NAME}"
+            echo "- **Input Build Tag**: ${{ inputs.build-tag }}"
+            echo "- **Generated Artifact Name**: ${BUILD_ARTIFACT}"
+            if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
+              echo "- **Commit SHA**: \`${TAG_COMMIT_SHA}\`"
+              echo "- **Short Commit**: \`${TAG_COMMIT_SHORT}\`"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Check Artifact Availability
+        id: check-if-exist
+        timeout-minutes: 60 # step timeout
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
+
+          set -euo pipefail
+
+          ARTIFACT_NAME="${{ steps.parameters.outputs.artifact-name }}"
+          BUCKET_NAME="${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}"
+          if [[ -z "${ARTIFACT_NAME// }" ]]; then
+            log_error "Artifact name is empty or contains only whitespace"
+            exit 1
+          fi
+          if [[ -z "${BUCKET_NAME// }" ]]; then
+            log_error "Bucket name is empty - check RELEASE_ARTIFACT_BUCKET_NAME secret"
+            exit 1
+          fi
+
+          ARTIFACT_PATH="gs://${BUCKET_NAME}/${ARTIFACT_NAME}.zip"
+
+          log_info "Check artifact availability for up to 2 minutes max 30 attempts......"
+          i=1
+          while [ "$i" -le 30 ]; do
+            if gsutil -q stat "${ARTIFACT_PATH}"; then
+              log_pass "Artifact ${ARTIFACT_NAME}.zip found on attempt ${i}!"
+              break
+            fi
+            log_warning "Artifact ${ARTIFACT_NAME}.zip not ready on attempt ${i}, waiting for 2 minutes......"
+            sleep 120
+            i=$((i + 1))
+          done
+
+          if [ "$i" -gt 30 ]; then
+            log_error "Artifact ${ARTIFACT_NAME}.zip not found after 30 attempts"
+            exit 1
+          fi
+
+          log_pass "Artifact ${ARTIFACT_NAME}.zip is available and ready"
+
+          echo "build-tag=${{ inputs.build-tag }}" >> "${GITHUB_OUTPUT}"
+          echo "build-version=${ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
+
+          # Update Summary
+          {
+            echo "## Artifact Verification Results"
+            echo "- **Artifact Path**: \`${ARTIFACT_PATH}\`"
+            echo "- **Verification Time**: $(date '+%Y-%m-%d %T UTC')"
+            echo "- **Attempts Required**: ${i}/30"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Start Canonical Test
+        id: start-canonical-test
+        env:
+          USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+          PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+          SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+          TEST_SCRIPT: ".github/workflows/support/scripts/sdct.sh"
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
+
+          set -euo pipefail
+
+          TEST_SCRIPT_PATH="${{ github.workspace }}/${{ env.TEST_SCRIPT }}"
+          if [ ! -f "${TEST_SCRIPT_PATH}" ]; then
+            log_error "Test script not found: ${TEST_SCRIPT_PATH}"
+            exit 1
+          fi
+
+          for var in USERNAME PASSWORD SERVER; do
+            if [[ -z "${!var:-}" ]]; then
+              log_error "Required environment variable ${var} is not set"
+              exit 1
+            fi
+          done
+
+          BUILD_TAG="${{ steps.check-if-exist.outputs.build-tag }}"
+          BUILD_VERSION="${{ steps.check-if-exist.outputs.build-version }}"
+
+          log_info "Starting canonical test execution......"
+          log_info "Build Tag: ${BUILD_TAG}"
+          log_info "Build Version: ${BUILD_VERSION}"
+
+
+          if bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}"; then
+            log_pass "Canonical test started successfully"
+            echo "status=success" >> "${GITHUB_OUTPUT}"
+          else
+            log_error "Canonical test failed to start"
+            echo "status=failure" >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+
+          # overall status
+          OVERALL_STATUS="✅ Success"
+          if [[ "${{ steps.start-canonical-test.outcome }}" != "success" ]]; then
+            OVERALL_STATUS="❌ Failed"
+          elif [[ "${{ steps.check-if-exist.outcome }}" != "success" ]]; then
+            OVERALL_STATUS="❌ Failed (Artifact Check)"
+          elif [[ "${{ steps.parameters.outcome }}" != "success" ]]; then
+            OVERALL_STATUS="❌ Failed (Parameter Processing)"
+          fi
+
+          # Summary
+          {
+            echo "# ZXF Canonical Test Workflow Summary"
+            echo
+            echo "## Overall Status: ${OVERALL_STATUS}"
+            echo
+            echo "## Input Parameters"
+            echo "- **Reference**: \`${{ inputs.ref }}\`"
+            echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
+            echo
+            echo "## Processing Results"
+            echo "- **Generated Artifact Name**: \`${{ steps.check-if-exist.outputs.build-version || 'N/A' }}\`"
+            echo "- **Artifact Check**: ${{ steps.check-if-exist.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo
+            echo "## Execution Details"
+            echo "- **Workflow Run ID**: ${{ github.run_id }}"
+            echo "- **Workflow Run Number**: ${{ github.run_number }}"
+            echo "- **Runner**: \`${{ runner.name }}\`"
+            echo "- **OS**: \`${{ runner.os }}\`"
+            echo "- **Triggered By**: ${{ github.actor }}"
+            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
+            echo
+            if [[ "${OVERALL_STATUS}" == *"Failed"* ]]; then
+              echo "## ⚠️ Troubleshooting"
+              echo "1. Check the artifact exists in the specified bucket"
+              echo "2. Review the test script for any issues"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractMintHTSV2SecurityModelSuite {
-    private static final long GAS_TO_OFFER = 4_000_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final String TOKEN_TREASURY = "treasury";
     private static final KeyShape TRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
     private static final String CONTRACT_KEY = "ContractKey";
@@ -878,7 +878,7 @@ public class ContractMintHTSV2SecurityModelSuite {
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                        // `THRESHOLD_KEY` is the arleady existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
+                        // `THRESHOLD_KEY` is the already existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
                         // sign with it
                         tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(THRESHOLD_KEY),
                         // Test Case 2: Treasury account paying and signing a non fungible TOKEN MINT TRANSACTION,

@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -41,10 +40,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -55,6 +54,8 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -71,8 +72,6 @@ import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,17 +101,17 @@ class DispatchProcessorTest {
                     TransactionID.newBuilder().accountID(PAYER_ACCOUNT_ID).build())
             .build();
     private static final TransactionInfo CRYPTO_TRANSFER_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
-    private static final TransactionInfo SYS_DEL_TXN_INFO =
-            new TransactionInfo(Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, SYSTEM_DELETE, null);
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+    private static final TransactionInfo SYS_DEL_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, SYSTEM_DELETE, null);
     private static final TransactionInfo SYS_UNDEL_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, SYSTEM_UNDELETE, null);
-    private static final TransactionInfo CONTRACT_TXN_INFO =
-            new TransactionInfo(Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, SYSTEM_UNDELETE, null);
+    private static final TransactionInfo CONTRACT_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
     private static final TransactionInfo ETH_TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
-    private static final TransactionInfo NODE_CREATE_TXN_INFO =
-            new TransactionInfo(Transaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_CREATE, null);
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
+    private static final TransactionInfo NODE_CREATE_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_CREATE, null);
 
     @Mock
     private EthereumTransactionHandler ethereumTransactionHandler;
@@ -186,7 +185,7 @@ class DispatchProcessorTest {
                 opWorkflowMetrics,
                 new AppFeeCharging(solvencyPreCheck));
         given(dispatch.stack()).willReturn(stack);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
     }
 
     @Test
@@ -202,7 +201,7 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
 
         verifyTrackedFeePayments();
-        verify(feeAccumulator).chargeNetworkFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
+        verify(feeAccumulator).chargeFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -245,6 +244,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -270,6 +270,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -297,6 +298,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -324,6 +326,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -351,6 +354,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -380,6 +384,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -408,6 +413,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -417,34 +423,6 @@ class DispatchProcessorTest {
         verify(feeAccumulator, times(2)).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
-        assertFinished();
-    }
-
-    @Test
-    void thrownHandleExceptionDoesNotRollBackIfNotRequested() {
-        given(dispatch.fees()).willReturn(FEES);
-        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
-        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
-        given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
-        given(dispatch.handleContext()).willReturn(context);
-        givenAuthorization(CONTRACT_TXN_INFO);
-        doThrow(new HandleException(CONTRACT_REVERT_EXECUTED, HandleException.ShouldRollbackStack.NO))
-                .when(dispatcher)
-                .dispatchHandle(context);
-        given(dispatch.txnCategory()).willReturn(USER);
-        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
-        doCallRealMethod().when(dispatch).category();
-        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
-
-        subject.processDispatch(dispatch);
-
-        verifyUtilization();
-        verify(dispatcher).dispatchHandle(context);
-        verify(recordBuilder).status(CONTRACT_REVERT_EXECUTED);
-        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
-        verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished();
     }
 
@@ -464,6 +442,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -497,7 +476,7 @@ class DispatchProcessorTest {
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
-        verify(feeAccumulator).chargeNetworkFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
         verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         assertFinished(IsRootStack.NO);
     }
@@ -519,6 +498,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -547,6 +527,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -578,6 +559,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -608,10 +590,9 @@ class DispatchProcessorTest {
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(SUCCESS);
-        verify(feeAccumulator).chargeNetworkFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
         verify(feeAccumulator)
-                .chargeNetworkFee(
-                        PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished(IsRootStack.NO);
     }
@@ -651,6 +632,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -673,6 +655,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -698,6 +681,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 

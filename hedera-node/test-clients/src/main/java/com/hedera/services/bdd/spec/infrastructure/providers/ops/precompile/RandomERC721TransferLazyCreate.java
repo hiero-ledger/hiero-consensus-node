@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.*;
-import static com.hedera.services.bdd.suites.utils.ECDSAKeysUtils.getEvmAddressFromString;
+import static com.hedera.services.bdd.suites.utils.EvmAddressUtils.getEvmAddressFromString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;

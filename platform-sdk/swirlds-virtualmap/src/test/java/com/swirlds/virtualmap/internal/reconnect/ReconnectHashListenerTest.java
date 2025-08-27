@@ -9,24 +9,16 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestKeySerializer;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.TestValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,120 +29,33 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ReconnectHashListenerTest {
 
-    private static final Cryptography CRYPTO = CryptographyFactory.create();
+    private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     @Test
-    @DisplayName("Null datasource throws")
-    void nullDataSourceThrows() {
-        final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectNodeRemover<TestKey, TestValue> nodeRemover = mock(ReconnectNodeRemover.class);
+    @DisplayName("Null flusher throws")
+    void nullFlusherThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener<TestKey, TestValue>(
-                        1,
-                        1,
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        null,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        statistics,
-                        nodeRemover),
-                "A null data source should produce an NPE");
+                () -> new ReconnectHashListener(null),
+                "A null flusher should produce an NPE");
     }
 
     @Test
-    @DisplayName("Null statistics throws")
-    void nullStatisticsThrows() {
-        final VirtualDataSource ds = new InMemoryBuilder().build("nullStatisticsThrows", false);
-        final ReconnectNodeRemover<TestKey, TestValue> nodeRemover = mock(ReconnectNodeRemover.class);
-        assertThrows(
-                NullPointerException.class,
-                () -> new ReconnectHashListener<>(
-                        1,
-                        1,
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        ds,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        null,
-                        nodeRemover),
-                "A null statistics should produce an NPE");
-    }
-
-    @Test
-    @DisplayName("Null node remover throws")
-    void nullNodeRemoverThrows() {
-        final VirtualDataSource ds = new InMemoryBuilder().build("nullStatisticsThrows", false);
-        final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        assertThrows(
-                NullPointerException.class,
-                () -> new ReconnectHashListener<>(
-                        1,
-                        1,
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        ds,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        statistics,
-                        null),
-                "A null node remover should produce an NPE");
-    }
-
-    // Future: We should also check for first/last leaf path being equal when not 1. That really should never happen.
-    // That check should be laced through everything, including VirtualMapState.
-    @ParameterizedTest
-    @CsvSource({
-        "-2,  1", // Invalid negative first, good last
-        " 1, -2", // Good first, invalid negative last
-        " 0,  1", // Invalid zero first, good last
-        " 1,  0", // Good first, invalid zero last
-        " 0,  0", // Both invalid
-        " 9, 8"
-    }) // Invalid (both should be equal only if == 1
-    @DisplayName("Illegal first and last leaf path combinations throw")
-    void badLeafPaths(long firstLeafPath, long lastLeafPath) {
-        final VirtualDataSource ds = new InMemoryBuilder().build("badLeafPaths", false);
-        final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectNodeRemover<TestKey, TestValue> nodeRemover = mock(ReconnectNodeRemover.class);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new ReconnectHashListener<>(
-                        firstLeafPath,
-                        lastLeafPath,
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        ds,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        statistics,
-                        nodeRemover),
-                "Should have thrown IllegalArgumentException");
-    }
-
-    @ParameterizedTest
-    @CsvSource({"-1, -1", " 1,  1", " 1,  2", " 4,  8"})
     @DisplayName("Valid configurations create an instance")
-    void goodLeafPaths(long firstLeafPath, long lastLeafPath) {
-        final VirtualDataSource ds = new InMemoryBuilder().build("goodLeafPaths", true);
-        final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectNodeRemover<TestKey, TestValue> nodeRemover = mock(ReconnectNodeRemover.class);
+    void goodLeafPaths() {
+        final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
         try {
-            new ReconnectHashListener<>(
-                    firstLeafPath,
-                    lastLeafPath,
-                    TestKeySerializer.INSTANCE,
-                    TestValueSerializer.INSTANCE,
-                    ds,
-                    VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                    statistics,
-                    nodeRemover);
+            new ReconnectHashListener(flusher);
         } catch (Exception e) {
             fail("Should have been able to create the instance", e);
         }
@@ -164,20 +69,13 @@ class ReconnectHashListenerTest {
         final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectNodeRemover<TestKey, TestValue> nodeRemover = mock(ReconnectNodeRemover.class);
+        final ReconnectHashLeafFlusher flusher =
+                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final long last = size + size;
-        final ReconnectHashListener<TestKey, TestValue> listener = new ReconnectHashListener<>(
-                size,
-                last,
-                TestKeySerializer.INSTANCE,
-                TestValueSerializer.INSTANCE,
-                ds,
-                VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                statistics,
-                nodeRemover);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final ReconnectHashListener listener = new ReconnectHashListener(flusher);
+        final VirtualHasher hasher = new VirtualHasher();
         hasher.hash(
                 this::hash,
                 LongStream.range(size, last).mapToObj(this::leaf).iterator(),
@@ -217,8 +115,8 @@ class ReconnectHashListenerTest {
         }
     }
 
-    private VirtualLeafRecord<TestKey, TestValue> leaf(long path) {
-        return new VirtualLeafRecord<>(path, new TestKey(path), new TestValue(path));
+    private VirtualLeafBytes leaf(long path) {
+        return new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue(path).toBytes());
     }
 
     private Hash hash(long path) {
@@ -277,8 +175,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.loadLeafRecord(key, keyHashCode);
+        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
+            return delegate.loadLeafRecord(key);
         }
 
         @Override
@@ -287,8 +185,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public long findKey(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.findKey(key, keyHashCode);
+        public long findKey(final Bytes key) throws IOException {
+            return delegate.findKey(key);
         }
 
         @Override
@@ -335,18 +233,6 @@ class ReconnectHashListenerTest {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             // no op
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 }

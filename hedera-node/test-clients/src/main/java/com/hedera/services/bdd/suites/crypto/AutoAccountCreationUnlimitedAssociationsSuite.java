@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -37,7 +36,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.NFT_INFINITE_SUPPLY_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.assertAliasBalanceAndFeeInChildRecord;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -48,6 +47,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -202,8 +202,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> transferHbarsToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
 
         return hapiTest(
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
@@ -214,18 +214,18 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     assert addressBytes != null;
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
                     partyId.set(registry.getAccountID(PARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(addressBytes);
                 }),
                 withOpContext((spec, opLog) -> {
+                    final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
 
                     // account create with key than delete account
                     var accountCreate = cryptoCreate("testAccount")
                             .key(SECP_256K1_SOURCE_KEY)
                             .maxAutomaticTokenAssociations(-1)
-                            .alias(counterAlias.get());
+                            .alias(counterAliasStr);
 
                     var getAccountInfo = getAccountInfo("testAccount")
                             .has(accountWith().key(SECP_256K1_SOURCE_KEY).maxAutoAssociations(-1));
@@ -236,13 +236,13 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
 
                     // create hollow account with the deleted account alias
                     var hollowAccount = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
                     // verify hollow account creation
-                    var hollowAccountCreated = getAliasedAccountInfo(counterAlias.get())
+                    var hollowAccountCreated = getAliasedAccountInfo(counterAliasStr)
                             .has(accountWith()
                                     .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0, 0)
                                     .hasEmptyKey()
@@ -284,7 +284,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     allRunFor(spec, completion);
 
                     // verify completed hollow account
-                    var completedAccount = getAliasedAccountInfo(counterAlias.get())
+                    var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()
                                     .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.00015, 10)
                                     .key(SECP_256K1_SOURCE_KEY)
@@ -309,8 +309,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> transferTokensToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
 
         return hapiTest(
@@ -326,19 +326,19 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     assert addressBytes != null;
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
                     ftId.set(registry.getTokenID("vanilla"));
                     partyId.set(registry.getAccountID(PARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(addressBytes);
                 }),
                 withOpContext((spec, opLog) -> {
 
                     // account create with key than delete account
+                    final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
                     var accountCreate = cryptoCreate("testAccount")
                             .key(SECP_256K1_SOURCE_KEY)
                             .maxAutomaticTokenAssociations(-1)
-                            .alias(counterAlias.get());
+                            .alias(counterAliasStr);
 
                     var getAccountInfo = getAccountInfo("testAccount")
                             .hasAlreadyUsedAutomaticAssociations(0)
@@ -352,13 +352,13 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     final var hollowAccount = cryptoTransfer(
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId.get())
-                                            .addTransfers(aaWith(partyAlias.get(), -500))
-                                            .addTransfers(aaWith(counterAlias.get(), +500))))
+                                            .addTransfers(Utils.aaWith(s, partyAlias.get(), -500))
+                                            .addTransfers(Utils.aaWith(s, counterAlias.get(), +500))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(FT_XFER);
 
                     // verify hollow account
-                    var hollowAccountCreated = getAliasedAccountInfo(counterAlias.get())
+                    var hollowAccountCreated = getAliasedAccountInfo(counterAliasStr)
                             .has(accountWith()
                                     .hasEmptyKey()
                                     .noAlias()
@@ -382,8 +382,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
 
                     // transfer some hbars to the hollow account so that we can pay with it later
                     var hollowAccountTransfer = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -404,9 +404,9 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryId = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
 
         return hapiTest(
@@ -430,27 +430,26 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     assert addressBytes != null;
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
-                    counterAlias.set(evmAddressBytes);
+                    counterAlias.set(addressBytes);
                     nftId.set(registry.getTokenID(NFT_INFINITE_SUPPLY_TOKEN));
                     partyId.set(registry.getAccountID(PARTY));
                     treasuryId.set(registry.getAccountID(TOKEN_TREASURY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
+                    partyAlias.set(asSolidityAddress(partyId.get()));
                 }),
                 withOpContext((spec, opLog) -> {
 
                     // account create with key than delete account
+                    final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
                     var accountCreate = cryptoCreate("testAccount")
                             .key(SECP_256K1_SOURCE_KEY)
                             .maxAutomaticTokenAssociations(-1)
-                            .alias(counterAlias.get());
+                            .alias(counterAliasStr);
 
                     var getAccountInfo = getAccountInfo("testAccount")
                             .hasAlreadyUsedAutomaticAssociations(0)
                             .has(accountWith().key(SECP_256K1_SOURCE_KEY).maxAutoAssociations(-1));
 
                     var accountDelete = cryptoDelete("testAccount").hasKnownStatus(SUCCESS);
-
                     allRunFor(spec, accountCreate, getAccountInfo, accountDelete);
 
                     /* hollow account created with NFT transfer as expected */
@@ -460,12 +459,12 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(1L)
                                                     .setSenderAccountID(treasuryId.get())
-                                                    .setReceiverAccountID(asIdWithAlias(counterAlias.get())))))
+                                                    .setReceiverAccountID(asIdWithAlias(counterAliasStr)))))
                             .signedBy(MULTI_KEY, DEFAULT_PAYER, TOKEN_TREASURY)
                             .via(NFT_XFER);
 
                     // verify hollow account
-                    var hollowAccountCreated = getAliasedAccountInfo(counterAlias.get())
+                    var hollowAccountCreated = getAliasedAccountInfo(counterAliasStr)
                             .has(accountWith()
                                     .hasEmptyKey()
                                     .noAlias()
@@ -489,8 +488,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
 
                     // transfer some hbars to the hollow account so that we can pay with it later
                     var hollowAccountTransfer = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 

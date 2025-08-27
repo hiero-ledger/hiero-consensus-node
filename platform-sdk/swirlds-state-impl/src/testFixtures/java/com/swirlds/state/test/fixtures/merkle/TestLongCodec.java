@@ -20,9 +20,26 @@ import java.util.Objects;
 @Deprecated
 @SuppressWarnings("Singleton")
 public class TestLongCodec implements Codec<Long> {
+
     public static final TestLongCodec SINGLETON = new TestLongCodec();
 
+    private static final Long DEFAULT_VALUE = 0L;
+
     private TestLongCodec() {}
+
+    @Override
+    public Long getDefaultInstance() {
+        return DEFAULT_VALUE;
+    }
+
+    @NonNull
+    @Override
+    public Long parse(
+            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        Objects.requireNonNull(input);
+        return Long.valueOf(input.readLong());
+    }
 
     @NonNull
     @Override

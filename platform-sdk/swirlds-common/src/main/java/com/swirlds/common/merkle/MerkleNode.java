@@ -3,14 +3,16 @@ package com.swirlds.common.merkle;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.crypto.Hashable;
-import com.swirlds.common.io.SerializableDet;
 import com.swirlds.common.merkle.interfaces.MerkleMigratable;
 import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.io.SerializableDet;
 
 /**
  * A MerkleNode object has the following properties
@@ -41,7 +43,7 @@ public interface MerkleNode
      * {@inheritDoc}
      */
     @Override
-    default MerkleNode migrate(final int version) {
+    default MerkleNode migrate(@NonNull final Configuration configuration, final int version) {
         return this;
     }
 

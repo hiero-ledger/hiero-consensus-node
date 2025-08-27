@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
@@ -54,7 +53,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(1)
     @DisplayName("Can cancel airdrop of fungible token")
     public Stream<DynamicTest> canCancelAirdropOfFungibleToken() {
         return hapiTest(
@@ -65,7 +63,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Can cancel airdrop of nft token")
     public Stream<DynamicTest> canCancelAirdropOfNftToken() {
         return hapiTest(
@@ -76,7 +73,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(3)
     @DisplayName("Cannot cancel airdrop if not existing")
     public Stream<DynamicTest> cannotCancelAirdropWhenNotExisting() {
         return hapiTest(token.call(HRC904, "cancelAirdropFT", receiver)
@@ -85,7 +81,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(4)
     @DisplayName("Cannot cancel airdrop if receiver not existing")
     public Stream<DynamicTest> cannotCancelAirdropWhenReceiverNotExisting() {
         return hapiTest(token.call(HRC904, "cancelAirdropFT", token)
@@ -94,7 +89,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(5)
     @DisplayName("Cannot cancel nft airdrop if not existing")
     public Stream<DynamicTest> cannotCancelNftAirdropWhenNotExisting() {
         return hapiTest(nft.call(HRC904, "cancelAirdropNFT", receiver, 1L)
@@ -103,7 +97,6 @@ public class HRCTokenCancelTest {
     }
 
     @HapiTest
-    @Order(6)
     @DisplayName("Cannot cancel nft airdrop if receiver not existing")
     public Stream<DynamicTest> cannotCancelNftAirdropWhenReceiverNotExisting() {
         return hapiTest(nft.call(HRC904, "cancelAirdropNFT", nft, 1L)

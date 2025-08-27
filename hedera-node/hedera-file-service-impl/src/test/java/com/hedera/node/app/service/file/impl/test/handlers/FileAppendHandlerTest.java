@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -63,6 +64,9 @@ class FileAppendHandlerTest extends FileTestBase {
 
     @Mock
     private ReadableAccountStore accountStore;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     @Mock(strictness = LENIENT)
     private PreHandleContext preHandleContext;
@@ -144,8 +148,8 @@ class FileAppendHandlerTest extends FileTestBase {
                 .transactionID(txnId)
                 .build();
 
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 
@@ -169,8 +173,8 @@ class FileAppendHandlerTest extends FileTestBase {
                 .fileAppend(OP_BUILDER.fileID(wellKnownId()))
                 .transactionID(txnId)
                 .build();
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 

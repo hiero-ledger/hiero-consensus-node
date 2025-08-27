@@ -24,9 +24,9 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
@@ -81,18 +81,6 @@ public interface HederaNativeOperations {
     ReadableScheduleStore readableScheduleStore();
 
     /**
-     * Returns the {@link Account} with the given number.
-     *
-     * @param number the account number
-     * @return the account, or {@code null} if no such account exists
-     */
-    @Nullable
-    default Account getAccount(final long number) {
-        return readableAccountStore()
-                .getAccountById(AccountID.newBuilder().accountNum(number).build());
-    }
-
-    /**
      * Returns the {@link Account} with the given contract id.
      * @param contractID the id of the contract
      * @return the account, or {@code null} if no such account exists
@@ -126,57 +114,50 @@ public interface HederaNativeOperations {
     }
 
     /**
-     * Returns the {@link Token} with the given number.
+     * Returns the {@link Token} with the given token id.
      *
-     * @param number the token number
+     * @param tokenID the token ID
      * @return the token, or {@code null} if no such token exists
      */
     @Nullable
-    default Token getToken(final long number) {
-        return readableTokenStore().get(TokenID.newBuilder().tokenNum(number).build());
+    default Token getToken(@NonNull final TokenID tokenID) {
+        return readableTokenStore().get(tokenID);
     }
 
     /**
      * Returns the {@link TokenRelation} between the account and token with the given numbers.
      *
-     * @param accountNumber the account number
-     * @param tokenNumber  the token number
+     * @param accountID the account ID
+     * @param tokenID  the token ID
      * @return the relationship, or {@code null} if no such relationship exists
      */
     @Nullable
-    default TokenRelation getTokenRelation(final long accountNumber, final long tokenNumber) {
-        return readableTokenRelationStore()
-                .get(
-                        AccountID.newBuilder().accountNum(accountNumber).build(),
-                        TokenID.newBuilder().tokenNum(tokenNumber).build());
+    default TokenRelation getTokenRelation(@NonNull final AccountID accountID, @NonNull final TokenID tokenID) {
+        return readableTokenRelationStore().get(accountID, tokenID);
     }
 
     /**
-     * Returns the {@link Nft} with the given token number and serial number.
+     * Returns the {@link Nft} with the given token ID and serial number.
      *
-     * @param tokenNumber  the token number
+     * @param tokenID  the token ID
      * @param serialNo  the serial number
      * @return the NFT, or {@code null} if no such NFT exists
      */
     @Nullable
-    default Nft getNft(final long tokenNumber, final long serialNo) {
+    default Nft getNft(@NonNull final TokenID tokenID, final long serialNo) {
         return readableNftStore()
-                .get(NftID.newBuilder()
-                        .tokenId(TokenID.newBuilder().tokenNum(tokenNumber))
-                        .serialNumber(serialNo)
-                        .build());
+                .get(NftID.newBuilder().tokenId(tokenID).serialNumber(serialNo).build());
     }
 
     /**
-     * Returns the {@link Schedule} with the given number.
+     * Returns the {@link Schedule} with the given ID.
      *
-     * @param number the schedule number
+     * @param scheduleID the schedule ID
      * @return the schedule transaction, or {@code null} if no such schedule transactionexists
      */
     @Nullable
-    default Schedule getSchedule(final long number) {
-        return readableScheduleStore()
-                .get(ScheduleID.newBuilder().scheduleNum(number).build());
+    default Schedule getSchedule(@NonNull final ScheduleID scheduleID) {
+        return readableScheduleStore().get(scheduleID);
     }
 
     /**
@@ -219,6 +200,13 @@ public interface HederaNativeOperations {
      * @param evmAddress the EVM address of the hollow account to finalize as a contract
      */
     void finalizeHollowAccountAsContract(@NonNull Bytes evmAddress);
+
+    /**
+     * @param expiry the consensus second at which the call is to be scheduled
+     * @param gasLimit the gas limit for the contract call
+     * @param payerId the ID of the account that will pay for the contract call
+     */
+    boolean canScheduleContractCall(long expiry, long gasLimit, @NonNull AccountID payerId);
 
     /**
      * Transfers value from one account or contract to another without creating a record in this {@link HandleHederaOperations},
@@ -267,8 +255,8 @@ public interface HederaNativeOperations {
     TransactionID getTransactionID();
 
     /**
-     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
-     * @return the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     * Returns the {@link EntityIdFactory}
+     * @return the {@link EntityIdFactory}
      */
     EntityIdFactory entityIdFactory();
 

@@ -13,12 +13,13 @@ module com.hedera.node.app.service.file.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
-    requires com.swirlds.common;
+    requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.file.impl.handlers;
     exports com.hedera.node.app.service.file.impl.records;

@@ -3,34 +3,32 @@ package com.swirlds.platform.test.fixtures.event;
 
 import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
 import static com.swirlds.common.units.DataUnit.UNIT_KILOBYTES;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
+import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class PcesWriterTestUtils {
     private PcesWriterTestUtils() {}
@@ -83,32 +81,34 @@ public class PcesWriterTestUtils {
     /**
      * Perform verification on a stream written by a {@link DefaultInlinePcesWriter}.
      *
-     * @param events             the events that were written to the stream
-     * @param platformContext    the platform context
+     * @param events the events that were written to the stream
+     * @param platformContext the platform context
      * @param truncatedFileCount the expected number of truncated files
-     * @param ancientMode        the ancient mode
      */
     public static void verifyStream(
-            @NonNull final NodeId selfId,
+            @NonNull final Path pcesDirectory,
             @NonNull final List<PlatformEvent> events,
             @NonNull final PlatformContext platformContext,
-            final int truncatedFileCount,
-            @NonNull final AncientMode ancientMode)
+            final int truncatedFileCount)
             throws IOException {
 
         long lastAncientIdentifier = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getAncientIndicator(ancientMode));
+            lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
         final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
-                platformContext, PcesUtilities.getDatabaseDirectory(platformContext, selfId), 0, false, ancientMode);
+                platformContext.getConfiguration(), platformContext.getRecycleBin(), pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);
+        int index = 0;
         for (final PlatformEvent event : events) {
-            assertTrue(eventsIterator.hasNext());
+            assertTrue(
+                    eventsIterator.hasNext(),
+                    "Event with index %d was not found, %d events are expected".formatted(index, events.size()));
             assertEquals(event, eventsIterator.next());
+            index++;
         }
         assertFalse(eventsIterator.hasNext(), "There should be no more events");
         assertEquals(truncatedFileCount, eventsIterator.getTruncatedFileCount());
@@ -117,7 +117,7 @@ public class PcesWriterTestUtils {
         final long startingLowerBound = lastAncientIdentifier / 2;
         final IOIterator<PlatformEvent> eventsIterator2 = pcesFiles.getEventIterator(startingLowerBound, 0);
         for (final PlatformEvent event : events) {
-            if (event.getAncientIndicator(ancientMode) < startingLowerBound) {
+            if (event.getBirthRound() < startingLowerBound) {
                 continue;
             }
             assertTrue(eventsIterator2.hasNext());
@@ -156,8 +156,8 @@ public class PcesWriterTestUtils {
             try (final IOIterator<PlatformEvent> fileEvents = file.iterator(0)) {
                 while (fileEvents.hasNext()) {
                     final PlatformEvent event = fileEvents.next();
-                    assertTrue(event.getAncientIndicator(ancientMode) >= file.getLowerBound());
-                    assertTrue(event.getAncientIndicator(ancientMode) <= file.getUpperBound());
+                    assertTrue(event.getBirthRound() >= file.getLowerBound());
+                    assertTrue(event.getBirthRound() <= file.getUpperBound());
                 }
             } catch (final IOException ignored) {
                 // hasNext() can throw an IOException if the file is truncated, in this case there is nothing to do

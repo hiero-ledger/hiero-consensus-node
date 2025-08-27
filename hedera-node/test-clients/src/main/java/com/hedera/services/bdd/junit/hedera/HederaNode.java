@@ -5,13 +5,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 public interface HederaNode {
     /**
@@ -37,18 +37,21 @@ public interface HederaNode {
 
     /**
      * Gets the node ID, such as 0, 1, 2, or 3.
+     *
      * @return the node ID
      */
     long getNodeId();
 
     /**
      * The name of the node, such as "Alice" or "Bob".
+     *
      * @return the node name
      */
     String getName();
 
     /**
      * Gets the node Account ID
+     *
      * @return the node account ID
      */
     AccountID getAccountId();
@@ -73,22 +76,38 @@ public interface HederaNode {
     /**
      * Starts the node software.
      *
-     * @throws IllegalStateException if the working directory was not initialized
      * @return this
+     * @throws IllegalStateException if the working directory was not initialized
      */
     HederaNode start();
 
     /**
      * Returns a future that resolves when the node has the given status.
      *
-     * @param status the status to wait for
      * @param nodeStatusObserver if non-null, an observer that will receive the node's status each time it is checked
+     * @param statuses the status to wait for
      * @return a future that resolves when the node has the given status
      */
     CompletableFuture<Void> statusFuture(
-            @NonNull PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver);
+            @Nullable Consumer<NodeStatus> nodeStatusObserver, @NonNull PlatformStatus... statuses);
 
-    CompletableFuture<Void> logFuture(@NonNull String pattern);
+    /**
+     * Returns a future that resolves when the node has written the specified log pattern.
+     * @param pattern the pattern to wait for
+     * @return a future that resolves when the node has written the specified log pattern
+     */
+    default CompletableFuture<Void> logFuture(@NonNull String pattern) {
+        return minLogsFuture(pattern, 1);
+    }
+
+    /**
+     * Returns a future that resolves when the node has written the specified log pattern
+     * on at least {@code n} different lines.
+     * @param pattern the pattern to wait for
+     * @param n the minimum number of lines that must match the pattern
+     * @return a future that resolves when the node has written the specified log pattern
+     */
+    CompletableFuture<Void> minLogsFuture(@NonNull String pattern, int n);
 
     /**
      * Returns a future that resolves when the node has written the specified <i>.mf</i> file.
@@ -117,12 +136,18 @@ public interface HederaNode {
      *
      * @return this node's HAPI spec identifier
      */
+    default String hapiSpecInfo(long shard, long realm) {
+        return getHost() + ":" + getGrpcPort() + ":" + shard + "." + realm + "."
+                + getAccountId().accountNumOrThrow();
+    }
+
     default String hapiSpecInfo() {
-        return getHost() + ":" + getGrpcPort() + ":0.0." + getAccountId().accountNumOrThrow();
+        return hapiSpecInfo(getAccountId().shardNum(), getAccountId().realmNum());
     }
 
     /**
      * Returns the metadata for this node.
+     *
      * @return the metadata for this node
      */
     NodeMetadata metadata();
@@ -136,6 +161,7 @@ public interface HederaNode {
 
     /**
      * If this node's startup assets included a genesis or override address book, returns it.
+     *
      * @return the node's startup address book, if available
      */
     default Optional<Network> startupNetwork() {

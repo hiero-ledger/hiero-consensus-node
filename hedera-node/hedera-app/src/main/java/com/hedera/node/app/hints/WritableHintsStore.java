@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
@@ -53,7 +54,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @return the updated construction
      */
     HintsConstruction setHintsScheme(
-            long constructionId, @NonNull PreprocessedKeys keys, @NonNull Map<Long, Integer> nodePartyIds);
+            long constructionId,
+            @NonNull PreprocessedKeys keys,
+            @NonNull Map<Long, Integer> nodePartyIds,
+            @NonNull Map<Long, Long> nodeWeights);
 
     /**
      * Sets the preprocessing start time for the construction with the given ID and returns the updated construction.
@@ -65,16 +69,23 @@ public interface WritableHintsStore extends ReadableHintsStore {
     HintsConstruction setPreprocessingStartTime(long constructionId, @NonNull Instant now);
 
     /**
-     * Purges any state no longer needed after a given handoff.
+     * Updates state for a handoff to the given roster hash.
+     *
+     * @param fromRoster the previous roster
+     * @param toRoster the adopted roster
+     * @param toRosterHash the adopted roster hash
+     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     * @return whether the handoff changed the hinTS scheme
      */
-    void updateForHandoff(@NonNull ActiveRosters activeRosters);
+    boolean handoff(
+            @NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash, boolean forceHandoff);
 
     /**
      * Sets the {@link CRSState} for the network.
      *
      * @param crsState the {@link CRSState} to set
      */
-    void setCRSState(@NonNull CRSState crsState);
+    void setCrsState(@NonNull CRSState crsState);
 
     /**
      * Moves the CRS contribution to be done by the next node in the roster. This is called when the

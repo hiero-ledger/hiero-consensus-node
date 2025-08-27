@@ -52,7 +52,7 @@ public abstract class AbstractNftViewCall extends AbstractRevertibleTokenViewCal
     @Override
     protected @NonNull PricedResult resultOfViewingToken(@NonNull final Token token) {
         requireNonNull(token);
-        final var nft = nativeOperations().getNft(token.tokenIdOrThrow().tokenNum(), serialNo);
+        final var nft = nativeOperations().getNft(token.tokenIdOrThrow(), serialNo);
         if (nft == null) {
             final var status = missingNftStatus();
             return gasOnly(ordinalRevertResult(status, gasCalculator.viewGasRequirement()), status, true);

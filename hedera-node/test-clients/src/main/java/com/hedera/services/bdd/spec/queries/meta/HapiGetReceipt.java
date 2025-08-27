@@ -173,7 +173,7 @@ public class HapiGetReceipt extends HapiQueryOp<HapiGetReceipt> {
         if (expectedDuplicateStatuses.isPresent()) {
             var duplicates = response.getTransactionGetReceipt().getDuplicateTransactionReceiptsList().stream()
                     .map(TransactionReceipt::getStatus)
-                    .toArray(n -> new ResponseCodeEnum[n]);
+                    .toArray(ResponseCodeEnum[]::new);
             Assertions.assertArrayEquals(expectedDuplicateStatuses.get(), duplicates);
         }
         if (expectedScheduledTxnId.isPresent()) {

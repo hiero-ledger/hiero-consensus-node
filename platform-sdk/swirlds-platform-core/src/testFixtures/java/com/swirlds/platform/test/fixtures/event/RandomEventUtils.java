@@ -1,18 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event;
 
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -21,6 +11,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class RandomEventUtils {
     public static final Instant DEFAULT_FIRST_EVENT_TIME_CREATED = Instant.ofEpochMilli(1588771316678L);
@@ -64,18 +62,10 @@ public class RandomEventUtils {
 
         final EventDescriptorWrapper selfDescriptor = (selfParent == null || selfParent.getBaseHash() == null)
                 ? null
-                : new EventDescriptorWrapper(new EventDescriptor(
-                        selfParent.getBaseHash().getBytes(),
-                        selfParent.getCreatorId().id(),
-                        selfParent.getBaseEvent().getBirthRound(),
-                        selfParent.getGeneration()));
+                : selfParent.getBaseEvent().getDescriptor();
         final EventDescriptorWrapper otherDescriptor = (otherParent == null || otherParent.getBaseHash() == null)
                 ? null
-                : new EventDescriptorWrapper(new EventDescriptor(
-                        otherParent.getBaseHash().getBytes(),
-                        otherParent.getCreatorId().id(),
-                        otherParent.getBaseEvent().getBirthRound(),
-                        otherParent.getGeneration()));
+                : otherParent.getBaseEvent().getDescriptor();
 
         final List<Bytes> convertedTransactions = new ArrayList<>();
         if (transactions != null) {
@@ -84,16 +74,16 @@ public class RandomEventUtils {
                     .forEach(convertedTransactions::add);
         }
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                new BasicSoftwareVersion(1),
                 creatorId,
                 selfDescriptor,
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
                 birthRound,
                 timestamp,
-                convertedTransactions);
+                convertedTransactions,
+                random.nextLong(0, Long.MAX_VALUE));
 
         if (fakeHash) {
-            unsignedEvent.setHash(RandomUtils.randomHash(random));
+            unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));
         } else {
             new PbjStreamHasher().hashUnsignedEvent(unsignedEvent);
         }

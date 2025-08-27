@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getOpsDurationValue;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static java.util.Objects.requireNonNull;
 
@@ -18,7 +19,6 @@ import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractCallTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -27,7 +27,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
+import com.swirlds.metrics.impl.AtomicDouble;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -37,11 +37,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
     public static final String DEFAULT_ID_SENTINEL = "<DEFAULT_ID>";
@@ -61,6 +63,8 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     private Optional<ObjLongConsumer<ResponseCodeEnum>> gasObserver = Optional.empty();
     private Optional<Long> valueSent = Optional.of(0L);
+    private Optional<AtomicDouble> maxOpsDuration = Optional.empty();
+    private Optional<AtomicLong> successObserver = Optional.empty();
     private boolean convertableToEthCall = true;
     private Consumer<Object[]> resultObserver = null;
 
@@ -154,6 +158,16 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
         return this;
     }
 
+    public HapiContractCall collectMaxOpsDuration(AtomicDouble duration) {
+        maxOpsDuration = Optional.of(duration);
+        return this;
+    }
+
+    public HapiContractCall countingSuccessfulTransactionTo(AtomicLong successCounter) {
+        successObserver = Optional.of(successCounter);
+        return this;
+    }
+
     public HapiContractCall signingWith(String signingWith) {
         privateKeyRef = signingWith;
         return this;
@@ -199,10 +213,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
         this.params = Optional.of(params);
     }
 
-    public String getTxnName() {
-        return txnName;
-    }
-
     public Optional<Long> getGas() {
         return gas;
     }
@@ -238,10 +248,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     public Optional<String> getCustomTxnId() {
         return customTxnId;
-    }
-
-    public Optional<AccountID> getNode() {
-        return node;
     }
 
     public OptionalDouble getUsdFee() {
@@ -336,6 +342,16 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
                         .toByteArray());
                 resultObserver.accept(result.toArray());
             });
+        }
+        // Collect the maximum observed ops duration
+        if (maxOpsDuration.isPresent()) {
+            final double duration = getOpsDurationValue(spec);
+            if (duration > maxOpsDuration.get().get()) {
+                maxOpsDuration.get().getAndSet(duration);
+            }
+        }
+        if (successObserver.isPresent() && actualStatus == ResponseCodeEnum.SUCCESS) {
+            successObserver.get().incrementAndGet();
         }
     }
 

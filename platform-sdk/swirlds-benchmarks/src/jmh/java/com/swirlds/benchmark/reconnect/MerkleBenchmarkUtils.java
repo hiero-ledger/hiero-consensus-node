@@ -5,9 +5,7 @@ import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfte
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.benchmark.BenchmarkKey;
 import com.swirlds.benchmark.BenchmarkMetrics;
-import com.swirlds.benchmark.BenchmarkValue;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -16,7 +14,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
@@ -27,13 +24,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
 
-    public static MerkleInternal createTreeForMaps(final List<VirtualMap<BenchmarkKey, BenchmarkValue>> maps) {
+    public static MerkleInternal createTreeForMaps(final List<VirtualMap> maps) {
         final BenchmarkMerkleInternal tree = new BenchmarkMerkleInternal("root");
         initializeTreeAfterCopy(tree);
         for (int i = 0; i < maps.size(); i++) {

@@ -89,6 +89,7 @@ public final class ScheduleUtils {
         Builder scheduleBuilder = SchedulableTransactionBody.newBuilder();
         scheduleBuilder.setTransactionFee(txn.getTransactionFee());
         scheduleBuilder.setMemo(txn.getMemo());
+        scheduleBuilder.addAllMaxCustomFees(txn.getMaxCustomFeesList());
 
         if (txn.hasContractCall()) {
             scheduleBuilder.setContractCall(txn.getContractCall());
@@ -156,6 +157,12 @@ public final class ScheduleUtils {
             scheduleBuilder.setScheduleDelete(txn.getScheduleDelete());
         } else if (txn.hasCryptoApproveAllowance()) {
             scheduleBuilder.setCryptoApproveAllowance(txn.getCryptoApproveAllowance());
+        } else if (txn.hasNodeCreate()) {
+            scheduleBuilder.setNodeCreate(txn.getNodeCreate());
+        } else if (txn.hasNodeDelete()) {
+            scheduleBuilder.setNodeDelete(txn.getNodeDelete());
+        } else if (txn.hasNodeUpdate()) {
+            scheduleBuilder.setNodeUpdate(txn.getNodeUpdate());
         }
         return scheduleBuilder.build();
     }

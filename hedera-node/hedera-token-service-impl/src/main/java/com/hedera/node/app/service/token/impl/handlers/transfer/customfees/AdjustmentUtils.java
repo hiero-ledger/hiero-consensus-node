@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeExemptions.isPayerExempt;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -55,7 +56,7 @@ public class AdjustmentUtils {
     }
 
     /**
-     * Given the token deomination, fee collector and the amount to be charged, this method
+     * Given the token denomination, fee collector and the amount to be charged, this method
      * returns the {@link FixedFee} representation of custom fee.
      * @param unitsToCollect The amount to be charged
      * @param tokenDenomination The token denomination
@@ -150,6 +151,26 @@ public class AdjustmentUtils {
             }
         }
         return credits;
+    }
+
+    /**
+     * Given a list of changes for a specific token, filters for the debits not exempt from the given fee.
+     * @param tokenIdChanges The list of changes for a specific token
+     * @return The map of non-exempt debits (in absolute value)
+     */
+    public static Map<AccountID, Long> getNonExemptTokenDebits(
+            @NonNull final Map<AccountID, Long> tokenIdChanges,
+            @NonNull final Token token,
+            @NonNull final CustomFee fee) {
+        final var nonExemptDebits = new LinkedHashMap<AccountID, Long>();
+        for (final var entry : tokenIdChanges.entrySet()) {
+            final var account = entry.getKey();
+            final var amount = entry.getValue();
+            if (amount < 0 && !isPayerExempt(token, fee, account)) {
+                nonExemptDebits.put(account, -amount);
+            }
+        }
+        return nonExemptDebits;
     }
 
     /**

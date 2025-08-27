@@ -8,10 +8,10 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.gui.GuiUtils;
 import com.swirlds.platform.gui.components.PrePaintableJPanel;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.Platform;
 import java.util.Collection;
 import javax.swing.JTextArea;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * The tab in the Browser window that shows available apps, running swirlds, and saved swirlds.

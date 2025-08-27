@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.platform.event.AncientMode;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for {@link PcesUtilities}
@@ -30,17 +23,11 @@ class PcesUtilitiesTests {
         time.tick(Duration.ofSeconds(100));
     }
 
-    protected static Stream<Arguments> buildArguments() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Standard operation")
-    void standardOperation(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void standardOperation() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
                 previousFileDescriptor.getLowerBound(),
@@ -58,13 +45,11 @@ class PcesUtilitiesTests {
                 currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing sequence number")
-    void decreasingSequenceNumber(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingSequenceNumber() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() - 1,
                 previousFileDescriptor.getLowerBound(),
@@ -84,13 +69,11 @@ class PcesUtilitiesTests {
                         currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing sequence number with gaps permitted")
-    void decreasingSequenceNumberWithGapsPermitted(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingSequenceNumberWithGapsPermitted() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() - 1,
                 previousFileDescriptor.getLowerBound(),
@@ -108,13 +91,11 @@ class PcesUtilitiesTests {
                 currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Non-increasing sequence number")
-    void nonIncreasingSequenceNumber(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void nonIncreasingSequenceNumber() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber(),
                 previousFileDescriptor.getLowerBound(),
@@ -134,13 +115,11 @@ class PcesUtilitiesTests {
                         currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing Lower Bound")
-    void decreasingMinimumLowerBound(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingMinimumLowerBound() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
                 previousFileDescriptor.getLowerBound() - 1,
@@ -160,13 +139,11 @@ class PcesUtilitiesTests {
                         currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing Upper Bound")
-    void decreasingUpperBound(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingUpperBound() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
                 previousFileDescriptor.getLowerBound(),
@@ -186,13 +163,11 @@ class PcesUtilitiesTests {
                         currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing timestamp")
-    void decreasingTimestamp(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingTimestamp() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 previousFileDescriptor.getTimestamp().minusSeconds(10),
                 previousFileDescriptor.getSequenceNumber() + 1,
                 previousFileDescriptor.getLowerBound(),
@@ -212,13 +187,11 @@ class PcesUtilitiesTests {
                         currentFileDescriptor));
     }
 
-    @ParameterizedTest
-    @MethodSource("buildArguments")
+    @Test
     @DisplayName("Decreasing origin")
-    void decreasingOrigin(@NonNull final AncientMode ancientMode) {
-        final PcesFile previousFileDescriptor = PcesFile.of(ancientMode, time.now(), 2, 10, 20, 5, Path.of("root"));
+    void decreasingOrigin() {
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
-                ancientMode,
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
                 previousFileDescriptor.getLowerBound(),

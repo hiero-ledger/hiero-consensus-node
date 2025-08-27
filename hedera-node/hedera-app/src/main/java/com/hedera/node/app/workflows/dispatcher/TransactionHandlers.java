@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
 import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
@@ -21,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractSystemDeleteHa
 import com.hedera.node.app.service.contract.impl.handlers.ContractSystemUndeleteHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
+import com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileAppendHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileDeleteHandler;
@@ -80,6 +82,7 @@ public record TransactionHandlers(
         @NonNull ContractSystemDeleteHandler contractSystemDeleteHandler,
         @NonNull ContractSystemUndeleteHandler contractSystemUndeleteHandler,
         @NonNull EthereumTransactionHandler ethereumTransactionHandler,
+        @NonNull LambdaSStoreHandler lambdaSStoreHandler,
         @NonNull CryptoCreateHandler cryptoCreateHandler,
         @NonNull CryptoUpdateHandler cryptoUpdateHandler,
         @NonNull CryptoTransferHandler cryptoTransferHandler,
@@ -129,4 +132,5 @@ public record TransactionHandlers(
         @NonNull AtomicBatchHandler atomicBatchHandler,
         @NonNull HistoryProofKeyPublicationHandler historyProofKeyPublicationHandler,
         @NonNull HistoryProofSignatureHandler historyProofSignatureHandler,
-        @NonNull HistoryProofVoteHandler historyProofVoteHandler) {}
+        @NonNull HistoryProofVoteHandler historyProofVoteHandler,
+        @NonNull CrsPublicationHandler crsPublicationHandler) {}

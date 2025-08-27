@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.Connection;
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -11,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.node.NodeId;
 
 @FunctionalInterface
 public interface ConnectionFactory {

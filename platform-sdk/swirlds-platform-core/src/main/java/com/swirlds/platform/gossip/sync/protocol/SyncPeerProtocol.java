@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.sync.protocol;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -15,7 +14,6 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
@@ -24,6 +22,8 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Executes the sync protocol where events are exchanged with a peer and all events are sent and received in topological
@@ -32,6 +32,7 @@ import org.hiero.consensus.gossip.FallenBehindManager;
  * This object will be instantiated once per peer, and is bidirectional
  */
 public class SyncPeerProtocol implements PeerProtocol {
+
     /**
      * The id of the peer being synced with in this protocol
      */

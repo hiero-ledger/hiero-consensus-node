@@ -4,8 +4,6 @@ package com.hedera.node.app.hapi.utils.exports;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.services.stream.proto.RecordStreamFile;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -20,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 
 /**
  * This is a standalone utility tool to read record stream file and check if block number is
@@ -48,6 +48,7 @@ public class RecordBlockNumberTool {
     public static void prepare() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
 
         LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
         // if we are parsing new record stream files,

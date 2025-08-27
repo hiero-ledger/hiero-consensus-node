@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextLong;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -16,37 +15,47 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
-import java.util.function.Function;
-import org.junit.jupiter.api.BeforeAll;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class PlatformStateFacadeTest {
 
-    public static final Function<SemanticVersion, SoftwareVersion> VERSION_FACTORY =
-            v -> new BasicSoftwareVersion(v.major());
-    private static TestPlatformStateFacade platformStateFacade;
-    private static MerkleNodeState state;
-    private static MerkleNodeState emptyState;
-    private static PlatformStateModifier platformStateModifier;
+    private TestPlatformStateFacade platformStateFacade;
+    private MerkleNodeState state;
+    private MerkleNodeState emptyState;
+    private PlatformStateModifier platformStateModifier;
 
-    @BeforeAll
-    static void beforeAll() {
-        state = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
-        emptyState = new TestMerkleStateRoot();
-        platformStateFacade = new TestPlatformStateFacade(VERSION_FACTORY);
+    @BeforeEach
+    void beforeEach() {
+        final String virtualMapLabelForState =
+                "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        final String virtualMapLabelForEmptyState =
+                "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        emptyState = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
+        platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
+        emptyState.release();
+
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -82,8 +91,8 @@ class PlatformStateFacadeTest {
     @Test
     void testCreationSoftwareVersionOf() {
         assertEquals(
-                platformStateModifier.getCreationSoftwareVersion().getPbjSemanticVersion(),
-                platformStateFacade.creationSoftwareVersionOf(state).getPbjSemanticVersion());
+                platformStateModifier.getCreationSoftwareVersion(),
+                platformStateFacade.creationSoftwareVersionOf(state));
     }
 
     @Test
@@ -98,9 +107,13 @@ class PlatformStateFacadeTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
+        final var virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final TestHederaVirtualMapState noPlatformState =
+                TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
+        noPlatformState.release();
     }
 
     @Test
@@ -127,27 +140,6 @@ class PlatformStateFacadeTest {
     @Test
     void testConsensusSnapshotOf() {
         assertEquals(platformStateModifier.getSnapshot(), platformStateFacade.consensusSnapshotOf(state));
-    }
-
-    @Test
-    void testFirstVersionInBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getFirstVersionInBirthRoundMode(),
-                platformStateFacade.firstVersionInBirthRoundModeOf(state));
-    }
-
-    @Test
-    void testLastRoundBeforeBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getLastRoundBeforeBirthRoundMode(),
-                platformStateFacade.lastRoundBeforeBirthRoundModeOf(state));
-    }
-
-    @Test
-    void testLowestJudgeGenerationBeforeBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(state));
     }
 
     @Test
@@ -188,12 +180,16 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetSnapshotTo() {
-        TestMerkleStateRoot randomState = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(randomState);
+        final String virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        TestHederaVirtualMapState randomState =
+                TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);
         assertEquals(newSnapshot, platformStateModifier.getSnapshot());
+        randomState.release();
     }
 
     @Test
@@ -205,11 +201,11 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetCreationSoftwareVersionTo() {
-        final var newCreationSoftwareVersion = new BasicSoftwareVersion(RandomUtils.nextInt());
+        final var newCreationSoftwareVersion =
+                SemanticVersion.newBuilder().major(RandomUtils.nextInt()).build();
+
         platformStateFacade.setCreationSoftwareVersionTo(state, newCreationSoftwareVersion);
-        assertEquals(
-                newCreationSoftwareVersion.getVersion(),
-                platformStateModifier.getCreationSoftwareVersion().getVersion());
+        assertEquals(newCreationSoftwareVersion, platformStateModifier.getCreationSoftwareVersion());
     }
 
     @Test
@@ -225,12 +221,6 @@ class PlatformStateFacadeTest {
                 .contains("Rounds non-ancient:")
                 .contains("Creation version:")
                 .contains("Minimum judge hash code:")
-                .contains("Root hash:")
-                .contains("First BR Version:")
-                .contains("Last round before BR:")
-                .contains("Lowest Judge Gen before BR")
-                .contains("Lowest Judge Gen before BR")
-                .contains("SingletonNode")
-                .contains("PlatformStateService.PLATFORM_STATE");
+                .contains("Root hash:");
     }
 }

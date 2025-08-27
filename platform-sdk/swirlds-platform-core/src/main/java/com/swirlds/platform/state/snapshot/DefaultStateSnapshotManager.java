@@ -9,16 +9,13 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.UNKNOWN;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -29,6 +26,10 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for managing the state writing pipeline.
@@ -131,9 +132,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             signedState.stateSavedToDisk();
-            final long minGen = deleteOldStates();
+            final long minBirthRound = deleteOldStates();
             stateSavingResult = new StateSavingResult(
-                    signedState.getRound(), signedState.isFreezeState(), signedState.getConsensusTimestamp(), minGen);
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
         }
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
@@ -256,7 +260,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Purge old states on the disk.
      *
-     * @return the minimum generation non-ancient of the oldest state that was not deleted
+     * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
         final List<SavedStateInfo> savedStates =
@@ -279,6 +283,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             return EventConstants.GENERATION_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
-        return oldestStateMetadata.minimumGenerationNonAncient();
+        return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

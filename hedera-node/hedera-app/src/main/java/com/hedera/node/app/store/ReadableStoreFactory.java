@@ -3,7 +3,9 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
@@ -21,6 +23,7 @@ import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
@@ -51,9 +54,6 @@ import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.ReadableRosterStore;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,7 +62,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -82,9 +83,7 @@ public class ReadableStoreFactory {
         newMap.put(ReadableAirdropStore.class, new StoreEntry(TokenService.NAME, ReadableAirdropStoreImpl::new));
         newMap.put(ReadableNftStore.class, new StoreEntry(TokenService.NAME, ReadableNftStoreImpl::new));
         newMap.put(
-                ReadableStakingInfoStore.class,
-                new StoreEntry(
-                        TokenService.NAME, (states, entityCounters) -> new ReadableStakingInfoStoreImpl(states)));
+                ReadableStakingInfoStore.class, new StoreEntry(TokenService.NAME, ReadableStakingInfoStoreImpl::new));
         newMap.put(ReadableTokenStore.class, new StoreEntry(TokenService.NAME, ReadableTokenStoreImpl::new));
         newMap.put(
                 ReadableTokenRelationStore.class,
@@ -109,6 +108,9 @@ public class ReadableStoreFactory {
                 new StoreEntry(FreezeService.NAME, (states, entityCounters) -> new ReadableFreezeStoreImpl(states)));
         // Contracts
         newMap.put(ContractStateStore.class, new StoreEntry(ContractService.NAME, ReadableContractStateStore::new));
+        newMap.put(
+                ReadableEvmHookStore.class,
+                new StoreEntry(ContractService.NAME, (states, entityCounters) -> new ReadableEvmHookStore(states)));
         // Block Records
         newMap.put(
                 ReadableBlockRecordStore.class,
@@ -128,25 +130,28 @@ public class ReadableStoreFactory {
                 ReadableEntityIdStore.class,
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new ReadableEntityIdStoreImpl(states)));
+        // Hints service
+        newMap.put(
+                ReadableHintsStore.class,
+                new StoreEntry(
+                        HintsService.NAME,
+                        (states, entityCounters) -> new ReadableHintsStoreImpl(states, entityCounters)));
+        // History service
         newMap.put(
                 ReadableHistoryStore.class,
-                new StoreEntry(
-                        HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states) {}));
+                new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
     private final State state;
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructor of {@code ReadableStoreFactory}
      *
      * @param state the {@link State} to use
      */
-    public ReadableStoreFactory(
-            @NonNull final State state, @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
+    public ReadableStoreFactory(@NonNull final State state) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
-        this.versionFactory = requireNonNull(versionFactory, "The supplied argument 'versionFactory' cannot be null!");
     }
 
     /**
@@ -170,9 +175,6 @@ public class ReadableStoreFactory {
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
-            }
-            if (store instanceof ReadablePlatformStateStore readablePlatformStateStore) {
-                readablePlatformStateStore.setVersionFactory(versionFactory);
             }
             return storeInterface.cast(store);
         }

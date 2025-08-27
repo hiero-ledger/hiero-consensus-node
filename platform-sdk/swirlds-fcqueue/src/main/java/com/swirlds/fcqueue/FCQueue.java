@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import java.io.IOException;
@@ -24,6 +17,13 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A threadsafe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the
@@ -39,10 +39,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * All write operations are synchronized with the current instance. It is ok for multiple iterators to be running in
  * multiple threads at the same time. An iterator for a mutable queue provides a snapshot view of the queue at the
  * time of iterator creation. A reverse iterator materializes the view (should not be used for huge queues).
+ *
+ * @deprecated should be removed once the migration to the Mega Map state organization is completed on the mainnet.
  */
+@Deprecated
 public class FCQueue<E extends FastCopyable & SerializableHashable> extends PartialMerkleLeaf
         implements Queue<E>, MerkleLeaf {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static class ClassVersion {
         /**
@@ -514,7 +517,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns an array containing all of the elements in this collection.
+     * Returns an array containing all elements in this collection.
      * If this collection makes any guarantees as to what order its elements
      * are returned by its iterator, this method must return the elements in
      * the same order. The returned array's {@linkplain Class#getComponentType
@@ -529,7 +532,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * APIs.
      *
      * @return an array, whose {@linkplain Class#getComponentType runtime component
-     * 		type} is {@code Object}, containing all of the elements in this collection
+     * 		type} is {@code Object}, containing all elements in this collection
      */
     @Override
     public synchronized Object[] toArray() {
@@ -580,7 +583,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * 		the array into which the elements of this collection are to be
      * 		stored, if it is big enough; otherwise, a new array of the same
      * 		runtime type is allocated for this purpose.
-     * @return an array containing all of the elements in this collection
+     * @return an array containing all elements in this collection
      * @throws ArrayStoreException
      * 		if the runtime type of any element in this
      * 		collection is not assignable to the {@linkplain Class#getComponentType
@@ -627,12 +630,12 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns {@code true} if this collection contains all of the elements
+     * Returns {@code true} if this collection contains all elements
      * in the specified collection.
      *
      * @param c
      * 		collection to be checked for containment in this collection
-     * @return {@code true} if this collection contains all of the elements
+     * @return {@code true} if this collection contains all elements
      * 		in the specified collection
      * @throws ClassCastException
      * 		if the types of one or more elements
@@ -701,7 +704,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Removes all of the elements from this queue.
+     * Removes all elements from this queue.
      * The queue will be empty and the hash reset to the null value after this method returns.
      * This does not delete the FCQueue object. It just empties the queue.
      */
@@ -741,41 +744,46 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Serializes the current object to an array of bytes in a deterministic manner.
-     *
-     * @param dos
-     * 		the {@link java.io.DataOutputStream} to which the object's binary form should be written
-     * @throws IOException
-     * 		if there are problems during serialization
+     * {@inheritDoc}
      */
     @Override
-    public synchronized void serialize(final SerializableDataOutputStream dos) throws IOException {
-        dos.writeSerializableIterableWithSize(iterator(), size(), true, false);
-    }
-
-    @Override
-    public synchronized void deserialize(final SerializableDataInputStream dis, final int version) throws IOException {
-        if (version >= ClassVersion.REMOVED_HASH) {
-            deserializeV3(dis);
-        } else {
-            deserializeV2(dis);
-        }
+    public synchronized void serialize(final SerializableDataOutputStream out) throws IOException {
+        detach();
+        out.writeSerializableIterableWithSize(iterator(), size(), true, false);
     }
 
     /**
-     * @deprecated Remove this method after v0.36 data migration.
+     * Create a shallow detached copy to avoid holding references to the entire queue should the original
+     * copy remain reserved for a long time (e.g., during reconnect).
+     * Detaching a mutable copy does not look like a good idea and there should be no use of that in production.
      */
-    @Deprecated(forRemoval = true)
-    private void deserializeV2(final SerializableDataInputStream dis) throws IOException {
-        // These two reads are intentionally ignored. They are for the backward compatibility.
-        dis.readInt();
-        dis.readFully(new byte[DIGEST_TYPE.digestLength()]);
+    private void detach() {
+        if (head == null || tail == null || isMutable()) {
+            return;
+        }
+        // Ensure the copy is hashed before detaching
+        getHash();
 
-        dis.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
+        Node<E> src = head;
+        Node<E> dst = new Node<>();
+        head = dst;
+        while (src != tail) {
+            dst.element = src.element;
+            dst.runningHash = src.runningHash;
+            dst.next = new Node<>();
+            src = src.next;
+            dst = dst.next;
+        }
+        dst.runningHash = src.runningHash;
+        tail = dst;
     }
 
-    private void deserializeV3(final SerializableDataInputStream dis) throws IOException {
-        dis.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public synchronized void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
+        in.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
     }
 
     /**

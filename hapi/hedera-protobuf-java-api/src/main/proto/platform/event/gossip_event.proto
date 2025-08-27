@@ -30,6 +30,7 @@ package com.hedera.hapi.platform.event;
  */
 
 import "platform/event/event_core.proto";
+import "platform/event/event_descriptor.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
 // <<<pbj.java_package = "com.hedera.hapi.platform.event">>> This comment is special code for setting PBJ Compiler java package
@@ -71,4 +72,17 @@ message GossipEvent {
    * included in this gossip event.
    */
   repeated bytes transactions = 4;
+
+  /**
+   * A list of EventDescriptors representing the parents of this event.<br/>
+   * The list of parents SHALL include zero or one self parents, and zero or more other parents.<br/>
+   * The first element of the list SHALL be the self parent, if one exists.<br/>
+   * The list of parents SHALL NOT include more than one parent from the same creator.
+   * <p>
+   * NOTE: This field is currently being migrated from EventCore to GossipEvent.
+   * Once the migration is complete, this field will be removed from EventCore.
+   * While migration is ongoing, the expectation is that only one of the two
+   * fields will be set, but not both.
+   */
+  repeated EventDescriptor parents = 5;
 }

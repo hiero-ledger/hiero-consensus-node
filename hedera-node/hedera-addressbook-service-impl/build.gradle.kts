@@ -13,9 +13,9 @@ testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
+    requires("org.hiero.consensus.model")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requiresStatic("com.github.spotbugs.annotations")
 }

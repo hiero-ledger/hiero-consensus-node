@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
@@ -27,7 +26,13 @@ import java.util.function.ToLongFunction;
  */
 public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> implements Startable, Stoppable {
 
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
+    /**
+     * This task is meant to unblock tasks list take() operation in case the stop signal is received.
+     */
+    private static final SequentialThreadTask POISON_PILL = new SequentialThreadTask(o -> {}, new Object());
+
+    public static final String THREAD_NAME_PREFIX = "<scheduler ";
+    public static final String THREAD_NAME_SUFFIX = ">";
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
     private final ToLongFunction<Object> dataCounter;
@@ -38,7 +43,7 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
 
     private static final int BUFFER_SIZE = 1024;
 
-    private final AtomicBoolean alive = new AtomicBoolean(true);
+    private volatile boolean alive = true;
 
     private final Thread thread;
 
@@ -47,7 +52,8 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
      *
      * @param model                    the wiring model containing this task scheduler
      * @param name                     the name of the task scheduler
-     * @param uncaughtExceptionHandler the handler to call when an exception is thrown by a task
+     * @param uncaughtExceptionHandler the handler to call when an exception is thrown by a task.
+     *                                   In this scheduler, the handler is executed immediately after the task that throws the exception.
      * @param onRamp                   the counter to increment when a task is added to the queue
      * @param offRamp                  the counter to decrement when a task is removed from the queue
      * @param dataCounter              the function to weight input data objects for health monitoring
@@ -70,16 +76,22 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
             final boolean flushEnabled,
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
-        super(model, name, TaskSchedulerType.SEQUENTIAL_THREAD, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.SEQUENTIAL_THREAD,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.dataCounter = dataCounter;
         this.busyTimer = Objects.requireNonNull(busyTimer);
         this.capacity = capacity;
 
-        thread = new Thread(this::run, "<scheduler " + name + ">");
+        thread = new Thread(this::run, THREAD_NAME_PREFIX + name + THREAD_NAME_SUFFIX);
     }
 
     /**
@@ -151,7 +163,8 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
      */
     @Override
     public void stop() {
-        alive.set(false);
+        alive = false;
+        tasks.add(POISON_PILL);
     }
 
     /**
@@ -160,7 +173,7 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
     private void run() {
         final List<SequentialThreadTask> buffer = new ArrayList<>(BUFFER_SIZE);
 
-        while (alive.get()) {
+        while (alive) {
             if (tasks.drainTo(buffer, BUFFER_SIZE) == 0) {
                 try {
                     final SequentialThreadTask task = tasks.take();
@@ -173,10 +186,13 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
 
             busyTimer.activate();
             for (final SequentialThreadTask task : buffer) {
+                if (!alive) {
+                    break;
+                }
                 try {
                     task.handle();
                 } catch (final Throwable t) {
-                    uncaughtExceptionHandler.uncaughtException(thread, t);
+                    getUncaughtExceptionHandler().uncaughtException(thread, t);
                 } finally {
                     offRamp.offRamp(dataCounter.applyAsLong(task.data()));
                 }

@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -32,6 +34,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenFeeScheduleUpdateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
@@ -40,6 +43,7 @@ import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -88,6 +92,9 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private ExpiryValidator expiryValidator;
+
     @BeforeEach
     void setup() {
         super.setUp();
@@ -100,6 +107,9 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .getOrCreateConfig();
         given(context.configuration()).willReturn(config);
         given(context.storeFactory()).willReturn(storeFactory);
+        given(context.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(ResponseCodeEnum.OK);
+
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
@@ -176,10 +186,10 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void validatesTokenHasFeeScheduleKey() {
         final var tokenWithoutFeeScheduleKey =
                 fungibleToken.copyBuilder().feeScheduleKey((Key) null).build();
-        writableTokenState = MapWritableKVState.<TokenID, Token>builder(TOKENS)
+        writableTokenState = MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(fungibleTokenId, tokenWithoutFeeScheduleKey)
                 .build();
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
 
@@ -192,7 +202,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @DisplayName("fee schedule update fails if token does not exist")
     void rejectsInvalidTokenId() {
         writableTokenState = emptyWritableTokenState();
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
 

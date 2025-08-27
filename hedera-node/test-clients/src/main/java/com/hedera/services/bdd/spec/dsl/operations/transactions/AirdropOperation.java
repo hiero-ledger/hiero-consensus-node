@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.operations.transactions;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TokenType;
@@ -86,10 +86,10 @@ public class AirdropOperation extends AbstractSpecTransaction<AirdropOperation, 
         public TokenMovement asMovementFrom(@NonNull final SpecAccount sender) {
             final var builder =
                     switch (type()) {
-                        case FUNGIBLE_COMMON -> TokenMovement.moving(
-                                asset, fungibleTokenOrThrow().name());
-                        case NON_FUNGIBLE_UNIQUE -> TokenMovement.movingUnique(
-                                nonFungibleTokenOrThrow().name(), asset);
+                        case FUNGIBLE_COMMON ->
+                            TokenMovement.moving(asset, fungibleTokenOrThrow().name());
+                        case NON_FUNGIBLE_UNIQUE ->
+                            TokenMovement.movingUnique(nonFungibleTokenOrThrow().name(), asset);
                     };
             return switch (aliasUsage) {
                 case NEITHER -> builder.between(sender.name(), receiver.name());

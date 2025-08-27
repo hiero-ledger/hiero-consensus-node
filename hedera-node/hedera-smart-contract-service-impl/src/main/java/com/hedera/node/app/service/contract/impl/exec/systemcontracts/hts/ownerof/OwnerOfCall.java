@@ -44,7 +44,8 @@ public class OwnerOfCall extends AbstractNftViewCall {
         requireNonNull(nft);
         final long ownerNum = getOwnerAccountNum(nft, token);
         final var gasRequirement = gasCalculator.viewGasRequirement();
-        final var owner = nativeOperations().getAccount(ownerNum);
+        final var owner = nativeOperations()
+                .getAccount(enhancement.nativeOperations().entityIdFactory().newAccountId(ownerNum));
         if (owner == null) {
             return gasOnly(revertResult(INVALID_ACCOUNT_ID, gasRequirement), INVALID_ACCOUNT_ID, true);
         } else {

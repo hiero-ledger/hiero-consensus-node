@@ -153,6 +153,7 @@ public class CryptoGetInfoRegression {
     final Stream<DynamicTest> succeedsNormally() {
         long balance = 1_234_567L;
         KeyShape misc = listOf(SIMPLE, listOf(2));
+        final var stakedAccountId = 20;
 
         return hapiTest(
                 newKeyNamed("misc").shape(misc),
@@ -161,7 +162,7 @@ public class CryptoGetInfoRegression {
                 cryptoCreate("targetWithStakedAccountId")
                         .key("misc")
                         .balance(balance)
-                        .stakedAccountId("0.0.20"),
+                        .stakedAccountId("20"),
                 getAccountInfo("noStakingTarget")
                         .has(accountWith()
                                 .accountId("noStakingTarget")
@@ -181,7 +182,7 @@ public class CryptoGetInfoRegression {
                 getAccountInfo("targetWithStakedAccountId")
                         .has(accountWith()
                                 .accountId("targetWithStakedAccountId")
-                                .stakedAccountId("0.0.20")
+                                .stakedAccountId(stakedAccountId)
                                 .key("misc")
                                 .balance(balance))
                         .logged());

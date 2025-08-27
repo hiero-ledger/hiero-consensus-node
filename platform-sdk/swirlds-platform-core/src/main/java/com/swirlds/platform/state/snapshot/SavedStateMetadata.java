@@ -2,13 +2,13 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
-import static com.swirlds.common.utility.CommonUtils.unhex;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
+import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_GENERATION_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NODE_ID;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
@@ -18,13 +18,11 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SIGNIN
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SOFTWARE_VERSION;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_WEIGHT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
@@ -47,6 +45,10 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All
@@ -65,9 +67,9 @@ import org.apache.logging.log4j.Logger;
  *                                       to {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH}.
  * @param legacyRunningEventHashMnemonic the mnemonic for the {@link #legacyRunningEventHash}, corresponds to
  *                                       {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH_MNEMONIC}.
- * @param minimumGenerationNonAncient    the minimum generation of non-ancient events after this state reached
+ * @param minimumBirthRoundNonAncient    the minimum birth round of non-ancient events after this state reached
  *                                       consensus, corresponds to
- *                                       {@link SavedStateMetadataField#MINIMUM_GENERATION_NON_ANCIENT}
+ *                                       {@link SavedStateMetadataField#MINIMUM_BIRTH_ROUND_NON_ANCIENT}
  * @param softwareVersion                the application software version that created this state, corresponds to
  *                                       {@link SavedStateMetadataField#SOFTWARE_VERSION}
  * @param wallClockTime                  the wall clock time when this state was written to disk, corresponds to
@@ -89,7 +91,7 @@ public record SavedStateMetadata(
         @NonNull Instant consensusTimestamp,
         @Nullable Hash legacyRunningEventHash,
         @Nullable String legacyRunningEventHashMnemonic,
-        long minimumGenerationNonAncient,
+        long minimumBirthRoundNonAncient,
         @NonNull String softwareVersion,
         @NonNull Instant wallClockTime,
         @NonNull NodeId nodeId,
@@ -133,7 +135,7 @@ public record SavedStateMetadata(
                 parseNonNullInstant(data, CONSENSUS_TIMESTAMP),
                 parseHash(data, LEGACY_RUNNING_EVENT_HASH),
                 parseString(data, LEGACY_RUNNING_EVENT_HASH_MNEMONIC),
-                parsePrimitiveLong(data, MINIMUM_GENERATION_NON_ANCIENT),
+                parseBirthRoundNonAncient(data),
                 parseNonNullString(data, SOFTWARE_VERSION),
                 parseNonNullInstant(data, WALL_CLOCK_TIME),
                 NodeId.of(parsePrimitiveLong(data, NODE_ID)),
@@ -143,12 +145,29 @@ public record SavedStateMetadata(
     }
 
     /**
+     * We used to write generation values to this file, but now we write birth round values. We need to support both for
+     * a period of time before removing the generation field.
+     */
+    private static long parseBirthRoundNonAncient(final Map<SavedStateMetadataField, String> data) throws IOException {
+        if (data.containsKey(MINIMUM_BIRTH_ROUND_NON_ANCIENT)) {
+            // This is a new file, parse the new field.
+            return parsePrimitiveLong(data, MINIMUM_BIRTH_ROUND_NON_ANCIENT);
+        } else if (data.containsKey(MINIMUM_GENERATION_NON_ANCIENT)) {
+            // This is an old file, parse the old field.
+            return parsePrimitiveLong(data, MINIMUM_GENERATION_NON_ANCIENT);
+        }
+        throw new IOException("Signed state metadata must have either "
+                + MINIMUM_BIRTH_ROUND_NON_ANCIENT + " or " + MINIMUM_GENERATION_NON_ANCIENT
+                + " field, but neither was found");
+    }
+
+    /**
      * Create a new saved state metadata object from the given signed state.
      *
-     * @param signedState the signed state
-     * @param selfId      the ID of the node that created the signed state
-     * @param now         the current time
-     * @param platformStateFacade  the facade to access the platform state
+     * @param signedState         the signed state
+     * @param selfId              the ID of the node that created the signed state
+     * @param now                 the current time
+     * @param platformStateFacade the facade to access the platform state
      * @return the signed state metadata
      */
     public static SavedStateMetadata create(
@@ -161,7 +180,8 @@ public record SavedStateMetadata(
         Objects.requireNonNull(state.getHash(), "state must be hashed");
         Objects.requireNonNull(now, "now must not be null");
 
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final long round = platformStateFacade.roundOf(state);
+        final Roster roster = RosterRetriever.retrieveActive(state, round);
 
         final List<NodeId> signingNodes = signedState.getSigSet().getSigningNodes();
         Collections.sort(signingNodes);
@@ -169,11 +189,11 @@ public record SavedStateMetadata(
         return new SavedStateMetadata(
                 signedState.getRound(),
                 state.getHash(),
-                state.getHash().toMnemonic(),
+                Mnemonics.generateMnemonic(state.getHash()),
                 platformStateFacade.consensusSnapshotOf(state).nextConsensusNumber(),
                 signedState.getConsensusTimestamp(),
                 platformStateFacade.legacyRunningEventHashOf(state),
-                platformStateFacade.legacyRunningEventHashOf(state).toMnemonic(),
+                Mnemonics.generateMnemonic(platformStateFacade.legacyRunningEventHashOf(state)),
                 platformStateFacade.ancientThresholdOf(state),
                 convertToString(platformStateFacade.creationSoftwareVersionOf(state)),
                 now,
@@ -599,7 +619,7 @@ public record SavedStateMetadata(
         putRequireNonNull(map, CONSENSUS_TIMESTAMP, consensusTimestamp);
         putRequireNonNull(map, LEGACY_RUNNING_EVENT_HASH, legacyRunningEventHash);
         putRequireNonNull(map, LEGACY_RUNNING_EVENT_HASH_MNEMONIC, legacyRunningEventHashMnemonic);
-        putRequireNonNull(map, MINIMUM_GENERATION_NON_ANCIENT, minimumGenerationNonAncient);
+        putRequireNonNull(map, MINIMUM_BIRTH_ROUND_NON_ANCIENT, minimumBirthRoundNonAncient);
         putRequireNonNull(map, SOFTWARE_VERSION, softwareVersion);
         putRequireNonNull(map, WALL_CLOCK_TIME, wallClockTime);
         putRequireNonNull(map, NODE_ID, nodeId);

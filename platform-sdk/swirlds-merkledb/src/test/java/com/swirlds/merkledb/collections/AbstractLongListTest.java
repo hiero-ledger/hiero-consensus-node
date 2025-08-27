@@ -2,12 +2,12 @@
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,6 +41,7 @@ import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -509,12 +510,14 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             // Count valid entries and collect their indices
             final AtomicLong count = new AtomicLong(0);
             final Set<Long> keysInForEach = new HashSet<>();
-            longList.forEach((path, location) -> {
-                count.incrementAndGet();
-                keysInForEach.add(path);
+            longList.forEach(
+                    (path, location) -> {
+                        count.incrementAndGet();
+                        keysInForEach.add(path);
 
-                assertEquals(path + 100, location, "Mismatch in value for index " + path);
-            });
+                        assertEquals(path + 100, location, "Mismatch in value for index " + path);
+                    },
+                    null);
 
             // Ensure the number of valid indices matches the expected range
             assertEquals(
@@ -595,6 +598,66 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 Files.delete(tmpFile);
                 Files.delete(tmpDir);
             }
+        }
+    }
+
+    @Test
+    @DisplayName("Regression test for hiero-ledger/hiero-consensus-node/issues/18235")
+    void testSnapshotHalfEmptyChunks() throws IOException {
+        try (final LongList longList = createLongList(200, 10000, 0)) {
+            longList.updateValidRange(500, 1100);
+            longList.put(599, 1599); // chunk 2
+            longList.put(1050, 2050); // chunk 5
+            longList.put(900, 1900); // chunk 4
+            longList.put(700, 1700); // chunk 3
+            final Path tmpDir = Files.createTempDirectory("testSnapshotHalfEmptyChunks");
+            final Path tmpFile = tmpDir.resolve("snapshot");
+            longList.writeToFile(tmpFile);
+            try (final LongList restored = createLongList(tmpFile, 200, 10000, 0)) {
+                assertEquals(1700, restored.get(700));
+                assertEquals(2050, restored.get(1050));
+                assertEquals(1900, restored.get(900));
+                assertEquals(1599, restored.get(599));
+                // Make sure chunk 3 doesn't have any values carried over from chunk 2
+                assertEquals(0, restored.get(799));
+            } finally {
+                Files.delete(tmpFile);
+                Files.delete(tmpDir);
+            }
+        }
+    }
+
+    @Test
+    void forEachWhileTest() throws Exception {
+        try (final LongList list = createLongList(10, 100, 0)) {
+            list.updateValidRange(0, 99);
+            for (int i = 0; i < 100; i++) {
+                list.put(i, i + 1000);
+            }
+            final AtomicInteger counter = new AtomicInteger(0);
+            list.forEach(
+                    (l, v) -> {
+                        counter.incrementAndGet();
+                    },
+                    () -> counter.get() < 42);
+            assertEquals(42, counter.get());
+        }
+    }
+
+    @Test
+    void forEachWhileNullCondTest() throws Exception {
+        try (final LongList list = createLongList(10, 100, 0)) {
+            list.updateValidRange(0, 99);
+            for (int i = 0; i < 100; i++) {
+                list.put(i, i + 1000);
+            }
+            final AtomicInteger counter = new AtomicInteger(0);
+            list.forEach(
+                    (l, v) -> {
+                        counter.incrementAndGet();
+                    },
+                    null);
+            assertEquals(100, counter.get());
         }
     }
 
@@ -835,13 +898,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             populateList(writerList);
             checkData(writerList);
 
-            // Save the original file size for comparison (for LongListDisk)
-            long originalFileSize = 0;
-            if (writerList instanceof LongListDisk) {
-                originalFileSize =
-                        ((LongListDisk) writerList).getCurrentFileChannel().size() + FILE_HEADER_SIZE_V3;
-            }
-
             // Update the valid range to shrink the list by setting a new minimum valid index
             writerList.updateValidRange(HALF_SAMPLE_SIZE, MAX_LONGS - 1);
 
@@ -856,13 +912,10 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     String.format("testShrinkListMinValidIndex_write_%s_read_back_%s.ll", writerFactory, readerFactory);
             final Path longListFile = writeLongListToFileAndVerify(writerList, TEMP_FILE_NAME, tempDir);
 
-            // If using LongListDisk, verify that the file size reflects the shrink operation
-            if (writerList instanceof LongListDisk) {
-                assertEquals(
-                        HALF_SAMPLE_SIZE * Long.BYTES,
-                        originalFileSize - Files.size(longListFile),
-                        "File size after shrinking does not match expected reduction.");
-            }
+            assertEquals(
+                    (SAMPLE_SIZE - HALF_SAMPLE_SIZE) * Long.BYTES + FILE_HEADER_SIZE_V3,
+                    Files.size(longListFile),
+                    "Wrong snapshot file size");
 
             // Reconstruct the LongList from the file
             try (final LongList readerList = readerFactory
@@ -896,14 +949,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             populateList(writerList);
             checkData(writerList);
 
-            // Save the original file size for comparison (for LongListDisk)
-            // temporary file channel doesn't contain the header
-            long originalFileSize = 0;
-            if (writerList instanceof LongListDisk) {
-                originalFileSize =
-                        ((LongListDisk) writerList).getCurrentFileChannel().size() + FILE_HEADER_SIZE_V3;
-            }
-
             // Update the valid range to shrink the list by setting a new maximum valid index
             writerList.updateValidRange(0, HALF_SAMPLE_SIZE - 1);
 
@@ -918,13 +963,10 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     String.format("testShrinkListMaxValidIndex_write_%s_read_back_%s.ll", writerFactory, readerFactory);
             final Path longListFile = writeLongListToFileAndVerify(writerList, TEMP_FILE_NAME, tempDir);
 
-            // If using LongListDisk, verify that the file size reflects the shrink operation
-            if (writerList instanceof LongListDisk) {
-                assertEquals(
-                        HALF_SAMPLE_SIZE * Long.BYTES,
-                        originalFileSize - Files.size(longListFile),
-                        "File size after shrinking does not match expected reduction.");
-            }
+            assertEquals(
+                    HALF_SAMPLE_SIZE * Long.BYTES + FILE_HEADER_SIZE_V3,
+                    Files.size(longListFile),
+                    "Wrong snapshot file size");
 
             // Reconstruct the LongList from the file
             try (final LongList readerList = readerFactory

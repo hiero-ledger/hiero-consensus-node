@@ -64,6 +64,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 public class FCMTransactionPool implements FastCopyable {
 
@@ -82,7 +83,7 @@ public class FCMTransactionPool implements FastCopyable {
     public static final Marker DEMO_TRANSACTION_INFO = MarkerManager.getMarker("DEMO_TRANSACTION_INFO");
 
     /**
-     * the standard psuedo-random number generator
+     * the standard pseudo-random number generator
      */
     private Random random;
 
@@ -92,6 +93,7 @@ public class FCMTransactionPool implements FastCopyable {
 
     private long myID;
     private Platform platform;
+    private TransactionPoolNexus transactionPool;
 
     private TransactionSubmitter submitter;
 
@@ -172,6 +174,7 @@ public class FCMTransactionPool implements FastCopyable {
      */
     public FCMTransactionPool(
             Platform platform,
+            TransactionPoolNexus transactionPool,
             long myID,
             FCMConfig config,
             TransactionSubmitter submitter,
@@ -332,7 +335,7 @@ public class FCMTransactionPool implements FastCopyable {
             //				submitter.setPauseUntilTime(System.currentTimeMillis() + interval * 1000);
             //			}
 
-            submitter.sendTransaction(platform, parentPool.createControlTranBytes(ControlType.ENTER_SYNC));
+            submitter.sendTransaction(transactionPool, parentPool.createControlTranBytes(ControlType.ENTER_SYNC));
 
             // check if the following stages need to be skipped
             while (sequentialTypeIndex < config.getSequentials().length && isSkipStage()) {

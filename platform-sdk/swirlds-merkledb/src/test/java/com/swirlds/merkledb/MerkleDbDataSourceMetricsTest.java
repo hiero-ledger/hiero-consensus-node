@@ -1,30 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
-import static com.swirlds.merkledb.test.fixtures.TestType.fixed_fixed;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
+import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,24 +44,23 @@ class MerkleDbDataSourceMetricsTest {
 
     @BeforeAll
     static void setup() throws Exception {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbDataSourceMetricsTest", CONFIGURATION);
+        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
+                "MerkleDbDataSourceMetricsTest", MerkleDbTestUtils.CONFIGURATION);
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
     }
 
     @BeforeEach
     public void beforeEach() throws IOException {
         // check db count
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, fixed_fixed, COUNT * 10, HASHES_RAM_THRESHOLD);
+        dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10, HASHES_RAM_THRESHOLD);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);
 
         // check db count
-        assertEventuallyEquals(
-                1L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected only 1 db");
+        MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
     }
 
     @Tag(TestComponentTags.VMAP)
@@ -113,15 +113,12 @@ class MerkleDbDataSourceMetricsTest {
         // create some leaves
         final int firstLeafIndex = COUNT;
         final int lastLeafIndex = COUNT * 2;
-        final KeySerializer keySerializer = fixed_fixed.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = fixed_fixed.dataType().getValueSerializer();
         dataSource.saveRecords(
                 firstLeafIndex,
                 lastLeafIndex,
                 Stream.empty(),
                 IntStream.range(firstLeafIndex, lastLeafIndex)
-                        .mapToObj(i -> fixed_fixed.dataType().createVirtualLeafRecord(i))
-                        .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
                 Stream.empty());
 
         // only one 8 MB memory is reserved despite the fact that leaves reside in [COUNT, COUNT * 2] interval
@@ -137,8 +134,7 @@ class MerkleDbDataSourceMetricsTest {
                 lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1,
                 Stream.empty(),
                 IntStream.range(firstLeafIndex, lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1)
-                        .mapToObj(i -> fixed_fixed.dataType().createVirtualLeafRecord(i))
-                        .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
                 Stream.empty());
 
         // reserved additional memory chunk for a value that didn't fit into the previous chunk
@@ -153,8 +149,7 @@ class MerkleDbDataSourceMetricsTest {
                 Stream.empty(),
                 // valid leaf index
                 IntStream.of(lastLeafIndex + merkleDbConfig.longListReservedBufferSize())
-                        .mapToObj(i -> fixed_fixed.dataType().createVirtualLeafRecord(i))
-                        .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
                 Stream.empty());
 
         // shrink the list by one chunk
@@ -168,8 +163,7 @@ class MerkleDbDataSourceMetricsTest {
     @AfterEach
     public void afterEach() throws IOException {
         dataSource.close();
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
         // check the database was deleted
         assertEventuallyFalse(
                 () -> Files.exists(testDirectory.resolve(TABLE_NAME)),

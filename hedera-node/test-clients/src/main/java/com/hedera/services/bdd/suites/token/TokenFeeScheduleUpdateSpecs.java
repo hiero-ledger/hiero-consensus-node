@@ -3,11 +3,14 @@ package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFeeInheritingRoyaltyCollector;
@@ -21,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fractionalFeeInSchedule;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -31,12 +35,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_NOT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_SCHEDULE_ALREADY_HAS_NO_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FRACTION_DIVIDES_BY_ZERO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -290,5 +298,131 @@ public class TokenFeeScheduleUpdateSpecs {
                                 OptionalLong.of(newMaximumToCollect),
                                 false,
                                 newTokenCollector)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingInvalidTokenId() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                cryptoCreate("feeCollector"),
+                tokenCreate("t").feeScheduleKey("feeScheduleKey"),
+                tokenAssociate("feeCollector", "t"),
+
+                // save invalid token id into spec registry
+                withOpContext((spec, opLog) -> {
+                    spec.registry()
+                            .saveTokenId(
+                                    "t", TokenID.newBuilder().setTokenNum(9999).build());
+                }),
+                // try to update with invalid token id
+                tokenFeeScheduleUpdate("t")
+                        .withCustom(fixedHbarFee(1, "feeCollector"))
+                        .hasKnownStatus(INVALID_TOKEN_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingWithDeletedCollector() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed("supplyKey"),
+                cryptoCreate("feeCollector"),
+                tokenCreate("t").feeScheduleKey("feeScheduleKey"),
+                tokenCreate("nft")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey("supplyKey")
+                        .feeScheduleKey("feeScheduleKey")
+                        .initialSupply(0),
+                tokenAssociate("feeCollector", "t"),
+                // delete the collector
+                cryptoDelete("feeCollector"),
+
+                // try to update with fixed fee
+                tokenFeeScheduleUpdate("t")
+                        .withCustom(fixedHbarFee(1, "feeCollector"))
+                        .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR),
+
+                // try to update with fractional fee
+                tokenFeeScheduleUpdate("t")
+                        .withCustom(fractionalFee(1, 10L, 1L, OptionalLong.empty(), "feeCollector"))
+                        .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR),
+
+                // try to update with royalty fee
+                tokenFeeScheduleUpdate("nft")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector"))
+                        .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingWithDeletedDenomToken() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                cryptoCreate("feeCollector"),
+                tokenCreate("t").feeScheduleKey("feeScheduleKey"),
+                tokenCreate("denom").adminKey("feeCollector"),
+                tokenAssociate("feeCollector", "denom"),
+                // delete the denominating token
+                tokenDelete("denom").signedByPayerAnd("feeCollector"),
+
+                // update fixed fee
+                tokenFeeScheduleUpdate("t")
+                        .withCustom(fixedHtsFee(1, "denom", "feeCollector"))
+                        .hasKnownStatus(INVALID_TOKEN_ID_IN_CUSTOM_FEES));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingToEmptyListRequiresSignature() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed("supplyKey"),
+                cryptoCreate("feeCollector"),
+                // create a new NFT with the right keys
+                tokenCreate("tok")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey("supplyKey")
+                        .feeScheduleKey("feeScheduleKey"),
+                // update the schedule to a valid royalty
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector"))
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS, "feeScheduleKey", "supplyKey")
+                        .hasKnownStatus(SUCCESS),
+                // update to an empty fee schedule without the fee schedule key
+                tokenFeeScheduleUpdate("tok").signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // update to an empty fee schedule *with* the fee schedule key
+                tokenFeeScheduleUpdate("tok")
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> validateCollectorReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed("supplyKey"),
+                tokenCreate("tok")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey("supplyKey")
+                        .feeScheduleKey("feeScheduleKey"),
+                // collector does not require a sig
+                cryptoCreate("feeCollector1").receiverSigRequired(false),
+                // collector does require a sign
+                cryptoCreate("feeCollector2").receiverSigRequired(true),
+                // update schedule with first collector not signing. should succeed
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector1"))
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(SUCCESS),
+                // update schedule second collector not signing, should fail because second requires sig
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector2"))
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the second collector signing, should pass now
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector2"))
+                        .signedBy(GENESIS, "feeScheduleKey", "feeCollector2")
+                        .hasKnownStatus(SUCCESS));
     }
 }

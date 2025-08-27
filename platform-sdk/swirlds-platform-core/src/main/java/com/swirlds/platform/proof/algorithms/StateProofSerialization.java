@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.ExtendableOutputStream;
 import com.swirlds.common.io.extendable.extensions.MaxSizeStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
 import com.swirlds.platform.proof.tree.StateProofPayload;
@@ -19,6 +14,11 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Serialization and deserialization logic for state proofs.

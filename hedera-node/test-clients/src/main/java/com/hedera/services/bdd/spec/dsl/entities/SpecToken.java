@@ -252,7 +252,11 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
         return new Result<>(
                 creation.model()
                         .copyBuilder()
-                        .tokenId(TokenID.newBuilder().tokenNum(newTokenNum).build())
+                        .tokenId(TokenID.newBuilder()
+                                .shardNum(spec.shard())
+                                .realmNum(spec.realm())
+                                .tokenNum(newTokenNum)
+                                .build())
                         .build(),
                 atMostOnce(siblingSpec -> {
                     allKeyMetadata.forEach(keyMetadata -> keyMetadata.registerAs(name, siblingSpec));
@@ -261,6 +265,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                             .saveTokenId(
                                     name,
                                     com.hederahashgraph.api.proto.java.TokenID.newBuilder()
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setTokenNum(newTokenNum)
                                             .build());
                     creation.op().registerAttributes(siblingSpec);
@@ -269,6 +275,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                             .saveContractId(
                                     name,
                                     ContractID.newBuilder()
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setContractNum(newTokenNum)
                                             .build());
                 }));

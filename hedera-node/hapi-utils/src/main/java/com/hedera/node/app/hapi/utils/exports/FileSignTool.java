@@ -4,7 +4,7 @@ package com.hedera.node.app.hapi.utils.exports;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.services.stream.proto.SignatureType.SHA_384_WITH_RSA;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
@@ -14,13 +14,6 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -55,6 +48,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and
@@ -231,6 +231,7 @@ public class FileSignTool {
     public static void prepare(final StreamType streamType) throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
 
         if (streamType.getExtension().equalsIgnoreCase(RECORD_STREAM_EXTENSION)) {
             LOGGER.info(MARKER, "registering Constructables for parsing record stream files");

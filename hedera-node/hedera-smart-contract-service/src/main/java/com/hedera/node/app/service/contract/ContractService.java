@@ -23,12 +23,10 @@ public interface ContractService extends RpcService {
      * Ensure the contract service schemas are migrated before the {@code TokenService} schemas, since
      * the {@code TokenService} depends on the {@code ContractService} to know the updated first storage
      * keys for contracts with broken storage links.
-     *
-     * @return {@code Integer.MIN_VALUE}
      */
     @Override
     default int migrationOrder() {
-        return Integer.MIN_VALUE;
+        return -1;
     }
 
     @NonNull

@@ -1,29 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +42,7 @@ class SwirldsStateManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         initialState = newState(platformStateFacade);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -50,7 +52,7 @@ class SwirldsStateManagerTests {
                 roster,
                 NodeId.of(0L),
                 mock(StatusActionSubmitter.class),
-                new BasicSoftwareVersion(1),
+                SemanticVersion.newBuilder().major(1).build(),
                 FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);
         swirldStateManager.setInitialState(initialState);
@@ -58,7 +60,13 @@ class SwirldsStateManagerTests {
 
     @AfterEach
     void tearDown() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        if (!initialState.isDestroyed()) {
+            initialState.release();
+        }
+        if (!swirldStateManager.getConsensusState().isDestroyed()) {
+            swirldStateManager.getConsensusState().release();
+        }
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -95,19 +103,17 @@ class SwirldsStateManagerTests {
                 state1.getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in SwirldStateManager.");
-        final Reservable consensusState1 =
-                swirldStateManager.getConsensusState().getRoot();
+        final MerkleNodeState consensusState1 = swirldStateManager.getConsensusState();
         assertEquals(
                 1,
-                consensusState1.getReservationCount(),
+                consensusState1.getRoot().getReservationCount(),
                 "The current consensus state should have a single reference count.");
 
         MerkleDb.resetDefaultInstancePath();
         final SignedState ss2 = newSignedState();
         MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss2);
-        final Reservable consensusState2 =
-                swirldStateManager.getConsensusState().getRoot();
+        final MerkleNodeState consensusState2 = swirldStateManager.getConsensusState();
 
         Reservable state2 = ss2.getState().getRoot();
         assertEquals(
@@ -117,20 +123,27 @@ class SwirldsStateManagerTests {
                         + "signed state and the previous immutable state in SwirldStateManager.");
         assertEquals(
                 1,
-                consensusState2.getReservationCount(),
+                consensusState2.getRoot().getReservationCount(),
                 "The current consensus state should have a single reference count.");
         assertEquals(
                 1,
                 state1.getReservationCount(),
                 "The previous immutable state was replaced, so the old state's reference count should have been "
                         + "decremented.");
+        state1.release();
+        state2.release();
+        state2.release();
+        consensusState2.release();
     }
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
-        final MerkleNodeState state = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
+        final String virtualMapLabel =
+                SwirldsStateManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
 
-        platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));
+        platformStateFacade.setCreationSoftwareVersionTo(
+                state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
         return state;

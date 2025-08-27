@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -19,18 +19,15 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
@@ -43,6 +40,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -71,13 +72,15 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
+                .setCalculateHash(true)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         // Randomize roster order
@@ -171,13 +174,15 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -265,14 +270,16 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -350,14 +357,17 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
+                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -393,14 +403,16 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -449,8 +461,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster tempRoster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
@@ -470,7 +482,9 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -513,14 +527,16 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         assertFalse(signedState.isComplete());

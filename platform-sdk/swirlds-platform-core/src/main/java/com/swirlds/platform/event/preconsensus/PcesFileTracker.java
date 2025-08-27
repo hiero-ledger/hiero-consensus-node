@@ -6,7 +6,6 @@ import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_B
 
 import com.swirlds.common.utility.RandomAccessDeque;
 import com.swirlds.common.utility.UnmodifiableIterator;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,16 +31,10 @@ public class PcesFileTracker {
      */
     private final RandomAccessDeque<PcesFile> files = new RandomAccessDeque<>(INITIAL_RING_BUFFER_SIZE);
 
-    private final AncientMode fileType;
-
     /**
      * Constructor.
-     *
-     * @param fileType the type of file to track
      */
-    public PcesFileTracker(@NonNull final AncientMode fileType) {
-        this.fileType = Objects.requireNonNull(fileType);
-    }
+    public PcesFileTracker() {}
 
     /**
      * Get the first file in the file list.
@@ -144,7 +137,7 @@ public class PcesFileTracker {
      * future task will be to enable event iteration after startup.
      *
      * @param lowerBound    the desired lower bound, iterator is guaranteed to return all available events with an
-     *                      ancient indicator (i.e. a generation or a birth round depending on the {@link AncientMode})
+     *                      ancient indicator (the birth round of events)
      *                      greater or equal to this value. No events with a smaller ancient identifier will be
      *                      returned. A value of {@link PcesFileManager#NO_LOWER_BOUND} will cause the returned iterator
      *                      to walk over all available events.
@@ -153,7 +146,7 @@ public class PcesFileTracker {
      */
     @NonNull
     public PcesMultiFileIterator getEventIterator(final long lowerBound, final long startingRound) {
-        return new PcesMultiFileIterator(lowerBound, getFileIterator(lowerBound, startingRound), fileType);
+        return new PcesMultiFileIterator(lowerBound, getFileIterator(lowerBound, startingRound));
     }
 
     /**
@@ -163,8 +156,7 @@ public class PcesFileTracker {
      * future task will be to enable event iteration after startup.
      *
      * @param lowerBound  the desired lower bound, iterator is guaranteed to walk over all files that may contain events
-     *                    with an ancient indicator (i.e. a generation or birth round depending on the
-     *                    {@link AncientMode}) greater or equal to this value. A value of
+     *                    with an ancient indicator (i.e. birth round greater or equal to this value. A value of
      *                    {@link PcesFileManager#NO_LOWER_BOUND} will cause the returned iterator to walk over all
      *                    available event files.
      * @param originRound the origin round to start iterating from. The origin of a PCES segment is used to

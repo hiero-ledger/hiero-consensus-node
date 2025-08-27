@@ -88,7 +88,7 @@ public class AssociationsTranslator extends AbstractCallTranslator<HtsCallAttemp
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
-        return attempt.isTokenRedirect()
+        return attempt.isRedirect()
                 ? attempt.isMethod(HRC_ASSOCIATE, HRC_DISSOCIATE)
                 : attempt.isMethod(ASSOCIATE_ONE, ASSOCIATE_MANY, DISSOCIATE_ONE, DISSOCIATE_MANY);
     }

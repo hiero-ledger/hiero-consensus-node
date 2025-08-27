@@ -3,24 +3,31 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -29,7 +36,16 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class HintsContext {
+    private static final Logger log = LogManager.getLogger(HintsContext.class);
+
+    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
     private final HintsLibrary library;
+
+    @Nullable
+    private Bytes crs;
 
     @Nullable
     private HintsConstruction construction;
@@ -37,30 +53,45 @@ public class HintsContext {
     @Nullable
     private Map<Long, Integer> nodePartyIds;
 
+    private long schemeId;
+
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
         this.library = requireNonNull(library);
     }
 
     /**
+     * Set the CRS in use for this signing context.
+     * @param crs the CRS to use
+     */
+    public void setCrs(@NonNull final Bytes crs) {
+        this.crs = requireNonNull(crs);
+    }
+
+    /**
      * Sets the active hinTS construction as the signing context. Called in three places,
      * <ol>
-     *     <li>In the startup phase, when initializing from a state whose active hinTS
-     *     construction had already finished its preprocessing work.</li>
-     *     <li>In the bootstrap runtime phase, on finishing the preprocessing work for
-     *     the genesis hinTS construction.</li>
-     *     <li>In the normal runtime phase, in the first round after an upgrade, when
-     *     swapping in a newly adopted roster's hinTS construction and purging votes for
-     *     the previous construction.</li>
+     *     <li>In the startup phase, when restarting from a state whose active hinTS
+     *     construction (and possibly next construction) had complete schemes.</li>
+     *     <li>In the runtime phase, on finishing the preprocessing work for a hinTS
+     *     construction (either the bootstrap construction or for a roster with
+     *     rebalanced weights after a stake period boundary).</li>
+     *     <li>In the restart runtime phase, when swapping in a newly adopted roster's
+     *     hinTS construction and purging votes for the previous construction.</li>
      * </ol>
-     * @param construction the construction
+     *
+     * @param construction the construction to start using for signing
+     * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
     public void setConstruction(@NonNull final HintsConstruction construction) {
-        this.construction = requireNonNull(construction);
+        requireNonNull(construction);
         if (!construction.hasHintsScheme()) {
-            throw new IllegalArgumentException("Construction has no hints scheme");
+            throw new IllegalArgumentException(
+                    "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        this.nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
+        this.construction = requireNonNull(construction);
+        nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
+        schemeId = this.construction.constructionId();
     }
 
     /**
@@ -69,6 +100,18 @@ public class HintsContext {
      */
     public boolean isReady() {
         return construction != null && construction.hasHintsScheme();
+    }
+
+    /**
+     * Returns the current scheme ids, or throws if they are unset.
+     * @return the active scheme id
+     * @throws IllegalStateException if the scheme id is unset
+     */
+    public long activeSchemeIdOrThrow() {
+        if (schemeId == 0) {
+            throw new IllegalStateException("No scheme id set");
+        }
+        return schemeId;
     }
 
     /**
@@ -83,35 +126,63 @@ public class HintsContext {
                 .verificationKey();
     }
 
+    /**
+     * Returns the active construction ID, or throws if the context is not ready.
+     * @return the construction ID
+     */
     public long constructionIdOrThrow() {
         throwIfNotReady();
         return requireNonNull(construction).constructionId();
     }
 
     /**
+     * Validates a partial signature transaction body under the current hinTS construction.
+     * @param nodeId the node ID
+     * @param crs the CRS to validate under
+     * @param body the transaction body
+     * @return true if the body is valid
+     */
+    public boolean validate(
+            final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
+        if (crs == null || construction == null || nodePartyIds == null) {
+            return false;
+        }
+        if (construction.constructionId() == body.constructionId() && nodePartyIds.containsKey(nodeId)) {
+            final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
+            final var aggregationKey = preprocessedKeys.aggregationKey();
+            final var partyId = nodePartyIds.get(nodeId);
+            return library.verifyBls(crs, body.partialSignature(), body.message(), aggregationKey, partyId);
+        }
+        return false;
+    }
+
+    /**
      * Creates a new asynchronous signing process for the given block hash.
-     *
      * @param blockHash     the block hash
-     * @param currentRoster the current roster
+     * @param onCompletion a callback to run when the signing process completes
      * @return the signing process
      */
-    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, final Roster currentRoster) {
+    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
+        requireNonNull(onCompletion);
         throwIfNotReady();
-        final var preprocessedKeys =
-                requireNonNull(construction).hintsSchemeOrThrow().preprocessedKeysOrThrow();
+        requireNonNull(construction);
+        final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
         final var verificationKey = preprocessedKeys.verificationKey();
-        final long totalWeight = currentRoster.rosterEntries().stream()
-                .mapToLong(RosterEntry::weight)
-                .sum();
+        final Map<Long, Long> nodeWeights = new HashMap<>();
+        long totalWeight = 0L;
+        for (final var nodePartyId : construction.hintsSchemeOrThrow().nodePartyIds()) {
+            totalWeight += nodePartyId.partyWeight();
+            nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
+        }
         return new Signing(
-                construction.constructionId(),
-                atLeastOneThirdOfTotal(totalWeight),
                 blockHash,
+                atLeastOneThirdOfTotal(totalWeight),
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
+                nodeWeights,
                 verificationKey,
-                currentRoster);
+                onCompletion);
     }
 
     /**
@@ -136,32 +207,47 @@ public class HintsContext {
      * A signing process spawned from this context.
      */
     public class Signing {
-        private final long constructionId;
         private final long thresholdWeight;
-        private final Bytes message;
+        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+        private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
-        private final Roster currentRoster;
+        private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
-                final long constructionId,
+                @NonNull final Bytes blockHash,
                 final long thresholdWeight,
-                @NonNull final Bytes message,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
+                @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
-                final Roster currentRoster) {
-            this.constructionId = constructionId;
+                @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
-            this.message = requireNonNull(message);
+            requireNonNull(onCompletion);
+            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
+            this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            this.currentRoster = requireNonNull(currentRoster);
+            executor.schedule(
+                    () -> {
+                        if (!future.isDone()) {
+                            log.warn(
+                                    "Completing signing attempt on '{}' without obtaining a signature (had {} from parties {} for total weight {}/{} required)",
+                                    blockHash,
+                                    signatures.size(),
+                                    signatures.keySet(),
+                                    weightOfSignatures.get(),
+                                    thresholdWeight);
+                        }
+                        onCompletion.run();
+                    },
+                    SIGNING_ATTEMPT_TIMEOUT.getSeconds(),
+                    SECONDS);
         }
 
         /**
@@ -173,34 +259,28 @@ public class HintsContext {
         }
 
         /**
-         * Incorporates a node's partial signature into the aggregation. If the signature is valid, and
-         * including this node's weight passes the required threshold, completes the future returned from
-         * {@link #future()} with the aggregated signature.
+         * Incorporates a node's pre-validated partial signature into the aggregation. If including this node's
+         * weight passes the required threshold, completes the future returned from {@link #future()} with the
+         * aggregated signature.
          *
          * @param crs the final CRS used by the network
-         * @param constructionId the construction ID
          * @param nodeId the node ID
-         * @param signature the partial signature
+         * @param signature the pre-validated partial signature
          */
-        public void incorporate(
-                @NonNull final Bytes crs,
-                final long constructionId,
-                final long nodeId,
-                @NonNull final Bytes signature) {
+        public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
+            requireNonNull(crs);
             requireNonNull(signature);
-            if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
-                final int partyId = partyIds.get(nodeId);
-                if (library.verifyBls(crs, signature, message, aggregationKey, partyId)) {
-                    signatures.put(partyId, signature);
-                    final var weight = currentRoster.rosterEntries().stream()
-                            .filter(e -> e.nodeId() == nodeId)
-                            .mapToLong(RosterEntry::weight)
-                            .findFirst()
-                            .orElse(0L);
-                    if (weightOfSignatures.addAndGet(weight) >= thresholdWeight) {
-                        future.complete(library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures));
-                    }
-                }
+            if (completed.get()) {
+                return;
+            }
+            final var partyId = partyIds.get(nodeId);
+            signatures.put(partyId, signature);
+            final var weight = nodeWeights.getOrDefault(nodeId, 0L);
+            final var totalWeight = weightOfSignatures.addAndGet(weight);
+            if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
+                final var aggregatedSignature =
+                        library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
+                future.complete(aggregatedSignature);
             }
         }
     }

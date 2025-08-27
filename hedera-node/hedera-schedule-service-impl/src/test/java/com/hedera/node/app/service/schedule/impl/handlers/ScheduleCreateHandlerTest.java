@@ -21,12 +21,12 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.ScheduledTransactionFactory;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
-import com.hedera.node.app.spi.key.KeyComparator;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -63,7 +63,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Test
     void preHandleVanilla() throws PreCheckException {
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, scheduleCreateTransaction(payer), testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory,
+                scheduleCreateTransaction(payer),
+                testConfig,
+                mockDispatcher,
+                mockTransactionChecker,
+                creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -82,7 +87,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         final TransactionBody transactionToTest = ScheduledTransactionFactory.scheduleCreateTransactionWith(
                 null, "", payer, scheduler, Timestamp.newBuilder().seconds(1L).build());
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, transactionToTest, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, transactionToTest, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -96,7 +101,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Test
     void preHandleUsesCreatePayerIfScheduledPayerNotSet() throws PreCheckException {
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, scheduleCreateTransaction(null), testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory,
+                scheduleCreateTransaction(null),
+                testConfig,
+                mockDispatcher,
+                mockTransactionChecker,
+                creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -114,7 +124,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
 
         final TransactionBody createBody = scheduleCreateTransaction(payer);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, createBody, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, createBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ACCOUNT_ID_DOES_NOT_EXIST);
     }
 
@@ -128,7 +138,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
             final DataOneOfType transactionType = child.data().kind();
             final HederaFunctionality functionType = HandlerUtility.functionalityForType(transactionType);
             realPreContext = new PreHandleContextImpl(
-                    mockStoreFactory, createTransaction, testConfig, mockDispatcher, mockTransactionChecker);
+                    mockStoreFactory,
+                    createTransaction,
+                    testConfig,
+                    mockDispatcher,
+                    mockTransactionChecker,
+                    creatorInfo);
             if (configuredWhitelist.contains(functionType)) {
                 subject.preHandle(realPreContext);
                 assertThat(realPreContext.payerKey()).isNotNull().isEqualTo(schedulerKey);

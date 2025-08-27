@@ -14,8 +14,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -23,14 +21,11 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.system.address.Address;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -42,6 +37,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * <p>
@@ -65,7 +65,7 @@ import org.apache.logging.log4j.Logger;
  * rejoining after a long absence.
  * </p>
  */
-public class SignedState implements SignedStateInfo {
+public class SignedState {
 
     private static final Logger logger = LogManager.getLogger(SignedState.class);
 
@@ -209,6 +209,7 @@ public class SignedState implements SignedStateInfo {
     public void init(@NonNull PlatformContext platformContext) {
         state.init(
                 platformContext.getTime(),
+                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {
@@ -218,9 +219,10 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * The round of the state.
+     *
+     * @return the round number
      */
-    @Override
     public long getRound() {
         return platformStateFacade.roundOf(state);
     }
@@ -235,9 +237,11 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Return the set of signatures collected so far for the hash of this SignedState. This includes the signature by
+     * self.
+     *
+     * @return the set of signatures
      */
-    @Override
     public @NonNull SigSet getSigSet() {
         return sigSet;
     }
@@ -264,15 +268,16 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Get the roster for this signed state.
+     *
+     * @return the roster
      */
-    @Override
     public @NonNull Roster getRoster() {
         /*
         Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
         can change from underneath us. Therefore, the roster must be regenerated on each access.
          */
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final Roster roster = RosterRetriever.retrieveActive(state, getRound());
         return requireNonNull(roster, "Roster stored in signed state is null (this should never happen)");
     }
 
@@ -312,7 +317,7 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * Reserves the SignedState for use. While reserved, this SignedState will not be deleted.
+     * Reserves the SignedState for use.  While reserved, this SignedState will not be deleted.
      *
      * @param reason a short description of why this SignedState is being reserved. Each location where a SignedState is
      *               reserved should attempt to use a unique reason, as this makes debugging reservation bugs easier.
@@ -542,9 +547,13 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Check if this object contains a complete set of signatures with respect to an address book.
+     * <p>
+     * Note that there is a special edge case during emergency state recovery. A state with a root hash that matches the
+     * current epoch hash is considered to be complete regardless of the signatures it has collected.
+     *
+     * @return does this contain signatures from members with greater than 2/3 of the total weight?
      */
-    @Override
     public boolean isComplete() {
         return recoveryState | signedBy(SUPER_MAJORITY);
     }

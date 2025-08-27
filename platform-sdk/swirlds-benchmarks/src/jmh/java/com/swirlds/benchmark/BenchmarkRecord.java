@@ -3,10 +3,10 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualValue;
 import java.io.IOException;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class BenchmarkRecord extends BenchmarkValue {
 
@@ -67,8 +67,9 @@ public class BenchmarkRecord extends BenchmarkValue {
         super.deserialize(inputStream, dataVersion);
     }
 
-    public static int getSerializedSize() {
-        return Long.BYTES + BenchmarkValue.getSerializedSize();
+    @Override
+    public int getSizeInBytes() {
+        return Long.BYTES + super.getSizeInBytes();
     }
 
     @Override

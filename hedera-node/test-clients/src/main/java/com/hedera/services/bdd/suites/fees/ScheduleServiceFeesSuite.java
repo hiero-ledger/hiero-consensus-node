@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -13,11 +13,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
@@ -25,7 +23,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -49,13 +47,12 @@ public class ScheduleServiceFeesSuite {
                 "scheduling.whitelist", "ContractCall,CryptoCreate,CryptoTransfer,FileDelete,FileUpdate,SystemDelete"));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyRepeatableHapiTest(value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, fees = "scheduled-contract-fees.json")
     @DisplayName("Schedule ops have expected USD fees")
     final Stream<DynamicTest> scheduleOpsBaseUSDFees() {
         final String SCHEDULE_NAME = "canonical";
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
-                uploadScheduledContractPrices(GENESIS),
                 uploadInitCode(SIMPLE_UPDATE),
                 cryptoCreate(OTHER_PAYER),
                 cryptoCreate(PAYING_SENDER),
@@ -95,7 +92,7 @@ public class ScheduleServiceFeesSuite {
                         .payingWith(OTHER_PAYER)
                         .signedBy(OTHER_PAYER)
                         .via("getScheduleInfoBasic"),
-                sleepFor(1000),
+                handleAnyRepeatableQueryPayment(),
                 validateChargedUsdWithin("canonicalCreation", BASE_FEE_SCHEDULE_CREATE, 3.0),
                 validateChargedUsdWithin("canonicalSigning", BASE_FEE_SCHEDULE_SIGN, 3.0),
                 validateChargedUsdWithin("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, 3.0),

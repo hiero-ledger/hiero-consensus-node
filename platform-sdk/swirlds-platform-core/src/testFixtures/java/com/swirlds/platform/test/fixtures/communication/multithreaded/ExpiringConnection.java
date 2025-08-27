@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.Connection;
 import java.io.IOException;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Wraps another connection, but returns true for {@link #connected()} only the specified number of times

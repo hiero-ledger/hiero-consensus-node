@@ -7,7 +7,6 @@ import static com.swirlds.common.metrics.platform.MetricsEvent.Type.REMOVED;
 import com.swirlds.common.metrics.PlatformMetrics;
 import com.swirlds.common.metrics.PlatformMetricsFactory;
 import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -25,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Default implementation of the {@link Metrics} interface.

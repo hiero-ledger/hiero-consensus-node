@@ -15,9 +15,12 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HistoryProofKeyPublicationHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(HistoryProofKeyPublicationHandler.class);
     private final ProofControllers controllers;
 
     @Inject
@@ -41,10 +44,12 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
         final var op = context.body().historyProofKeyPublicationOrThrow();
         final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
         final long nodeId = context.creatorInfo().nodeId();
+        log.info("node{} published new proof key '{}'", nodeId, op.proofKey());
         if (historyStore.setProofKey(nodeId, op.proofKey(), context.consensusNow())) {
             controllers.getAnyInProgress().ifPresent(controller -> {
                 final var publication = new ProofKeyPublication(nodeId, op.proofKey(), context.consensusNow());
                 controller.addProofKeyPublication(publication);
+                log.info("  - Added proof key to ongoing construction #{}", controller.constructionId());
             });
         }
     }

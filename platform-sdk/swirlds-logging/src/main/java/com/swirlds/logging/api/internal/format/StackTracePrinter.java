@@ -51,10 +51,15 @@ public class StackTracePrinter {
             for (int i = 0; i <= m; i++) {
                 final StackTraceElement stackTraceElement = stackTrace[i];
                 final String moduleName = stackTraceElement.getModuleName();
+                final String moduleVersion = stackTraceElement.getModuleVersion();
                 final String fileName = stackTraceElement.getFileName();
                 writer.append("\tat ");
                 if (moduleName != null) {
                     writer.append(moduleName);
+                    if (moduleVersion != null) {
+                        writer.append("@");
+                        writer.append(moduleVersion);
+                    }
                     writer.append("/");
                 }
                 writer.append(stackTraceElement.getClassName());

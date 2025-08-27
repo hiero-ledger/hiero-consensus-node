@@ -6,13 +6,13 @@ import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.
 import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.NODE_LABEL;
 
 import com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Counter}

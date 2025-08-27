@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import com.swirlds.common.crypto.Hash;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A simple random access list of {@link Hash}es. It acts like a very simple long to {@link Hash} map.
@@ -24,8 +24,11 @@ import java.nio.file.Path;
  * may be serialized to/from bytes.
  */
 public interface HashList extends Closeable {
+
     /**
-     * Get the {@link Hash} at the given index.
+     * Get the {@link Hash} at the given index. If the index is greater or equal to {@link #size()},
+     * this method returns {@code null}. If the index is negative or greater or equal to {@link
+     * #capacity()}, this method throws {@link IndexOutOfBoundsException}.
      *
      * @param index
      * 		the zero-based index to get hash for. Must be non-negative.
@@ -66,13 +69,6 @@ public interface HashList extends Closeable {
     long size();
 
     /**
-     * Get the maximum number of hashes this HashList can store, this is the maximum value capacity can grow to.
-     *
-     * @return maximum number of hashes this HashList can store
-     */
-    long maxHashes();
-
-    /**
      * Write all hashes in this HashList into a file
      *
      * @param file
@@ -81,4 +77,7 @@ public interface HashList extends Closeable {
      * 		If there was a problem creating or writing to the file.
      */
     void writeToFile(Path file) throws IOException;
+
+    @Override
+    void close();
 }

@@ -322,8 +322,8 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
     public TransactionRecordAsserts hasMirrorIdInReceipt() {
         this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
             try {
-                assertEquals(0, receipt.getContractID().getShardNum(), "Bad receipt shard");
-                assertEquals(0, receipt.getContractID().getRealmNum(), "Bad receipt realm");
+                assertEquals(spec.shard(), receipt.getContractID().getShardNum(), "Bad receipt shard");
+                assertEquals(spec.realm(), receipt.getContractID().getRealmNum(), "Bad receipt realm");
             } catch (Exception t) {
                 return List.of(t);
             }

@@ -1,34 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
+import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 
 public interface FallenBehindManager {
     /**
      * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
      * probably fallen behind and will need to reconnect
      *
-     * @param id
-     * 		the id of the node who says we have fallen behind
+     * @param id the id of the node who says we have fallen behind
      */
-    void reportFallenBehind(NodeId id);
+    void reportFallenBehind(@NonNull NodeId id);
+
+    /**
+     * Notify the fallen behind manager that a node has reported that node is providing us with events we need. This
+     * means we are not in fallen behind state against that node.
+     *
+     * @param id the id of the node who is providing us with up to date events
+     */
+    void clearFallenBehind(@NonNull NodeId id);
 
     /**
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial
      * state
      */
     void resetFallenBehind();
-
-    /**
-     * Returns a list of node IDs which need to be contacted to establish if we have fallen behind.
-     *
-     * @return a list of node IDs, or null if there is no indication we have fallen behind
-     */
-    @Nullable
-    List<NodeId> getNeededForFallenBehind();
 
     /**
      * Have enough nodes reported that they don't have events we need, and that we have fallen behind?
@@ -38,18 +36,9 @@ public interface FallenBehindManager {
     boolean hasFallenBehind();
 
     /**
-     * Get a list of neighbors to call if we need to do a reconnect
-     *
-     * @return a list of neighbor IDs
-     */
-    @Nullable
-    List<NodeId> getNeighborsForReconnect();
-
-    /**
      * Should I attempt a reconnect with this neighbor?
      *
-     * @param peerId
-     * 		the ID of the neighbor
+     * @param peerId the ID of the neighbor
      * @return true if I should attempt a reconnect
      */
     boolean shouldReconnectFrom(@NonNull NodeId peerId);
@@ -58,4 +47,12 @@ public interface FallenBehindManager {
      * @return the number of nodes that have told us we have fallen behind
      */
     int numReportedFallenBehind();
+
+    /**
+     * Notify about changes in list of node ids we should be taking into account for falling behind
+     *
+     * @param added   node ids which were added from the roster
+     * @param removed node ids which were removed from the roster
+     */
+    void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed);
 }

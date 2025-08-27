@@ -5,11 +5,11 @@ import com.swirlds.common.notification.DispatchMode;
 import com.swirlds.common.notification.DispatchModel;
 import com.swirlds.common.notification.DispatchOrder;
 import com.swirlds.common.notification.Listener;
-import com.swirlds.common.notification.Notification;
 import com.swirlds.common.notification.NotificationEngine;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.model.notification.Notification;
 
 public abstract class AbstractNotificationEngine implements NotificationEngine {
 

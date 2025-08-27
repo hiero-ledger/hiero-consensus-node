@@ -40,9 +40,9 @@ public final class PendingAirdropsHelper {
 
                     final var senderId = attempt.addressIdConverter().convert(senderAddress);
                     final var receiverId = attempt.addressIdConverter().convert(receiverAddress);
-                    final var tokenId = asTokenId(tokenAddress);
+                    final var tokenId = asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress);
 
-                    final var token = attempt.enhancement().nativeOperations().getToken(tokenId.tokenNum());
+                    final var token = attempt.enhancement().nativeOperations().getToken(tokenId);
                     validateTrue(token != null, INVALID_TOKEN_ID);
                     if (token.tokenType().equals(TokenType.FUNGIBLE_COMMON)) {
                         return pendingFTAirdrop(senderId, receiverId, tokenId);

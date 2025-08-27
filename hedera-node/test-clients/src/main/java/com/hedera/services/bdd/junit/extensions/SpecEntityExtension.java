@@ -16,6 +16,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecToken;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.Field;
@@ -43,7 +44,7 @@ public class SpecEntityExtension implements ParameterResolver, BeforeAllCallback
         if (entityType == SpecAccount.class) {
             return accountFrom(
                     parameter.isAnnotationPresent(Account.class) ? parameter.getAnnotation(Account.class) : null,
-                    parameter.getName());
+                    Time.getCurrent().now() + parameter.getName());
         } else if (entityType == SpecContract.class) {
             if (!parameter.isAnnotationPresent(Contract.class)) {
                 throw new IllegalArgumentException("Missing @ContractSpec annotation");
@@ -53,12 +54,16 @@ public class SpecEntityExtension implements ParameterResolver, BeforeAllCallback
             if (!parameter.isAnnotationPresent(FungibleToken.class)) {
                 throw new IllegalArgumentException("Missing @FungibleTokenSpec annotation");
             }
-            return SpecFungibleToken.from(parameter.getAnnotation(FungibleToken.class), parameter.getName());
+            return SpecFungibleToken.from(
+                    parameter.getAnnotation(FungibleToken.class),
+                    Time.getCurrent().now() + parameter.getName());
         } else if (entityType == SpecNonFungibleToken.class) {
             if (!parameter.isAnnotationPresent(NonFungibleToken.class)) {
                 throw new IllegalArgumentException("Missing @NonFungibleTokenSpec annotation");
             }
-            return nonFungibleTokenFrom(parameter.getAnnotation(NonFungibleToken.class), parameter.getName());
+            return nonFungibleTokenFrom(
+                    parameter.getAnnotation(NonFungibleToken.class),
+                    Time.getCurrent().now() + parameter.getName());
         } else if (entityType == SpecKey.class) {
             return keyFrom(
                     parameter.isAnnotationPresent(Key.class) ? parameter.getAnnotation(Key.class) : null,

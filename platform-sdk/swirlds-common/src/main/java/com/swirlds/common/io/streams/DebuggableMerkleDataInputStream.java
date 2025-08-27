@@ -2,11 +2,10 @@
 package com.swirlds.common.io.streams;
 
 import com.swirlds.base.function.CheckedFunction;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.internal.SerializationOperation;
 import com.swirlds.common.io.streams.internal.SerializationStack;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.utility.ValueReference;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -20,6 +19,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import org.hiero.base.ValueReference;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A stream that performs the same role as a {@link MerkleDataInputStream} but with extra debug functionality. This
@@ -160,6 +161,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public byte[] readAllBytes() throws IOException {
         startOperation(SerializationOperation.READ_ALL_BYTES);
         try {
@@ -173,6 +175,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public byte[] readNBytes(final int len) throws IOException {
         startOperation(SerializationOperation.READ_N_BYTES);
         try {
@@ -186,7 +189,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public int readNBytes(final byte[] b, final int off, final int len) throws IOException {
+    public int readNBytes(@NonNull final byte[] b, final int off, final int len) throws IOException {
         startOperation(SerializationOperation.READ_N_BYTES_ARRAY);
         try {
             return super.readNBytes(b, off, len);
@@ -225,7 +228,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b) throws IOException {
+    public void readFully(@NonNull final byte[] b) throws IOException {
         startOperation(SerializationOperation.READ_FULLY);
         try {
             super.readFully(b);
@@ -238,7 +241,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b, final int off, final int len) throws IOException {
+    public void readFully(@NonNull final byte[] b, final int off, final int len) throws IOException {
         startOperation(SerializationOperation.READ_FULLY_OFFSET);
         try {
             super.readFully(b, off, len);
@@ -381,6 +384,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public String readUTF() throws IOException {
         startOperation(SerializationOperation.READ_UTF);
         try {
@@ -589,12 +593,13 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public <T extends MerkleNode> T readMerkleTree(final Path directory, final int maxNumberOfNodes)
+    public <T extends MerkleNode> T readMerkleTree(
+            @NonNull final Configuration configuration, final Path directory, final int maxNumberOfNodes)
             throws IOException {
 
         startOperation(SerializationOperation.READ_MERKLE_TREE);
         try {
-            return super.readMerkleTree(directory, maxNumberOfNodes);
+            return super.readMerkleTree(configuration, directory, maxNumberOfNodes);
         } finally {
             finishOperation();
         }

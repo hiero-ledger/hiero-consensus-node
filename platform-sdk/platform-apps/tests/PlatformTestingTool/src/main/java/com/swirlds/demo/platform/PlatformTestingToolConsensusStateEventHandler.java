@@ -3,7 +3,6 @@ package com.swirlds.demo.platform;
 
 import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.FCMTRANSACTION;
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.STATESIGNATURETRANSACTION;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
@@ -12,7 +11,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -20,13 +19,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMTransactionHandler;
 import com.swirlds.demo.merkle.map.FCMTransactionUtils;
@@ -56,19 +49,11 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -89,6 +74,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.crypto.VerificationStatus;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.roster.RosterUtils;
 
 public class PlatformTestingToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<PlatformTestingToolState> {
@@ -99,7 +98,7 @@ public class PlatformTestingToolConsensusStateEventHandler
     private static final Marker LOGM_STARTUP = MarkerManager.getMarker("STARTUP");
     private static final long EXCEPTION_RATE_THRESHOLD = 10;
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     static final String STAT_TIMER_THREAD_NAME = "stat timer PTTState";
 
@@ -189,6 +188,9 @@ public class PlatformTestingToolConsensusStateEventHandler
      * Handles quorum determinations for all {@link ControlTransaction} processed by the handle method.
      */
     private QuorumTriggeredAction<ControlAction> controlQuorum;
+
+    /** The round number of the freeze round */
+    private final AtomicLong freezeRound = new AtomicLong(-1);
 
     public PlatformTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
@@ -323,6 +325,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         if (state.getConfig().getDelayCfg() != null) {
             final int delay = state.getConfig().getDelayCfg().getRandomDelay();
             try {
+                logger.info(LOGM_DEMO_INFO, "Will sleep for {}ms on normal delay", delay);
                 Thread.sleep(delay);
             } catch (final InterruptedException e) {
                 logger.info(LOGM_DEMO_INFO, "", e);
@@ -723,7 +726,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                 consumeSystemTransaction(
                         testTransaction,
                         event.getCreatorId(),
-                        event.getSoftwareVersion(),
+                        event.getBirthRound(),
                         stateSignatureTransactionCallback);
             } else {
                 expandSignatures(transaction, testTransactionWrapper, state);
@@ -747,6 +750,9 @@ public class PlatformTestingToolConsensusStateEventHandler
         updateTransactionCounters(state);
         round.forEachEventTransaction((event, transaction) ->
                 handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
+        if (platformStateFacade.isFreezeRound(state, round)) {
+            freezeRound.set(round.getRoundNum());
+        }
     }
 
     /**
@@ -776,7 +782,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         handleTransaction(
                 event.getCreatorId(),
-                event.getSoftwareVersion(),
+                event.getBirthRound(),
                 event.getTimeCreated(),
                 trans.getConsensusTimestamp(),
                 trans,
@@ -786,7 +792,7 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     private void handleTransaction(
             @NonNull final NodeId id,
-            @NonNull final SemanticVersion semanticVersion,
+            final long eventBirthRound,
             @NonNull final Instant timeCreated,
             @NonNull final Instant timestamp,
             @NonNull final ConsensusTransaction trans,
@@ -810,7 +816,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                 final TestTransaction testTransaction = TestTransaction.parseFrom(testTransactionRawBytes);
 
                 if (testTransaction.getBodyCase() == STATESIGNATURETRANSACTION) {
-                    consumeSystemTransaction(testTransaction, id, semanticVersion, stateSignatureTransactionCallback);
+                    consumeSystemTransaction(testTransaction, id, eventBirthRound, stateSignatureTransactionCallback);
                     return;
                 }
                 if (testTransaction.getBodyCase() == FCMTRANSACTION) {
@@ -846,7 +852,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                         ex,
                         (error) -> logger.error(
                                 EXCEPTION.getMarker(),
-                                "" + "InvalidProtocolBufferException while chekcing signature",
+                                "" + "InvalidProtocolBufferException while checking signature",
                                 error));
             }
         }
@@ -889,7 +895,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                         testTransaction.get().getVirtualMerkleTransaction(), id, timeCreated, state);
                 break;
             case STATESIGNATURETRANSACTION:
-                consumeSystemTransaction(testTransaction.get(), id, semanticVersion, stateSignatureTransactionCallback);
+                consumeSystemTransaction(testTransaction.get(), id, eventBirthRound, stateSignatureTransactionCallback);
                 return;
             default:
                 logger.error(EXCEPTION.getMarker(), "Unrecognized transaction!");
@@ -919,14 +925,14 @@ public class PlatformTestingToolConsensusStateEventHandler
     private void consumeSystemTransaction(
             @NonNull final TestTransaction transaction,
             @NonNull final NodeId creator,
-            @NonNull final SemanticVersion semanticVersion,
+            final long eventBirthRound,
             @NonNull
                     final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
                             stateSignatureTransactionCallback) {
         final var stateSignatureTransaction =
                 convertStateSignatureTransactionFromTestToSourceType(transaction.getStateSignatureTransaction());
         stateSignatureTransactionCallback.accept(
-                new ScopedSystemTransaction<>(creator, semanticVersion, stateSignatureTransaction));
+                new ScopedSystemTransaction<>(creator, eventBirthRound, stateSignatureTransaction));
     }
 
     private StateSignatureTransaction convertStateSignatureTransactionFromTestToSourceType(
@@ -1104,10 +1110,10 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull PlatformTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final PlatformTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         if (trigger == InitTrigger.RESTART) {
             state.rebuildExpectedMapFromState(Instant.EPOCH, true);
             state.rebuildExpirationQueue();
@@ -1147,7 +1153,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             genesisInit(state);
         }
         state.invalidateHash();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
 
         // compute hash
         try {
@@ -1161,14 +1167,21 @@ public class PlatformTestingToolConsensusStateEventHandler
     }
 
     /**
-     * For every 3 consensus rounds, seal the consensus round.
+     * For every 3 consensus rounds, seal the consensus round. If it's a freeze round, seal it regardless of the round
+     * number.
      *
      * @param round the current consensus round
      * @param state the current state of the platform testing tool
-     * @return {@code true} every 3 consensus rounds
+     * @return {@code true} when the round should be sealed, {@code false} otherwise
      */
     @Override
     public boolean onSealConsensusRound(@NonNull Round round, @NonNull PlatformTestingToolState state) {
+        // if this is a freeze round, we need to seal it
+        // we cannot check the freeze time in the state at this point, because lastFrozenTime has already been updated
+        // so we remember the freeze round number in onHandleConsensusRound and check it here
+        if (round.getRoundNum() == freezeRound.get()) {
+            return true;
+        }
         return round.getRoundNum() % 3 == 0;
     }
 

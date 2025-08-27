@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph;
 
+import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph
@@ -38,4 +39,11 @@ public interface HashgraphGuiSource {
      * @return true if the source is ready to return data
      */
     boolean isReady();
+
+    /**
+     * Get the event storage used by the GUI.
+     *
+     * @return the event storage
+     */
+    GuiEventStorage getEventStorage();
 }

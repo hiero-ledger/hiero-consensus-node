@@ -17,11 +17,12 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +48,20 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
+    private static final int INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS = 10;
+    private static final String INSUFFICIENT_SIGNATURES_FAILURE_REASON = "insufficient signatures";
+
+    /**
+     * Because the native library allocates so much memory for a proof, and cancelling an in-progress
+     * {@code proofFuture} doesn't guarantee that memory is released immediately, we have to ensure
+     * no two instances of {@link ProofControllerImpl} ever run proofs concurrently; hence a static field.
+     */
+    @Nullable
+    private static CompletableFuture<Void> RUNNING_PROOF_FUTURE = null;
+
+    public static final String PROOF_COMPLETE_MSG = "History proof constructed";
+
+    public static final int ADDRESS_BOOK_HASH_LEN = 32;
 
     private final long selfId;
 
@@ -56,7 +72,7 @@ public class ProofControllerImpl implements ProofController {
     private final Bytes ledgerId;
 
     private final Executor executor;
-    private final TssKeyPair schnorrKeyPair;
+    private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
@@ -119,7 +135,7 @@ public class ProofControllerImpl implements ProofController {
 
     public ProofControllerImpl(
             final long selfId,
-            @NonNull final TssKeyPair schnorrKeyPair,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
             @Nullable final Bytes ledgerId,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final RosterTransitionWeights weights,
@@ -169,22 +185,51 @@ public class ProofControllerImpl implements ProofController {
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             final boolean isActive) {
-        if (construction.hasTargetProof()) {
+        if (construction.hasTargetProof() || construction.hasFailureReason()) {
             return;
         }
         targetMetadata = metadata;
-        if (targetMetadata == null && isActive) {
-            ensureProofKeyPublished();
-        } else if (construction.hasAssemblyStartTime() && isActive) {
-            if (!votes.containsKey(selfId) && proofFuture == null) {
-                if (hasSufficientSignatures()) {
-                    proofFuture = startProofFuture();
-                } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
-                    signingFuture = startSigningFuture();
+        if (targetMetadata == null) {
+            if (isActive) {
+                ensureProofKeyPublished();
+            }
+        } else if (construction.hasAssemblyStartTime()) {
+            boolean stillCollectingSignatures = true;
+            final long elapsedSeconds = Math.max(
+                    1,
+                    now.getEpochSecond()
+                            - construction.assemblyStartTimeOrThrow().seconds());
+            if (elapsedSeconds % INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS == 0) {
+                stillCollectingSignatures = couldStillGetSufficientSignatures();
+            }
+            if (stillCollectingSignatures && isActive) {
+                if (!votes.containsKey(selfId) && proofFuture == null) {
+                    if (hasSufficientSignatures()) {
+                        if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
+                            log.warn(
+                                    "Proof future for construction #{} must wait until previous finished",
+                                    construction.constructionId());
+                        }
+                        proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
+                                .orElse(CompletableFuture.completedFuture(null))
+                                .thenCompose(ignore -> startProofFuture());
+                        log.info("Created proof future for construction #{}", construction.constructionId());
+                    } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
+                        signingFuture = startSigningFuture();
+                        log.info("Started signing future for construction #{}", construction.constructionId());
+                    }
                 }
+            } else if (!stillCollectingSignatures) {
+                log.info(
+                        "Failed construction #{} due to {}",
+                        construction.constructionId(),
+                        INSUFFICIENT_SIGNATURES_FAILURE_REASON);
+                construction = historyStore.failForReason(
+                        construction.constructionId(), INSUFFICIENT_SIGNATURES_FAILURE_REASON);
             }
         } else {
             if (shouldAssemble(now)) {
+                log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
                 if (isActive) {
                     signingFuture = startSigningFuture();
@@ -245,14 +290,13 @@ public class ProofControllerImpl implements ProofController {
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> {
             construction = historyStore.completeProof(construction.constructionId(), proof);
+            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                 proofConsumer.accept(proof);
                 if (ledgerId == null) {
-                    requireNonNull(targetMetadata);
-                    final var encodedId =
-                            encodeLedgerId(proof.sourceAddressBookHash().toByteArray(), targetMetadata.toByteArray());
-                    historyStore.setLedgerId(encodedId);
-                    log.info("Set LedgerID to {}", encodedId);
+                    final var ledgerId = concat(proof.sourceAddressBookHash(), library.snarkVerificationKey());
+                    historyStore.setLedgerId(ledgerId);
+                    log.info("Set ledger id to {}", ledgerId);
                 }
             }
         });
@@ -260,16 +304,31 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public void cancelPendingWork() {
-        if (publicationFuture != null) {
+        final var sb =
+                new StringBuilder("Cancelled work on proof construction #").append(construction.constructionId());
+        if (publicationFuture != null && !publicationFuture.isDone()) {
+            sb.append("\n  * In-flight publication");
             publicationFuture.cancel(true);
         }
-        if (signingFuture != null) {
+        if (signingFuture != null && !signingFuture.isDone()) {
+            sb.append("\n  * In-flight signing");
             signingFuture.cancel(true);
         }
-        if (proofFuture != null) {
+        if (proofFuture != null && !proofFuture.isDone()) {
+            sb.append("\n  * In-flight proof");
             proofFuture.cancel(true);
         }
-        verificationFutures.values().forEach(future -> future.cancel(true));
+        final var numCancelledVerifications = new AtomicInteger();
+        verificationFutures.values().forEach(future -> {
+            if (!future.isDone()) {
+                numCancelledVerifications.incrementAndGet();
+                future.cancel(true);
+            }
+        });
+        if (numCancelledVerifications.get() > 0) {
+            sb.append("\n  * ").append(numCancelledVerifications.get()).append(" in-flight verifications");
+        }
+        log.info(sb.toString());
     }
 
     /**
@@ -282,6 +341,7 @@ public class ProofControllerImpl implements ProofController {
         // If every active node in the target roster has published a proof key,
         // assemble the new history now; there is nothing else to wait for
         if (targetProofKeys.size() == weights.numTargetNodesInSource()) {
+            log.info("All target nodes have published proof keys for construction #{}", construction.constructionId());
             return true;
         }
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
@@ -296,11 +356,16 @@ public class ProofControllerImpl implements ProofController {
      */
     private void ensureProofKeyPublished() {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
+            log.info("Publishing Schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
-                    () -> submissions
-                            .submitProofKeyPublication(schnorrKeyPair.publicKey())
-                            .join(),
-                    executor);
+                            () -> submissions
+                                    .submitProofKeyPublication(schnorrKeyPair.publicKey())
+                                    .join(),
+                            executor)
+                    .exceptionally(e -> {
+                        log.error("Error publishing proof key", e);
+                        return null;
+                    });
         }
     }
 
@@ -333,17 +398,21 @@ public class ProofControllerImpl implements ProofController {
                 .mapToObj(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
-                () -> {
-                    final var targetHash = library.hashAddressBook(targetWeights, proofKeysArray);
-                    final var history = new History(targetHash, targetMetadata);
-                    final var message = encodeHistory(history);
-                    final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
-                    final var historySignature = new HistorySignature(history, signature);
-                    submissions
-                            .submitAssemblySignature(construction.constructionId(), historySignature)
-                            .join();
-                },
-                executor);
+                        () -> {
+                            final var targetHash = library.hashAddressBook(targetWeights, proofKeysArray);
+                            final var history = new History(targetHash, targetMetadata);
+                            final var message = encodeHistoryForSigning(history);
+                            final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
+                            final var historySignature = new HistorySignature(history, signature);
+                            submissions
+                                    .submitAssemblySignature(construction.constructionId(), historySignature)
+                                    .join();
+                        },
+                        executor)
+                .exceptionally(e -> {
+                    log.error("Error submitting signature", e);
+                    return null;
+                });
     }
 
     /**
@@ -366,7 +435,6 @@ public class ProofControllerImpl implements ProofController {
             sourceProofKeys = Map.copyOf(targetProofKeys);
         }
         final var targetMetadata = requireNonNull(this.targetMetadata);
-
         final long[] sourceNodeIds = weights.sourceNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
@@ -385,38 +453,50 @@ public class ProofControllerImpl implements ProofController {
                 .mapToObj(
                         id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
-        return CompletableFuture.runAsync(
-                () -> {
-                    final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
-                    final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                    // Note that sourceWeights, sourceProofKeysArray and verifyingSignatures should have same length
-                    // arrays.
-                    // Any node that has not submitted signature will have null in verifyingSignatures.
-                    final var verifyingSignatures = Arrays.stream(sourceNodeIds)
-                            .mapToObj(i -> Optional.ofNullable(signatures.get(i))
-                                    .map(Bytes::toByteArray)
-                                    .orElse(null))
-                            .toArray(byte[][]::new);
-                    final var proof = library.proveChainOfTrust(
-                            Optional.ofNullable(ledgerId).orElse(sourceHash),
-                            sourceProof,
-                            sourceWeights,
-                            sourceProofKeysArray,
-                            targetWeights,
-                            targetProofKeysArray,
-                            verifyingSignatures,
-                            targetMetadata);
-                    final var metadataProof = HistoryProof.newBuilder()
-                            .sourceAddressBookHash(sourceHash)
-                            .targetProofKeys(proofKeyListFrom(targetProofKeys))
-                            .targetHistory(new History(targetHash, targetMetadata))
-                            .proof(proof)
-                            .build();
-                    submissions
-                            .submitProofVote(construction.constructionId(), metadataProof)
-                            .join();
-                },
-                executor);
+        final long inProgressId = construction.constructionId();
+        final var proofKeyList = proofKeyListFrom(targetProofKeys);
+        RUNNING_PROOF_FUTURE = CompletableFuture.runAsync(
+                        () -> {
+                            final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
+                            final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
+                            // Nodes that did not submit signatures have null in their array index here
+                            final var verifyingSignatures = Arrays.stream(sourceNodeIds)
+                                    .mapToObj(i -> Optional.ofNullable(signatures.get(i))
+                                            .map(Bytes::toByteArray)
+                                            .orElse(null))
+                                    .toArray(byte[][]::new);
+                            log.info("Starting chain-of-trust proof for construction #{}", inProgressId);
+                            // If the ledger id is set, its first 32 bytes is the genesis book hash
+                            final var genesisAddressBookHash = Optional.ofNullable(ledgerId)
+                                    .map(l -> Bytes.wrap(l.toByteArray(0, ADDRESS_BOOK_HASH_LEN)))
+                                    .orElse(sourceHash);
+                            final var targetMetadataHash = library.hashHintsVerificationKey(targetMetadata);
+                            final var proof = library.proveChainOfTrust(
+                                    genesisAddressBookHash,
+                                    sourceProof,
+                                    sourceWeights,
+                                    sourceProofKeysArray,
+                                    targetWeights,
+                                    targetProofKeysArray,
+                                    verifyingSignatures,
+                                    targetMetadataHash);
+                            log.info("Finished chain-of-trust proof for construction #{}", inProgressId);
+                            final var metadataProof = HistoryProof.newBuilder()
+                                    .sourceAddressBookHash(sourceHash)
+                                    .targetProofKeys(proofKeyList)
+                                    .targetHistory(new History(targetHash, targetMetadata))
+                                    .proof(proof)
+                                    .build();
+                            submissions
+                                    .submitProofVote(inProgressId, metadataProof)
+                                    .join();
+                        },
+                        executor)
+                .exceptionally(e -> {
+                    log.error("Error submitting proof vote", e);
+                    return null;
+                });
+        return RUNNING_PROOF_FUTURE;
     }
 
     /**
@@ -424,6 +504,30 @@ public class ProofControllerImpl implements ProofController {
      */
     private boolean hasSufficientSignatures() {
         return firstSufficientSignatures() != null;
+    }
+
+    /**
+     * Whether there is no hope of collecting enough valid signatures to initiate a proof.
+     */
+    private boolean couldStillGetSufficientSignatures() {
+        final Map<History, Long> historyWeights = new HashMap<>();
+        long invalidWeight = 0;
+        long maxValidWeight = 0;
+        for (final var entry : verificationFutures.entrySet()) {
+            final var verification = entry.getValue().join();
+            if (verification.isValid()) {
+                maxValidWeight = Math.max(
+                        maxValidWeight,
+                        historyWeights.merge(
+                                verification.history(), weights.sourceWeightOf(verification.nodeId()), Long::sum));
+            } else {
+                invalidWeight += weights.sourceWeightOf(verification.nodeId());
+            }
+        }
+        long unassignedWeight = weights.totalSourceWeight()
+                - invalidWeight
+                - historyWeights.values().stream().mapToLong(Long::longValue).sum();
+        return maxValidWeight + unassignedWeight >= weights.sourceWeightThreshold();
     }
 
     /**
@@ -489,28 +593,39 @@ public class ProofControllerImpl implements ProofController {
     private CompletableFuture<Verification> verificationFuture(
             final long nodeId, @NonNull final HistorySignature historySignature) {
         return CompletableFuture.supplyAsync(
-                () -> {
-                    final var message = encodeHistory(historySignature.historyOrThrow());
-                    final var proofKey = requireNonNull(targetProofKeys.get(nodeId));
-                    final var isValid = library.verifySchnorr(historySignature.signature(), message, proofKey);
-                    return new Verification(nodeId, historySignature, isValid);
-                },
-                executor);
+                        () -> {
+                            final var message = encodeHistoryForSigning(historySignature.historyOrThrow());
+                            final var proofKey = requireNonNull(targetProofKeys.get(nodeId));
+                            final var isValid = library.verifySchnorr(historySignature.signature(), message, proofKey);
+                            return new Verification(nodeId, historySignature, isValid);
+                        },
+                        executor)
+                .exceptionally(e -> {
+                    log.error("Error verifying signature", e);
+                    return new Verification(nodeId, historySignature, false);
+                });
     }
 
-    private @NonNull Bytes encodeLedgerId(
-            @NonNull final byte[] addressBookHash, @NonNull final byte[] snarkVerificationKey) {
-        requireNonNull(addressBookHash);
-        requireNonNull(snarkVerificationKey);
-        final byte[] arr = new byte[addressBookHash.length + snarkVerificationKey.length];
-        System.arraycopy(addressBookHash, 0, arr, 0, addressBookHash.length);
-        System.arraycopy(snarkVerificationKey, 0, arr, addressBookHash.length, snarkVerificationKey.length);
-        return Bytes.wrap(arr);
-    }
-
-    private @NonNull Bytes encodeHistory(@NonNull final History history) {
+    /**
+     * Encodes the given history as a message for signing.
+     * @param history the history
+     * @return the message
+     */
+    private @NonNull Bytes encodeHistoryForSigning(@NonNull final History history) {
         requireNonNull(history);
-        return encodeLedgerId(
-                history.addressBookHash().toByteArray(), history.metadata().toByteArray());
+        return concat(history.addressBookHash(), library.hashHintsVerificationKey(history.metadata()));
+    }
+
+    /**
+     * Concatenates the given bytes.
+     * @param a the first bytes
+     * @param b the second bytes
+     * @return the concatenation
+     */
+    private @NonNull Bytes concat(@NonNull final Bytes a, @NonNull final Bytes b) {
+        final var c = ByteBuffer.wrap(new byte[(int) a.length() + (int) b.length()]);
+        a.writeTo(c);
+        b.writeTo(c);
+        return Bytes.wrap(c.array());
     }
 }

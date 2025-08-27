@@ -14,14 +14,14 @@ import java.util.SortedMap;
 import java.util.SplittableRandom;
 
 /**
- * Default implementation of {@link HintsLibrary} (all TODO).
+ * Default implementation of {@link HintsLibrary}.
  */
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
     @Override
-    public Bytes newCrs(final int n) {
+    public Bytes newCrs(final short n) {
         return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
@@ -41,17 +41,19 @@ public class HintsLibraryImpl implements HintsLibrary {
     }
 
     @Override
-    public Bytes newBlsKeyPair() {
+    public Bytes newBlsPrivateKey() {
         final byte[] randomBytes = new byte[32];
         RANDOM.nextBytes(randomBytes);
-        return Bytes.wrap(BRIDGE.generateSecretKey(randomBytes));
+        final var key = BRIDGE.generateSecretKey(randomBytes);
+        return key == null ? null : Bytes.wrap(key);
     }
 
     @Override
     public Bytes computeHints(
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
-        return Bytes.wrap(BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n));
+        final var hints = BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
+        return hints == null ? null : Bytes.wrap(hints);
     }
 
     @Override
@@ -89,7 +91,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes signBls(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
         requireNonNull(message);
         requireNonNull(privateKey);
-        return Bytes.wrap(BRIDGE.signBls(message.toByteArray(), privateKey.toByteArray()));
+        final var signature = BRIDGE.signBls(message.toByteArray(), privateKey.toByteArray());
+        return signature == null ? null : Bytes.wrap(signature);
     }
 
     @Override
@@ -103,12 +106,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return BRIDGE.verifyBls(
-                crs.toByteArray(),
-                signature.toByteArray(),
-                message.toByteArray(),
-                aggregationKey.toByteArray(),
-                partyId);
+        return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
     @Override
@@ -126,24 +124,22 @@ public class HintsLibraryImpl implements HintsLibrary {
         final byte[][] signatures = Arrays.stream(parties)
                 .mapToObj(party -> partialSignatures.get(party).toByteArray())
                 .toArray(byte[][]::new);
-        return Bytes.wrap(BRIDGE.aggregateSignatures(
-                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures));
+        final var aggregatedSignature = BRIDGE.aggregateSignatures(
+                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures);
+        return aggregatedSignature == null ? null : Bytes.wrap(aggregatedSignature);
     }
 
     @Override
     public boolean verifyAggregate(
-            @NonNull final Bytes crs,
             @NonNull final Bytes signature,
             @NonNull final Bytes message,
             @NonNull final Bytes verificationKey,
             final long thresholdNumerator,
             long thresholdDenominator) {
-        requireNonNull(crs);
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(verificationKey);
         return BRIDGE.verifyAggregate(
-                crs.toByteArray(),
                 signature.toByteArray(),
                 message.toByteArray(),
                 verificationKey.toByteArray(),

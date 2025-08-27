@@ -32,6 +32,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileSignatureWaiversImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileUpdateHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -93,6 +94,9 @@ class FileUpdateTest extends FileTestBase {
     @Mock
     private TransactionChecker transactionChecker;
 
+    @Mock
+    private NodeInfo creatorInfo;
+
     protected Configuration testConfig;
 
     private FileUpdateHandler subject;
@@ -116,8 +120,8 @@ class FileUpdateTest extends FileTestBase {
         BDDMockito.given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 
@@ -141,8 +145,8 @@ class FileUpdateTest extends FileTestBase {
                 .transactionID(txnId)
                 .fileUpdate(updateFileBuilder.build())
                 .build();
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 

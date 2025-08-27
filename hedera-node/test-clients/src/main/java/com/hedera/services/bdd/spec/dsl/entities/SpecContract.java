@@ -277,6 +277,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
                         .copyBuilder()
                         .smartContract(true)
                         .accountId(AccountID.newBuilder()
+                                .shardNum(spec.shard())
+                                .realmNum(spec.realm())
                                 .accountNum(newContractNum)
                                 .build())
                         .key(maybeKeyMetadata.map(KeyMetadata::pbjKey).orElse(PBJ_IMMUTABILITY_SENTINEL_KEY))
@@ -290,6 +292,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
                             .saveAccountId(
                                     name,
                                     com.hederahashgraph.api.proto.java.AccountID.newBuilder()
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setAccountNum(newContractNum)
                                             .build());
                     siblingSpec
@@ -297,6 +301,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
                             .saveContractId(
                                     name,
                                     com.hederahashgraph.api.proto.java.ContractID.newBuilder()
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setContractNum(newContractNum)
                                             .build());
                     siblingSpec.registry().saveContractInfo(name, contractCreate.infoOfCreatedContractOrThrow());

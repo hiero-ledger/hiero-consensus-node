@@ -7,7 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.MethodDescriptor;
 import java.io.InputStream;
-import java.util.function.Supplier;
+import java.nio.ByteBuffer;
 
 /**
  * A thread-safe implementation of a gRPC marshaller which does nothing but pass through byte arrays as {@link
@@ -16,13 +16,28 @@ import java.util.function.Supplier;
  */
 /*@ThreadSafe*/
 final class DataBufferMarshaller implements MethodDescriptor.Marshaller<BufferedData> {
+
+    private final int bufferCapacity;
     private final int tooBigMessageSize;
-    private final Supplier<BufferedData> bufferSupplier;
+
+    /**
+     * Per-thread shared ByteBuffer for reading. We store these in a thread local, because we do not
+     * have control over the thread pool used by the underlying gRPC server.
+     */
+    @SuppressWarnings(
+            "java:S5164") // looks like a false positive ("ThreadLocal" variables should be cleaned up when no longer
+    // used), but these threads are long-lived and the lifetime of the thread local is the same as
+    // the application
+    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
-    DataBufferMarshaller(final int maxMessageSize, @NonNull final Supplier<BufferedData> bufferSupplier) {
+    DataBufferMarshaller(final int bufferCapacity, final int maxMessageSize) {
+        if (bufferCapacity < maxMessageSize) {
+            throw new IllegalArgumentException(
+                    "Buffer capacity must be greater than or equal to the maximum message size.");
+        }
+        this.bufferCapacity = bufferCapacity + 1;
         this.tooBigMessageSize = maxMessageSize + 1;
-        this.bufferSupplier = requireNonNull(bufferSupplier);
     }
 
     /** {@inheritDoc} */
@@ -43,10 +58,14 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
         requireNonNull(stream);
 
         // Each thread has a single buffer instance that gets reused over and over.
-        final var buffer = bufferSupplier.get();
+        BufferedData buffer = BUFFER_THREAD_LOCAL.get();
+        if (buffer == null) {
+            buffer = BufferedData.wrap(ByteBuffer.allocate(bufferCapacity));
+            BUFFER_THREAD_LOCAL.set(buffer);
+        }
         buffer.reset();
 
-        // We sized the buffer to be 1 byte larger than the MAX_MESSAGE_SIZE.
+        // We sized the buffer to be 1 byte larger than the max transaction size.
         // If we have filled the buffer, it means the message had too many bytes,
         // and we will therefore reject it in MethodBase. We reject it there instead of here
         // because if we throw an exception here, Helidon will log a stack trace, which we don't

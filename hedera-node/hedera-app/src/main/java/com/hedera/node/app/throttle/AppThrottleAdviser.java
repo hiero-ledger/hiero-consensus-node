@@ -27,4 +27,14 @@ public class AppThrottleAdviser implements ThrottleAdviser {
         requireNonNull(function);
         return networkUtilizationManager.shouldThrottleNOfUnscaled(n, function, consensusNow);
     }
+
+    @Override
+    public long availableOpsDurationCapacity() {
+        return networkUtilizationManager.availableOpsDurationCapacity(consensusNow);
+    }
+
+    @Override
+    public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume) {
+        networkUtilizationManager.consumeOpsDurationThrottleCapacity(opsDurationUnitsToConsume, consensusNow);
+    }
 }

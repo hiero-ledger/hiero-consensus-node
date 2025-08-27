@@ -10,7 +10,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityI
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -27,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -39,9 +43,11 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
+import java.util.Set;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +69,10 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private TransactionComponent component;
 
     @Mock
-    private HandleContext handleContext;
+    private HandleContext context;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     @Mock
     private TransactionComponent.Factory factory;
@@ -72,7 +81,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private ContextTransactionProcessor processor;
 
     @Mock
-    private ContractCreateStreamBuilder recordBuilder;
+    private ContractCreateStreamBuilder streamBuilder;
 
     @Mock
     private HandleContext.SavepointStack stack;
@@ -106,42 +115,65 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(handleContext.savepointStack()).willReturn(stack);
-        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
-        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        System.out.println(expectedResult);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
+                expectedResult,
+                SUCCESS_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.signerNonce(),
+                Bytes.EMPTY,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
-        given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(handleContext.savepointStack()).willReturn(stack);
-        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
-        final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        final var expectedOutcome =
-                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
+        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                HALT_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                HALT_RESULT.asEvmTxResultOf(null, null),
+                null,
+                null,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(null)).willReturn(recordBuilder);
-        given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
-        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
+        given(streamBuilder.createdContractID(null)).willReturn(streamBuilder);
+        given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }
 
     @Test
@@ -153,8 +185,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
         basicMetaAssertions(context, 1);
         assertThat(context.payerKey()).isEqualTo(payerKey);
-        //        FUTURE: uncomment this after JKey removal
-        //        assertIterableEquals(List.of(adminHederaKey), meta.requiredNonPayerKeys());
+        assertIterableEquals(Set.of(adminKey), context.requiredNonPayerKeys());
     }
 
     @Test
@@ -201,9 +232,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
         basicMetaAssertions(context, 2);
         assertThat(context.payerKey()).isEqualTo(payerKey);
-        //        FUTURE: uncomment this after JKey removal
-        //        assertEquals(List.of(adminHederaKey, autoRenewHederaKey),
-        // meta.requiredNonPayerKeys());
+        assertEquals(Set.of(adminKey, autoRenewKey), context.requiredNonPayerKeys());
     }
 
     @Test

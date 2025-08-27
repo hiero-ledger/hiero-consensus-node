@@ -6,14 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.internal.ConsensusRound;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.api.Test;
 
 public class EventWindowManagerTests {
@@ -21,9 +22,8 @@ public class EventWindowManagerTests {
     @Test
     void WiringInputTest() {
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final ComponentWiring<EventWindowManager, EventWindow> wiring = new ComponentWiring<>(
                 model,
                 EventWindowManager.class,

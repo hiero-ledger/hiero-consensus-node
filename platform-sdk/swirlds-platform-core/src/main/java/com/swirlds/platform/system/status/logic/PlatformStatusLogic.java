@@ -2,7 +2,6 @@
 package com.swirlds.platform.system.status.logic;
 
 import com.swirlds.platform.system.status.IllegalPlatformStatusException;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
@@ -14,6 +13,7 @@ import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Interface representing the state machine logic for an individual {@link PlatformStatus}.

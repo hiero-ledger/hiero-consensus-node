@@ -24,14 +24,12 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.function.Supplier;
 
 @Module
 public interface QueryModule {
@@ -43,9 +41,8 @@ public interface QueryModule {
 
     @Provides
     @QueryScope
-    static TinybarValues provideTinybarValues(
-            @NonNull final ExchangeRate exchangeRate, @NonNull final QueryContext context) {
-        return TinybarValues.forQueryWith(exchangeRate, context.configuration().getConfigData(ContractsConfig.class));
+    static TinybarValues provideTinybarValues(@NonNull final ExchangeRate exchangeRate) {
+        return TinybarValues.forQueryWith(exchangeRate);
     }
 
     @Provides
@@ -84,13 +81,6 @@ public interface QueryModule {
     @QueryScope
     static ActionSidecarContentTracer provideActionSidecarContentTracer() {
         return new EvmActionTracer(new ActionStack());
-    }
-
-    @Provides
-    @QueryScope
-    static Supplier<HederaWorldUpdater> provideFeesOnlyUpdater(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement, @NonNull final EvmFrameStateFactory factory) {
-        return () -> new ProxyWorldUpdater(enhancement, requireNonNull(factory), null);
     }
 
     @Provides

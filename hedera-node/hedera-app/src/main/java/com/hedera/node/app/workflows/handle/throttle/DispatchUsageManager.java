@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -21,13 +22,13 @@ import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Set;
@@ -37,7 +38,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DispatchUsageManager {
     public static final Set<HederaFunctionality> CONTRACT_OPERATIONS =
-            EnumSet.of(HederaFunctionality.CONTRACT_CREATE, HederaFunctionality.CONTRACT_CALL, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION);
 
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics opWorkflowMetrics;
@@ -89,7 +90,7 @@ public class DispatchUsageManager {
             leakUnusedGas(dispatch);
         }
         if ((dispatch.txnCategory() == USER || dispatch.txnCategory() == NODE)
-                && dispatch.recordBuilder().status() != SUCCESS) {
+                && dispatch.streamBuilder().status() != SUCCESS) {
             if (canAutoCreate(function)) {
                 reclaimFailedCryptoCreateCapacity(dispatch);
             }
@@ -114,7 +115,7 @@ public class DispatchUsageManager {
      * @param dispatch the dispatch
      */
     private void leakUnusedGas(@NonNull final Dispatch dispatch) {
-        final var builder = dispatch.recordBuilder();
+        final var builder = dispatch.streamBuilder();
         // (FUTURE) There can be cases where the EVM halts and consumes all gas even though not
         // much actual work was done; in such cases, the gas used is still reported to be at
         // least 80% of the gas limit. If we want to be more precise, we can probably use the

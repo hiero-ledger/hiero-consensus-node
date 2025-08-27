@@ -10,14 +10,13 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,12 +28,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
 
 /**
  * Gives context to {@link Service} implementations on how the application workflows will do
  * shared functions like verifying signatures or computing the current instant.
  */
 public interface AppContext {
+    Logger log = LogManager.getLogger(AppContext.class);
+
     /**
      * The {@link Gossip} interface is used to submit transactions to the network.
      */
@@ -55,6 +59,11 @@ public interface AppContext {
             @Override
             public Signature sign(final byte[] ledgerId) {
                 throw new IllegalStateException("Gossip is not available!");
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return false;
             }
         };
 
@@ -113,6 +122,9 @@ public interface AppContext {
                                     failureReason = iae.getMessage();
                                     if (DUPLICATE_TRANSACTION_REASON.equals(failureReason)) {
                                         validStartTime.set(validStartTime.get().plusNanos(NANOS_TO_SKIP_ON_DUPLICATE));
+                                        log.info(
+                                                "Retrying {} after duplicate transaction",
+                                                body.data().kind());
                                     } else {
                                         fatalFailure = true;
                                         break;
@@ -125,6 +137,7 @@ public interface AppContext {
                             } while (txnIdsLeft-- > 1);
                             onFailure.accept(body, failureReason);
                             if (!fatalFailure) {
+                                log.info("Retrying {} after {}", body.data().kind(), failureReason);
                                 try {
                                     MILLISECONDS.sleep(retryDelay.toMillis());
                                 } catch (InterruptedException e) {
@@ -155,6 +168,11 @@ public interface AppContext {
          * @return the signature
          */
         Signature sign(byte[] bytes);
+
+        /**
+         * Whether network gossip is currently active.
+         */
+        boolean isAvailable();
     }
 
     /**

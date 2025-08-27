@@ -18,7 +18,6 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -37,6 +36,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
@@ -49,7 +49,6 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -88,7 +87,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Indicates if the QueryWorkflow should charge for handling queries.
@@ -132,8 +130,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            final boolean shouldCharge,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            final boolean shouldCharge) {
         this.stateAccessor = requireNonNull(stateAccessor, "stateAccessor must not be null");
         this.submissionManager = requireNonNull(submissionManager, "submissionManager must not be null");
         this.ingestChecker = requireNonNull(ingestChecker, "ingestChecker must not be null");
@@ -150,7 +147,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
         this.shouldCharge = shouldCharge;
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
@@ -186,7 +182,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 }
 
                 final var state = wrappedState.get();
-                final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+                final var storeFactory = new ReadableStoreFactory(state);
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
@@ -196,51 +192,63 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     final var configuration = configProvider.getConfiguration();
                     final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
 
-                    // 3.i Ingest checks
-                    final var transactionInfo = ingestChecker.runAllChecks(state, paymentBytes, configuration);
-                    txBody = transactionInfo.txBody();
+                    final var checkerResult = new IngestChecker.Result();
+                    try {
+                        // 3.i Ingest checks
+                        ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
+                        final var txInfo = checkerResult.txnInfoOrThrow();
+                        txBody = txInfo.txBody();
 
-                    // get payer
-                    payerID = requireNonNull(transactionInfo.payerID());
-                    context = new QueryContextImpl(
-                            state,
-                            storeFactory,
-                            query,
-                            configuration,
-                            recordCache,
-                            exchangeRateManager,
-                            feeCalculator,
-                            payerID);
+                        // get payer
+                        payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
+                        context = new QueryContextImpl(
+                                state,
+                                storeFactory,
+                                query,
+                                configuration,
+                                recordCache,
+                                exchangeRateManager,
+                                feeCalculator,
+                                payerID);
 
-                    // A super-user does not have to pay for a query and has all permissions
-                    if (!authorizer.isSuperUser(payerID)) {
-                        // But if payment is required, we must be able to submit a transaction
-                        ingestChecker.verifyReadyForTransactions();
+                        // A super-user does not have to pay for a query and has all permissions
+                        if (!authorizer.isSuperUser(payerID)) {
+                            // But if payment is required, we must be able to submit a transaction
+                            ingestChecker.verifyReadyForTransactions();
 
-                        // 3.ii Validate CryptoTransfer
-                        queryChecker.validateCryptoTransfer(transactionInfo);
+                            // 3.ii Validate CryptoTransfer
+                            queryChecker.validateCryptoTransfer(checkerResult.txnInfoOrThrow());
 
-                        // 3.iii Check permissions
-                        queryChecker.checkPermissions(payerID, function);
+                            // 3.iii Check permissions
+                            queryChecker.checkPermissions(payerID, function);
 
-                        // Get the payer
-                        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
-                        final var payer = accountStore.getAccountById(payerID);
-                        if (payer == null) {
-                            // This should never happen, because the account is checked in the pure checks
-                            throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            // Get the payer
+                            final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+                            final var payer = accountStore.getAccountById(payerID);
+                            if (payer == null) {
+                                // This should never happen, because the account is checked in the pure checks
+                                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            }
+
+                            // 3.iv Calculate costs
+                            final var queryFees = handler.computeFees(context).totalFee();
+                            final var txFees = queryChecker.estimateTxFees(
+                                    storeFactory,
+                                    consensusTime,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer.keyOrThrow(),
+                                    configuration);
+
+                            // 3.v Check account balances
+                            queryChecker.validateAccountBalances(
+                                    accountStore, checkerResult.txnInfoOrThrow(), payer, queryFees, txFees);
+
+                            // 3.vi Submit payment to platform
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
                         }
-
-                        // 3.iv Calculate costs
-                        final var queryFees = handler.computeFees(context).totalFee();
-                        final var txFees = queryChecker.estimateTxFees(
-                                storeFactory, consensusTime, transactionInfo, payer.keyOrThrow(), configuration);
-
-                        // 3.v Check account balances
-                        queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
-
-                        // 3.vi Submit payment to platform
-                        submissionManager.submit(txBody, transactionInfo.serializedTransaction());
+                    } catch (Exception e) {
+                        checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                        throw e;
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {
@@ -280,8 +288,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             } catch (InsufficientBalanceException e) {
                 response = createErrorResponse(handler, responseType, e.responseCode(), e.getEstimatedFee());
             } catch (PreCheckException e) {
+                logger.debug("Query failed", e);
                 response = createErrorResponse(handler, responseType, e.responseCode(), 0L);
             } catch (HandleException e) {
+                logger.debug("Query failed", e);
                 // Conceptually, this should never happen, because we should use PreCheckException only for queries
                 // But we catch it here to play it safe
                 response = createErrorResponse(handler, responseType, e.getStatus(), 0L);
@@ -309,9 +319,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             return queryParser.parseStrict(requestBuffer.toReadableSequentialData());
         } catch (ParseException e) {
             switch (e.getCause()) {
-                case MalformedProtobufException ex:
+                case MalformedProtobufException ignored:
                     break;
-                case UnknownFieldException ex:
+                case UnknownFieldException ignored:
                     break;
                 default:
                     logger.warn("Unexpected ParseException while parsing protobuf", e);

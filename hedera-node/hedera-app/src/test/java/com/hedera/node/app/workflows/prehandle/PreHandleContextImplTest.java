@@ -26,6 +26,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -73,6 +74,9 @@ class PreHandleContextImplTest implements Scenarios {
     Configuration configuration;
 
     @Mock
+    NodeInfo creatorInfo;
+
+    @Mock
     TransactionDispatcher dispatcher;
 
     @Mock
@@ -87,7 +91,8 @@ class PreHandleContextImplTest implements Scenarios {
         given(account.keyOrThrow()).willReturn(payerKey);
 
         final var txn = createAccountTransaction();
-        subject = new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher, transactionChecker);
+        subject =
+                new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher, transactionChecker, creatorInfo);
     }
 
     @Test

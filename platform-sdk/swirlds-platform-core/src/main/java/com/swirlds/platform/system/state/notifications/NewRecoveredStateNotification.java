@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
 import com.swirlds.platform.state.MerkleNodeState;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a new signed state has been created as a
+ * A {@link Notification Notification} that a new signed state has been created as a
  * result of the event recovery process.
  * <p>
  * This notification is sent once during event recovery for the resulting recovered state.

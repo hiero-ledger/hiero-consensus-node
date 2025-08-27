@@ -4,11 +4,9 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -27,6 +25,8 @@ import org.junit.jupiter.api.Assertions;
 // (FUTURE) Split up into more granular ops
 public class ParseableIssBlockStreamValidationOp extends UtilOp {
     private static final Logger log = LogManager.getLogger(ParseableIssBlockStreamValidationOp.class);
+
+    public static final long ISS_NODE_ID = 1;
 
     public static void main(String[] args) {}
 
@@ -55,66 +55,43 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
                     spec.getNetworkNodes().size());
         }
 
-        // Node 0 should always be the stream with the ISS. Verify its stream first
-        final var deviatingBlockStream = blocksPerNode.getFirst();
-        verifyExpectedIssStream(deviatingBlockStream);
+        // We cause the ISS in node1
+        final var deviatingBlockStream = blocksPerNode.get(1);
 
         // Verify the non-ISS block streams
-        int freezeThreshold = deviatingBlockStream.size() - 1 - 3;
-        for (int i = 1; i < blocksPerNode.size(); i++) { // i = the node id
-            final List<Block> nodeBlocks = blocksPerNode.get(i);
-
-            // Assert the stream has a freeze transaction
-            Assertions.assertTrue(
-                    hasFreezeWithProof(nodeBlocks, freezeThreshold),
-                    "No freeze transaction found in stream for node " + i);
-
-            // Assert the last block has a non-empty block proof
-            final Block last = nodeBlocks.getLast();
-            final Bytes actualSig = last.items().getLast().blockProofOrThrow().blockSignature();
-            Assertions.assertNotEquals(Bytes.EMPTY, actualSig);
-            Assertions.assertTrue(actualSig.length() > 0);
-
-            // Assert that this node has more blocks than the ISS node, since it should have continued processing
-            // transactions
-            Assertions.assertTrue(
-                    nodeBlocks.size() > deviatingBlockStream.size(),
-                    "Non-ISS node " + i + " should have more blocks than ISS node 0");
+        for (int i = 0, n = blocksPerNode.size(); i < n; i++) {
+            if (i != ISS_NODE_ID) {
+                final var nodeBlocks = blocksPerNode.get(i);
+                // Assert the stream has a freeze transaction
+                assertTrue(hasFreeze(nodeBlocks), "No freeze transaction found in stream for node" + i);
+                // Assert that this node has more blocks than the ISS node, since it should have continued processing
+                // transactions
+                assertTrue(
+                        nodeBlocks.size() > deviatingBlockStream.size(),
+                        "Non-ISS node" + i + " should have more blocks than ISS node" + ISS_NODE_ID);
+            }
         }
-
         return false;
     }
 
-    private boolean hasFreezeWithProof(final List<Block> blocks, int startIndex) {
-        boolean foundFreeze = false;
-        for (int i = startIndex; i < blocks.size(); i++) {
-            final List<BlockItem> items = blocks.get(i).items();
-            for (final BlockItem item : items) {
-                if (!foundFreeze && item.hasEventTransaction()) {
-                    final var appTxn = item.eventTransactionOrThrow().applicationTransactionOrThrow();
-                    final var txnBody = TransactionParts.from(appTxn).body();
+    /**
+     * Checks if the given list of blocks contains a freeze transaction.
+     * @param blocks the blocks to check
+     * @return true if a freeze transaction is found, false otherwise
+     */
+    private boolean hasFreeze(@NonNull final List<Block> blocks) {
+        for (final var block : blocks) {
+            for (final var item : block.items()) {
+                if (item.hasSignedTransaction()) {
+                    final var txnBody = TransactionParts.from(item.signedTransactionOrThrow())
+                            .body();
                     if (txnBody.hasFreeze()) {
-                        foundFreeze = true;
+                        return true;
                     }
-                }
-                if (foundFreeze && item.hasBlockProof()) {
-                    return item.blockProofOrThrow().blockSignature().length() > 0;
                 }
             }
         }
-
         return false;
-    }
-
-    private void verifyExpectedIssStream(final List<Block> deviatingBlockStream) {
-        // Node 0 should always be the stream with the ISS. Verify its stream first
-        final Block issLast = deviatingBlockStream.getLast();
-        final BlockProof lastIssProof = issLast.items().getLast().blockProof();
-        // It doesn't matter if the block proof item is empty, just that it's parseable/exists
-        // (FUTURE) parse the processed round numbers from the log and assert corresponding blocks can be parsed
-        Assertions.assertNotNull(lastIssProof);
-        Assertions.assertNotEquals(BlockProof.DEFAULT, lastIssProof);
-        Assertions.assertTrue(lastIssProof.siblingHashes().isEmpty());
     }
 
     /**

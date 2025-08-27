@@ -5,8 +5,8 @@ import static java.util.concurrent.ForkJoinPool.defaultForkJoinWorkerThreadFacto
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
@@ -40,9 +40,8 @@ class WiringBenchmark {
                 },
                 true);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         // Ensures that we have no more than 10,000 events in the pipeline at any given time
         final ObjectCounter backpressure = new BackpressureObjectCounter("backpressure", 10_000, Duration.ZERO);

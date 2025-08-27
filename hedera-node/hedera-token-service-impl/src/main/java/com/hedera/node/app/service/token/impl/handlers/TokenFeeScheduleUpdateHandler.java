@@ -123,7 +123,12 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         }
         // validate custom fees before committing
         customFeesValidator.validateForFeeScheduleUpdate(
-                token, readableAccountStore, readableTokenRelsStore, tokenStore, op.customFees());
+                token,
+                readableAccountStore,
+                readableTokenRelsStore,
+                tokenStore,
+                op.customFees(),
+                context.expiryValidator());
         // set the custom fees on token
         final var copy = token.copyBuilder().customFees(op.customFees());
         // add token to the modifications map

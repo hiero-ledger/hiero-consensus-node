@@ -7,6 +7,11 @@ on:
         description: "Build Number (ex: 43 = build-00043):"
         type: string
         required: true
+      alpha-release:
+        description: "Create Alpha Tag"
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -23,7 +28,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -58,7 +63,7 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -67,7 +72,7 @@ jobs:
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
       - name: Setup Node
-        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
@@ -96,7 +101,7 @@ jobs:
         run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@de866aa3ff6d0ae6e9909ba51b7948c0cf8a1a93 # v1.0.3
+        uses: DJ-BBot/setup-git-semver@6bb4ebdd43599b4b1ce2db197bd364612128d175 # v1.0.6
 
       - name: Identify Current Version Number
         run: |
@@ -108,9 +113,16 @@ jobs:
       # stable = false WILL NO LONGER BE VALID
       - name: Compute Next Version Number
         id: next-release
+        env:
+          ALPHA_FLAG: ${{ inputs.alpha-release }}
         run: |
+          echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
-          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          if [[ "${ALPHA_FLAG}" == "true" ]]; then
+            OUTPUT="$(git-semver next --stable=false --pre-release-tag=alpha --pre-release-counter 2>&1)" || STATUS="${?}"
+          else
+            OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          fi
           echo "${OUTPUT}"
           if [[ -n "${STATUS}" ]]; then
             echo "git-semver failed with status ${STATUS}"
@@ -119,6 +131,61 @@ jobs:
           echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
           echo "Next release version is: ${OUTPUT}"
 
+      - name: Calculate and Create Release Branch
+        env:
+          ALPHA_FLAG: ${{ inputs.alpha-release }}
+        run: |
+          # Get current version information
+          current_version="$(git-semver latest)"
+          current_major_version="$(semver get major "${current_version}")"
+          current_minor_version="$(semver get minor "${current_version}")"
+
+          # Get next version information
+          next_version="${{ steps.next-release.outputs.version }}"
+          next_major_version="$(semver get major "${next_version}")"
+          next_minor_version="$(semver get minor "${next_version}")"
+
+          # Release branch flag for whether or not we should create the release branch
+          CREATE_RELEASE_BRANCH=false
+
+          # Create a string for the release branch name:
+          major_minor_version="${next_major_version}.${next_minor_version}"
+          release_branch="release/${major_minor_version}"
+
+          # Check if this is a major version bump
+          if [[ "${next_major_version}" -gt "${current_major_version}" ]]; then
+            echo "Major version bump detected (${current_version} -> ${next_version})."
+            CREATE_RELEASE_BRANCH=true
+
+          # Check if this is a minor version bump
+          elif [[ "${next_major_version}" -eq "${current_major_version}" && "${next_minor_version}" -gt "${current_minor_version}" ]]; then
+            echo "Minor version bump detected (${current_version} -> ${next_version})."
+            CREATE_RELEASE_BRANCH=true
+
+          # Not a major or minor version bump, so we do not set the flag to create a release branch
+          else
+            echo "No major or minor version bump detected. Skipping release branch creation."
+          fi
+
+          if [[ "${ALPHA_FLAG}" == "true" ]]; then
+            CREATE_RELEASE_BRANCH=false
+          fi
+
+          # Create and push the release branch if CREATE_RELEASE_BRANCH is true
+          if [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
+          echo "Check if the release branch already exists."
+            # Check if the branch exists remotely
+            if git ls-remote --exit-code --heads origin "${release_branch}" >/dev/null 2>&1; then
+              echo "Release branch '${release_branch}' already exists. Skipping creation."
+            else
+              echo "Creating release branch: '${release_branch}'"
+              git checkout -b "${release_branch}"
+              git push origin "${release_branch}"
+            fi
+          else
+            echo "Release branch creation not required."
+          fi
+
       - name: Apply Tag with Calculated Next Version
         run: |
           echo "Applying computed version tag"
@@ -126,7 +193,7 @@ jobs:
           echo "Applied tag v${{ steps.next-release.outputs.version }}"
           current_version="$(git-semver latest)"
           echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
-          echo "Current Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Push Release Tag to Remote
         run: |
@@ -135,9 +202,30 @@ jobs:
           echo "Pushed new release tag to remote"
 
       - name: Create Release Notes with Markdown
+        id: release
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         run: |
-          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          echo "Now we cat the log:"
+          cat RELEASE.md
+
+      - name: Publish Release Notes
+        uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        with:
+          name: v${{ steps.next-release.outputs.version }}
+          tag_name: v${{ steps.next-release.outputs.version }}
+          prerelease: ${{ inputs.alpha-release == 'true' }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          body_path: "RELEASE.md"
+
+      - name: Clean Up Release Notes
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        run: |
+          echo "Removing the release notes file RELEASE.md"
+          rm RELEASE.md
+          echo "Successfully removed the release notes file RELEASE.md"
 
       - name: Clean Up git-semver
         run: |

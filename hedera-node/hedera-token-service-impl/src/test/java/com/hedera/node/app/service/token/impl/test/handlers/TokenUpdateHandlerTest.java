@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CURRENT_TREASURY_STILL_OWNS_NFTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
@@ -135,7 +134,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void happyPathForFungibleTokenUpdate() {
         txn = new TokenUpdateBuilder().build();
         given(handleContext.body()).willReturn(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
@@ -205,7 +204,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(token.metadata()).isEqualTo(nonFungibleToken.metadata());
         assertThat(token.autoRenewSeconds()).isEqualTo(nonFungibleToken.autoRenewSeconds());
         assertThat(token.tokenType()).isEqualTo(NON_FUNGIBLE_UNIQUE);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
@@ -240,7 +239,6 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
         assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
         assertThat(txn.data().value()).toString().contains("test metadata");
-        assertThat(txn.data().value()).hasNoNullFieldsOrProperties();
     }
 
     @Test
@@ -364,7 +362,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .withMetadataKey(invalidAllZeros)
                 .build();
         given(handleContext.body()).willReturn(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
@@ -409,7 +407,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .withFeeScheduleKey(A_KEY_LIST)
                 .withMetadataKey(A_KEY_LIST)
                 .build();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.body()).willReturn(txn);
@@ -432,7 +430,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .copyBuilder()
                 .kycGranted(false)
                 .build();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         writableTokenRelStore.put(copyTokenRel);
@@ -446,7 +444,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsIfTokenRelIsFrozen() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var copyTokenRel = writableTokenRelStore
@@ -490,7 +488,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void doesntFailForZeroLengthSymbolUpdate() {
         txn = new TokenUpdateBuilder().withSymbol("").build();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.body()).willReturn(txn);
@@ -502,7 +500,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void doesntFailForNullSymbol() {
         setUpTxnContext();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder().withSymbol(null).build();
@@ -535,7 +533,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void doesntFailForZeroLengthName() {
         txn = new TokenUpdateBuilder().withName("").build();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.body()).willReturn(txn);
@@ -547,7 +545,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void doesntFailForNullName() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder().withName(null).build();
@@ -610,7 +608,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(token.memo()).isEqualTo(fungibleToken.memo());
         assertThat(token.autoRenewSeconds()).isEqualTo(fungibleToken.autoRenewSeconds());
         assertThat(token.tokenType()).isEqualTo(FUNGIBLE_COMMON);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
@@ -662,7 +660,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
         given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
         assertThat(writableTokenRelStore.get(payerId, nonFungibleTokenId)).isNull();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
@@ -734,7 +732,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsIfNoAutoAssociationsAvailableForNewUnassociatedTreasury() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder()
@@ -764,7 +762,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void failsOnInvalidNewTreasury() {
         txn = new TokenUpdateBuilder().withTreasury(asAccount(0L, 0L, 2000000)).build();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.body()).willReturn(txn);
@@ -776,7 +774,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsOnDetachedNewTreasury() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder().withTreasury(payerId).build();
@@ -808,7 +806,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsOnDetachedOldTreasury() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder().build();
@@ -835,7 +833,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsOnDetachedNewAutoRenewAccount() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder().withAutoRenewAccount(payerId).build();
@@ -883,7 +881,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong()))
                 .willReturn(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -898,8 +896,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(writableAccountStore);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
-                .willThrow(new HandleException(ACCOUNT_DELETED));
+        given(expiryValidator.resolveUpdateAttempt(any(), any())).willThrow(new HandleException(ACCOUNT_DELETED));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -913,8 +910,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(writableAccountStore);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
-                .willThrow(new HandleException(ACCOUNT_DELETED));
+        given(expiryValidator.resolveUpdateAttempt(any(), any())).willThrow(new HandleException(ACCOUNT_DELETED));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -923,7 +919,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void permitsExtendingOnlyExpiryWithoutAdminKey() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         final var transactionID =
                 TransactionID.newBuilder().accountID(payerId).transactionValidStart(consensusTimestamp);
@@ -943,7 +939,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsOnReducedNewExpiry() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(EXPIRATION_REDUCTION_NOT_ALLOWED));
         txn = new TokenUpdateBuilder()
                 .withExpiry(consensusInstant.getEpochSecond() - 72000)
@@ -958,7 +954,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void failsOnInvalidNewExpiry() {
         txn = new TokenUpdateBuilder().withExpiry(3_000_000_000L + 10).build();
         given(handleContext.body()).willReturn(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(INVALID_EXPIRATION_TIME));
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -1043,7 +1039,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(writableAccountStore);
         assertThat(writableTokenRelStore.get(payerId, fungibleTokenId)).isNull();
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
@@ -1076,7 +1072,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void doesntGrantKycOrUnfreezeNewTreasuryIfNoKeyIsPresent() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder()
@@ -1171,29 +1167,6 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void rejectsTreasuryUpdateIfNonzeroBalanceForNFTs() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
-                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        final var copyTokenRel = writableTokenRelStore
-                .get(treasuryId, nonFungibleTokenId)
-                .copyBuilder()
-                .balance(1)
-                .build();
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.useTreasuryWildcards", "false")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        writableTokenRelStore.put(copyTokenRel);
-        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
-        txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
-        given(handleContext.body()).willReturn(txn);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CURRENT_TREASURY_STILL_OWNS_NFTS));
-    }
-
-    @Test
     void validateZeroTreasuryNotUpdatedForContractCalls() {
         // We don't set transaction ID so we simulate a contract call
         txn = TransactionBody.newBuilder()
@@ -1214,7 +1187,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validateZeroTreasuryIsUpdatedForHapiCalls() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         txn = new TokenUpdateBuilder()

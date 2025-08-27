@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An implementation of this class is responsible for creating {@link Metrics}-implementations.
@@ -27,10 +27,16 @@ public interface PlatformMetricsProvider {
     /**
      * Creates a platform-specific {@link Metrics}-instance.
      *
-     * @param selfId
-     * 		the {@link NodeId} of the platform
+     * @param nodeId the {@link NodeId} of the platform
      * @return the new instance of {@code Metrics}
      */
     @NonNull
-    Metrics createPlatformMetrics(final @NonNull NodeId selfId);
+    Metrics createPlatformMetrics(final @NonNull NodeId nodeId);
+
+    /**
+     * Remove a platform-specific {@link Metrics}-instance.
+     *
+     * @param nodeId the {@link NodeId} of the platform
+     */
+    void removePlatformMetrics(final @NonNull NodeId nodeId) throws InterruptedException;
 }

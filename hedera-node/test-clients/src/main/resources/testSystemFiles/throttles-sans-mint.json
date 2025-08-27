@@ -36,7 +36,8 @@
 			"ContractGetRecords",
 			"ContractCallLocal",
 			"TransactionGetRecord",
-			"GetVersionInfo"
+			"GetVersionInfo",
+            "AtomicBatch"
 		  ]
 		},
 		{

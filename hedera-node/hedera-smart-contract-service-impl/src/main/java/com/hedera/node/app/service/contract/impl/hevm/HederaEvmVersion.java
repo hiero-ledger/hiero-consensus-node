@@ -27,7 +27,11 @@ public enum HederaEvmVersion {
     /**
      * EVM version 0.51
      */
-    VERSION_051("v0.51") /* Hedera Account Service System Contract */;
+    VERSION_051("v0.51"), /* Hedera Account Service System Contract */
+    /**
+     * EVM version 0.65
+     */
+    VERSION_065("v0.65"); /* ops duration */
 
     /**
      * All supported EVM versions
@@ -38,7 +42,8 @@ public enum HederaEvmVersion {
             VERSION_038.key(), VERSION_038,
             VERSION_046.key(), VERSION_046,
             VERSION_050.key(), VERSION_050,
-            VERSION_051.key(), VERSION_051);
+            VERSION_051.key(), VERSION_051,
+            VERSION_065.key(), VERSION_065);
 
     HederaEvmVersion(String key) {
         this.key = key;

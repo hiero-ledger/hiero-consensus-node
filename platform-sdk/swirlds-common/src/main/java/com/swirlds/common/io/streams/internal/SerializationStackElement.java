@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams.internal;
 
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import java.util.Deque;
 import java.util.LinkedList;

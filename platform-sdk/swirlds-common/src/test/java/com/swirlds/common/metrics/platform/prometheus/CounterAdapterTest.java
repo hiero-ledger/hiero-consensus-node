@@ -7,13 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.data.Offset.offset;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.DefaultCounter;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class CounterAdapterTest {

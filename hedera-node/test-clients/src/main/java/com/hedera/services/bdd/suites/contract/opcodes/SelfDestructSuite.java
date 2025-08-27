@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -21,6 +22,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -28,6 +30,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
@@ -44,11 +47,14 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.contract.HapiGetContractInfo;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -189,6 +195,12 @@ public class SelfDestructSuite {
         }
 
         @HapiTest
+        @DisplayName("cannot SELFDESTRUCT with same contracts as beneficiary and balance")
+        final Stream<DynamicTest> selfDestructFailsWhenContractItselfIsBeneficiaryAndHasBalance50() {
+            return selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(HapiSuite.EVM_VERSION_050);
+        }
+
+        @HapiTest
         @DisplayName("cannot SELFDESTRUCT within a static call")
         final Stream<DynamicTest>
                 selfDestructViaCallLocalWithAccount999ResultsInLocalCallModificationPrecheckFailed50() {
@@ -260,19 +272,35 @@ public class SelfDestructSuite {
 
     final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(
             @NonNull final String evmVersion) {
-        final AtomicLong beneficiaryId = new AtomicLong();
+        final AtomicReference<AccountID> beneficiaryId = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(BENEFICIARY)
                         .balance(ONE_HUNDRED_HBARS)
                         .receiverSigRequired(true)
-                        .exposingCreatedIdTo(id -> beneficiaryId.set(id.getAccountNum())),
+                        .exposingCreatedIdTo(id -> beneficiaryId.set(id)),
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
                 sourcing(() -> contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 "destroyExplicitBeneficiary",
-                                mirrorAddrWith(beneficiaryId.get()))
+                                () -> mirrorAddrWith(beneficiaryId.get()))
                         .hasKnownStatus(INVALID_SIGNATURE)),
                 getAccountInfo(BENEFICIARY).has(accountWith().balance(ONE_HUNDRED_HBARS)),
+                getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .has(contractWith().balance(ONE_HBAR)));
+    }
+
+    final Stream<DynamicTest> selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(
+            @NonNull final String evmVersion) {
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
+        return hapiTest(
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .balance(ONE_HBAR)
+                        .exposingContractIdTo(contractId::set),
+                contractCall(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                DESTROY_EXPLICIT_BENEFICIARY,
+                                () -> mirrorAddrWith(contractId.get()))
+                        .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .has(contractWith().balance(ONE_HBAR)));
     }
@@ -281,7 +309,10 @@ public class SelfDestructSuite {
             @NonNull final String evmVersion) {
         return hapiTest(
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
-                contractCallLocal(SELF_DESTRUCT_CALLABLE_CONTRACT, "destroyExplicitBeneficiary", mirrorAddrWith(999L))
+                contractCallLocal(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                "destroyExplicitBeneficiary",
+                                mirrorAddrParamFunction(999L))
                         .hasAnswerOnlyPrecheck(LOCAL_CALL_MODIFICATION_EXCEPTION));
     }
 
@@ -341,7 +372,7 @@ public class SelfDestructSuite {
                 }),
                 quickSelfDestructContract
                         .call("createAndDeleteChild")
-                        .gas(100_000L)
+                        .gas(400_000L)
                         .payingWith(payerAccount)
                         .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                 withOpContext((spec, opLog) -> {
@@ -377,9 +408,11 @@ public class SelfDestructSuite {
                         .payingWith(payerAccount)
                         .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                 selfDestructCallableContract.getInfo().andAssert(ci -> {
-                    if (expectedDeletionStatus)
+                    if (expectedDeletionStatus) {
                         ci.hasCostAnswerPrecheck(OK).has(contractWith().isDeleted());
-                    else ci.hasCostAnswerPrecheck(OK).has(contractWith().isNotDeleted());
+                    } else {
+                        ci.hasCostAnswerPrecheck(OK).has(contractWith().isNotDeleted());
+                    }
                 }));
     }
 
@@ -387,19 +420,20 @@ public class SelfDestructSuite {
             List<Long> accounts, String contract, String methodName, ResponseCodeEnum status) {
         HapiSpecOperation[] opsArray = new HapiSpecOperation[accounts.size()];
         for (int i = 0; i < accounts.size(); i++) {
-            opsArray[i] = contractCall(contract, methodName, mirrorAddrWith(accounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, methodName, mirrorAddrParamFunction(accounts.get(index)))
                     .hasKnownStatus(status);
         }
         return opsArray;
     }
 
-    private @NonNull String getNthNextEntityFrom(final long nth, final long from) {
-        return "0.0." + (from + nth);
+    private @NonNull String getNthNextEntityFrom(final long nth, final ContractID fromId) {
+        return asEntityString(fromId.getShardNum(), fromId.getRealmNum(), fromId.getContractNum() + nth);
     }
 
     private @NonNull HapiGetContractInfo getNthNextContractInfoFrom(
             @NonNull final HapiSpec spec, @NonNull final String contract, final long nth) {
-        final var fromNum = spec.registry().getContractId(contract).getContractNum();
-        return getContractInfo(getNthNextEntityFrom(nth, fromNum));
+        final var fromId = spec.registry().getContractId(contract);
+        return getContractInfo(getNthNextEntityFrom(nth, fromId));
     }
 }

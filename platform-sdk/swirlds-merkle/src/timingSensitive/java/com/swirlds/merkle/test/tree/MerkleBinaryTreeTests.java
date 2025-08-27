@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.tree;
 
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -17,7 +15,6 @@ import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkle.tree.MerkleBinaryTree;
 import com.swirlds.merkle.tree.MerkleTreeInternalNode;
@@ -33,6 +30,10 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -122,7 +123,9 @@ class MerkleBinaryTreeTests {
 
     @BeforeAll
     void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero");
     }
 
     protected Stream<Arguments> buildSizeArguments() {
@@ -876,7 +879,7 @@ class MerkleBinaryTreeTests {
         assertEquals(1, rootLChild.getReservationCount(), "left child has only root as parent");
         assertTrue(isPathUnique(tree, rootLChild.getRoute()), "the path should have been unique");
         final Value leaf = tree.getRightMostLeaf();
-        assertEquals(1, leaf.getReservationCount(), "leaf has only root as paarent");
+        assertEquals(1, leaf.getReservationCount(), "leaf has only root as parent");
         assertTrue(isPathUnique(tree, leaf.getRoute()), "the path should have been unique");
 
         final MerkleBinaryTree<Value> tree01 = tree.copy();
@@ -909,7 +912,7 @@ class MerkleBinaryTreeTests {
 
             io.startReading();
             final MerkleBinaryTree<Value> deserializedTree =
-                    io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                    io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
             assertEquals(tree.size(), deserializedTree.size(), "Size should match after deserialization");
 

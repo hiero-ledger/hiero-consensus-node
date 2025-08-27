@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.internal;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.gui.components.PrePaintableJPanel;
@@ -16,6 +15,7 @@ import java.awt.Rectangle;
 import javax.swing.JTabbedPane;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The tab in the Browser window that shows network speed, transactions per second, etc.

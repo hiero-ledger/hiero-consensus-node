@@ -4,10 +4,10 @@ package com.swirlds.platform.gui.hashgraph.internal;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A {@link HashgraphGuiSource} that retrieves events from a stream of events
@@ -43,8 +43,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
     @NonNull
     public List<EventImpl> getEvents(final long startGeneration, final int numGenerations) {
         return eventStorage.getNonAncientEvents().stream()
-                .filter(e ->
-                        e.getGeneration() >= startGeneration && e.getGeneration() < startGeneration + numGenerations)
+                .filter(e -> e.getNGen() >= startGeneration && e.getNGen() < startGeneration + numGenerations)
                 .toList();
     }
 
@@ -63,5 +62,13 @@ public class StandardGuiSource implements HashgraphGuiSource {
     @Override
     public boolean isReady() {
         return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public GuiEventStorage getEventStorage() {
+        return eventStorage;
     }
 }

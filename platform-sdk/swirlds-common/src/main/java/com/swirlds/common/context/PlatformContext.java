@@ -2,9 +2,7 @@
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -15,6 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
+import org.hiero.base.concurrent.ExecutorFactory;
 
 /**
  * Public interface of the platform context that provides access to all basic services and resources. By using the
@@ -29,8 +28,7 @@ public interface PlatformContext {
     /**
      * Creates a new instance of the platform context. The instance uses a {@link NoOpMetrics} implementation for
      * metrics and a {@link com.swirlds.common.io.utility.NoOpRecycleBin}.
-     * The instance uses the {@link CryptographyFactory#create()} call to get the cryptography. The instance
-     * uses the static {@link Time#getCurrent()} call to get the time.
+     * The instance uses the static {@link Time#getCurrent()} call to get the time.
      *
      * @apiNote This method is meant for utilities and testing and not for a node's production operation
      * @param configuration the configuration

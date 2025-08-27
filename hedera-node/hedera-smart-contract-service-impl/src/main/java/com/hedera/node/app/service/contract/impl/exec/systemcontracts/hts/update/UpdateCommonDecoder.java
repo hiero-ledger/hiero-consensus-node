@@ -5,8 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Duration;
@@ -83,7 +83,7 @@ public abstract class UpdateCommonDecoder {
             @NonNull final Tuple call,
             @NonNull final AddressIdConverter addressIdConverter,
             @NonNull final HederaNativeOperations nativeOperation) {
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId = ConversionUtils.asTokenId(nativeOperation.entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
         final var tokenName = (String) hederaToken.get(0);
@@ -160,7 +160,8 @@ public abstract class UpdateCommonDecoder {
 
         final var call = decodeCall(attempt);
 
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId =
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var tokenKeys =
                 decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
 

@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.hedera;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.TargetNetworkType;
@@ -158,4 +159,31 @@ public interface HederaNetwork {
      * Waits for all nodes in the network to be ready within the given timeout.
      */
     void awaitReady(@NonNull Duration timeout);
+
+    /**
+     * Returns the shard of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long shard() {
+        return 0;
+    }
+
+    /**
+     * Returns the realm of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long realm() {
+        return 0;
+    }
+
+    /**
+     * Returns the Prometheus client for the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     *
+     * @return the Prometheus client
+     */
+    PrometheusClient prometheusClient();
 }

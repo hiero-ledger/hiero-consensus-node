@@ -9,6 +9,8 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -33,6 +35,12 @@ public class ChildFeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final ReadableStoreFactory storeFactory;
     private final Instant consensusNow;
+    // The verifier is non-null only for batch inner transactions.
+    // Since other synthetic child transactions have no signatures to verify, the verifier is no needed.
+    @Nullable
+    private final AppKeyVerifier verifier;
+
+    private final int signatureMapSize;
 
     public ChildFeeContextImpl(
             @NonNull final FeeManager feeManager,
@@ -42,7 +50,9 @@ public class ChildFeeContextImpl implements FeeContext {
             final boolean computeFeesAsInternalDispatch,
             @NonNull final Authorizer authorizer,
             @NonNull final ReadableStoreFactory storeFactory,
-            @NonNull final Instant consensusNow) {
+            @NonNull final Instant consensusNow,
+            @Nullable final AppKeyVerifier verifier,
+            final int signatureMapSize) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
         this.body = requireNonNull(body);
@@ -51,6 +61,8 @@ public class ChildFeeContextImpl implements FeeContext {
         this.authorizer = requireNonNull(authorizer);
         this.storeFactory = requireNonNull(storeFactory);
         this.consensusNow = requireNonNull(consensusNow);
+        this.verifier = verifier;
+        this.signatureMapSize = signatureMapSize;
     }
 
     @Override
@@ -67,10 +79,10 @@ public class ChildFeeContextImpl implements FeeContext {
         try {
             return feeManager.createFeeCalculator(
                     body,
-                    Key.DEFAULT,
+                    getPayerKey(),
                     functionOf(body),
-                    0,
-                    0,
+                    numTxnSignatures(),
+                    signatureMapSize,
                     consensusNow,
                     subType,
                     computeFeesAsInternalDispatch,
@@ -104,11 +116,28 @@ public class ChildFeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return 0;
+        return verifier == null ? 0 : verifier.numSignaturesVerified();
     }
 
     @Override
     public Fees dispatchComputeFees(@NonNull final TransactionBody txBody, @NonNull final AccountID syntheticPayerId) {
         return context.dispatchComputeFees(txBody, syntheticPayerId);
+    }
+
+    /**
+     * Determines which key to use for fee calculations.
+     * <p>
+     * For regular transactions and batch inner transactions, we need the payer's actual key
+     * to properly calculate fees.
+     * <p>
+     * When processing as an internal dispatch (synthetic operation), we use a default key
+     * since normal fee calculation rules don't apply.
+     *
+     * @return the payer's actual key, or {@code Key.DEFAULT} if this is an internal dispatch or
+     * the payer account can't be found
+     */
+    private Key getPayerKey() {
+        final var account = context.readableStore(ReadableAccountStore.class).getAccountById(payerId);
+        return computeFeesAsInternalDispatch || account == null ? Key.DEFAULT : account.keyOrThrow();
     }
 }

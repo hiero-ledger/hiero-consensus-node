@@ -57,7 +57,7 @@ public class TokenUriCall extends AbstractCall {
                         INVALID_TOKEN_ID,
                         false);
             }
-            final var nft = nativeOperations().getNft(token.tokenIdOrThrow().tokenNum(), serialNo);
+            final var nft = nativeOperations().getNft(token.tokenIdOrThrow(), serialNo);
             if (nft != null) {
                 metadata = new String(nft.metadata().toByteArray());
             }

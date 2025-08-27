@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -28,7 +27,7 @@ public class Version030FeatureFlags implements FeatureFlags {
     }
 
     @Override
-    public boolean isImplicitCreationEnabled(@NonNull Configuration config) {
+    public boolean isImplicitCreationEnabled() {
         return false;
     }
 }

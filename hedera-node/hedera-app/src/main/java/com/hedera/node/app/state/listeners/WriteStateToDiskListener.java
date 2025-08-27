@@ -9,18 +9,16 @@ import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -40,7 +38,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
     private final Executor executor;
     private final ConfigProvider configProvider;
     private final StartupNetworks startupNetworks;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
     private final EntityIdFactory entityIdFactory;
 
     @Inject
@@ -49,7 +47,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final StartupNetworks startupNetworks,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.executor = requireNonNull(executor);
@@ -69,7 +67,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                     notification.getRoundNumber(),
                     notification.getSequence());
             try (final var wrappedState = stateAccessor.get()) {
-                final var readableStoreFactory = new ReadableStoreFactory(wrappedState.get(), softwareVersionFactory);
+                final var readableStoreFactory = new ReadableStoreFactory(wrappedState.get());
                 final var readableFreezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
                 final var readableUpgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
                 final var readableNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
@@ -89,6 +87,10 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                 log.error("Error while responding to freeze state notification", e);
             }
         }
-        startupNetworks.archiveStartupNetworks();
+        // We don't archive genesis startup assets until at least one round has actually been handled,
+        // since we need these assets to create genesis entities at the beginning of the first round
+        if (notification.getRoundNumber() > 0) {
+            startupNetworks.archiveStartupNetworks();
+        }
     }
 }

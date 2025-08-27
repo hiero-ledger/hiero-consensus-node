@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
@@ -93,25 +94,31 @@ public class ConsensusTestOrchestrator {
     /**
      * Validates the output of all nodes against the given validations and clears the output
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run all neeeded validations
      */
-    public void validateAndClear(final Validations validations) {
-        validate(validations);
+    public void validateAndClear(final ConsensusOutputValidator consensusOutputValidator) {
+        validate(consensusOutputValidator);
         clearOutput();
     }
 
     /**
      * Validates the output of all nodes against the given validations
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run
      */
-    public void validate(final Validations validations) {
-        final ConsensusTestNode node1 = nodes.get(0);
+    public void validate(final ConsensusOutputValidator consensusOutputValidator) {
+        for (final ConsensusTestNode node : nodes) {
+            ConsensusRoundValidator.validate(node.getOutput().getConsensusRounds());
+        }
+
+        final ConsensusTestNode node1 = nodes.getFirst();
         for (int i = 1; i < nodes.size(); i++) {
-            final ConsensusTestNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator : validations.getList()) {
-                validator.validate(node1.getOutput(), node2.getOutput());
-            }
+            final ConsensusTestNode otherNode = nodes.get(i);
+
+            consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
+            ConsensusRoundValidator.validate(
+                    node1.getOutput().getConsensusRounds(),
+                    otherNode.getOutput().getConsensusRounds());
         }
     }
 
@@ -164,7 +171,7 @@ public class ConsensusTestOrchestrator {
         for (final ConsensusTestNode node : nodes) {
             node.getEventEmitter()
                     .getGraphGenerator()
-                    .getSource(getAddressBook().getNodeId(nodeIndex))
+                    .getSourceByIndex(nodeIndex)
                     .setNewEventWeight(eventWeight);
         }
     }
@@ -176,6 +183,16 @@ public class ConsensusTestOrchestrator {
         }
     }
 
+    /**
+     * Execute the given consumer for each node
+     * @param consumer the consumer to execute
+     */
+    public void forEachNode(@NonNull final Consumer<ConsensusTestNode> consumer) {
+        for (final ConsensusTestNode node : nodes) {
+            consumer.accept(node);
+        }
+    }
+
     public List<Long> getWeights() {
         return weights;
     }
@@ -184,7 +201,7 @@ public class ConsensusTestOrchestrator {
         return nodes;
     }
 
-    public AddressBook getAddressBook() {
-        return nodes.get(0).getEventEmitter().getGraphGenerator().getAddressBook();
+    public Roster getRoster() {
+        return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
     }
 }

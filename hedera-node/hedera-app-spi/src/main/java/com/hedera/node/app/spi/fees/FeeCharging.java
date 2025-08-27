@@ -66,14 +66,27 @@ public interface FeeCharging {
      */
     interface Context {
         /**
+         * The primary payer account id for the context.
+         * @return the payer account id
+         */
+        AccountID payerId();
+
+        /**
+         * The node fee collection account id for the context.
+         * @return the node account id
+         */
+        AccountID nodeAccountId();
+
+        /**
          * Charges the given amount to the given account, not disbursing any portion of the
          * collected fees to a node account.
          *
          * @param payerId the account to be charged
          * @param fees the fees to be charged
          * @param cb if not null, a callback to accept fee disbursements
+         * @return the total fees charged
          */
-        void charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable ObjLongConsumer<AccountID> cb);
+        Fees charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable ObjLongConsumer<AccountID> cb);
 
         /**
          * Charges the given amount to the given account, disbursing the currently configured
@@ -83,12 +96,32 @@ public interface FeeCharging {
          * @param fees the fees to be charged
          * @param nodeAccountId the account to which a portion of the fees will be disbursed
          * @param cb if not null, a callback to accept fee disbursements
+         * @return the total fees charged
          */
-        void charge(
+        Fees charge(
                 @NonNull AccountID payerId,
                 @NonNull Fees fees,
                 @NonNull AccountID nodeAccountId,
                 @Nullable ObjLongConsumer<AccountID> cb);
+
+        /**
+         * Refunds the given fees to the given account from the given node account (and, implicitly,
+         * the fee collection accounts active for this transaction).
+         *
+         * @param payerId the account to be refunded
+         * @param fees the fees to be refunded
+         * @param nodeAccountId the account from which the fees will be refunded
+         */
+        void refund(@NonNull AccountID payerId, @NonNull Fees fees, @NonNull AccountID nodeAccountId);
+
+        /**
+         * Refunds the given fees to the given account from the the fee collection accounts
+         * active for this transaction.
+         *
+         * @param receiverId the account to be refunded
+         * @param fees the fees to be refunded
+         */
+        void refund(@NonNull AccountID receiverId, @NonNull Fees fees);
 
         /**
          * The category of the transaction in the charging scenario.
@@ -103,6 +136,14 @@ public interface FeeCharging {
      * @param ctx the context in which fees may be charged
      * @param validation the validation of the charging scenario
      * @param fees the fees to be charged
+     * @return the total fees charged
      */
-    void charge(@NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees);
+    Fees charge(@NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees);
+
+    /**
+     * Refunds the fees for the given validation in the given context.
+     * @param ctx the context in which fees may be refunded
+     * @param fees the fees to be refunded
+     */
+    void refund(@NonNull Context ctx, @NonNull Fees fees);
 }

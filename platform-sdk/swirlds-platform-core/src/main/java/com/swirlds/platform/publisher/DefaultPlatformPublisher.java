@@ -5,11 +5,11 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * This component is responsible for publishing internal platform data to external subscribers. By default this is not

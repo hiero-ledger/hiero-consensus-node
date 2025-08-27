@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.system.events.EventConstants.GENERATION_UNDEFINED;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -12,7 +11,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -21,20 +19,19 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +41,7 @@ import org.mockito.Mockito;
  * Tests for {@link DefaultInternalEventValidator}
  */
 class InternalEventValidatorTests {
+    private static final TransactionLimits TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
     private AtomicLong exitedIntakePipelineCount;
     private Random random;
     private InternalEventValidator multinodeValidator;
@@ -64,17 +62,13 @@ class InternalEventValidatorTests {
 
         final Time time = new FakeTime();
 
-        // Adding the configuration to use the birth round as the ancient threshold for testing.
-        // The conditions where it is false is covered by the case where it is set to true.
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                        .getOrCreateConfig())
-                .withTime(time)
-                .build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
-        multinodeValidator = new DefaultInternalEventValidator(platformContext, false, intakeEventCounter);
-        singleNodeValidator = new DefaultInternalEventValidator(platformContext, true, intakeEventCounter);
+        multinodeValidator =
+                new DefaultInternalEventValidator(platformContext, false, intakeEventCounter, TRANSACTION_LIMITS);
+        singleNodeValidator =
+                new DefaultInternalEventValidator(platformContext, true, intakeEventCounter, TRANSACTION_LIMITS);
     }
 
     @Test
@@ -102,10 +96,7 @@ class InternalEventValidatorTests {
         assertEquals(2, exitedIntakePipelineCount.get());
 
         final GossipEvent noTimeCreated = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated((Timestamp) null)
-                        .version(wholeEvent.eventCore().version())
-                        .build())
+                .eventCore(EventCore.newBuilder().timeCreated((Timestamp) null).build())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
                 .build();
@@ -113,19 +104,6 @@ class InternalEventValidatorTests {
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
         assertEquals(4, exitedIntakePipelineCount.get());
-
-        final GossipEvent noVersion = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version((SemanticVersion) null)
-                        .build())
-                .signature(wholeEvent.signature())
-                .transactions(wholeEvent.transactions())
-                .build();
-        when(platformEvent.getGossipEvent()).thenReturn(noVersion);
-        assertNull(multinodeValidator.validateEvent(platformEvent));
-        assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(6, exitedIntakePipelineCount.get());
 
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
@@ -136,23 +114,20 @@ class InternalEventValidatorTests {
 
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(8, exitedIntakePipelineCount.get());
+        assertEquals(6, exitedIntakePipelineCount.get());
 
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
         final GossipEvent nullParent = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version(wholeEvent.eventCore().version())
-                        .parents(parents)
-                        .build())
+                .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
+                .parents(parents)
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(10, exitedIntakePipelineCount.get());
+        assertEquals(8, exitedIntakePipelineCount.get());
     }
 
     @Test
@@ -179,20 +154,12 @@ class InternalEventValidatorTests {
         assertEquals(2, exitedIntakePipelineCount.get());
 
         final GossipEvent shortDescriptorHash = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(validEvent.eventCore().timeCreated())
-                        .version(validEvent.eventCore().version())
-                        .parents(EventDescriptor.newBuilder()
-                                .hash(validEvent
-                                        .eventCore()
-                                        .parents()
-                                        .getFirst()
-                                        .hash()
-                                        .getBytes(1, DigestType.SHA_384.digestLength() - 2))
-                                .build())
-                        .build())
+                .eventCore(validEvent.eventCore())
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
+                .parents(EventDescriptor.newBuilder()
+                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -214,30 +181,6 @@ class InternalEventValidatorTests {
         assertNull(singleNodeValidator.validateEvent(event));
 
         assertEquals(2, exitedIntakePipelineCount.get());
-    }
-
-    @Test
-    @DisplayName("An event with parent inconsistency is invalid")
-    void inconsistentParents() {
-        // self parent has invalid generation.
-        final PlatformEvent invalidSelfParentGeneration = new TestingEventBuilder(random)
-                .setSelfParent(new TestingEventBuilder(random).build())
-                .overrideSelfParentGeneration(GENERATION_UNDEFINED)
-                .build();
-
-        // other parent has invalid generation.
-        final PlatformEvent invalidOtherParentGeneration = new TestingEventBuilder(random)
-                .setOtherParent(new TestingEventBuilder(random).build())
-                .overrideOtherParentGeneration(GENERATION_UNDEFINED)
-                .build();
-
-        assertNull(multinodeValidator.validateEvent(invalidSelfParentGeneration));
-        assertNull(multinodeValidator.validateEvent(invalidOtherParentGeneration));
-
-        assertNull(singleNodeValidator.validateEvent(invalidSelfParentGeneration));
-        assertNull(singleNodeValidator.validateEvent(invalidOtherParentGeneration));
-
-        assertEquals(4, exitedIntakePipelineCount.get());
     }
 
     @Test

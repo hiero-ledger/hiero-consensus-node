@@ -6,12 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.UnableToReconnectPayload;
-import com.swirlds.platform.Utilities;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +15,7 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Throttles reconnect learner attempts
@@ -76,25 +72,7 @@ public class ReconnectLearnerThrottle {
     /**
      * Notifies the throttle that a reconnect failed
      */
-    public void handleFailedReconnect(final Connection conn, final Exception e) {
-        if (Utilities.isOrCausedBySocketException(e)) {
-            logger.error(EXCEPTION.getMarker(), () -> new ReconnectFailurePayload(
-                            "Got socket exception while receiving a signed state! " + NetworkUtils.formatException(e),
-                            ReconnectFailurePayload.CauseOfFailure.SOCKET)
-                    .toString());
-        } else {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    () -> new ReconnectFailurePayload(
-                                    "Error while receiving a signed state!",
-                                    ReconnectFailurePayload.CauseOfFailure.ERROR)
-                            .toString(),
-                    e);
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-
+    public void handleFailedReconnect() {
         failedReconnectsInARow++;
         killNodeIfThresholdMet();
     }

@@ -49,10 +49,9 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +59,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,15 +94,19 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         freezeTimeBackingStore = new AtomicReference<>(null);
         platformStateBackingStore = new AtomicReference<>(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         rosterStateBackingStore = new AtomicReference<>(ROSTER_STATE);
-        entityCountsBackingStore = new AtomicReference<>(EntityCounts.DEFAULT);
+        entityCountsBackingStore = new AtomicReference<>(
+                EntityCounts.newBuilder().numNodes(3).numStakingInfos(3).build());
 
         when(writableStates.getSingleton(ENTITY_COUNTS_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, entityCountsBackingStore::get, entityCountsBackingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_KEY,
+                        entityCountsBackingStore::get,
+                        entityCountsBackingStore::set));
 
         when(writableStates.getSingleton(FREEZE_TIME_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        FreezeService.NAME, FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
 
         state = new FakeState()
                 .addService(FreezeService.NAME, Map.of(FREEZE_TIME_KEY, freezeTimeBackingStore))

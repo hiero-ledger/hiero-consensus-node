@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.simulated.config;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A convenience class for building maps with repeating elements, keyed by {@link NodeId}s with monotonically increasing

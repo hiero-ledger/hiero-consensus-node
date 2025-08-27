@@ -5,13 +5,19 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNPARSEABLE_THROTTLE_DEFINITIONS;
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.HapiThrottleUtils.lcm;
+import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.CAPACITY_UNITS_PER_NANO_TXN;
+import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.NTPS_PER_MTPS;
 import static java.util.Collections.disjoint;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.ParseException;
@@ -19,6 +25,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -75,6 +82,7 @@ public class ThrottleParser {
     private void validate(ThrottleDefinitions throttleDefinitions) {
         checkForZeroOpsPerSec(throttleDefinitions);
         checkForRepeatedOperations(throttleDefinitions);
+        validateLeastCommonMultipleDoesNotOverflow(throttleDefinitions);
     }
 
     /**
@@ -117,5 +125,33 @@ public class ThrottleParser {
                 seenSoFar.addAll(functions);
             }
         }
+    }
+
+    /**
+     * Validates that scaled bucket capacity calculations, involving LCM and burst periods, don't overflow.
+     *
+     * @param throttleDefinitions The throttle definitions to validate.
+     * @throws HandleException If scaled capacity calculation overflows.
+     */
+    private void validateLeastCommonMultipleDoesNotOverflow(ThrottleDefinitions throttleDefinitions) {
+        try {
+            for (var bucket : throttleDefinitions.throttleBuckets()) {
+                var lcm = leastCommonMultiple(bucket.throttleGroups());
+                final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
+                if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
+                    throw new ArithmeticException();
+                }
+            }
+        } catch (ArithmeticException e) {
+            throw new HandleException(THROTTLE_GROUP_LCM_OVERFLOW);
+        }
+    }
+
+    private long leastCommonMultiple(List<ThrottleGroup> throttleGroups) {
+        var lcm = throttleGroups.get(0).milliOpsPerSec();
+        for (int i = 1, n = throttleGroups.size(); i < n; i++) {
+            lcm = lcm(lcm, throttleGroups.get(i).milliOpsPerSec());
+        }
+        return lcm;
     }
 }

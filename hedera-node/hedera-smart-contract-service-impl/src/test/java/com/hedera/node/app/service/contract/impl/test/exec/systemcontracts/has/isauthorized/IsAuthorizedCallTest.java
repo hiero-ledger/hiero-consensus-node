@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.message;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
+import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.stripRecoveryIdFromEcdsaSignatures;
 import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -87,7 +88,6 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void returnsErrorStatusForInvalidAddress() {
         // Not an account num alias, not an evm alias
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 
@@ -108,7 +108,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(null);
 
             subject = getSubject(APPROVED_HEADLONG_ADDRESS);
@@ -131,7 +133,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(mockKey);
 
             // Took a valid protobuf for some a message containing only a long string field and
@@ -154,8 +158,8 @@ public class IsAuthorizedCallTest extends CallTestBase {
     @Test
     void fixSignaturesButNothingToFix() {
         final var sigMapIn = getSignatureMapWith(3, 0, 2, 4);
-        final var subject = getSubject(APPROVED_HEADLONG_ADDRESS, encodeSignatureMap(sigMapIn));
-        final var sigMapOut = subject.fixEcSignaturesInMap(sigMapIn);
+        getSubject(APPROVED_HEADLONG_ADDRESS, encodeSignatureMap(sigMapIn));
+        final var sigMapOut = stripRecoveryIdFromEcdsaSignatures(sigMapIn);
         assertThat(sigMapOut.sigPair())
                 .containsExactlyInAnyOrder(sigMapIn.sigPair().toArray(new SignaturePair[0]));
     }
@@ -164,7 +168,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void fixSignaturesWithSomeToFix() {
         final var sigMapIn = getSignatureMapWith(2, 2, 2, 2);
         final var subject = getSubject(APPROVED_HEADLONG_ADDRESS, encodeSignatureMap(sigMapIn));
-        final var sigMapOut = subject.fixEcSignaturesInMap(sigMapIn);
+        final var sigMapOut = stripRecoveryIdFromEcdsaSignatures(sigMapIn);
 
         final var pairsIn = new HashSet<>(sigMapIn.sigPair());
         final var pairsOut = new HashSet<>(sigMapOut.sigPair());
@@ -248,7 +252,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(mockKey);
             given(mockSignatureVerifier.countSimpleKeys(mockKey)).willReturn(new KeyCounts(nEDkeys, nECkeys));
 
@@ -318,7 +324,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     }
 
     record IAOutput(ResponseCodeEnum rce, boolean result) {}
-    ;
+
     /** Translate the contract output byte array to the `(ResponseCode,boolean)` result it emitted */
     @NonNull
     IAOutput getOutput(@NonNull final PrecompileContractResult pcr) {

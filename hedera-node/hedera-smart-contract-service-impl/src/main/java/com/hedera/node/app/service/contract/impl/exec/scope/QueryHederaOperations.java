@@ -9,8 +9,11 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -146,7 +149,12 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
+        throw new UnsupportedOperationException("Queries cannot collect fees");
+    }
+
+    @Override
+    public void collectGasFee(@NonNull final AccountID payerId, long amount, boolean withNonceIncrement) {
         throw new UnsupportedOperationException("Queries cannot collect fees");
     }
 
@@ -156,7 +164,7 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         throw new UnsupportedOperationException("Queries cannot refund fees");
     }
 
@@ -247,11 +255,31 @@ public class QueryHederaOperations implements HederaOperations {
     }
 
     @Override
+    public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
+        throw new UnsupportedOperationException("Queries cannot get original slot usage");
+    }
+
+    @Override
     public ContractID shardAndRealmValidated(@NonNull ContractID contractId) {
         return configValidated(contractId, hederaConfig);
     }
 
-    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
+    @Override
+    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @NonNull Bytes evmAddress) {
         throw new UnsupportedOperationException("Queries cannot create accounts");
+    }
+
+    @Override
+    @Nullable
+    public ThrottleAdviser getThrottleAdviser() {
+        // Queries do not have a throttle adviser
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public ContractMetrics contractMetrics() {
+        // As we do not have throttle adviser it makes no sense to use the metrics
+        return null;
     }
 }

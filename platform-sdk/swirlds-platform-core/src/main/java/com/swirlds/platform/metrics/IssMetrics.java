@@ -3,16 +3,16 @@ package com.swirlds.platform.metrics;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Metrics for ISS events.
@@ -92,6 +92,7 @@ public class IssMetrics {
      *
      * @param metrics
      * 		a reference to the metrics-system
+     * @param roster the active roster for this network
      * @throws IllegalArgumentException
      * 		if {@code metrics} is {@code null}
      */

@@ -1,24 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
+import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Objects;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
- * Provides access to all records.
- * @param <K>
- *     The key
- * @param <V>
- *     The value
+ * Utility class that provides access to virtual records. Recently updated virtual records
+ * are in virtual node cache, others are on disk (in the data source). This class provides
+ * a layer on top of the cache and the data source. Every request is first sent to the
+ * cache. If the cache doesn't contain the requested record, it is looked up in the data
+ * source.
  */
-public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
+@SuppressWarnings("rawtypes")
+public final class RecordAccessor {
+
+    private final VirtualMapMetadata state;
+    private final VirtualNodeCache cache;
+    private final VirtualDataSource dataSource;
+
+    /**
+     * Create a new {@link RecordAccessor}.
+     *
+     * @param state
+     * 		The state. Cannot be null.
+     * @param cache
+     * 		The cache. Cannot be null.
+     * @param dataSource
+     * 		The data source. Can be null.
+     */
+    public RecordAccessor(
+            @NonNull final VirtualMapMetadata state,
+            @NonNull final VirtualNodeCache cache,
+            @NonNull final VirtualDataSource dataSource) {
+        this.state = Objects.requireNonNull(state);
+        this.cache = Objects.requireNonNull(cache);
+        this.dataSource = dataSource;
+    }
 
     /**
      * Gets the {@link Hash} at a given path. If there is no record at the path, null is returned.
@@ -32,7 +61,18 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    Hash findHash(long path);
+    public Hash findHash(final long path) {
+        assert path >= 0;
+        final Hash hash = cache.lookupHashByPath(path);
+        if (hash != null) {
+            return hash;
+        }
+        try {
+            return dataSource.loadHash(path);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to read node hash from data source by path", e);
+        }
+    }
 
     /**
      * Looks up a virtual node hash for a given path. If the hash is found, writes it to a
@@ -46,7 +86,15 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      * @return If the hash is found and written to the stream
      * @throws IOException If an I/O error occurred
      */
-    boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException;
+    public boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException {
+        assert path >= 0;
+        final Hash hash = cache.lookupHashByPath(path);
+        if (hash != null) {
+            hash.serialize(out);
+            return true;
+        }
+        return dataSource.loadAndWriteHash(path, out);
+    }
 
     /**
      * Locates and returns a leaf node based on the given key. If the leaf
@@ -55,16 +103,28 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      * it in memory, set <code>cache</code> to true. If the key cannot be found in
      * the data source, then null is returned.
      *
-     * @param key
-     * 		The key. Must not be null.
-     * @param copy
-     * 		Whether to make a fast copy if needed.
+     * @param key The key. Must not be null.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    VirtualLeafRecord<K, V> findLeafRecord(final K key, final boolean copy);
+    public VirtualLeafBytes findLeafRecord(final @NonNull Bytes key) {
+        VirtualLeafBytes rec = cache.lookupLeafByKey(key);
+        if (rec == null) {
+            try {
+                rec = dataSource.loadLeafRecord(key);
+                if (rec != null) {
+                    assert rec.keyBytes().equals(key)
+                            : "The key we found from the DB does not match the one we were looking for! key=" + key;
+                }
+            } catch (final IOException ex) {
+                throw new UncheckedIOException("Failed to read a leaf record from the data source by key", ex);
+            }
+        }
+
+        return rec == VirtualNodeCache.DELETED_LEAF_RECORD ? null : rec;
+    }
 
     /**
      * Locates and returns a leaf node based on the path. If the leaf
@@ -75,43 +135,58 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      *
      * @param path
      * 		The path
-     * @param copy
-     * 		Whether to make a fast copy if needed.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    VirtualLeafRecord<K, V> findLeafRecord(final long path, final boolean copy);
+    public VirtualLeafBytes findLeafRecord(final long path) {
+        assert path != INVALID_PATH;
+        assert path != ROOT_PATH;
+
+        if (path < state.getFirstLeafPath() || path > state.getLastLeafPath()) {
+            return null;
+        }
+
+        VirtualLeafBytes rec = cache.lookupLeafByPath(path);
+        if (rec == null) {
+            try {
+                rec = dataSource.loadLeafRecord(path);
+                if (rec != null) {
+                    assert rec.path() == path
+                            : "The path we found from the DB does not match the one we were looking for! path=" + path;
+                }
+            } catch (final IOException ex) {
+                throw new UncheckedIOException("Failed to read a leaf record from the data source by path", ex);
+            }
+        }
+
+        return rec == VirtualNodeCache.DELETED_LEAF_RECORD ? null : rec;
+    }
 
     /**
      * Finds the path of the given key.
-     * @param key
-     * 		The key. Must not be null.
+     * @param key The key. Must not be null.
      * @return The path or INVALID_PATH if the key is not found.
      */
-    long findKey(final K key);
+    public long findKey(final @NonNull Bytes key) {
+        final VirtualLeafBytes rec = cache.lookupLeafByKey(key);
+        if (rec != null) {
+            return rec.path();
+        }
+        try {
+            return dataSource.findKey(key);
+        } catch (final IOException ex) {
+            throw new UncheckedIOException("Failed to find key in the data source", ex);
+        }
+    }
 
     /**
-     * Gets the data source backed by this {@link RecordAccessor}
+     * Closes this record accessor and releases all its resources.
      *
-     * @return
-     * 		The data source. Will not be null.
+     * @throws IOException If an I/O error occurs
      */
-    VirtualDataSource getDataSource(); // I'd actually like to remove this some day...
-
-    /**
-     * Gets the state.
-     *
-     * @return The state. This will never be null.
-     */
-    VirtualStateAccessor getState();
-
-    /**
-     * Gets the cache.
-     *
-     * @return
-     * 		The cache. This will never be null.
-     */
-    VirtualNodeCache<K, V> getCache();
+    public void close() throws IOException {
+        dataSource.close();
+    }
 }

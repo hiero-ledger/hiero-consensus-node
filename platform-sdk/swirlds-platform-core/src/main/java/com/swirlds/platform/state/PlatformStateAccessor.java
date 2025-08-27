@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This interface represents the platform state and provide access to the state's properties.
@@ -24,7 +23,7 @@ public interface PlatformStateAccessor {
      * @return the creation version
      */
     @NonNull
-    SoftwareVersion getCreationSoftwareVersion();
+    SemanticVersion getCreationSoftwareVersion();
 
     /**
      * Get the round when this state was generated.
@@ -56,9 +55,9 @@ public interface PlatformStateAccessor {
      * indicator that is greater than or equal to this value are non-ancient. All events with an ancient indicator less
      * than this value are ancient.
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
+     *
      * @return the ancient threshold after this round has reached consensus
      * @throws IllegalStateException if no minimum judge info is found in the state
      */
@@ -94,26 +93,9 @@ public interface PlatformStateAccessor {
     Instant getLastFrozenTime();
 
     /**
-     * Get the first software version where the birth round migration happened, or null if birth round migration has not
-     * yet happened.
+     * Gets the last freeze round number. If there has never been a freeze, this will return zero.
      *
-     * @return the first software version where the birth round migration happened
+     * @return the round number of the last freeze round
      */
-    @Nullable
-    SoftwareVersion getFirstVersionInBirthRoundMode();
-
-    /**
-     * Get the last round before the birth round mode was enabled, or -1 if birth round mode has not yet been enabled.
-     *
-     * @return the last round before the birth round mode was enabled
-     */
-    long getLastRoundBeforeBirthRoundMode();
-
-    /**
-     * Get the lowest judge generation before the birth round mode was enabled, or -1 if birth round mode has not yet
-     * been enabled.
-     *
-     * @return the lowest judge generation before the birth round mode was enabled
-     */
-    long getLowestJudgeGenerationBeforeBirthRoundMode();
+    long getLatestFreezeRound();
 }

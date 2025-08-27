@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * The default implementation of {@link StatusStateMachine}.

@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.platform.system.status.IllegalPlatformStatusException;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Utility methods for testing {@link PlatformStatusLogic} implementations.

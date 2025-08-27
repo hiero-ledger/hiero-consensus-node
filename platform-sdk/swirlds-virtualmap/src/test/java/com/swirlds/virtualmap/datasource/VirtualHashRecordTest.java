@@ -5,17 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.nio.charset.StandardCharsets;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 class VirtualHashRecordTest {
-    private static final Cryptography CRYPTO = CryptographyFactory.create();
+    private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     @Test
     @Tag(TestComponentTags.VMAP)

@@ -4,7 +4,6 @@ package com.swirlds.fchashmap;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.fchashmap.internal.FCHashMapEntrySet;
 import com.swirlds.fchashmap.internal.FCHashMapFamily;
 import com.swirlds.fchashmap.internal.Mutation;
@@ -13,6 +12,7 @@ import java.util.AbstractMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * <p>
@@ -43,9 +43,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  *     <li>calling {@link #release()} concurrently with read or write operations</li>
  * </ul>
  *
+ * @deprecated should be removed once <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19002">Testing Tools support Virtual Mega Map state</a>.
  * @param <K> the type of the key
  * @param <V> the type of the value
  */
+@Deprecated
 public class FCHashMap<K, V> extends AbstractMap<K, V> implements FastCopyable {
 
     /**

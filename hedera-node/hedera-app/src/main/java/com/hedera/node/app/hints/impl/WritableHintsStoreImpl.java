@@ -27,6 +27,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
@@ -41,13 +42,14 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link WritableHintsStore}.
  */
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
-    private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
-            Comparator.comparingLong(NodePartyId::nodeId);
+    private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
     private final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
     private final WritableSingletonState<HintsConstruction> nextConstruction;
@@ -56,8 +58,8 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
     private final WritableSingletonState<CRSState> crsState;
 
-    public WritableHintsStoreImpl(@NonNull final WritableStates states) {
-        super(states);
+    public WritableHintsStoreImpl(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
         this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
         this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
@@ -128,10 +130,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     public HintsConstruction setHintsScheme(
             final long constructionId,
             @NonNull final PreprocessedKeys keys,
-            @NonNull final Map<Long, Integer> nodePartyIds) {
+            @NonNull final Map<Long, Integer> nodePartyIds,
+            @NonNull final Map<Long, Long> nodeWeights) {
         requireNonNull(keys);
         requireNonNull(nodePartyIds);
-        return updateOrThrow(constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds))));
+        return updateOrThrow(
+                constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds, nodeWeights))));
     }
 
     @Override
@@ -141,24 +145,49 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public void updateForHandoff(@NonNull final ActiveRosters activeRosters) {
-        if (activeRosters.phase() != HANDOFF) {
-            throw new IllegalArgumentException("Not in handoff phase");
+    public boolean handoff(
+            @NonNull final Roster fromRoster,
+            @NonNull final Roster toRoster,
+            @NonNull final Bytes toRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(fromRoster);
+        requireNonNull(toRoster);
+        requireNonNull(toRosterHash);
+        final var upcomingConstruction = requireNonNull(nextConstruction.get());
+        // It is pointless to adopt any incomplete construction
+        if (!upcomingConstruction.hasHintsScheme()) {
+            if (forceHandoff) {
+                log.warn(
+                        "Ignoring forced handoff to incomplete construction #{}",
+                        upcomingConstruction.constructionId());
+            }
+            return false;
         }
-        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(activeRosters.currentRosterHash())) {
-            // The next construction is becoming the active one; so purge obsolete votes now
-            purgeVotes(requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            // If the active construction's party size was different than the current roster's, purge its hinTS keys
-            final int newActiveSize = partySizeForRoster(activeRosters.currentRoster());
-            purgeHintsKeysIfNotForPartySize(
-                    newActiveSize, requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            activeConstruction.put(nextConstruction.get());
-            nextConstruction.put(HintsConstruction.DEFAULT);
+        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(toRosterHash);
+        if (!handoffMatches) {
+            if (forceHandoff) {
+                log.warn(
+                        "Forcing handoff to construction #{} with different target roster",
+                        upcomingConstruction.constructionId());
+            } else {
+                throw new IllegalStateException("Cannot handoff to construction #"
+                        + upcomingConstruction.constructionId() + " with different target roster (constructed for '"
+                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + toRosterHash + "')");
+            }
         }
+        log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+        // The next construction is becoming the active one; so purge obsolete votes now
+        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> fromRoster);
+        // If the previous scheme's party size was different than the new one, purge the hinTS keys;
+        // this is likely optional, but seems like a better default behavior than leaving them in state
+        maybePurgeHintsKeys(partySizeForRoster(toRoster), fromRoster);
+        activeConstruction.put(upcomingConstruction);
+        nextConstruction.put(HintsConstruction.DEFAULT);
+        return true;
     }
 
     @Override
-    public void setCRSState(@NonNull final CRSState crsState) {
+    public void setCrsState(@NonNull final CRSState crsState) {
         this.crsState.put(crsState);
     }
 
@@ -170,7 +199,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
                 .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
                 .contributionEndTime(asTimestamp(nextContributionTimeEnd))
                 .build();
-        setCRSState(newCrsState);
+        setCrsState(newCrsState);
     }
 
     @Override
@@ -265,16 +294,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Purges any hinTS keys for the given construction if it was not for the given party size.
+     * Purges any hinTS keys for the given roster if it is not for the given party size.
      *
-     * @param m            the party size
-     * @param construction the construction
-     * @param lookup       the roster lookup
+     * @param m the party size
      */
-    private void purgeHintsKeysIfNotForPartySize(
-            final int m, @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
-        final var targetRoster = requireNonNull(lookup.apply(construction.targetRosterHash()));
-        final int n = partySizeForRoster(targetRoster);
+    private void maybePurgeHintsKeys(final int m, @NonNull final Roster roster) {
+        final int n = partySizeForRoster(roster);
         if (n != m) {
             for (int partyId = 0; partyId < n; partyId++) {
                 final var hintsId = new HintsPartyId(partyId, n);
@@ -294,15 +319,20 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Internal helper to convert a map of node IDs to party IDs to a list of node party IDs.
+     * Internal helper to construct a list of weighted node party IDs.
      *
-     * @param nodePartyIds the map
-     * @return the list
+     * @param nodePartyIds the map from node ID to party ID
+     * @param nodeWeights the map from node ID to weight
+     * @return the list of weighted node party IDs, sorted by node ID
      */
-    private List<NodePartyId> asList(@NonNull final Map<Long, Integer> nodePartyIds) {
+    private List<NodePartyId> asList(
+            @NonNull final Map<Long, Integer> nodePartyIds, @NonNull final Map<Long, Long> nodeWeights) {
         return nodePartyIds.entrySet().stream()
-                .map(entry -> new NodePartyId(entry.getKey(), entry.getValue()))
-                .sorted(NODE_PARTY_ID_COMPARATOR)
+                .map(entry -> {
+                    final long nodeId = entry.getKey();
+                    return new NodePartyId(nodeId, entry.getValue(), nodeWeights.get(nodeId));
+                })
+                .sorted(Comparator.comparingLong(NodePartyId::nodeId))
                 .toList();
     }
 }

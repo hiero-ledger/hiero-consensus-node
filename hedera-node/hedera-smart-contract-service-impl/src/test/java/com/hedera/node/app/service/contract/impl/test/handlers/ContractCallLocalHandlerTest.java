@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,7 +16,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -35,13 +33,13 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -259,7 +257,17 @@ class ContractCallLocalHandlerTest {
 
         final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
+                expectedResult,
+                SUCCESS_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmQueryResult(),
+                SUCCESS_RESULT.signerNonce(),
+                null,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
         // given(processor.call()).willReturn(responseHeader);
@@ -274,7 +282,6 @@ class ContractCallLocalHandlerTest {
     @SuppressWarnings("unchecked")
     void computesFeesSuccessfully() {
 
-        final var id = ContractID.newBuilder().contractNum(10).build();
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(context.feeCalculator()).willReturn(feeCalculator);
@@ -283,7 +290,6 @@ class ContractCallLocalHandlerTest {
         // Mock the behavior of legacyCalculate method
         when(feeCalculator.legacyCalculate(any(Function.class))).thenAnswer(invocation -> {
             // Extract the callback passed to the method
-            Function<SigValueObj, FeeData> passedCallback = invocation.getArgument(0);
             return new Fees(10L, 0L, 0L);
         });
 

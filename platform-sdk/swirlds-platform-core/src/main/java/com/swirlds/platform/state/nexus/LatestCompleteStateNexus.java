@@ -2,9 +2,9 @@
 package com.swirlds.platform.state.nexus;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * A nexus that holds the latest complete signed state.

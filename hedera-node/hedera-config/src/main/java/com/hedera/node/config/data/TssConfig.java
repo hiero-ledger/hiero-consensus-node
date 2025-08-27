@@ -2,12 +2,13 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
+import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
 
 /**
- * Configuration for the TSS subsystem.
+ *
  */
 @ConfigData("tss")
 public record TssConfig(
@@ -17,7 +18,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,
         @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration crsFinalizationDelay,
-        @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
+        @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty String tssKeysPath,
+        @ConfigProperty(defaultValue = "512") @NetworkProperty short initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean crsEnabled) {}
+        // Must be true if enabling TSS while also using an override network,
+        // to give express consent for breaking the address book chain of trust
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs) {}

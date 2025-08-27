@@ -9,25 +9,23 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
@@ -39,6 +37,9 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -76,7 +77,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         final var hederaConfig = mock(HederaConfig.class);
         lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
         final var merkleDbConfig = mock(MerkleDbConfig.class);
+        lenient().when(merkleDbConfig.goodAverageBucketEntryCount()).thenReturn(32);
         lenient().when(merkleDbConfig.longListChunkSize()).thenReturn(1024);
+        lenient().when(merkleDbConfig.maxNumOfKeys()).thenReturn(1000L);
         lenient().when(config.getConfigData(MerkleDbConfig.class)).thenReturn(merkleDbConfig);
         final var virtualMapConfig = mock(VirtualMapConfig.class);
         lenient().when(config.getConfigData(VirtualMapConfig.class)).thenReturn(virtualMapConfig);
@@ -179,20 +182,21 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
+            final var virtualMapLabel =
+                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+            final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    new TestMerkleStateRoot(),
+                    new TestHederaVirtualMapState(virtualMap),
                     version(9, 0, 0),
                     latestVersion,
                     config,
                     config,
-                    networkInfo,
-                    mock(Metrics.class),
-                    mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
                     TEST_PLATFORM_STATE_FACADE);
+            virtualMap.release();
         }
     }
 
@@ -210,7 +214,17 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             for (int i = 1; i < versions.length; i++) {
                 versions[i] = version(0, i, 0);
             }
-            merkleTree = new TestMerkleStateRoot();
+            final var virtualMapLabel =
+                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+            merkleTree = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        }
+
+        @AfterEach
+        void tearDown() {
+            merkleTree.release();
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
+                fruitVirtualMap.release();
+            }
         }
 
         @Test
@@ -223,9 +237,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             config,
                             config,
-                            networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -243,9 +254,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             config,
                             config,
-                            networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -263,9 +271,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             null,
                             null,
-                            networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -283,29 +288,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             null,
                             config,
-                            networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
-                            new HashMap<>(),
-                            migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("Calling migrate with a null metrics throws NPE")
-        void nullMetricsThrows() {
-            //noinspection ConstantConditions
-            assertThatThrownBy(() -> schemaRegistry.migrate(
-                            merkleTree,
-                            versions[0],
-                            versions[1],
-                            config,
-                            config,
-                            networkInfo,
-                            null,
-                            mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -323,9 +305,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[4],
                             config,
                             config,
-                            networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -347,9 +326,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[1],
                     config,
                     config,
-                    networkInfo,
-                    mock(Metrics.class),
-                    mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -373,9 +349,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[5],
                     config,
                     config,
-                    networkInfo,
-                    mock(Metrics.class),
-                    mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -400,9 +373,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[5],
                     config,
                     config,
-                    networkInfo,
-                    mock(Metrics.class),
-                    mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -435,9 +405,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[7],
                     config,
                     config,
-                    networkInfo,
-                    mock(Metrics.class),
-                    mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -468,7 +435,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var fruitDef = StateDefinition.inMemory(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC);
+                        final var fruitDef =
+                                StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC);
                         return Set.of(fruitDef);
                     }
 
@@ -477,7 +445,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(ctx).isNotNull();
                         assertThat(ctx.previousVersion()).isNull();
                         assertThat(ctx.newStates().size()).isEqualTo(1);
-                        final WritableKVState<String, String> fruit =
+                        final WritableKVState<ProtoBytes, ProtoBytes> fruit =
                                 ctx.newStates().get(FRUIT_STATE_KEY);
                         fruit.put(A_KEY, APPLE);
                         fruit.put(B_KEY, BANANA);
@@ -492,7 +460,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var animalDef = StateDefinition.onDisk(ANIMAL_STATE_KEY, STRING_CODEC, STRING_CODEC, 100);
+                        final var animalDef =
+                                StateDefinition.onDisk(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, 100);
                         final var countryDef = StateDefinition.singleton(COUNTRY_STATE_KEY, STRING_CODEC);
                         return Set.of(animalDef, countryDef);
                     }
@@ -507,7 +476,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         // and nothing new
                         assertThat(previousStates.isEmpty()).isFalse();
                         assertThat(previousStates.contains(FRUIT_STATE_KEY)).isTrue();
-                        final ReadableKVState<String, String> oldFruit = previousStates.get(FRUIT_STATE_KEY);
+                        final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_KEY);
                         assertThat(oldFruit.keys()).toIterable().hasSize(3);
                         assertThat(oldFruit.get(A_KEY)).isEqualTo(APPLE);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BANANA);
@@ -520,18 +489,18 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(newStates.contains(COUNTRY_STATE_KEY)).isTrue();
 
                         // Add in the new animals
-                        final WritableKVState<String, String> animals = newStates.get(ANIMAL_STATE_KEY);
+                        final WritableKVState<ProtoBytes, ProtoBytes> animals = newStates.get(ANIMAL_STATE_KEY);
                         animals.put(A_KEY, AARDVARK);
                         animals.put(B_KEY, BEAR);
 
                         // Remove, update, and add fruit
-                        final WritableKVState<String, String> fruit = newStates.get(FRUIT_STATE_KEY);
+                        final WritableKVState<ProtoBytes, ProtoBytes> fruit = newStates.get(FRUIT_STATE_KEY);
                         fruit.remove(A_KEY);
                         fruit.put(B_KEY, BLACKBERRY);
                         fruit.put(E_KEY, EGGPLANT);
 
                         // Initialize the COUNTRY to be BRAZIL
-                        final WritableSingletonState<String> country = newStates.getSingleton(COUNTRY_STATE_KEY);
+                        final WritableSingletonState<ProtoBytes> country = newStates.getSingleton(COUNTRY_STATE_KEY);
                         country.put(BRAZIL);
 
                         // And the old states shouldn't have a COUNTRY_STATE_KEY
@@ -563,12 +532,12 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         // Verify that everything in v2 is still here
                         assertThat(previousStates.stateKeys())
                                 .containsExactlyInAnyOrder(FRUIT_STATE_KEY, ANIMAL_STATE_KEY, COUNTRY_STATE_KEY);
-                        final ReadableKVState<String, String> oldFruit = previousStates.get(FRUIT_STATE_KEY);
+                        final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_KEY);
                         assertThat(oldFruit.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BLACKBERRY);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
                         assertThat(oldFruit.get(E_KEY)).isEqualTo(EGGPLANT);
-                        final ReadableKVState<String, String> oldAnimals = previousStates.get(ANIMAL_STATE_KEY);
+                        final ReadableKVState<ProtoBytes, ProtoBytes> oldAnimals = previousStates.get(ANIMAL_STATE_KEY);
                         assertThat(oldAnimals.get(A_KEY)).isEqualTo(AARDVARK);
                         assertThat(oldAnimals.get(B_KEY)).isEqualTo(BEAR);
 
@@ -578,12 +547,13 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(newStates.contains(ANIMAL_STATE_KEY)).isTrue();
 
                         // Add in a new animal
-                        final WritableKVState<String, String> animals = newStates.get(ANIMAL_STATE_KEY);
+                        final WritableKVState<ProtoBytes, ProtoBytes> animals = newStates.get(ANIMAL_STATE_KEY);
                         animals.put(C_KEY, CUTTLEFISH);
 
                         // And I should still see the COUNTRY_STATE_KEY in the previousStates,
                         // but not in the newStates
-                        final ReadableSingletonState<String> country = previousStates.getSingleton(COUNTRY_STATE_KEY);
+                        final ReadableSingletonState<ProtoBytes> country =
+                                previousStates.getSingleton(COUNTRY_STATE_KEY);
                         assertThat(country.get()).isEqualTo(BRAZIL);
                         assertThat(newStates.contains(COUNTRY_STATE_KEY)).isFalse();
 
@@ -608,9 +578,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[1],
                         config,
                         config,
-                        networkInfo,
-                        mock(Metrics.class),
-                        mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -619,7 +586,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(1);
-                final ReadableKVState<String, String> fruitV1 = readableStates.get(FRUIT_STATE_KEY);
+                final ReadableKVState<ProtoBytes, String> fruitV1 = readableStates.get(FRUIT_STATE_KEY);
                 assertThat(fruitV1.keys()).toIterable().containsExactlyInAnyOrder(A_KEY, B_KEY, C_KEY);
             }
 
@@ -639,9 +606,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[2],
                         config,
                         config,
-                        networkInfo,
-                        mock(Metrics.class),
-                        mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -651,15 +615,15 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(3);
 
-                final ReadableKVState<String, String> fruitV2 = readableStates.get(FRUIT_STATE_KEY);
+                final ReadableKVState<ProtoBytes, ProtoBytes> fruitV2 = readableStates.get(FRUIT_STATE_KEY);
                 assertThat(fruitV2.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                 assertThat(fruitV2.get(B_KEY)).isEqualTo(BLACKBERRY);
 
-                final ReadableKVState<String, String> animalV2 = readableStates.get(ANIMAL_STATE_KEY);
+                final ReadableKVState<ProtoBytes, ProtoBytes> animalV2 = readableStates.get(ANIMAL_STATE_KEY);
                 assertThat(animalV2.get(A_KEY)).isEqualTo(AARDVARK);
                 assertThat(animalV2.get(B_KEY)).isEqualTo(BEAR);
 
-                final ReadableSingletonState<String> countryV2 = readableStates.getSingleton(COUNTRY_STATE_KEY);
+                final ReadableSingletonState<ProtoBytes> countryV2 = readableStates.getSingleton(COUNTRY_STATE_KEY);
                 assertThat(countryV2.get()).isEqualTo(BRAZIL);
             }
 
@@ -681,9 +645,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[3],
                         config,
                         config,
-                        networkInfo,
-                        mock(Metrics.class),
-                        mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -701,7 +662,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         .isInstanceOf(IllegalArgumentException.class);
 
                 // And this should be updated
-                final ReadableKVState<String, String> animalV2 = readableStates.get(ANIMAL_STATE_KEY);
+                final ReadableKVState<ProtoBytes, ProtoBytes> animalV2 = readableStates.get(ANIMAL_STATE_KEY);
                 assertThat(animalV2.get(A_KEY)).isEqualTo(AARDVARK);
                 assertThat(animalV2.get(B_KEY)).isEqualTo(BEAR);
                 assertThat(animalV2.get(C_KEY)).isEqualTo(CUTTLEFISH);
@@ -728,9 +689,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 versions[2],
                                 config,
                                 config,
-                                networkInfo,
-                                mock(Metrics.class),
-                                mock(WritableEntityIdStore.class),
                                 new HashMap<>(),
                                 migrationStateChanges,
                                 startupNetworks,

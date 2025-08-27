@@ -3,22 +3,26 @@ package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.ResettableRandom;
 import com.swirlds.common.test.fixtures.WeightGenerator;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterGenerator;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
+import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.ResettableRandom;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {
@@ -26,7 +30,7 @@ public class OrchestratorBuilder {
     private WeightGenerator weightGenerator = BALANCED;
     private long seed = 0;
     private int totalEventNum = 10_000;
-    private Function<List<Long>, List<EventSource>> eventSourceBuilder = EventSourceFactory::newStandardEventSources;
+    private Function<List<Long>, List<EventSource>> eventSourceBuilder = null;
     private Consumer<EventSource> eventSourceConfigurator = es -> {};
     private PlatformContext platformContext;
     /**
@@ -79,18 +83,32 @@ public class OrchestratorBuilder {
 
     public @NonNull ConsensusTestOrchestrator build() {
         final ResettableRandom random = RandomUtils.initRandom(seed, false);
-        final long weightSeed = random.nextLong();
         final long graphSeed = random.nextLong();
         final long shuffler1Seed = random.nextLong();
         final long shuffler2Seed = random.nextLong();
 
-        final List<Long> weights = weightGenerator.getWeights(weightSeed, numberOfNodes);
-        final List<EventSource> eventSources = eventSourceBuilder.apply(weights);
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withSize(numberOfNodes)
+                .withWeightGenerator(weightGenerator)
+                .build();
+
+        final List<Long> weights =
+                roster.rosterEntries().stream().map(RosterEntry::weight).toList();
+        final List<EventSource> eventSources;
+        if (eventSourceBuilder != null) {
+            eventSources = eventSourceBuilder.apply(weights);
+        } else {
+            eventSources = Stream.generate(() -> new StandardEventSource(false))
+                    .map(ses -> (EventSource) ses)
+                    .limit(numberOfNodes)
+                    .toList();
+        }
+
         for (final EventSource eventSource : eventSources) {
             eventSourceConfigurator.accept(eventSource);
         }
         final StandardGraphGenerator graphGenerator =
-                new StandardGraphGenerator(platformContext, graphSeed, eventSources);
+                new StandardGraphGenerator(platformContext, graphSeed, eventSources, roster);
 
         // Make the graph generators create a fresh set of events.
         // Use the same seed so that they create identical graphs.

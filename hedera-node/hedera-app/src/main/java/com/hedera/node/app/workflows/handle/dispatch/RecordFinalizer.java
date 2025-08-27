@@ -53,7 +53,7 @@ public class RecordFinalizer {
                     dispatch.finalizeContext(),
                     dispatch.txnInfo().functionality(),
                     extraRewardReceivers(
-                            dispatch.txnInfo().txBody(), dispatch.txnInfo().functionality(), dispatch.recordBuilder()),
+                            dispatch.txnInfo().txBody(), dispatch.txnInfo().functionality(), dispatch.streamBuilder()),
                     dispatch.handleContext().dispatchPaidRewards());
         } else {
             recordFinalizer.finalizeNonStakingRecord(

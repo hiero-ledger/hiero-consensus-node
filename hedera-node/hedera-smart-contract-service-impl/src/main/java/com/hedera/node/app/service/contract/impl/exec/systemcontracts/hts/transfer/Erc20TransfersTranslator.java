@@ -60,7 +60,7 @@ public class Erc20TransfersTranslator extends AbstractCallTranslator<HtsCallAtte
         // Here, for ERC-20 == fungible tokens, we allow `transferFrom` (signature shared by ERC-20
         // and ERC-721) even if the token type doesn't exist.  (This is the case when `redirectTokenType()`
         // returns `null`.)
-        if (!attempt.isTokenRedirect()) return Optional.empty();
+        if (!attempt.isRedirect()) return Optional.empty();
         if (attempt.redirectTokenType() == NON_FUNGIBLE_UNIQUE) return Optional.empty();
         return attempt.isMethod(ERC_20_TRANSFER, ERC_20_TRANSFER_FROM);
     }

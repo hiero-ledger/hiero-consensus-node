@@ -4,15 +4,14 @@ package com.swirlds.common.merkle.synchronization;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
@@ -27,6 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Performs synchronization in the role of the teacher.
@@ -100,7 +101,11 @@ public class TeachingSynchronizer {
         outputStream = Objects.requireNonNull(out, "out must not be null");
 
         subtrees = new LinkedList<>();
-        subtrees.add(new TeacherSubtree(configuration, root));
+        if (root instanceof CustomReconnectRoot<?, ?> customReconnectRoot) {
+            subtrees.add(new TeacherSubtree(root, customReconnectRoot.buildTeacherView(reconnectConfig)));
+        } else {
+            subtrees.add(new TeacherSubtree(configuration, root));
+        }
 
         this.breakConnection = breakConnection;
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");

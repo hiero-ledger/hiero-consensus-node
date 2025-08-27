@@ -20,8 +20,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 @HapiTestLifecycle
+@OrderedInIsolation
 public class DisabledPrecompileTest {
     @Contract(contract = "PrecompileCaller", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;

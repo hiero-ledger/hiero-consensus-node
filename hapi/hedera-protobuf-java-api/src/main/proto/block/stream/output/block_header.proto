@@ -65,12 +65,27 @@ message BlockHeader {
     uint64 number = 3;
 
     /**
-     * A consensus timestamp for the start of this block.
+     * The timestamp for this block.<br/>
+     * The block timestamp is the consensus time stamp of the first round
+     * in the block.
      * <p>
-     * This SHALL be the timestamp assigned by the hashgraph consensus
-     * algorithm to the first transaction of this block.
+     * This SHALL be a timestamp for the block, determined as follows:<br/>
+     * Given the first round within a block
+     * <ul>
+     *  <li>If the round contains events and transactions, the
+     *       timestamp SHALL be the timestamp of the last transaction in
+     *       the round.</li>
+     *  <li>If the round has events but no transactions the timestamp
+     *      SHALL be the timestamp of the last event in the round.</li>
+     *  <li>If the round contains no events or transactions, the
+     *      timestamp SHALL be the timestamp of the previous round plus
+     *      1000 nanoseconds.</li>
+     *  <li>If the round contains no events or transactions and there
+     *      is no previous round, the timestamp SHALL be the median of
+     *      the judge created timestamps for this round.</li>
+     * </ul>
      */
-    proto.Timestamp first_transaction_consensus_time = 4;
+    proto.Timestamp block_timestamp = 4;
 
     /**
      * A hash algorithm used for this block, including the block proof.

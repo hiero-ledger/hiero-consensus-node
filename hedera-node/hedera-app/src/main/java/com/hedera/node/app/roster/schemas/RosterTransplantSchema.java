@@ -9,17 +9,18 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * The {@link Schema#restart(MigrationContext)} implementation whereby the {@link RosterService} ensures that any
@@ -34,10 +35,12 @@ public interface RosterTransplantSchema {
      * Restart the {@link RosterService} by copying any roster overrides from the startup assets into the state.
      *
      * @param ctx the migration context
+     * @param onAdopt a callback to invoke with an outgoing roster being replaced by a new roster hash
      * @param rosterStoreFactory the factory to use to create the writable roster store
      */
     default boolean restart(
             @NonNull final MigrationContext ctx,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
         final long roundNumber = ctx.roundNumber();
@@ -47,12 +50,15 @@ public interface RosterTransplantSchema {
             final long activeRoundNumber = roundNumber + 1;
             log.info("Adopting roster from override network in round {}", activeRoundNumber);
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
+            final var outgoingRoster = requireNonNull(rosterStore.getActiveRoster());
             final var overrideRoster = RosterUtils.rosterFrom(network);
             final var networkAdminConfig = ctx.appConfig().getConfigData(NetworkAdminConfig.class);
             final var roster = networkAdminConfig.preserveStateWeightsDuringOverride()
                     ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
                     : overrideRoster;
             rosterStore.putActiveRoster(roster, activeRoundNumber);
+            rosterStore.updateTransplantInProgress(true);
+            onAdopt.accept(outgoingRoster, roster);
             startupNetworks.setOverrideRound(roundNumber);
         });
         return overrideNetwork.isPresent();

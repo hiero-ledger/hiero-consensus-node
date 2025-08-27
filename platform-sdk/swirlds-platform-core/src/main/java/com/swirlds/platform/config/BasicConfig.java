@@ -3,13 +3,13 @@ package com.swirlds.platform.config;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Basic configuration data record. This record contains all general config properties that can not be defined for a
@@ -33,8 +33,6 @@ import java.util.List;
  *                                     error message is written to the log.
  * @param emergencyRecoveryFileLoadDir The path to look for an emergency recovery file on node start. If a file is
  *                                     present in this directory at startup, emergency recovery will begin.
- * @param genesisFreezeTime            If this node starts from genesis, this value is used as the freeze time. This
- *                                     feature is deprecated and planned for removal in a future platform version.
  */
 @ConfigData
 public record BasicConfig(
@@ -44,7 +42,6 @@ public record BasicConfig(
         @ConfigProperty(defaultValue = "1000") int jvmPauseReportMs,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
         @ConfigProperty(defaultValue = "data/saved") String emergencyRecoveryFileLoadDir,
-        @ConfigProperty(defaultValue = "0") long genesisFreezeTime,
         @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NodeId> nodesToRun) {
 
     /**

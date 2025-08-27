@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
@@ -22,6 +20,8 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This class manages the learner's work task for synchronization.

@@ -14,11 +14,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THRESHOLD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -64,6 +63,8 @@ import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -73,9 +74,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -146,7 +145,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator());
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
     }
 
     @Test
@@ -211,7 +210,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     void validateNonZeroShardAndRealm() {
         final long shard = 5;
         final long realm = 10;
-        txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
+        txn = new CryptoCreateBuilder()
+                .withStakedAccountId(3)
+                .withShardId(shard)
+                .withRealmId(realm)
+                .build();
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -219,7 +222,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(entityNumGenerator.newEntityNum()).willReturn(1000L);
         given(handleContext.payer()).willReturn(id);
         final var config = HederaTestConfigBuilder.create()
-                .withValue("cryptoCreateWithAlias.enabled", true)
                 .withValue("ledger.maxAutoAssociations", 5000)
                 .withValue("entities.limitTokenAssociations", false)
                 .withValue("tokens.maxPerAccount", 1000)
@@ -661,24 +663,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void validateAliasNotSupport() {
-        txn = new CryptoCreateBuilder()
-                .withStakedAccountId(3)
-                .withKey(null)
-                .withAlias(Bytes.wrap("alias"))
-                .build();
-        given(handleContext.body()).willReturn(txn);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("cryptoCreateWithAlias.enabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        setupExpiryValidator();
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(NOT_SUPPORTED, msg.getStatus());
-    }
-
-    @Test
     void validateAliasInvalid() {
         txn = new CryptoCreateBuilder()
                 .withStakedAccountId(3)
@@ -688,9 +672,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
         given(handleContext.consensusNow()).willReturn(consensusInstant);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("cryptoCreateWithAlias.enabled", true)
-                .getOrCreateConfig();
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         setupExpiryValidator();
 
@@ -744,7 +726,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final var writableAliases = emptyWritableAliasStateBuilder()
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
         when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
 
@@ -782,13 +764,12 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private void changeAccountToDeleted() {
         final var copy = account.copyBuilder().deleted(true).build();
         writableAccounts.put(id, copy);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 
     private void setupConfig() {
         final var config = HederaTestConfigBuilder.create()
-                .withValue("cryptoCreateWithAlias.enabled", true)
                 .withValue("ledger.maxAutoAssociations", 5000)
                 .withValue("entities.limitTokenAssociations", false)
                 .withValue("tokens.maxPerAccount", 1000)

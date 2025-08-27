@@ -136,6 +136,17 @@ public record ValidationResult(
     }
 
     /**
+     * Creates an error report with no error.
+     * @param creatorId the creator account ID
+     * @return the error report
+     */
+    @NonNull
+    public static ValidationResult newGenesisWaiver(@NonNull final AccountID creatorId) {
+        requireNonNull(creatorId);
+        return new ValidationResult(creatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
+    }
+
+    /**
      * Returns true if no errors were found.
      */
     public boolean isSuccess() {

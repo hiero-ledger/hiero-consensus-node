@@ -2,22 +2,23 @@
 package com.swirlds.common.utility;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
-import static com.swirlds.common.utility.ByteUtils.byteArrayToShort;
+import static org.hiero.base.utility.ByteUtils.byteArrayToShort;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A utility class for creating mnemonic words.
  */
 public final class Mnemonics {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private Mnemonics() {}
 
@@ -2189,5 +2190,9 @@ public final class Mnemonics {
      */
     public static String generateMnemonic(final byte[] data, final int wordCount) {
         return formattedList(generateMnemonicWords(data, wordCount).iterator(), "-");
+    }
+
+    public static String generateMnemonic(final Hash hash) {
+        return generateMnemonic(hash.copyToByteArray(), 4);
     }
 }

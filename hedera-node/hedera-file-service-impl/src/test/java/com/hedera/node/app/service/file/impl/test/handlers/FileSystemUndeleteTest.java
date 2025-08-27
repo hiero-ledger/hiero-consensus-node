@@ -35,6 +35,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -85,6 +86,9 @@ class FileSystemUndeleteTest extends FileTestBase {
 
     @Mock
     private PureChecksContext context;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     @Mock
     private TransactionChecker transactionChecker;
@@ -150,7 +154,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         mockPayerLookup();
         given(mockStore.getFileMetadata(notNull())).willReturn(null);
         final var context = new PreHandleContextImpl(
-                mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher, transactionChecker);
+                mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         // when:
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_FILE_ID);

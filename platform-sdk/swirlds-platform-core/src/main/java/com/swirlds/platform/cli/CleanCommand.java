@@ -13,12 +13,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
 
 @CommandLine.Command(

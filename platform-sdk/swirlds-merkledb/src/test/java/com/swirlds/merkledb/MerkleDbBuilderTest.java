@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -14,12 +13,15 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class MerkleDbBuilderTest {
+
+    private static final long INITIAL_SIZE = 1_000_000;
 
     private static Path testDirectory;
 
@@ -37,10 +39,11 @@ class MerkleDbBuilderTest {
     private MerkleDbTableConfig createTableConfig() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, INITIAL_SIZE, merkleDbConfig.hashesRamToDiskThreshold());
+    }
+
+    private MerkleDbTableConfig createTableConfig(final long initialCapacity, final long hashesRamToDiskThreshold) {
+        return new MerkleDbTableConfig((short) 1, DigestType.SHA_384, initialCapacity, hashesRamToDiskThreshold);
     }
 
     @Test
@@ -82,7 +85,7 @@ class MerkleDbBuilderTest {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
             final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
             assertFalse(merkleDbDataSource.isPreferDiskBasedIndexes());
-            assertEquals(merkleDbConfig.maxNumOfKeys(), merkleDbDataSource.getMaxNumberOfKeys());
+            assertEquals(INITIAL_SIZE, merkleDbDataSource.getInitialCapacity());
             assertEquals(merkleDbConfig.hashesRamToDiskThreshold(), merkleDbDataSource.getHashesRamToDiskThreshold());
             // set explicitly above
             assertFalse(merkleDbDataSource.isCompactionEnabled());
@@ -94,10 +97,9 @@ class MerkleDbBuilderTest {
     }
 
     @Test
-    @DisplayName("Test data source config overrides")
-    public void testBuilderOverrides() throws IOException {
-        final MerkleDbTableConfig tableConfig = createTableConfig();
-        tableConfig.maxNumberOfKeys(1999).hashesRamToDiskThreshold(Integer.MAX_VALUE >> 4);
+    @DisplayName("Test custom table config values")
+    public void testCustomTableConfig() throws IOException {
+        final MerkleDbTableConfig tableConfig = createTableConfig(1999, Integer.MAX_VALUE >> 4);
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
         final Path defaultDbPath = testDirectory.resolve("defaultDatabasePath");
         MerkleDb.setDefaultPath(defaultDbPath);
@@ -108,7 +110,7 @@ class MerkleDbBuilderTest {
             assertEquals(
                     defaultDbPath.resolve("tables").resolve("test3-" + merkleDbDataSource.getTableId()),
                     merkleDbDataSource.getStorageDir());
-            assertEquals(1999, merkleDbDataSource.getMaxNumberOfKeys());
+            assertEquals(1999, merkleDbDataSource.getInitialCapacity());
             assertEquals(Integer.MAX_VALUE >> 4, merkleDbDataSource.getHashesRamToDiskThreshold());
             // set explicitly above
             assertTrue(merkleDbDataSource.isCompactionEnabled());

@@ -20,12 +20,12 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A node running in the same OS process as the JUnit test runner, with a direct reference
@@ -63,13 +63,17 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         System.setProperty(
                 "bootstrap.nodeAdminKeys.path",
                 getExternalPath(NODE_ADMIN_KEYS_JSON).toAbsolutePath().toString());
+        System.setProperty(
+                "bootstrap.hapiPermissions.path",
+                getExternalPath(DATA_CONFIG_DIR)
+                        .resolve("api-permission.properties")
+                        .toAbsolutePath()
+                        .toString());
         System.setProperty("hedera.profiles.active", "DEV");
 
         // We get the shard/realm from the metadata account which is coming from the property file
-        var shard = metadata().accountId().shardNum();
-        var realm = metadata().accountId().realmNum();
-        System.setProperty("hedera.shard", String.valueOf(shard));
-        System.setProperty("hedera.realm", String.valueOf(realm));
+        System.setProperty("hedera.shard", String.valueOf(metadata().accountId().shardNum()));
+        System.setProperty("hedera.realm", String.valueOf(metadata().accountId().realmNum()));
 
         final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
         if (isForShared(log4j2ConfigLoc)) {
@@ -90,13 +94,13 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
 
     @Override
     public CompletableFuture<Void> statusFuture(
-            @NonNull final PlatformStatus status, @Nullable final Consumer<NodeStatus> nodeStatusObserver) {
+            @Nullable final Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
         throw new UnsupportedOperationException("Prefer awaiting status of the embedded network");
     }
 
     @Override
-    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
-        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
+        throw new UnsupportedOperationException("Logs not reliably written in an embedded network");
     }
 
     @Override

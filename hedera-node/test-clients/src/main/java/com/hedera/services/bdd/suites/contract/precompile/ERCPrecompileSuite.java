@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
+import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -46,6 +45,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -86,7 +86,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+@Tag(LONG_RUNNING)
 public class ERCPrecompileSuite {
 
     private static final Logger log = LogManager.getLogger(ERCPrecompileSuite.class);
@@ -413,8 +413,7 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(id -> tokenAddr.set(asHexedSolidityAddress(asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
@@ -442,8 +441,8 @@ public class ERCPrecompileSuite {
                             spec.registry().getContractInfo(ERC_20_CONTRACT).getContractID();
                     final var receiver =
                             spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(TRANSFER_TXN)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -501,8 +500,8 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(
+                                id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
@@ -1452,8 +1451,7 @@ public class ERCPrecompileSuite {
                                 ByteString.copyFromUtf8("I dream of silent verses"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 tokenAssociate(B_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(
-                        AccountID.newBuilder().setAccountNum(666_666_666L).build()))),
+                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(spec, 666_666_666L))),
                 // --- Negative cases for approve ---
                 // * Can't approve a non-existent serial number
                 sourcing(() -> contractCall(
@@ -2701,8 +2699,8 @@ public class ERCPrecompileSuite {
                     final var sender = spec.registry().getAccountInfo(OWNER).getAccountID();
                     final var receiver =
                             spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken = "0.0."
-                            + (spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -2718,10 +2716,7 @@ public class ERCPrecompileSuite {
                                                                     receiver.getShardNum(),
                                                                     receiver.getRealmNum(),
                                                                     receiver.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    1L)))))))
+                                                            parsedToByteString(1L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);

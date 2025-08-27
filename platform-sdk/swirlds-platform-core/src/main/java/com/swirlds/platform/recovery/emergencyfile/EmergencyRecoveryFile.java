@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -13,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Defines all data related to the emergency recovery file and how it is formatted.
@@ -86,7 +86,7 @@ public record EmergencyRecoveryFile(@NonNull Recovery recovery) {
      * Creates a record with the data contained in the emergency recovery file in the directory specified, or null if
      * the file does not exist.
      *
-     * @param stateConfig state configuration from the platfrom
+     * @param stateConfig state configuration from the platform
      * @param directory the directory containing the emergency recovery file. Must exist and be readable.
      * @param failOnMissingFields if true, throw an exception if the file is missing any fields. If false, ignore
      * @return a new record containing the emergency recovery data in the file, or null if no emergency recovery file

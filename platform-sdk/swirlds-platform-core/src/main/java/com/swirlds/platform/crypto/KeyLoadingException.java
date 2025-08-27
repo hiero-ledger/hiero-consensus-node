@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import com.swirlds.common.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Thrown when an issue occurs while loading keys from pfx files

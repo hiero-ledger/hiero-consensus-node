@@ -14,8 +14,8 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -47,6 +47,7 @@ class HistorySubmissionsTest {
 
     @BeforeEach
     void setUp() {
+        given(gossip.isAvailable()).willReturn(true);
         subject = new HistorySubmissions(executor, appContext);
     }
 

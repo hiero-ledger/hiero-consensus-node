@@ -12,6 +12,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -86,6 +94,22 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
+  hapi-tests-misc-records:
+    name: HAPI Tests (Misc Records)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-hapi-tests-misc-records: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   hapi-tests-crypto:
     name: HAPI Tests (Crypto)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
@@ -105,6 +129,9 @@ jobs:
   hapi-tests-iss:
     name: HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
     with:
       custom-job-label: Standard
       enable-unit-tests: false
@@ -179,95 +206,21 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  # No longer executed on pull requests. May be executed when manually
-  # running the workflow on a given branch or commit. Added to the extended
-  # test suites and will be executed on at least 1 commit every 3 hours.
-  # (takes > 20 minutes)
-  hapi-tests-time-consuming:
-    name: HAPI Tests (Time Consuming)
+  otter-tests:
+    name: Otter Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - dependency-check
       - spotless
-    # Add this if back in after CITR Pager duty reporting service is in place
-    # if: ${{ github.event_name == 'workflow_dispatch' }}
     with:
       custom-job-label: Standard
       enable-unit-tests: false
-      enable-hapi-tests-time-consuming: true
+      enable-otter-tests: true
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  # No longer executed on pull requests. May be executed when manually
-  # running the workflow on a given branch or commit. Added to the extended
-  # test suites and will be executed on at least 1 commit every 3 hours.
-  # (takes > 50 minutes)
-  abbreviated-panel:
-    name: JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs:
-      - dependency-check
-      - spotless
-    # Add this if back in after CITR Pager duty reporting service is in place
-    # if: ${{ github.event_name == 'workflow_dispatch' }}
-    # Turn off this if check when CITR Pager duty reporting service is in place
-    if: ${{ github.event_name != 'pull_request' ||
-      (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      custom-job-name: "Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      base-branch-name: ${{ github.base_ref || '' }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  # No longer executed on pull requests. May be executed when manually
-  # running the workflow on a given branch or commit. Added to the extended
-  # test suites and will be executed on at least 1 commit every 3 hours.
-  # (takes > 1 hour)
-  hedera-node-jrs-panel:
-    name: Hedera Node JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs:
-      - dependency-check
-      - spotless
-    # Add this if back in after CITR Pager duty reporting service is in place
-    # if: ${{ github.event_name == 'workflow_dispatch' }}
-    # Turn off this if check when CITR Pager duty reporting service is in place
-    if: ${{ github.event_name != 'pull_request' ||
-      (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      custom-job-name: "Abbrev Update Test"
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      hedera-tests-enabled: true
-      use-branch-for-slack-channel: false
-      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
 
   snyk-scan:
     name: Snyk Scan

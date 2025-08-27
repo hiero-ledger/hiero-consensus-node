@@ -1,23 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import static com.swirlds.logging.legacy.LogMarker.*;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.*;
+import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.network.ConnectionTracker;
+import com.swirlds.platform.network.NetworkUtils;
+import com.swirlds.platform.network.PeerInfo;
+import com.swirlds.platform.network.SocketConfig;
+import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterEntryNotFoundException;
 
 /**
  * Creates outbound connections to the requested peers
@@ -31,7 +48,7 @@ public class OutboundConnectionCreator {
     private final ConnectionTracker connectionTracker;
     private final SocketFactory socketFactory;
     private final PlatformContext platformContext;
-    private final List<PeerInfo> peers;
+    private final Map<NodeId, PeerInfo> peers = new HashMap<>();
 
     public OutboundConnectionCreator(
             @NonNull final PlatformContext platformContext,
@@ -43,7 +60,7 @@ public class OutboundConnectionCreator {
         this.selfId = Objects.requireNonNull(selfId);
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
         this.socketFactory = Objects.requireNonNull(socketFactory);
-        this.peers = Objects.requireNonNull(peers);
+        this.peers.putAll(peers.stream().collect(Collectors.toMap(PeerInfo::nodeId, Function.identity())));
         this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
         this.gossipConfig = platformContext.getConfiguration().getConfigData(GossipConfig.class);
     }
@@ -56,7 +73,12 @@ public class OutboundConnectionCreator {
      * @return the new connection, or a connection that is not connected if it couldn't connect on the first try
      */
     public Connection createConnection(final NodeId otherId) {
-        final PeerInfo other = PeerInfo.find(peers, otherId);
+
+        final PeerInfo other = peers.get(otherId);
+        if (other == null) {
+            throw new RosterEntryNotFoundException(
+                    "No RosterEntry with nodeId: " + otherId + " in peer list: " + peers.keySet());
+        }
 
         // NOTE: we always connect to the first ServiceEndpoint, which for now represents a legacy "external" address
         // (which may change in the future as new Rosters get installed).

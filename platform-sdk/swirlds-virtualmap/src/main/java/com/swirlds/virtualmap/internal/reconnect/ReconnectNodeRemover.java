@@ -3,14 +3,13 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Stream;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,7 +51,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * Can be used to access the tree being constructed.
      */
-    private final RecordAccessor<K, ?> oldRecords;
+    private final RecordAccessor oldRecords;
 
     /**
      * The first leaf path of the original merkle tree.
@@ -65,12 +64,9 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     private final long oldLastLeafPath;
 
     /**
-     * Set of keys (actually, keys + paths) collected for removal. This set is empties every
-     * time {@link #getRecordsToDelete()} is called, and a new set is started. The set is
-     * populated in {@link #newLeafNode(long, VirtualKey)} based on what is received from the
-     * teacher (method args) and what was on the learner ({@link #oldRecords}).
+     * A flusher used to delete old leaves from the data source.
      */
-    private Set<VirtualLeafRecord<K, ?>> leavesToDelete = new HashSet<>();
+    private final ReconnectHashLeafFlusher flusher;
 
     /**
      * Create an object responsible for removing virtual map nodes during a reconnect.
@@ -83,10 +79,14 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the original last leaf path from before the reconnect
      */
     public ReconnectNodeRemover(
-            final RecordAccessor<K, ?> oldRecords, final long oldFirstLeafPath, final long oldLastLeafPath) {
+            @NonNull final RecordAccessor oldRecords,
+            final long oldFirstLeafPath,
+            final long oldLastLeafPath,
+            @NonNull final ReconnectHashLeafFlusher flusher) {
         this.oldRecords = oldRecords;
         this.oldFirstLeafPath = oldFirstLeafPath;
         this.oldLastLeafPath = oldLastLeafPath;
+        this.flusher = flusher;
     }
 
     /**
@@ -103,16 +103,24 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the last leaf path after reconnect completes
      */
     public synchronized void setPathInformation(final long newFirstLeafPath, final long newLastLeafPath) {
+        logger.info(
+                RECONNECT.getMarker(),
+                "setPathInformation(): firstLeafPath: {} -> {}, lastLeafPath: {} -> {}",
+                oldFirstLeafPath,
+                newFirstLeafPath,
+                oldLastLeafPath,
+                newLastLeafPath);
+        flusher.start(newFirstLeafPath, newLastLeafPath);
         this.newLastLeafPath = newLastLeafPath;
-
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path
             for (long path = oldFirstLeafPath; path < Math.min(newFirstLeafPath, oldLastLeafPath + 1); path++) {
-                final VirtualLeafRecord<K, ?> oldRecord = oldRecords.findLeafRecord(path, false);
+                final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
                 assert oldRecord != null;
-                leavesToDelete.add(oldRecord);
+                flusher.deleteLeaf(oldRecord);
             }
         }
+        logger.info(RECONNECT.getMarker(), "setPathInformation(): done");
     }
 
     /**
@@ -124,41 +132,24 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * @param newKey
      * 		the key of the new leaf node
      */
-    public synchronized void newLeafNode(final long path, final K newKey) {
-        final VirtualLeafRecord<K, ?> oldRecord = oldRecords.findLeafRecord(path, false);
-        if ((oldRecord != null) && !newKey.equals(oldRecord.getKey())) {
-            leavesToDelete.add(oldRecord);
+    public synchronized void newLeafNode(final long path, final Bytes newKey) {
+        final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
+        if ((oldRecord != null) && !newKey.equals(oldRecord.keyBytes())) {
+            flusher.deleteLeaf(oldRecord);
         }
     }
 
     public synchronized void allNodesReceived() {
-        logger.info(
-                RECONNECT.getMarker(),
-                "allNodesReceived(): newLastLeafPath = " + newLastLeafPath + ", oldLastLeafPath = " + oldLastLeafPath);
+        logger.info(RECONNECT.getMarker(), "allNodesReceived()");
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
-            final VirtualLeafRecord<K, ?> oldExtraLeafRecord = oldRecords.findLeafRecord(p, false);
+            final VirtualLeafBytes oldExtraLeafRecord = oldRecords.findLeafRecord(p);
             assert oldExtraLeafRecord != null || p < oldFirstLeafPath;
             if (oldExtraLeafRecord != null) {
-                leavesToDelete.add(oldExtraLeafRecord);
+                flusher.deleteLeaf(oldExtraLeafRecord);
             }
         }
-    }
-
-    /**
-     * Return a stream of keys collected so far for deletion. The set of collected keys is reset,
-     * so subsequent calls to this method will return different keys collected in {@link
-     * #newLeafNode(long, VirtualKey)}.
-     *
-     * @return a stream of keys to be deleted. Only the key and path in these records
-     * 		are populated, all other data is uninitialized.
-     */
-    public synchronized Stream<VirtualLeafRecord<K, V>> getRecordsToDelete() {
-        final Stream<VirtualLeafRecord<K, V>> stream =
-                leavesToDelete.stream().map(r -> new VirtualLeafRecord<>(r.getPath(), r.getKey(), null));
-        // Don't use clear(), as it would affect the returned stream
-        leavesToDelete = new HashSet<>();
-        return stream;
+        logger.info(RECONNECT.getMarker(), "allNodesReceived(): done");
     }
 }

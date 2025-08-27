@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io;
 
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -81,7 +81,7 @@ public interface IOIterator<T> extends AutoCloseableNonThrowing {
      * 		a function that converts from the old type into the new type.
      * @param <U>
      * 		the type returned by the new iterator
-     * @return an iterator that walks the same data but returns a differnet type
+     * @return an iterator that walks the same data but returns a different type
      */
     default <U> IOIterator<U> transform(final Function<T, U> converter) {
 

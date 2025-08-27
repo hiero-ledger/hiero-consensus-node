@@ -1,45 +1,28 @@
-##
-# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [Node] Deploy Integration Network Release"
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        required: true
-        description: "The github branch or tag that triggered the workflow"
 
 permissions:
   contents: read
 
 jobs:
-  jenkins-checks:
-    name: Build Artifact
+  ### The Jenkins workflow is only accepting integration deployments from the main branch where the ref is `refs/heads/main`.
+  ### Therefore, we have hardcoded the ref to `refs/heads/main` in the checkout step and the payload sent to Jenkins.
+  integration-deploy:
+    name: Integration / Deploy Artifact
     runs-on: hiero-network-node-linux-medium
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Check out code at the specified ref
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: refs/heads/main
 
       - name: Gather commit info
         id: gather-commit-info
@@ -50,14 +33,14 @@ jobs:
           COMMIT_SHA="$(git rev-parse HEAD)"
 
           # Print them to the console
-          echo "Commit Author: $COMMIT_AUTHOR"
-          echo "Commit Message: $COMMIT_MSG"
-          echo "Commit SHA: $COMMIT_SHA"
+          echo "Commit Author: ${COMMIT_AUTHOR}"
+          echo "Commit Message: ${COMMIT_MSG}"
+          echo "Commit SHA: ${COMMIT_SHA}"
 
           # Expose them as outputs for the next steps
-          echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
-          echo "msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "author=${COMMIT_AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "msg=${COMMIT_MSG}" >> "${GITHUB_OUTPUT}"
+          echo "sha=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
 
       - name: Notify Jenkins of Release (Integration)
         id: jenkins-integration
@@ -65,12 +48,12 @@ jobs:
         with:
           url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
           data: |
-            '{
-              "ref": "${{ inputs.ref }}",
+            {
+              "ref": "refs/heads/main",
               "author": "${{ steps.gather-commit-info.outputs.author }}",
               "msg": "${{ steps.gather-commit-info.outputs.msg }}",
               "sha": "${{ steps.gather-commit-info.outputs.sha }}"
-            }'
+            }
 
       - name: Display Jenkins Payload
         env:

@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTRIES_FOR_FEE_EXE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder.getConsensusUpdateTopicFee;
 import static com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder.getUpdateTopicRbsIncrease;
-import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
@@ -273,7 +273,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         if (updatesExpiryMeta(op)) {
             final var updateMeta = new ExpiryMeta(effExpiryOf(op), effAutoRenewPeriodOf(op), op.autoRenewAccount());
             try {
-                return expiryValidator.resolveUpdateAttempt(currentMeta, updateMeta, false);
+                return expiryValidator.resolveUpdateAttempt(currentMeta, updateMeta);
             } catch (final HandleException e) {
                 if (e.getStatus() == INVALID_RENEWAL_PERIOD) {
                     // Tokens throw INVALID_EXPIRATION_TIME, but for topic it's expected currently to throw

@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Regression"
 on:
   workflow_call:
@@ -92,12 +77,12 @@ on:
         description: ""
         required: false
         type: string
-        default: "35.247.76.217"
+        default: "jrs.reports.eng.hashgraph.io"
       jrs-web-port:
         description: ""
         required: false
         type: number
-        default: 8095
+        default: 0
       summary-bucket:
         description: ""
         required: false
@@ -187,7 +172,7 @@ jobs:
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -261,7 +246,7 @@ jobs:
           sudo chmod +x /usr/local/ping-exporter/ping_exporter
 
       - name: Execute Ping Exporter
-        uses: JarvusInnovations/background-action@2428e7b970a846423095c79d43f759abf979a635 # v1.0.7
+        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
         with:
           run: |
             sudo setcap cap_net_raw+ep /usr/local/ping-exporter/ping_exporter
@@ -273,7 +258,7 @@ jobs:
             http://localhost:9427/metrics
 
       - name: Execute Grafana Agent
-        uses: JarvusInnovations/background-action@2428e7b970a846423095c79d43f759abf979a635 # v1.0.7
+        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
         env:
           GRAFANA_AGENT_USERNAME: ${{ secrets.grafana-agent-username }}
           GRAFANA_AGENT_PASSWORD: ${{ secrets.grafana-agent-password }}
@@ -287,18 +272,18 @@ jobs:
             http://localhost:9427/metrics
 
       - name: Setup NodeJS Environment
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 18
 
       - name: Setup Java
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
@@ -325,7 +310,7 @@ jobs:
           fi
 
       - name: Install SSH key
-        uses: step-security/ssh-key-action@dfbe08d4d30e35c572b26d0012a8205cb1924b51 # v2.7.0
+        uses: step-security/ssh-key-action@f1316fac9982b07b13cadd1b0c20b6c00db5e92a # v2.7.1
         with:
           name: jrs-ssh-keyfile
           key: ${{ secrets.jrs-ssh-key-file }}
@@ -341,13 +326,13 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/785813846068/locations/global/workloadIdentityPools/jrs-identity-pool/providers/gh-provider"
           service_account: "swirlds-automation@swirlds-regression.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         with:
           install_components: "alpha"
 

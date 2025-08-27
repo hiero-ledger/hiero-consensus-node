@@ -34,16 +34,11 @@ tasks.jar {
 val demoApp = configurations.dependencyScope("demoApp")
 
 dependencies {
-    demoApp(project(":AddressBookTestingTool"))
     demoApp(project(":ConsistencyTestingTool"))
-    demoApp(project(":CryptocurrencyDemo"))
-    demoApp(project(":HelloSwirldDemo"))
     demoApp(project(":ISSTestingTool"))
     demoApp(project(":MigrationTestingTool"))
     demoApp(project(":PlatformTestingTool"))
     demoApp(project(":StatsDemo"))
-    demoApp(project(":StatsSigningTestingTool"))
-    demoApp(project(":StressTestingTool"))
 }
 
 val demoAppsRuntimeClasspath =

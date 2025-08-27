@@ -37,10 +37,18 @@ public enum NoopFeeCharging implements FeeCharging {
     }
 
     @Override
-    public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
+        return Fees.FREE;
+    }
+
+    @Override
+    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(ctx);
+        requireNonNull(fees);
+        // No-op
     }
 
     private record PassedValidation(boolean creatorDidDueDiligence, @Nullable ResponseCodeEnum maybeErrorStatus)

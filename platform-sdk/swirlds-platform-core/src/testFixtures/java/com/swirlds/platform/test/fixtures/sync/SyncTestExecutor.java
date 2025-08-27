@@ -3,22 +3,17 @@ package com.swirlds.platform.test.fixtures.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
@@ -32,6 +27,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
  * This class executes a single sync between two {@link SyncNode} instances. It defines the high level structure and
@@ -57,17 +54,15 @@ public class SyncTestExecutor {
     private BiConsumer<SyncNode, SyncNode> eventWindowDefinitions;
     private Predicate<EventImpl> callerAddToGraphTest;
     private Predicate<EventImpl> listenerAddToGraphTest;
-    private final AncientMode ancientMode;
 
     /**
-     * A randomly generated address book from the number of nodes in the parameters of the test.
+     * A randomly generated roster from the number of nodes in the parameters of the test.
      */
-    private AddressBook addressBook;
+    private Roster roster;
 
     public SyncTestExecutor(final SyncTestParams params) {
         this.params = params;
-        this.ancientMode = params.getAncientMode();
-        this.addressBook = RandomAddressBookBuilder.create(Randotron.create())
+        this.roster = RandomRosterBuilder.create(Randotron.create())
                 .withSize(params.getNumNetworkNodes())
                 .build();
 
@@ -85,17 +80,12 @@ public class SyncTestExecutor {
             return executor;
         };
         callerSupplier = (factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledFromSourceFactory(),
-                callerExecutorSupplier.get(),
-                ancientMode);
+                params.getNumNetworkNodes(), 0, factory.newShuffledFromSourceFactory(), callerExecutorSupplier.get());
         listenerSupplier = (factory) -> new SyncNode(
                 params.getNumNetworkNodes(),
                 params.getNumNetworkNodes() - 1,
                 factory.newShuffledFromSourceFactory(),
-                listenerExecutorSupplier.get(),
-                ancientMode);
+                listenerExecutorSupplier.get());
 
         initialGraphCreation = (caller, listener) -> {
             for (final SyncNode node : List.of(caller, listener)) {
@@ -113,14 +103,9 @@ public class SyncTestExecutor {
         connectionFactory = ConnectionFactory::createLocalConnections;
     }
 
-    /**
-     * Returns the address book.
-     *
-     * @return the address book
-     */
     @NonNull
-    public AddressBook getAddressBook() {
-        return addressBook;
+    public Roster getRoster() {
+        return roster;
     }
 
     /**
@@ -154,15 +139,10 @@ public class SyncTestExecutor {
             random = new Random(params.getCustomSeed());
         }
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(
-                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                                ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
-                        .getOrCreateConfig())
-                .build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
 
-        final EventEmitterFactory factory = new EventEmitterFactory(platformContext, random, addressBook);
+        final EventEmitterFactory factory = new EventEmitterFactory(platformContext, random, roster);
 
         factoryConfig.accept(factory);
 
@@ -204,12 +184,12 @@ public class SyncTestExecutor {
             final List<ShadowEvent> callerTips = caller.getShadowGraph().getTips();
             final List<ShadowEvent> listenerTips = listener.getShadowGraph().getTips();
 
-            final long listenerExpiredThreshold = SyncTestUtils.getMinIndicator(
-                    listener.getShadowGraph().findAncestors(listenerTips, (e) -> true), ancientMode);
-            final long listenerMaxIndicator = SyncTestUtils.getMaxIndicator(listenerTips, ancientMode);
-            final long callerExpiredThreshold = SyncTestUtils.getMinIndicator(
-                    caller.getShadowGraph().findAncestors(callerTips, (e) -> true), ancientMode);
-            final long callerMaxIndicator = SyncTestUtils.getMaxIndicator(callerTips, ancientMode);
+            final long listenerExpiredThreshold =
+                    SyncTestUtils.getMinIndicator(listener.getShadowGraph().findAncestors(listenerTips, (e) -> true));
+            final long listenerMaxIndicator = SyncTestUtils.getMaxIndicator(listenerTips);
+            final long callerExpiredThreshold =
+                    SyncTestUtils.getMinIndicator(caller.getShadowGraph().findAncestors(callerTips, (e) -> true));
+            final long callerMaxIndicator = SyncTestUtils.getMaxIndicator(callerTips);
 
             long listenerAncientThreshold = listenerExpiredThreshold;
             final double listenerDif = listenerMaxIndicator - listenerExpiredThreshold;
@@ -227,17 +207,15 @@ public class SyncTestExecutor {
                 callerAncientThreshold++;
             }
 
-            caller.updateEventWindow(new EventWindow(
-                    ancientMode.getGenesisIndicator(),
-                    Math.max(ancientMode.getGenesisIndicator(), callerAncientThreshold),
-                    Math.max(ancientMode.getGenesisIndicator(), callerExpiredThreshold),
-                    ancientMode));
+            caller.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientThresholdOrGenesis(callerAncientThreshold)
+                    .setExpiredThresholdOrGenesis(callerExpiredThreshold)
+                    .build());
 
-            listener.updateEventWindow(new EventWindow(
-                    ancientMode.getGenesisIndicator(),
-                    Math.max(ancientMode.getGenesisIndicator(), listenerAncientThreshold),
-                    Math.max(ancientMode.getGenesisIndicator(), listenerExpiredThreshold),
-                    ancientMode));
+            listener.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientThresholdOrGenesis(listenerAncientThreshold)
+                    .setExpiredThresholdOrGenesis(listenerExpiredThreshold)
+                    .build());
         };
     }
 

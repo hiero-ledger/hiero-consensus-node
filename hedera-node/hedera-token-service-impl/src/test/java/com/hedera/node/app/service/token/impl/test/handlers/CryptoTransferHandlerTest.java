@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
@@ -17,12 +17,14 @@ import static com.hedera.node.app.service.token.impl.test.handlers.transfer.Acco
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.nftTransferWith;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -60,6 +62,8 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -181,7 +185,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.DEFAULT);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(64L);
@@ -236,7 +240,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(176L);
@@ -283,7 +287,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1))
                 .feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
@@ -306,18 +310,6 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(context))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED));
-    }
-
-    @Test
-    void handleHbarAllowancePresentButAllowancesDisabled() {
-        config = defaultConfig().withValue("hedera.allowances.isEnabled", false).getOrCreateConfig();
-        final var txn = newCryptoTransfer(
-                ACCT_3333_MINUS_10.copyBuilder().isApproval(true).build(), ACCT_4444_PLUS_10);
-        final var context = mockContext(txn);
-
-        Assertions.assertThatThrownBy(() -> subject.handle(context))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test
@@ -402,20 +394,6 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
-    void handleHasNftTransfersButNftsNotEnabled() {
-        config = defaultConfig().withValue("tokens.nfts.areEnabled", false).getOrCreateConfig();
-        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
-                .token(TOKEN_2468)
-                .nftTransfers(SERIAL_1_FROM_3333_TO_4444)
-                .build());
-        final var context = mockContext(txn);
-
-        Assertions.assertThatThrownBy(() -> subject.handle(context))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
     void handleExceedsMaxNftTransfersInSingleTokenTransferList() {
         config = defaultConfig().withValue("ledger.nftTransfers.maxLen", 1).getOrCreateConfig();
         // Here we configure a SINGLE TokenTransferList that has 2 nft transfers
@@ -449,37 +427,6 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(context))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(BATCH_SIZE_LIMIT_EXCEEDED));
-    }
-
-    @Test
-    void handleFungibleTokenAllowancePresentButAllowancesDisabled() {
-        config = defaultConfig().withValue("hedera.allowances.isEnabled", false).getOrCreateConfig();
-        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
-                .token(TOKEN_2468)
-                .transfers(ACCT_4444_PLUS_10.copyBuilder().isApproval(true).build())
-                .build());
-        final var context = mockContext(txn);
-
-        Assertions.assertThatThrownBy(() -> subject.handle(context))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
-    void handleNftAllowancePresentButAllowancesDisabled() {
-        config = defaultConfig().withValue("hedera.allowances.isEnabled", false).getOrCreateConfig();
-        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
-                .token(TOKEN_2468)
-                .nftTransfers(SERIAL_1_FROM_3333_TO_4444
-                        .copyBuilder()
-                        .isApproval(true)
-                        .build())
-                .build());
-        final var context = mockContext(txn);
-
-        Assertions.assertThatThrownBy(() -> subject.handle(context))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test
@@ -690,6 +637,92 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
                 .has(responseCode(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
 
+    @Test
+    void checkCalculateFeesHandlesExceptionInternally() {
+        // need to set up a transaction that fails because of insufficient payer balance for custom fee
+        config = defaultConfig().getOrCreateConfig();
+        // setup all of the standard stores
+        givenStoresAndConfig(handleContext);
+        // make txn with owner sending 1000 w/ allowances to unknown aliased id
+        // and token transfer of FT from owner 1000 w/ allowances to unknown aliased id
+        // and one NFT from owner to unknown aliased ID
+        givenTxnWithAllowances();
+        ensureAliasesStep = new EnsureAliasesStep(body);
+        replaceAliasesWithIDsInOp = new ReplaceAliasesWithIDsInOp();
+        associateTokenRecepientsStep = new AssociateTokenRecipientsStep(body);
+
+        CryptoCreateStreamBuilder cryptoCreateRecordBuilder = mock(CryptoCreateStreamBuilder.class);
+
+        given(handleContext.dispatch(
+                        argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
+                                && spenderId.equals(options.payerId()))))
+                .will((invocation) -> {
+                    final var copy =
+                            account.copyBuilder().accountId(hbarReceiverId).build();
+                    writableAccountStore.put(copy);
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
+                    return cryptoCreateRecordBuilder;
+                })
+                .will((invocation) -> {
+                    final var copy =
+                            account.copyBuilder().accountId(tokenReceiverId).build();
+                    writableAccountStore.put(copy);
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
+                    writableTokenRelStore.put(fungibleTokenRelation
+                            .copyBuilder()
+                            .kycGranted(true)
+                            .accountId(tokenReceiverId)
+                            .build());
+                    return cryptoCreateRecordBuilder;
+                });
+
+        when(handleContext.dispatchMetadata()).thenReturn(mock(DispatchMetadata.class));
+
+        FeeContext feeContext = mock(DispatchHandleContext.class);
+        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        FeeCalculator feeCalculator = mock(FeeCalculator.class);
+        Fees fees = mock(Fees.class);
+        when(feeContext.body())
+                .thenReturn(TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                        .cryptoTransfer(body)
+                        .build());
+        when(feeContext.configuration()).thenReturn(config);
+        when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
+        when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
+        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
+        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
+        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
+        when(feeCalculator.calculate()).thenReturn(fees);
+
+        // this confirms that the exception thrown by customFeeAssessor.assessNumberOfCustomFees() is
+        // handled properly by calculateFees()
+        assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
+    }
+
+    @Mock(strictness = LENIENT)
+    protected PreHandleContext preHandleContext;
+
+    @Test
+    void testPreHandler() {
+        givenStoresAndConfig(handleContext);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(preHandleContext.configuration()).willReturn(configuration);
+        body = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(aaWith(ownerId, 1_000), aaWith(unknownAliasedId, -1_000))
+                        .build())
+                .build();
+        givenTxn(body, payerId);
+        given(preHandleContext.body()).willReturn(txn);
+        // this is a debit transfer, not a credit, so it should fail with invalid account id
+        Assertions.assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_ACCOUNT_ID));
+    }
+
     private HandleContext mockContext(final TransactionBody txn) {
         final var context = mock(HandleContext.class);
         given(context.configuration()).willReturn(config);
@@ -701,8 +734,6 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("ledger.transfers.maxLen", 10)
                 .withValue("ledger.tokenTransfers.maxLen", 10)
-                .withValue("tokens.nfts.areEnabled", true)
-                .withValue("ledger.nftTransfers.maxLen", 10)
-                .withValue("hedera.allowances.isEnabled", true);
+                .withValue("ledger.nftTransfers.maxLen", 10);
     }
 }

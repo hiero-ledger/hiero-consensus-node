@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 
 public class HapiThrottleUtils {
@@ -36,6 +38,25 @@ public class HapiThrottleUtils {
                 .setMilliOpsPerSec(group.impliedMilliOpsPerSec())
                 .addAllOperations(group.getOperations())
                 .build();
+    }
+
+    /**
+     * Computes the least common multiple of the given two numbers.
+     *
+     * @param lhs the first number
+     * @param rhs the second number
+     * @return the least common multiple of {@code a} and {@code b}
+     * @throws ArithmeticException if the result overflows a {@code long}
+     */
+    public static long lcm(final long lhs, final long rhs) {
+        if (productWouldOverflow(lhs, rhs)) {
+            throw new ArithmeticException();
+        }
+        return (lhs * rhs) / gcd(Math.min(lhs, rhs), Math.max(lhs, rhs));
+    }
+
+    private static long gcd(final long lhs, final long rhs) {
+        return (lhs == 0) ? rhs : gcd(rhs % lhs, lhs);
     }
 
     private HapiThrottleUtils() {

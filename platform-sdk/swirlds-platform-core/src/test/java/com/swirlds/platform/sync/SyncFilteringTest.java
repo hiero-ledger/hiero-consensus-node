@@ -1,31 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.utility.CompareTo;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +26,13 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.hiero.base.CompareTo;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
 class SyncFilteringTest {
@@ -40,33 +40,22 @@ class SyncFilteringTest {
     /**
      * Generate a random list of events.
      *
-     * @param platformContext the platform context
-     * @param random          a random number generator
-     * @param addressBook     the address book
-     * @param time            provides the current time
-     * @param timeStep        the time between events
-     * @param count           the number of events to generate
+     * @param eventEmitter the event emitter
+     * @param time         provides the current time
+     * @param timeStep     the time between events
+     * @param count        the number of events to generate
      * @return the list of events
      */
     private static List<EventImpl> generateEvents(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Random random,
-            @NonNull final AddressBook addressBook,
+            final StandardEventEmitter eventEmitter,
             @NonNull final FakeTime time,
             final Duration timeStep,
             final int count) {
 
         final List<EventImpl> events = new ArrayList<>(count);
 
-        final List<EventSource> sources = new ArrayList<>();
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            sources.add(new StandardEventSource(false));
-        }
-        final StandardGraphGenerator generator =
-                new StandardGraphGenerator(platformContext, random.nextLong(), sources, addressBook);
-
         for (int i = 0; i < count; i++) {
-            final EventImpl event = generator.generateEvent();
+            final EventImpl event = eventEmitter.getGraphGenerator().generateEvent();
             event.getBaseEvent().setTimeReceived(time.now());
             time.tick(timeStep);
             events.add(event);
@@ -118,23 +107,26 @@ class SyncFilteringTest {
     void filterLikelyDuplicatesTest() {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(32).build();
-        final NodeId selfId = addressBook.getNodeId(0);
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final StandardEventEmitter eventEmitter = EventEmitterBuilder.newBuilder()
+                .setPlatformContext(platformContext)
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(32)
+                .build();
+
+        final NodeId selfId =
+                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
 
         final Instant startingTime = Instant.ofEpochMilli(random.nextInt());
         final Duration timeStep = Duration.ofMillis(10);
 
         final FakeTime time = new FakeTime(startingTime, Duration.ZERO);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final int eventCount = 1000;
-        final List<PlatformEvent> events =
-                generateEvents(platformContext, random, addressBook, time, timeStep, eventCount).stream()
-                        .map(EventImpl::getBaseEvent)
-                        .sorted(Comparator.comparingLong(PlatformEvent::getGeneration))
-                        .toList();
+        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
+                .map(EventImpl::getBaseEvent)
+                .toList();
 
         final Map<Hash, PlatformEvent> eventMap =
                 events.stream().collect(Collectors.toMap(PlatformEvent::getHash, Function.identity()));
@@ -182,15 +174,22 @@ class SyncFilteringTest {
                 assertTrue(filteredHashes.contains(expectedEvent.getHash()));
             }
 
-            // Verify topological ordering.
-            long maxGeneration = -1;
-            for (final PlatformEvent event : filteredEvents) {
-                final long generation = event.getGeneration();
-                assertTrue(generation >= maxGeneration);
-                maxGeneration = generation;
-            }
+            assertTopologicalOrder(platformContext, filteredEvents);
 
             time.tick(Duration.ofMillis(100));
+        }
+    }
+
+    private static void assertTopologicalOrder(
+            final PlatformContext platformContext, final List<PlatformEvent> events) {
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
+                platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
+        orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
+        // Verify topological ordering.
+        for (final PlatformEvent event : events) {
+            final List<PlatformEvent> nonOrphans = orphanBuffer.handleEvent(event);
+            assertEquals(1, nonOrphans.size());
+            assertEquals(nonOrphans.getFirst(), event);
         }
     }
 }

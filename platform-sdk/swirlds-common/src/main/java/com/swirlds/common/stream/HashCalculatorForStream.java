@@ -3,15 +3,15 @@ package com.swirlds.common.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.stream.internal.AbstractLinkedObjectStream;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * Accepts a SerializableRunningHashable object each time, calculates and sets its Hash
@@ -26,7 +26,7 @@ public class HashCalculatorForStream<T extends RunningHashable & SerializableHas
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(HashCalculatorForStream.class);
     /** Used for hashing */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     public HashCalculatorForStream() {}
 

@@ -7,6 +7,7 @@ import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.state.StateSavingResult;
 
 /**
  * This class is responsible for managing the signed state writing pipeline.
@@ -48,14 +49,14 @@ public interface StateSnapshotManager {
     }
 
     /**
-     * Extract the oldest minimum generation on disk from a {@link StateSavingResult}.
+     * Extract the oldest minimum birth round on disk from a {@link StateSavingResult}.
      *
      * @param result the result of the state saving operation
-     * @return the oldest minimum generation on disk
+     * @return the oldest minimum birth round on disk
      */
     @NonNull
-    default Long extractOldestMinimumGenerationOnDisk(@NonNull final StateSavingResult result) {
-        return result.oldestMinimumGenerationOnDisk();
+    default Long extractOldestMinimumBirthRoundOnDisk(@NonNull final StateSavingResult result) {
+        return result.oldestMinimumBirthRoundOnDisk();
     }
 
     /**

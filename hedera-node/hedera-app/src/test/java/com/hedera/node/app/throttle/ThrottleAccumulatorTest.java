@@ -14,12 +14,17 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,7 +34,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -38,7 +42,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -55,40 +58,39 @@ import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -99,7 +101,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -124,10 +126,7 @@ class ThrottleAccumulatorTest {
             .build();
     private static final ScheduleID SCHEDULE_ID =
             ScheduleID.newBuilder().scheduleNum(333333L).build();
-
     private static final ScaleFactor NFT_SCALE_FACTOR = ScaleFactor.from("5:2");
-    private static final String ALIASES_KEY = "ALIASES";
-
     private static final Bytes ETH_LAZY_CREATE = Bytes.fromHex(
             "02f8ad82012a80a000000000000000000000000000000000000000000000000000000000000003e8a0000000000000000000000000000000000000000000000000000000746a528800831e848094fee687d5088faff48013a6767505c027e2742536880de0b6b3a764000080c080a0f5ddf2394311e634e2147bf38583a017af45f4326bdf5746cac3a1110f973e4fa025bad52d9a9f8b32eb983c9fb8959655258bd75e2826b2c6a48d4c26ec30d112");
 
@@ -141,7 +140,13 @@ class ThrottleAccumulatorTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private GasLimitDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle gasThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private ThrottleMetrics throttleMetrics;
@@ -159,10 +164,7 @@ class ThrottleAccumulatorTest {
     private ContractsConfig contractsConfig;
 
     @Mock
-    private AutoCreationConfig autoCreationConfig;
-
-    @Mock
-    private LazyCreationConfig lazyCreationConfig;
+    private JumboTransactionsConfig jumboTransactionsConfig;
 
     @Mock
     private TokensConfig tokensConfig;
@@ -191,9 +193,27 @@ class ThrottleAccumulatorTest {
     @Mock
     private TransactionInfo transactionInfo;
 
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
+    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
     private final HederaConfig hederaConfig =
             HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(HederaConfig.class);
+
+    @Test
+    void noOpThrottlesNeverThrottleAnything() {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                NOOP_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
+        assertFalse(subject.checkAndEnforceThrottle(
+                TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
+        assertFalse(subject.shouldThrottleNOfUnscaled(1, CRYPTO_TRANSFER, TIME_INSTANT));
+        assertDoesNotThrow(() -> subject.leakCapacityForNOfUnscaled(1, CRYPTO_TRANSFER));
+        assertDoesNotThrow(() -> subject.leakUnusedGasPreviouslyReserved(transactionInfo, 1L));
+    }
 
     @Test
     void worksAsExpectedForKnownQueries() throws IOException, ParseException {
@@ -204,7 +224,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -240,7 +261,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -250,8 +272,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(states);
 
@@ -284,7 +306,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -294,15 +317,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -331,7 +356,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -341,15 +367,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(0).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -378,7 +406,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -395,17 +424,12 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void checkAndClaimThrottlesByGasAndTotalAllowedGasPerSecNotSetOrZero(
             ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
@@ -419,7 +443,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerBehavesAsExpectedForFungibleMint(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -429,12 +453,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -447,10 +474,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 3000; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(TOKEN_MINT);
         var aNow = throttlesNow.get(0);
@@ -462,7 +489,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerBehavesAsExpectedForNftMint(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -472,12 +499,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -492,10 +522,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 400; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(TOKEN_MINT);
         // and
@@ -508,7 +538,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerBehavesAsExpectedForMultiBucketOp(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -518,12 +548,14 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -535,10 +567,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 12; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL);
         // and
@@ -553,7 +585,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void handlesThrottleExemption(ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
@@ -562,8 +594,10 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
 
@@ -575,9 +609,9 @@ class ThrottleAccumulatorTest {
         // when:
         subject.rebuildFor(defs);
         // and:
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         for (int i = 1; i <= 12; i++) {
-            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state));
+            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null));
         }
         var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL);
         // and:
@@ -591,7 +625,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void computesNumImplicitCreationsIfNotAlreadyKnown(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -601,12 +635,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
 
@@ -617,26 +654,21 @@ class ThrottleAccumulatorTest {
                 .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                 .build();
         given(transactionInfo.txBody()).willReturn(txn);
-
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void ifLazyCreationEnabledComputesNumImplicitCreationsIfNotAlreadyKnown(
             ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
@@ -646,12 +678,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -666,23 +701,19 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void cryptoTransfersWithNoAutoAccountCreationsAreThrottledAsExpected(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -692,12 +723,16 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -710,23 +745,19 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerAllowsCryptoTransfersWithAutoAccountCreationsAsExpected(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -736,12 +767,16 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -753,23 +788,19 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerAllowsCryptoTransfersWithAutoAssociationsAsExpected(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -779,12 +810,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -797,23 +831,19 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsCryptoTransfersWithAutoAccountCreationsAsExpected(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -823,12 +853,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -839,23 +872,19 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(10);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsCryptoTransfersWithAutoAssociationsAsExpected(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -865,12 +894,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -882,23 +914,19 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsCryptoTransfersWithMissingCryptoCreateThrottle(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -908,12 +936,16 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -924,23 +956,19 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(1);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void ethereumTransactionWithNoAutoAccountCreationsAreThrottledAsExpected(
             ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
@@ -950,12 +978,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -973,21 +1004,16 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
-
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void ethereumTransactionWithAutoAccountCreationsButNoLazyCreationsAreThrottledAsExpected(
             ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
@@ -997,12 +1023,15 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1020,21 +1049,16 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
-
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerAllowsEthereumTransactionWithAutoAccountCreationsAsExpected(
             ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
@@ -1044,12 +1068,17 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1067,21 +1096,16 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsEthereumTransactionWithMissingCryptoCreateThrottle(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -1091,13 +1115,16 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1116,36 +1143,28 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCallWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1158,28 +1177,27 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCallWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1194,28 +1212,28 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCreateWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1228,28 +1246,27 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCreateWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1264,33 +1281,32 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
-        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state);
+        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null);
         assertFalse(subject.wasLastTxnGasThrottled());
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesEthereumTxnWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1303,28 +1319,27 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesEthereumTxnWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1340,32 +1355,29 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
-        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state);
+        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null);
         assertFalse(subject.wasLastTxnGasThrottled());
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void gasLimitThrottleReturnsCorrectObject(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         var capacity = 10L;
-        given(contractsConfig.maxGasPerSec()).willReturn(capacity);
+        setMaxGasAndBurst(throttleType, capacity);
 
         // when
         subject.applyGasConfig();
@@ -1376,17 +1388,32 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void bytesLimitThrottleReturnsCorrectObject(ThrottleAccumulator.ThrottleType throttleType) {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        var capacity = 10L;
+        given(jumboTransactionsConfig.maxBytesPerSec()).willReturn(capacity);
+
+        // when
+        subject.applyBytesConfig();
+
+        // then
+        assertEquals(capacity, subject.bytesLimitThrottle().capacity());
+        verify(throttleMetrics).setupBytesThrottleMetric(subject.bytesLimitThrottle(), configuration);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void constructsExpectedBucketsFromTestResource(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1409,7 +1436,7 @@ class ThrottleAccumulatorTest {
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysRejectsIfNoThrottle(ThrottleAccumulator.ThrottleType throttleType) {
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -1417,37 +1444,35 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
 
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         Assertions.assertSame(Collections.emptyList(), subject.activeThrottlesFor(CONTRACT_CALL));
     }
 
     @ParameterizedTest
-    @EnumSource
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void verifyLeakUnusedGas(ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                throttleType,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(150L);
+        setMaxGasAndBurst(throttleType, 150L);
 
         // payer is not exempt
         given(transactionInfo.payerID())
@@ -1473,6 +1498,14 @@ class ThrottleAccumulatorTest {
         assertFalse(subject.gasLimitThrottle().allow(TIME_INSTANT, 100));
     }
 
+    private void setMaxGasAndBurst(ThrottleType throttleType, long t) {
+        if (throttleType.equals(FRONTEND_THROTTLE)) {
+            given(contractsConfig.maxGasPerSec()).willReturn(t);
+        } else {
+            given(contractsConfig.maxGasPerSecBackend()).willReturn(t);
+        }
+    }
+
     @Test
     void alwaysThrottleNOfUnmanaged() throws IOException, ParseException {
         subject = new ThrottleAccumulator(
@@ -1481,7 +1514,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1497,7 +1531,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1517,7 +1552,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1535,7 +1571,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1568,23 +1605,26 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
         subject.rebuildFor(defs);
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state);
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
 
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
@@ -1620,23 +1660,26 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
         subject.rebuildFor(defs);
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state);
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
 
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
@@ -1671,7 +1714,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                softwareVersionFactory);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1680,12 +1724,11 @@ class ThrottleAccumulatorTest {
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
         given(configuration.getConfigData(SchedulingConfig.class)).willReturn(schedulingConfig);
         given(schedulingConfig.longTermEnabled()).willReturn(longTermEnabled);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(ALIASES_KEY)).willReturn(aliases);
@@ -1729,7 +1772,7 @@ class ThrottleAccumulatorTest {
 
         // when
         final var scheduleSignTxnInfo = scheduleSign(SCHEDULE_ID);
-        final var ans = subject.checkAndEnforceThrottle(scheduleSignTxnInfo, TIME_INSTANT, state);
+        final var ans = subject.checkAndEnforceThrottle(scheduleSignTxnInfo, TIME_INSTANT, state, null);
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
         final var aNow = throttlesNow.getFirst();
 
@@ -1747,8 +1790,7 @@ class ThrottleAccumulatorTest {
                 configProvider::getConfiguration,
                 FRONTEND_THROTTLE,
                 throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
+                Verbose.YES);
 
         // when
         subject.updateAllMetrics();
@@ -1778,9 +1820,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleCreate(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1796,9 +1840,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleSign(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1819,42 +1865,7 @@ class ThrottleAccumulatorTest {
         }
     }
 
-    private CryptoTransferTransactionBody cryptoTransferWithImplicitCreations(int numImplicitCreations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numImplicitCreations; i++) {
-            accountAmounts.add(AccountAmount.newBuilder()
-                    .accountID(AccountID.newBuilder()
-                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
-                            .build())
-                    .amount(i)
-                    .build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .transfers(
-                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
-                .build();
-    }
-
-    private CryptoTransferTransactionBody cryptoTransferFungibleWithAutoAssociations(int numAutoAssociations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numAutoAssociations; i++) {
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(PAYER_ID).amount(-i).build());
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(RECEIVER_ID).amount(i).build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .tokenTransfers(TokenTransferList.newBuilder()
-                        .token(TOKEN_ID)
-                        .transfers(accountAmounts)
-                        .build())
-                .build();
-    }
-
     private void givenMintWith(int numNfts) {
-        final List<ByteString> meta = new ArrayList<>();
         final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);

@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.NoFungibleTransfers.changingNoFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.NoNftTransfers.changingNoNftOwners;
@@ -44,14 +45,18 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenBalanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withTargetLedgerId;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.HBAR_TOKEN_SENTINEL;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -66,6 +71,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -79,11 +85,15 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.CustomFee;
+import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.DynamicTest;
@@ -1007,6 +1017,32 @@ public class TokenTransactSpecs {
                 .then(cryptoTransfer(movingUnique(A_TOKEN, 1).between(TOKEN_TREASURY, FIRST_USER))
                         .signedBy(SIGNING_KEY_TREASURY, SIGNING_KEY_FIRST_USER, DEFAULT_PAYER)
                         .hasKnownStatus(TOKEN_WAS_DELETED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fractionalFeeTokenPutInNonFungibleTransferListIsRejectedSafely() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                cryptoCreate("receiver").maxAutomaticTokenAssociations(5),
+                tokenCreate("fractionalFeeToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(Long.MAX_VALUE)
+                        .treasury(DEFAULT_PAYER)
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.empty(), DEFAULT_PAYER)),
+                cryptoTransfer((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("fractionalFeeToken"))
+                                    .addAllNftTransfers(List.of(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(CIVILIAN))
+                                            .setReceiverAccountID(registry.getAccountID("receiver"))
+                                            .setSerialNumber(123L)
+                                            .build()))
+                                    .build());
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, CIVILIAN)
+                        .hasKnownStatus(NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE));
     }
 
     @HapiTest
@@ -1964,6 +2000,354 @@ public class TokenTransactSpecs {
                 tokenAssociate(alice, token),
                 tokenFreeze(token, alice).hasKnownStatus(SUCCESS),
                 tokenFreeze(token, alice).hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> onlyNonExemptCreditsAreConsideredForReclaimedFractionalUnits() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("victim"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("attacker").balance(ONE_MILLION_HBARS),
+                tokenCreate("exploitToken")
+                        .treasury(TOKEN_TREASURY)
+                        .decimals(10)
+                        .initialSupply(Long.MAX_VALUE)
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, FEE_COLLECTOR)
+                        // This is large enough to be deducted from the victim
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        // This is too small to be deducted from the victim (rounds down to 0)
+                        .withCustom(fractionalFee(1, 100, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        // A miscellaneous net-of-transfers fee, should not affect the outcome vis-a-vis the victim
+                        .withCustom(
+                                fractionalFeeNetOfTransfers(1, 10, 30, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR)),
+                tokenAssociate("victim", "exploitToken"),
+                tokenAssociate("attacker", "exploitToken"),
+                cryptoTransfer(moving(1_000_000, "exploitToken").between(TOKEN_TREASURY, "attacker")),
+
+                // Initially the receiver holds 10 tokens
+                cryptoTransfer(moving(10L, "exploitToken").between(TOKEN_TREASURY, "victim")),
+                tokenBalanceSnapshot("exploitToken", "beforeExploit", "victim"),
+                cryptoTransfer(
+                                moving(2000, "exploitToken").from("attacker"),
+                                moving(1990, "exploitToken").to(TOKEN_TREASURY),
+                                moving(10, "exploitToken").to("victim"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("attacker")
+                        .signedBy("attacker"),
+                // The victim _should_ receive an additional 9 tokens, since floor(10 / 100) = 0, but (10 / 10) = 1
+                // so the second fee should be applied to the victim while the first rounds down to nothing
+                getAccountBalance("victim")
+                        .hasTokenBalance("exploitToken", tokenChangeFromSnapshot("exploitToken", "beforeExploit", +9)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> splittingVerySmallDebitIntoMultipleDebitsCanRoundFeeDownToZero() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR),
+                inParallel(IntStream.range(0, 8)
+                        .mapToObj(i -> cryptoCreate("sender" + i)
+                                .balance(ONE_HUNDRED_HBARS * 1000)
+                                .maxAutomaticTokenAssociations(1))
+                        .toArray(SpecOperation[]::new)),
+                cryptoCreate("nonExemptReceiver"),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("token")
+                        .treasury(TOKEN_TREASURY)
+                        .decimals(10)
+                        .initialSupply(Long.MAX_VALUE)
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, FEE_COLLECTOR)
+                        .withCustom(fractionalFee(3, 20, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR)),
+                tokenAssociate("nonExemptReceiver", "token"),
+                cryptoTransfer(moving(800, "token")
+                        .distributing(
+                                TOKEN_TREASURY,
+                                IntStream.range(0, 8)
+                                        .mapToObj(i -> "sender" + i)
+                                        .toArray(String[]::new))),
+                tokenBalanceSnapshot("token", "receiverBeforeTransfer", "nonExemptReceiver"),
+                tokenBalanceSnapshot("token", "collectorBeforeTransfer", FEE_COLLECTOR),
+                // Since the fee is 3/20, and the total non-exempt credits are 8, the total debit should be 1.2,
+                // which rounds down to 1, so the fee collector should receive 1 token and the receiver 7 tokens
+                cryptoTransfer(
+                                moving(10, "token").from("sender0"),
+                                moving(2, "token").to(TOKEN_TREASURY),
+                                moving(8, "token").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, "sender0"),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance("token", tokenChangeFromSnapshot("token", "collectorBeforeTransfer", +1)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance("token", tokenChangeFromSnapshot("token", "receiverBeforeTransfer", +7)),
+                tokenBalanceSnapshot("token", "receiverBeforeMultiwayTransfer", "nonExemptReceiver"),
+                tokenBalanceSnapshot("token", "collectorBeforeMultiwayTransfer", FEE_COLLECTOR),
+                // Since the fee is 3/20, but we only consider at most 3/10th of the non-exempt credits at time when
+                // assessing the debits, there is never an amount of non-exempt credits large enough to round down
+                // to a non-zero amount, and the fee collector gets nothing here
+                cryptoTransfer(
+                                // 10 debits, 3 from sender0, 1 from each of the other 7 senders
+                                moving(3, "token").from("sender0"),
+                                moving(1, "token").from("sender1"),
+                                moving(1, "token").from("sender2"),
+                                moving(1, "token").from("sender3"),
+                                moving(1, "token").from("sender4"),
+                                moving(1, "token").from("sender5"),
+                                moving(1, "token").from("sender6"),
+                                moving(1, "token").from("sender7"),
+                                moving(2, "token").to(TOKEN_TREASURY),
+                                moving(8, "token").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("roundedDownToZero")
+                        .payingWith("sender0")
+                        .signedBy(IntStream.range(0, 8)
+                                .mapToObj(i -> "sender" + i)
+                                .toArray(String[]::new)),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "collectorBeforeMultiwayTransfer", +0)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "receiverBeforeMultiwayTransfer", +8)),
+                getTxnRecord("roundedDownToZero").hasPriority(recordWith().assessedCustomFeeCount(0)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> minimumStillCollectedAfterSplittingVerySmallDebitIntoMultipleDebits() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR),
+                inParallel(IntStream.range(0, 8)
+                        .mapToObj(i -> cryptoCreate("sender" + i)
+                                .balance(ONE_HUNDRED_HBARS * 1000)
+                                .maxAutomaticTokenAssociations(1))
+                        .toArray(SpecOperation[]::new)),
+                cryptoCreate("nonExemptReceiver"),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("token")
+                        .treasury(TOKEN_TREASURY)
+                        .decimals(10)
+                        .initialSupply(Long.MAX_VALUE)
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, FEE_COLLECTOR)
+                        .withCustom(fractionalFee(3, 20, 8, OptionalLong.of(10), FEE_COLLECTOR)),
+                tokenAssociate("nonExemptReceiver", "token"),
+                cryptoTransfer(moving(8000, "token")
+                        .distributing(
+                                TOKEN_TREASURY,
+                                IntStream.range(0, 8)
+                                        .mapToObj(i -> "sender" + i)
+                                        .toArray(String[]::new))),
+                tokenBalanceSnapshot("token", "receiverBeforeMultiwayTransfer", "nonExemptReceiver"),
+                tokenBalanceSnapshot("token", "collectorBeforeMultiwayTransfer", FEE_COLLECTOR),
+                cryptoTransfer(
+                                // 10 debits, 3 from sender0, 1 from each of the other 7 senders
+                                moving(3, "token").from("sender0"),
+                                moving(1, "token").from("sender1"),
+                                moving(1, "token").from("sender2"),
+                                moving(1, "token").from("sender3"),
+                                moving(1, "token").from("sender4"),
+                                moving(1, "token").from("sender5"),
+                                moving(1, "token").from("sender6"),
+                                moving(1, "token").from("sender7"),
+                                moving(2, "token").to(TOKEN_TREASURY),
+                                moving(8, "token").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("sender0")
+                        .signedBy(IntStream.range(0, 8)
+                                .mapToObj(i -> "sender" + i)
+                                .toArray(String[]::new)),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "collectorBeforeMultiwayTransfer", +2)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "receiverBeforeMultiwayTransfer", +6)),
+                tokenBalanceSnapshot("token", "receiverBeforeLargeTransfer", "nonExemptReceiver"),
+                tokenBalanceSnapshot("token", "collectorBeforeLargeTransfer", FEE_COLLECTOR),
+                cryptoTransfer(
+                                // 100 debits, 30 from sender0, 10 from each of the other 7 senders
+                                moving(30, "token").from("sender0"),
+                                moving(10, "token").from("sender1"),
+                                moving(10, "token").from("sender2"),
+                                moving(10, "token").from("sender3"),
+                                moving(10, "token").from("sender4"),
+                                moving(10, "token").from("sender5"),
+                                moving(10, "token").from("sender6"),
+                                moving(10, "token").from("sender7"),
+                                moving(20, "token").to(TOKEN_TREASURY),
+                                moving(80, "token").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("sender0")
+                        .signedBy(IntStream.range(0, 8)
+                                .mapToObj(i -> "sender" + i)
+                                .toArray(String[]::new)),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "collectorBeforeLargeTransfer", +10)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance(
+                                "token", tokenChangeFromSnapshot("token", "receiverBeforeLargeTransfer", +70)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nonNetOfTransfersAreAssessedRelativeToJustNonexemptDebits() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR),
+                cryptoCreate("firstSender"),
+                cryptoCreate("nonExemptReceiver"),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("token")
+                        .treasury(TOKEN_TREASURY)
+                        .decimals(10)
+                        .initialSupply(Long.MAX_VALUE)
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, FEE_COLLECTOR)
+                        // Three fractional fees, which should combine to redirect 30% of
+                        // the total credits from a receiver to the fee collector, even
+                        // when those credits are balanced by debits to multiple senders
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR)),
+                tokenAssociate("firstSender", "token"),
+                tokenAssociate("nonExemptReceiver", "token"),
+                cryptoTransfer(moving(3_000_000, "token").between(TOKEN_TREASURY, "firstSender")),
+                tokenBalanceSnapshot("token", "receiverBefore", "nonExemptReceiver"),
+                tokenBalanceSnapshot("token", "collectorBefore", FEE_COLLECTOR),
+                cryptoTransfer(
+                                moving(5000, "token").from("firstSender"),
+                                moving(5000, "token").from(TOKEN_TREASURY),
+                                moving(10000, "token").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, "firstSender", TOKEN_TREASURY),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance("token", tokenChangeFromSnapshot("token", "collectorBefore", +1000)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance("token", tokenChangeFromSnapshot("token", "receiverBefore", +9000)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> multipleNonNetOfTransfersAssessRelativeToDebits() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR),
+                cryptoCreate("firstSender"),
+                cryptoCreate("secondSender"),
+                cryptoCreate("nonExemptReceiver"),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("tokenWithThreeFees")
+                        .treasury(TOKEN_TREASURY)
+                        .decimals(10)
+                        .initialSupply(Long.MAX_VALUE)
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, FEE_COLLECTOR)
+                        // Three fractional fees, which should combine to redirect 30% of
+                        // the total credits from a receiver to the fee collector, even
+                        // when those credits are balanced by debits to multiple senders
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR)),
+                tokenAssociate("firstSender", "tokenWithThreeFees"),
+                tokenAssociate("secondSender", "tokenWithThreeFees"),
+                tokenAssociate("nonExemptReceiver", "tokenWithThreeFees"),
+                cryptoTransfer(moving(3_000_000, "tokenWithThreeFees")
+                        .distributing(TOKEN_TREASURY, "firstSender", "secondSender", "nonExemptReceiver")),
+                tokenBalanceSnapshot("tokenWithThreeFees", "receiverBeforeTransfer", "nonExemptReceiver"),
+                tokenBalanceSnapshot("tokenWithThreeFees", "treasuryBeforeTransfer", TOKEN_TREASURY),
+                cryptoTransfer(
+                                moving(4000, "tokenWithThreeFees").from("firstSender"),
+                                moving(1000, "tokenWithThreeFees").from("secondSender"),
+                                moving(2000, "tokenWithThreeFees").to(TOKEN_TREASURY),
+                                moving(3000, "tokenWithThreeFees").to("nonExemptReceiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, "firstSender", "secondSender"),
+                getAccountBalance(TOKEN_TREASURY)
+                        .hasTokenBalance(
+                                "tokenWithThreeFees",
+                                tokenChangeFromSnapshot("tokenWithThreeFees", "treasuryBeforeTransfer", +2000)),
+                getAccountBalance("nonExemptReceiver")
+                        .hasTokenBalance(
+                                "tokenWithThreeFees",
+                                tokenChangeFromSnapshot("tokenWithThreeFees", "receiverBeforeTransfer", +2100)),
+                tokenBalanceSnapshot("tokenWithThreeFees", "collectorBeforeTransfer", FEE_COLLECTOR),
+                // But if every credit is exempt, no custom fees should be assessed or charged
+                cryptoTransfer(
+                                moving(4000, "tokenWithThreeFees").from("firstSender"),
+                                moving(1000, "tokenWithThreeFees").from("secondSender"),
+                                moving(2000, "tokenWithThreeFees").to(TOKEN_TREASURY),
+                                moving(3000, "tokenWithThreeFees").to(FEE_COLLECTOR))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, "firstSender", "secondSender")
+                        .via("noCustomFees"),
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTokenBalance(
+                                "tokenWithThreeFees",
+                                tokenChangeFromSnapshot("tokenWithThreeFees", "collectorBeforeTransfer", +3000)),
+                getTxnRecord("noCustomFees").hasPriority(recordWith().assessedCustomFeeCount(0)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> originalWhitehatAssessChargeFractionalFeeMismatch() {
+        final var htsCollector = "htsCollector";
+        final var tokenReceiver = "tokenReceiver";
+        final var tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        final var token = "token";
+        final long tokenTotal = 1000L;
+        return hapiTest(
+                cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                tokenCreate(token)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal * 2 + 10)
+                        .payingWith(htsCollector)
+                        .withCustom(fractionalFee(1, 100, 0, OptionalLong.of(Long.MAX_VALUE), htsCollector)),
+                tokenAssociate(tokenReceiver, token),
+                tokenAssociate(tokenOwner, token),
+                cryptoTransfer(moving(tokenTotal * 2, token).between(tokenTreasury, tokenOwner)),
+
+                // Initially the receiver holds 10 tokens
+                cryptoTransfer(moving(10L, token).between(tokenTreasury, tokenReceiver)),
+                cryptoTransfer(
+                                moving(2000, token).from(tokenOwner),
+                                moving(1990, token).to(tokenTreasury),
+                                moving(10, token).to(tokenReceiver) // credit to receiver
+                                )
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner)
+                        .signedBy(tokenOwner), // receiver sig not required
+
+                // A 1/100 fraction of the non-exempt credits rounds down to zero, so the receiver still gets 10 units
+                getAccountBalance(tokenReceiver).hasTokenBalance(token, 20L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> multipleMinimumFeeCannotReclaimMoreThanCredit() {
+        return hapiTest(
+                cryptoCreate(FEE_COLLECTOR).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("sender").balance(ONE_MILLION_HBARS),
+                tokenCreate("token")
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(Long.MAX_VALUE)
+                        .payingWith(FEE_COLLECTOR)
+                        .withCustom(fractionalFee(1, 100, 1, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        .withCustom(fractionalFee(1, 100, 2, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        .withCustom(fractionalFee(1, 100, 3, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR))
+                        .withCustom(fractionalFee(1, 100, 4, OptionalLong.of(Long.MAX_VALUE), FEE_COLLECTOR)),
+                tokenAssociate("receiver", "token"),
+                tokenAssociate("sender", "token"),
+                cryptoTransfer(moving(1_000_000, "token").between(TOKEN_TREASURY, "sender")),
+
+                // Initially the receiver holds 10 tokens
+                cryptoTransfer(moving(10L, "token").between(TOKEN_TREASURY, "receiver")),
+                tokenBalanceSnapshot("token", "beforeTransfer", "receiver"),
+                cryptoTransfer(
+                                moving(40, "token").from("sender"),
+                                moving(25, "token").to(TOKEN_TREASURY),
+                                moving(6, "token").to(FEE_COLLECTOR),
+                                moving(9, "token").to("receiver"))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("zeroEffectiveCredit")
+                        .payingWith("sender")
+                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
+                getAccountBalance("receiver")
+                        .hasTokenBalance("token", tokenChangeFromSnapshot("token", "beforeTransfer", 0)));
     }
 
     private static final String TXN_TRIGGERING_COLLECTOR_EXEMPT_FEE = "collectorExempt";

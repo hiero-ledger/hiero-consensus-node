@@ -4,12 +4,9 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -23,6 +20,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -89,14 +87,18 @@ import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.existingSystemAccounts;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_TOKEN;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
@@ -110,13 +112,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -126,6 +130,9 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
@@ -147,23 +154,15 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class CryptoTransferSuite {
     private static final String OWNER = "owner";
-    private static final String OTHER_OWNER = "otherOwner";
     private static final String SPENDER = "spender";
     private static final String PAYER = "payer";
     private static final String SENDER = "sender";
     private static final String RECEIVER = "receiver";
     private static final String TREASURY = "treasury";
-    private static final String OTHER_RECEIVER = "otherReceiver";
-    private static final String ANOTHER_RECEIVER = "anotherReceiver";
     private static final String FUNGIBLE_TOKEN = "fungible";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
-    private static final String TOKEN_WITH_CUSTOM_FEE = "tokenWithCustomFee";
-    private static final String ADMIN_KEY = "adminKey";
-    private static final String KYC_KEY = "kycKey";
-    private static final String FREEZE_KEY = "freezeKey";
     private static final String SUPPLY_KEY = "supplyKey";
     private static final String WIPE_KEY = "wipeKey";
-    private static final String PAUSE_KEY = "pauseKey";
     private static final String PARTY = "party";
     public static final String COUNTERPARTY = "counterparty";
     private static final String MULTI_KEY = "multi";
@@ -354,8 +353,10 @@ public class CryptoTransferSuite {
                 }),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(nftId.get())
-                                        .addNftTransfers(
-                                                ocWith(accountId(partyAlias.get()), accountId(counterAlias.get()), 1L)))
+                                        .addNftTransfers(ocWith(
+                                                accountIdFromEvmAddress(spec, partyAlias.get()),
+                                                accountIdFromEvmAddress(spec, counterAlias.get()),
+                                                1L)))
                                 .setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(aaWith(partyId.get(), +2))
                                         .addAccountAmounts(aaWith(otherAccountId.get(), -2))))
@@ -398,8 +399,8 @@ public class CryptoTransferSuite {
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -418,48 +419,55 @@ public class CryptoTransferSuite {
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
                     partyId.set(registry.getAccountID(PARTY));
                     counterId.set(registry.getAccountID(COUNTERPARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(asSolidityAddress(counterId.get()));
                 }),
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -1))
+                                .addAccountAmounts(Utils.aaWith(spec, partyAlias.get(), -1))
                                 .addAccountAmounts(aaWith(partyId.get(), -1))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS),
                 // Check signing requirements aren't distorted by aliases
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -2))
+                                .addAccountAmounts(Utils.aaWith(spec, partyAlias.get(), -2))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(ocWith(accountId(partyAlias.get()), counterId.get(), 1L))))
+                                .addNftTransfers(ocWith(
+                                        Utils.accountIdWithHexedEvmAddress(
+                                                spec.shard(), spec.realm(), hex(partyAlias.get())),
+                                        counterId.get(),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
-                                .addTransfers(aaWith(counterAlias.get(), +500))))
+                                .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(Utils.aaWith(spec, counterAlias.get(), +500))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Now do the actual transfers
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -2))
-                                .addAccountAmounts(aaWith(counterAlias.get(), +2))))
+                                .addAccountAmounts(Utils.aaWith(spec, partyAlias.get(), -2))
+                                .addAccountAmounts(Utils.aaWith(spec, counterAlias.get(), +2))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(HBAR_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(
-                                        ocWith(accountId(partyAlias.get()), accountId(counterAlias.get()), 1L))))
+                                .addNftTransfers(ocWith(
+                                        Utils.accountIdWithHexedEvmAddress(
+                                                spec.shard(), spec.realm(), hex(partyAlias.get())),
+                                        Utils.accountIdWithHexedEvmAddress(spec, hex(counterAlias.get())),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
-                                .addTransfers(aaWith(counterAlias.get(), +500))))
+                                .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(Utils.aaWith(spec, counterAlias.get(), +500))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(FT_XFER),
                 getTxnRecord(HBAR_XFER),
@@ -516,9 +524,9 @@ public class CryptoTransferSuite {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
-                    partyId.set(accountIdFromHexedMirrorAddress(partyMirrorAddr.get()));
+                    partyId.set(accountIdFromHexedMirrorAddress(spec, partyMirrorAddr.get()));
                     partyLiteral.set(asAccountString(partyId.get()));
-                    counterId.set(accountIdFromHexedMirrorAddress(counterMirrorAddr.get()));
+                    counterId.set(accountIdFromHexedMirrorAddress(spec, counterMirrorAddr.get()));
                     counterLiteral.set(asAccountString(counterId.get()));
                 }),
                 sourcing(() -> tokenAssociate(partyLiteral.get(), List.of(FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN))
@@ -531,47 +539,50 @@ public class CryptoTransferSuite {
                                 movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, partyLiteral.get()))
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY)),
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -1))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -1))
                                 .addAccountAmounts(aaWith(partyId.get(), -1))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS),
                 // Check signing requirements aren't distorted by aliases
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -2))
-                                .addAccountAmounts(aaWith(counterAliasAddr.get(), +2))))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -2))
+                                .addAccountAmounts(aaWith(spec, counterAliasAddr.get(), +2))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(
-                                        ocWith(accountId(shard, realm, partyAliasAddr.get()), counterId.get(), 1L))))
+                                .addNftTransfers(ocWith(
+                                        Utils.accountIdWithHexedEvmAddress(
+                                                spec.shard(), spec.realm(), partyAliasAddr.get()),
+                                        counterId.get(),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAliasAddr.get(), -500))
-                                .addTransfers(aaWith(counterAliasAddr.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAliasAddr.get(), -500))
+                                .addTransfers(aaWith(spec, counterAliasAddr.get(), +500))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Now do the actual transfers
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -2))
-                                .addAccountAmounts(aaWith(counterAliasAddr.get(), +2))))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -2))
+                                .addAccountAmounts(aaWith(spec, counterAliasAddr.get(), +2))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(HBAR_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
                                 .addNftTransfers(ocWith(
-                                        accountId(shard, realm, partyAliasAddr.get()),
-                                        accountId(shard, realm, counterAliasAddr.get()),
+                                        Utils.accountIdWithHexedEvmAddress(spec, partyAliasAddr.get()),
+                                        Utils.accountIdWithHexedEvmAddress(spec, counterAliasAddr.get()),
                                         1L))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAliasAddr.get(), -500))
-                                .addTransfers(aaWith(counterAliasAddr.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAliasAddr.get(), -500))
+                                .addTransfers(aaWith(spec, counterAliasAddr.get(), +500))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(FT_XFER),
                 sourcing(() -> getTxnRecord(HBAR_XFER)
@@ -691,19 +702,13 @@ public class CryptoTransferSuite {
                                     key.getECDSASecp256K1().toByteArray()));
                             builder.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setAccountNum(2L)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, 2L))
                                             .setAmount(-2 * ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setAlias(evmAddress)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, evmAddress))
                                             .setAmount(+ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setAlias(keyAlias)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, keyAlias))
                                             .setAmount(+ONE_HBAR))
                                     .build());
                         })
@@ -954,7 +959,7 @@ public class CryptoTransferSuite {
                                 moving(123, someFungible).between(counterparty, party))
                         .fee(ONE_HBAR)
                         .via(hodlXfer)
-                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR),
                 getTxnRecord(hodlXfer).hasPriority(recordWith().autoAssociated(accountTokenPairsInAnyOrder(List.of()))),
                 getAccountInfo(party)
                         .has(accountWith()
@@ -1229,7 +1234,8 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> getAccountBalance("0.0." + i).logged())
+                .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
+                        .logged())
                 .toArray(HapiSpecOperation[]::new));
     }
 
@@ -1496,21 +1502,22 @@ public class CryptoTransferSuite {
         final var opsArray = new HapiSpecOperation[systemAccounts.size() * 3];
 
         for (int i = 0; i < systemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(systemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[systemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(systemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[systemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(systemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
@@ -1530,21 +1537,24 @@ public class CryptoTransferSuite {
         final HapiSpecOperation[] opsArray = new HapiSpecOperation[existingSystemAccounts.size() * 3];
 
         for (int i = 0; i < existingSystemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(existingSystemAccounts.get(i)))
+            final var index = i;
+
+            opsArray[i] = contractCall(
+                            contract, "sendViaTransfer", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(SUCCESS);
 
             opsArray[existingSystemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(existingSystemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(SUCCESS);
 
             opsArray[existingSystemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(existingSystemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
@@ -1564,7 +1574,9 @@ public class CryptoTransferSuite {
         final HapiSpecOperation[] opsArray = new HapiSpecOperation[nonExistingSystemAccounts.size() * 3];
 
         for (int i = 0; i < nonExistingSystemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(
+                            contract, "sendViaTransfer", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaTransfer" + i)
@@ -1572,7 +1584,7 @@ public class CryptoTransferSuite {
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[nonExistingSystemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaSend" + i)
@@ -1580,7 +1592,7 @@ public class CryptoTransferSuite {
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[nonExistingSystemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaCall" + i)
@@ -1605,11 +1617,9 @@ public class CryptoTransferSuite {
                 contractCreate(transferContract).balance(ONE_HBAR),
                 uploadInitCode(balanceContract),
                 contractCreate(balanceContract),
-                contractCall(
-                                transferContract,
-                                "sendViaTransferWithAmount",
-                                mirrorAddrWith(359L),
-                                BigInteger.valueOf(15L))
+                contractCall(transferContract, "sendViaTransferWithAmount", spec -> List.of(
+                                        mirrorAddrWith(spec, 359L), BigInteger.valueOf(15L))
+                                .toArray())
                         .payingWith(senderAccount)
                         .hasKnownStatus(INVALID_CONTRACT_ID),
                 getAccountBalance(transferContract, true).hasTinyBars(ONE_HBAR));
@@ -1742,8 +1752,8 @@ public class CryptoTransferSuite {
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdA.get())
                                         .addNftTransfers(ocWith(
-                                                accountId(treasuryAlias.get()),
-                                                accountId(hollowAccountAlias.get()),
+                                                accountIdFromEvmAddress(spec, treasuryAlias.get()),
+                                                accountIdFromEvmAddress(spec, hollowAccountAlias.get()),
                                                 1L))))
                                 .payingWith(TREASURY)
                                 .signedBy(TREASURY)
@@ -1761,5 +1771,281 @@ public class CryptoTransferSuite {
                                 .signedBy(hollowAccountKey, TREASURY)
                                 .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowAccountKey)))),
                 getAliasedAccountInfo(hollowAccountKey).has(accountWith().key(hollowAccountKey)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersAmountOfNFT() {
+        final var owner = "owner";
+        final var receiver = "receiver";
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(owner).maxAutomaticTokenAssociations(1).balance(ONE_MILLION_HBARS),
+                cryptoCreate(receiver).maxAutomaticTokenAssociations(1).balance(0L),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("NFT")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(MULTI_KEY)
+                        .treasury(TREASURY),
+                mintToken("NFT", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(movingUnique("NFT", 1L).between(TOKEN_TREASURY, owner)),
+                cryptoTransfer(movingWithDecimals(1, "NFT", 3).betweenWithDecimals(owner, receiver))
+                        .hasKnownStatus(ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> dissociatedCollector() {
+        final var nft = "unique";
+        final var fungible = "fungible";
+        final var collector = "collector";
+        final var party = PARTY;
+        final var counterparty = COUNTERPARTY;
+
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(collector),
+                cryptoCreate(party).maxAutomaticTokenAssociations(123),
+                cryptoCreate(counterparty).maxAutomaticTokenAssociations(123),
+                tokenCreate(fungible)
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(123456789),
+                cryptoTransfer(moving(1000, fungible).between(TOKEN_TREASURY, party)),
+                tokenAssociate(collector, fungible),
+                tokenCreate(nft)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .withCustom(fixedHtsFee(1, fungible, collector))
+                        .initialSupply(0L),
+                mintToken(nft, List.of(copyFromUtf8("test"))),
+                cryptoTransfer(movingUnique(nft, 1L).between(TOKEN_TREASURY, party)),
+                tokenDissociate(collector, fungible),
+                cryptoTransfer(movingUnique(nft, 1L).between(party, counterparty))
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
+    }
+
+    /**
+     * Debiting an account's fungible token balance *without* an allowance approval requires its signature.
+     * Debiting an account's fungible token balance *with* an approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> debitingFtBalanceWithoutApprovalRequiresSig() {
+        final String feeDenom = "denom";
+        final String tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        return hapiTest(
+                // create accounts
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).receiverSigRequired(true),
+                // create FT
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(10),
+                // associate
+                tokenAssociate(tokenOwner, feeDenom),
+                // transfer to owner w/o owner's sig should fail
+                cryptoTransfer(moving(10, feeDenom).between(tokenTreasury, tokenOwner))
+                        .signedBy(tokenTreasury)
+                        .payingWithNoSig(tokenOwner)
+                        .hasPrecheck(INVALID_SIGNATURE),
+                // transfer to owner with owner's sig should pass
+                cryptoTransfer(moving(10, feeDenom).between(tokenTreasury, tokenOwner))
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .payingWithNoSig(tokenOwner)
+                        .hasPrecheck(OK),
+                // remove from owner w/o owner's sig should fail
+                cryptoTransfer(moving(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // remove from owner with owner's sig should pass
+                cryptoTransfer(moving(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .hasKnownStatus(SUCCESS),
+                // now add allowance
+                // owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addTokenAllowance(tokenOwner, feeDenom, tokenTreasury, 5L)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // remove from owner w/o sig but with allowance should pass
+                cryptoTransfer(movingWithAllowance(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Transferring an account's NFT *without* approval requires its signature.
+     * Transferring an account's NFT *with* approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> transferringNftWithoutApprovalRequiresSig() {
+        final var NFT_KEY = "NFT_KEY";
+        final String tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        final var nonFungibleToken = "nonFungibleToken";
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                // create accounts
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner),
+                // create NFT
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                // mint an NFT
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+
+                // transfer NFT from treasury to owner
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // transfer NFT from owner to treasury w/o owner sig will fail
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // now add allowance, owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addNftAllowance(tokenOwner, nonFungibleToken, tokenTreasury, true, List.of(1L))
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .fee(ONE_HBAR),
+                // transfer NFT from owner to treasury w/o sig now passes using allowance
+                cryptoTransfer(TokenMovement.movingUniqueWithAllowance(nonFungibleToken, 1L)
+                                .between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Debiting an account's HBAR *without* approval requires its signature.
+     * Debiting an account's HBAR *with* approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> debitingHBarBalanceWithoutApprovalRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        return hapiTest(
+                // create accounts
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                // transfer hbar from owner to treasury without owner's sig should fail
+                cryptoTransfer(movingHbar(10).between(tokenOwner, tokenTreasury))
+                        .signedBy(tokenTreasury)
+                        .payingWithNoSig(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // now add allowance
+                // owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addCryptoAllowance(tokenOwner, tokenTreasury, 5L)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // transfer hbar from owner to treasury without owner's sig should pass now
+                cryptoTransfer(TokenMovement.movingHbarWithAllowance(5).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Crediting HBAR to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> creditingHBarBalanceRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(receiver).receiverSigRequired(true),
+                // 10hbar from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, receiver)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Crediting fungible token units to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> creditingFtRequiresSig() {
+        final String feeDenom = "denom";
+        final var treasury = "tokenTreasury";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(treasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(receiver).receiverSigRequired(true),
+
+                // create FT
+                tokenCreate(feeDenom).treasury(treasury).initialSupply(10),
+                // associate
+                tokenAssociate(receiver, feeDenom),
+
+                // 5 FT from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
+                        .payingWithNoSig(treasury)
+                        .signedBy(treasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
+                        .payingWithNoSig(treasury)
+                        .signedBy(treasury, receiver)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Transferring an NFT to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> transferNftRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var tokenReceiver = "receiver";
+        final var NFT_KEY = "NFT_KEY";
+        final var nonFungibleToken = "nonFungibleToken";
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(tokenReceiver).receiverSigRequired(true),
+
+                // create nft
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                // mint nft
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+
+                // NFT from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenReceiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenReceiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenReceiver)
+                        .hasKnownStatus(SUCCESS));
     }
 }

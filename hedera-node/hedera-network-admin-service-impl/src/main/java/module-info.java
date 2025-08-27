@@ -20,10 +20,11 @@ module com.hedera.node.app.service.network.admin.impl {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
     requires com.swirlds.common;
+    requires org.hiero.base.utility;
     requires com.google.common;
     requires org.apache.commons.io;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.networkadmin.FreezeService with
             FreezeServiceImpl;

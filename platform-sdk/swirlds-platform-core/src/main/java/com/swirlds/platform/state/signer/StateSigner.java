@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.signer;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -18,6 +19,7 @@ public interface StateSigner {
      * @param reservedSignedState the state to sign
      * @return a {@link StateSignatureTransaction} containing the signature, or null if the state should not be signed
      */
+    @InputWireLabel("hashed states to sign")
     @Nullable
     StateSignatureTransaction signState(@NonNull ReservedSignedState reservedSignedState);
 }

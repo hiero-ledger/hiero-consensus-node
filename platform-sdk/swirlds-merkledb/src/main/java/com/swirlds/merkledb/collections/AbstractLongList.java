@@ -12,16 +12,19 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BooleanSupplier;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
@@ -224,13 +227,13 @@ public abstract class AbstractLongList<C> implements LongList {
         loadFromFile(path, configuration);
     }
 
-    private void loadFromFile(@NonNull final Path path, @NonNull Configuration configuration) throws IOException {
+    private void loadFromFile(@NonNull final Path file, @NonNull Configuration configuration) throws IOException {
+        requireNonNull(file);
         requireNonNull(configuration);
-        final File file = path.toFile();
-        if (!file.exists() || file.length() == 0) {
-            throw new IOException("Cannot load index, file doesn't exist: " + file.getAbsolutePath());
+        if (!Files.exists(file)) {
+            throw new IOException("Cannot load index, file doesn't exist: " + file.toAbsolutePath());
         }
-        try (final FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (final FileChannel fileChannel = FileChannel.open(file, StandardOpenOption.READ)) {
             // read header from existing file
             final ByteBuffer versionBuffer = readFromFileChannel(fileChannel, VERSION_METADATA_SIZE);
             final int formatVersion = versionBuffer.getInt();
@@ -281,7 +284,7 @@ public abstract class AbstractLongList<C> implements LongList {
                         "Failed to read index from file, " + "size=" + size.get() + ", capacity=" + capacity);
             }
 
-            readBodyFromFileChannelOnInit(file.getName(), fileChannel, configuration);
+            readBodyFromFileChannelOnInit(file.getFileName().toString(), fileChannel, configuration);
         }
     }
 
@@ -781,20 +784,30 @@ public abstract class AbstractLongList<C> implements LongList {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This long list implementation checks the condition (if not null) before every list
+     * item is processed.
+     */
     @Override
-    public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
+    public <T extends Throwable> boolean forEach(
+            @NonNull final LongAction<T> action, @Nullable final BooleanSupplier cond) throws InterruptedException, T {
         final long max = maxValidIndex.get();
         if (max < 0) {
             // Empty list, nothing to do
-            return;
+            return true;
         }
-        for (long i = minValidIndex.get(); i <= max; i++) {
+        Objects.requireNonNull(action);
+        final BooleanSupplier condition = cond != null ? cond : () -> true;
+        long i = minValidIndex.get();
+        for (; (i <= max) && condition.getAsBoolean(); i++) {
             final long value = get(i);
             if (value != IMPERMISSIBLE_VALUE) {
                 action.handle(i, value);
             }
         }
+        return i == max + 1;
     }
 
     /**

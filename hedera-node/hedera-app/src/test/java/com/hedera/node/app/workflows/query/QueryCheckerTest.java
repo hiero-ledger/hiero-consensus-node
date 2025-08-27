@@ -25,7 +25,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -43,14 +42,15 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -100,6 +100,13 @@ class QueryCheckerTest extends AppTestBase {
                 feeManager,
                 dispatcher,
                 transactionChecker);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (state != null) {
+            state.release();
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -166,9 +173,8 @@ class QueryCheckerTest extends AppTestBase {
                         TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
                 .build();
         final var signatureMap = SignatureMap.newBuilder().build();
-        final var transaction = Transaction.newBuilder().build();
         final var transactionInfo = new TransactionInfo(
-                transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
+                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
 
         // when
         assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo)).doesNotThrowAnyException();
@@ -182,9 +188,8 @@ class QueryCheckerTest extends AppTestBase {
                         TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
                 .build();
         final var signatureMap = SignatureMap.newBuilder().build();
-        final var transaction = Transaction.newBuilder().build();
         final var transactionInfo = new TransactionInfo(
-                transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CONSENSUS_CREATE_TOPIC, null);
+                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
 
         // then
         assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
@@ -200,9 +205,8 @@ class QueryCheckerTest extends AppTestBase {
                         TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
                 .build();
         final var signatureMap = SignatureMap.newBuilder().build();
-        final var transaction = Transaction.newBuilder().build();
         final var transactionInfo = new TransactionInfo(
-                transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
+                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
         doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
                 .when(cryptoTransferHandler)
                 .pureChecks(any());
@@ -260,7 +264,7 @@ class QueryCheckerTest extends AppTestBase {
         void setup() {
             setupStandardStates();
 
-            final var storeFactory = new ReadableStoreFactory(state, ServicesSoftwareVersion::new);
+            final var storeFactory = new ReadableStoreFactory(state);
             store = storeFactory.getStore(ReadableAccountStore.class);
         }
 
@@ -532,12 +536,8 @@ class QueryCheckerTest extends AppTestBase {
                 .bodyBytes(bodyBytes)
                 .sigMap(SignatureMap.DEFAULT)
                 .build();
-        final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
         return new TransactionInfo(
-                transaction, txBody, SignatureMap.DEFAULT, signedTransactionBytes, CRYPTO_TRANSFER, null);
+                signedTransaction, txBody, SignatureMap.DEFAULT, signedTransaction.bodyBytes(), CRYPTO_TRANSFER, null);
     }
 
     private static AccountAmount send(AccountID accountID, long amount) {

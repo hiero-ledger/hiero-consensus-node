@@ -140,7 +140,9 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
 
             final var tokenId = xfers.tokenOrThrow();
             boolean shouldExecuteCryptoTransfer = false;
-            final var transferListBuilder = TokenTransferList.newBuilder().token(tokenId);
+            final var transferListBuilder = TokenTransferList.newBuilder()
+                    .expectedDecimals(xfers.expectedDecimals())
+                    .token(tokenId);
 
             // process fungible token transfers if any.
             if (!xfers.transfers().isEmpty()) {

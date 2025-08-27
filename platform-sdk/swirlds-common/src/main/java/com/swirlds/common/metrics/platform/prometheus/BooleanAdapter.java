@@ -7,13 +7,13 @@ import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.
 import static java.lang.Boolean.TRUE;
 
 import com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single value of {@link Metric#getDataType() type} {@code boolean}

@@ -2,7 +2,6 @@
 module com.swirlds.state.api {
     exports com.swirlds.state;
     exports com.swirlds.state.spi;
-    exports com.swirlds.state.lifecycle.info;
     exports com.swirlds.state.spi.metrics;
     exports com.swirlds.state.lifecycle;
 
@@ -12,7 +11,8 @@ module com.swirlds.state.api {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
-    requires com.swirlds.logging;
+    requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.base.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

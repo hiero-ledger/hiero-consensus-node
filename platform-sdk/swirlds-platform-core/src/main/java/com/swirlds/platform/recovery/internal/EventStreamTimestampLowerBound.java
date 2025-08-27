@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
-import com.swirlds.platform.system.events.CesEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A timestamp based lower bound on event streams.

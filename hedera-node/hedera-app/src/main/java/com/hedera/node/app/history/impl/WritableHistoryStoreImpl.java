@@ -11,6 +11,7 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -20,6 +21,7 @@ import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -33,11 +35,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link WritableHistoryStore}.
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
+    private static final Logger logger = LogManager.getLogger(WritableHistoryStoreImpl.class);
+
     private final WritableSingletonState<ProtoBytes> ledgerId;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
@@ -129,21 +136,35 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public HistoryProofConstruction failForReason(final long constructionId, @NonNull final String reason) {
+        requireNonNull(reason);
+        return updateOrThrow(constructionId, b -> b.failureReason(reason));
+    }
+
+    @Override
     public void setLedgerId(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
         ledgerId.put(new ProtoBytes(bytes));
     }
 
     @Override
-    public boolean purgeStateAfterHandoff(@NonNull final ActiveRosters activeRosters) {
-        if (activeRosters.phase() != HANDOFF) {
-            throw new IllegalArgumentException("Not in handoff phase");
-        }
-        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(activeRosters.currentRosterHash())) {
+    public boolean handoff(
+            @NonNull final Roster fromRoster, @NonNull final Roster toRoster, @NonNull final Bytes toRosterHash) {
+        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
-            purgeVotesAndSignatures(requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            // Also purge any obsolete proof keys
-            activeRosters.removedNodeIds().forEach(id -> proofKeySets.remove(new NodeId(id)));
+            final var upcomingConstruction = requireNonNull(activeConstruction.get());
+            purgeVotesAndSignatures(upcomingConstruction.constructionId(), fromRoster);
+            if (fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
+                final var survivingNodeIds = toRoster.rosterEntries().stream()
+                        .map(RosterEntry::nodeId)
+                        .collect(Collectors.toSet());
+                fromRoster.rosterEntries().forEach(entry -> {
+                    final long nodeId = entry.nodeId();
+                    if (!survivingNodeIds.contains(nodeId)) {
+                        proofKeySets.remove(new NodeId(nodeId));
+                    }
+                });
+            }
             // And finally, make the next construction the active one
             activeConstruction.put(nextConstruction.get());
             nextConstruction.put(HistoryProofConstruction.DEFAULT);
@@ -189,20 +210,32 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Function<Bytes, Roster> lookup,
             @NonNull final Instant now,
             @NonNull final Duration gracePeriod) {
-        final var construction = HistoryProofConstruction.newBuilder()
+        var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(newConstructionId())
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+        final var activeChoice = requireNonNull(activeConstruction.get());
+        if (activeChoice.equals(HistoryProofConstruction.DEFAULT)) {
             activeConstruction.put(construction);
+            logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {
             if (!requireNonNull(nextConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
-                // Before replacing the next construction, purge its votes
-                purgeVotesAndSignatures(requireNonNull(nextConstruction.get()), lookup);
+                // Before switching to the new construction, purge the existing one's votes and signatures
+                final var extantConstruction = requireNonNull(nextConstruction.get());
+                final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
+                purgeVotesAndSignatures(extantConstruction.constructionId(), sourceRoster);
+            }
+            // Copy over any existing target proof as the new construction's source proof
+            if (activeChoice.hasTargetProof() && activeChoice.targetRosterHash().equals(sourceRosterHash)) {
+                construction = construction
+                        .copyBuilder()
+                        .sourceProof(activeChoice.targetProofOrThrow())
+                        .build();
             }
             nextConstruction.put(construction);
+            logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
         }
         // Rotate any proof keys requested to be used in the next construction
         final var adoptionTime = asTimestamp(now);
@@ -222,17 +255,33 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         return construction;
     }
 
+    private enum InSlot {
+        ACTIVE,
+        NEXT
+    }
+
+    private void logNewConstruction(
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final InSlot slot,
+            @NonNull final Bytes sourceRosterHash,
+            @NonNull final Bytes targetRosterHash) {
+        logger.info(
+                "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
+                slot,
+                construction.constructionId(),
+                sourceRosterHash,
+                targetRosterHash,
+                construction.hasSourceProof() ? "WITH" : "WITHOUT");
+    }
+
     /**
-     * Purges the votes for the given construction relative to the given roster lookup.
+     * Purges the votes for the given construction relative to the given roster.
      *
-     * @param construction the construction
-     * @param lookup the roster lookup
+     * @param sourceRoster the construction
      */
-    private void purgeVotesAndSignatures(
-            @NonNull final HistoryProofConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
-        final var sourceRoster = requireNonNull(lookup.apply(construction.sourceRosterHash()));
+    private void purgeVotesAndSignatures(final long constructionId, @NonNull final Roster sourceRoster) {
         sourceRoster.rosterEntries().forEach(entry -> {
-            final var key = new ConstructionNodeId(construction.constructionId(), entry.nodeId());
+            final var key = new ConstructionNodeId(constructionId, entry.nodeId());
             votes.remove(key);
             signatures.remove(key);
         });

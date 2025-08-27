@@ -16,11 +16,11 @@ import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
-import com.swirlds.platform.system.state.notifications.IssNotification;
-import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.test.fixtures.SimpleScratchpad;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -19,10 +18,10 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -31,6 +30,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateKVStateOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateScheduleCountsOp;
+import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStakingInfosOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateTokenOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.UnaryOperator;
 
 /**
  * Contains operations that are usable only with an {@link EmbeddedNetwork}.
@@ -55,6 +56,14 @@ import java.util.function.IntConsumer;
 public final class EmbeddedVerbs {
     private EmbeddedVerbs() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns an operation that allows the test author to handle the next round in a repeatable embedded network,
+     * typically useful to handle the query payment from a just-submitted transaction.
+     */
+    public static SpecOperation handleAnyRepeatableQueryPayment() {
+        return doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleNextRoundIfPresent());
     }
 
     /**
@@ -128,6 +137,24 @@ public final class EmbeddedVerbs {
         requireNonNull(stateKey);
         requireNonNull(observer);
         return new ViewSingletonOp<>(serviceName, stateKey, observer);
+    }
+
+    /**
+     * Returns an operation that allows the test author to mutate a singleton record in an embedded state.
+     * @param serviceName the name of the service that manages the record
+     * @param stateKey the key of the record in the state
+     * @param mutator the observer that will receive the record
+     * @return the operation that will expose the record to the mutator
+     * @param <T> the type of the record
+     */
+    public static <T> MutateSingletonOp<T> mutateSingleton(
+            @NonNull final String serviceName,
+            @NonNull final String stateKey,
+            @NonNull final UnaryOperator<T> mutator) {
+        requireNonNull(serviceName);
+        requireNonNull(stateKey);
+        requireNonNull(mutator);
+        return new MutateSingletonOp<>(serviceName, stateKey, mutator);
     }
 
     /**
@@ -232,9 +259,9 @@ public final class EmbeddedVerbs {
             final var throttleAccumulator = new ThrottleAccumulator(
                     hedera.configProvider()::getConfiguration,
                     capacityUtilization::asApproxCapacitySplit,
-                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
-                    v -> new ServicesSoftwareVersion());
+                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
             throttleAccumulator.applyGasConfig();
+            throttleAccumulator.applyBytesConfig();
             throttleAccumulator.rebuildFor(hedera.activeThrottleDefinitions());
             final var now = spec.consensusTime();
             final var state = spec.embeddedStateOrThrow();
@@ -243,7 +270,7 @@ public final class EmbeddedVerbs {
                     .accountNum(properties.getLong("accounts.lastThrottleExempt") + 1)
                     .build();
             final var txnInfo = new TransactionInfo(
-                    Transaction.DEFAULT,
+                    SignedTransaction.DEFAULT,
                     TransactionBody.DEFAULT,
                     TransactionID.DEFAULT,
                     throttledPayerId,
@@ -252,7 +279,7 @@ public final class EmbeddedVerbs {
                     pbjFunction,
                     null);
             int numSchedulable = 0;
-            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state); numSchedulable++) {
+            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state, null); numSchedulable++) {
                 // Count until we are throttled
             }
             observer.accept(numSchedulable);

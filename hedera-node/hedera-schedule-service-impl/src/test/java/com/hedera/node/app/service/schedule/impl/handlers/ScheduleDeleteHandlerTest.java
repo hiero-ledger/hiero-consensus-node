@@ -46,7 +46,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     void preHandleHappyPath() throws PreCheckException {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
         assertThat(scheduleDeleter).isEqualTo(realPreContext.payer());
@@ -58,7 +58,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     void failsIfScheduleMissing() throws PreCheckException {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         scheduleMapById.put(testScheduleID, null);
 
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
@@ -69,7 +69,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     void failsIfScheduleIsImmutable() throws PreCheckException {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
 
         final Schedule noAdmin = scheduleInState.copyBuilder().adminKey(nullKey).build();
         reset(writableById);

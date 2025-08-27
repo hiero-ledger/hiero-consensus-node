@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 public enum SyncFallenBehindStatus {
     NONE_FALLEN_BEHIND,
@@ -18,10 +18,10 @@ public enum SyncFallenBehindStatus {
      */
     @NonNull
     public static SyncFallenBehindStatus getStatus(@NonNull final EventWindow self, @NonNull final EventWindow other) {
-        if (other.getAncientThreshold() < self.getExpiredThreshold()) {
+        if (other.ancientThreshold() < self.expiredThreshold()) {
             return OTHER_FALLEN_BEHIND;
         }
-        if (self.getAncientThreshold() < other.getExpiredThreshold()) {
+        if (self.ancientThreshold() < other.expiredThreshold()) {
             return SELF_FALLEN_BEHIND;
         }
         return NONE_FALLEN_BEHIND;
