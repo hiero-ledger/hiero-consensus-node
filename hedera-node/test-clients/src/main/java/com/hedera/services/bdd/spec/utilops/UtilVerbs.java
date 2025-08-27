@@ -2752,57 +2752,6 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
-    public static void getTransactionDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("transaction"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getPrecompileDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("precompile"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getSystemContractDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("system_contract"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getEvmOpsDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("ops"))
-                .forEach(opLog::info))));
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageWithin(final double expectedPercentage) {
-        return throttleUsagePercentageWithin(expectedPercentage, 0.1);
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageWithin(
-            final double expectedPercentage, final double allowedPercentDiff) {
-        return assertionsHold((spec, opLog) -> {
-            final var actualPercentage = getOpsDurationValue(spec);
-            assertEquals(
-                    expectedPercentage,
-                    actualPercentage,
-                    (allowedPercentDiff / 100.0) * expectedPercentage,
-                    String.format(
-                            "%s Throttle bucket filled more than %.2f percent different than expected!",
-                            sdec(actualPercentage, 4), allowedPercentDiff));
-        });
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
-            final double amount, final double threshold) {
-        return assertionsHold((spec, opLog) -> {
-            assertTrue(
-                    amount > threshold,
-                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
-        });
-    }
-
     public static CustomSpecAssert valueIsInRange(
             final double value, final double lowerBoundInclusive, final double upperBoundExclusive) {
         return assertionsHold((spec, opLog) -> {
@@ -2814,29 +2763,16 @@ public class UtilVerbs {
         });
     }
 
-    public static Double getOpsDurationValue(HapiSpec spec) {
-        final var metrics = getDurationThrottleMetrics(spec);
+    public static Double getOpsDurationThrottlePercentUsed(HapiSpec spec) {
+        final var metrics = getOpsDurationThrottlePercentUsedMetrics(spec);
         assertFalse(metrics.isEmpty(), "No throttle metrics found!");
         final var latestThrottleMetric = metrics.getLast();
         return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
     }
 
-    private static List<String> getTransactionMetrics() {
-        final var list = new ArrayList<String>();
-        withOpContext((spec, opLog) -> allRunFor(
-                spec,
-                doAdhoc(() -> list.addAll(spec.prometheusClient()
-                        .getTransactionMetrics(spec.targetNetworkOrThrow()
-                                .nodes()
-                                .getFirst()
-                                .metadata()
-                                .prometheusPort())))));
-        return list;
-    }
-
-    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+    private static List<String> getOpsDurationThrottlePercentUsedMetrics(final HapiSpec spec) {
         return spec.prometheusClient()
-                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                .getOpsDurationThrottlePercentUsedMetrics(spec.targetNetworkOrThrow()
                         .nodes()
                         .getFirst()
                         .metadata()
