@@ -32,15 +32,9 @@ jobs:
       - name: Extract the Input Version
         id: extract-version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            version="${{ github.event.inputs.version }}"
-            echo "version=$version" >> $GITHUB_OUTPUT
-          else
-            version="${GITHUB_REF#refs/tags/}"
-            echo "version=$version" >> $GITHUB_OUTPUT
-          fi
-          echo "Version Number to Process:" >> $GITHUB_STEP_SUMMARY
-          echo "\`$version\`" >> $GITHUB_STEP_SUMMARY
+echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
+          echo "Version Number to Process:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${version}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate and Correct Release Identifier
         id: validate
@@ -49,18 +43,18 @@ jobs:
 
           echo "Input release identifier: '${release_identifier}'"
 
-          is_valid=$(semver validate ${release_identifier})
+          is_valid=$(semver validate "${release_identifier}")
 
-          if [ "$is_valid" != "valid" ]; then
-            echo "Invalid semantic version: $release_identifier"
+          if [[ "$is_valid" != "valid" ]]; then
+            echo "Invalid semantic version: ${release_identifier}"
             exit 1
           fi
           
           cleaned="${release_identifier#v}"
           
           echo "Release identifier is valid: ${cleaned}"
-          echo "release-identifier=${cleaned}" >> ${GITHUB_OUTPUT}
-          echo "Validated Input: ${cleaned}" >> ${GITHUB_STEP_SUMMARY}
+          echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
+          echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Checkout Code
         id: checkout_code
@@ -76,24 +70,24 @@ jobs:
 
           echo "Checking if tag ${tag} exists..."
 
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag ${tag} found in repo." >> ${GITHUB_STEP_SUMMARY}
+          if git rev-parse "${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} found in repo." >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "Error: Tag ${tag} does not exist in repo." >> ${GITHUB_STEP_SUMMARY}
+            echo "Error: Tag ${tag} does not exist in repo." >> "${GITHUB_STEP_SUMMARY}"
             exit 1
           fi
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
       - name: Create Release Notes - Feats and Fixes Only Markdown Format
         run: |
-          echo "Release Notes - Feats and Fixes Only Markdown Format" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "Release Notes - Feats and Fixes Only Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "## Release Notes" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
           
-          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Get All Changes in JSON Format
         run: |
@@ -159,11 +153,11 @@ jobs:
 
       - name: Create Release Notes - Full Markdown Format
         run: |
-          echo "Release Notes - Full Markdown Format" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "## Release Notes" | tee -a ${GITHUB_STEP_SUMMARY}
-          echo "" | tee -a ${GITHUB_STEP_SUMMARY}
-          cat RELEASE_NOTES.md | tee -a ${GITHUB_STEP_SUMMARY}
+          echo "Release Notes - Full Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "## Release Notes" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          cat RELEASE_NOTES.md | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Full List of Git History Commits
         run: |
