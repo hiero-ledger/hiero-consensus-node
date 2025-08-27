@@ -55,7 +55,7 @@ class MerkleReferenceCountingTests {
 
         final List<DummyMerkleNode> trees = buildTreeList();
 
-        // After deleting a tree, each node should be be deleted and have a reference count of 0
+        // After deleting a tree, each node should be deleted and have a reference count of 0
         for (final MerkleNode tree : trees) {
             if (tree != null) {
                 final List<DummyMerkleNode> nodes = new LinkedList<>();

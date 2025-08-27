@@ -49,7 +49,7 @@ public class Console {
     /** max number of characters stored stored. Older text is deleted. */
     private static final int MAX_SIZE = 50 * 1024;
 
-    private static final int DEFAULT_FONT_SIZE = 12; // 14 is good for for windows
+    private static final int DEFAULT_FONT_SIZE = 12; // 14 is good for windows
 
     private class ConsoleStream extends ByteArrayOutputStream {
         @Override
