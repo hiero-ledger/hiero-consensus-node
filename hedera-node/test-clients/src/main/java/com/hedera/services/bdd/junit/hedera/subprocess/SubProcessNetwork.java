@@ -105,14 +105,15 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final long shard;
     private final long realm;
 
-    private List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
     private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
     private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
 
-    private Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
+    private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -220,6 +221,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         });
     }
 
+    /**
+     * Add a listener to be notified when the network is ready.
+     * @param listener the listener to notify when the network is ready
+     */
+    public void onReady(@NonNull final Consumer<HederaNetwork> listener) {
+        requireNonNull(listener);
+        if (ready.get() != null) {
+            throw new IllegalStateException("Listeners must be registered before awaitReady()");
+        }
+        onReadyListeners.add(listener);
+    }
+
     private void executePostInitWorkingDirActions(HederaNode node) {
         for (Consumer<HederaNode> action : postInitWorkingDirActions) {
             action.accept(node);
@@ -266,7 +279,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 deferredRun.runAsync();
             }
         }
-        ready.get().futureOrThrow().join();
+        final var future = ready.get().futureOrThrow();
+        future.thenRun(() -> onReadyListeners.forEach(listener -> listener.accept(this)));
+        future.join();
     }
 
     /**

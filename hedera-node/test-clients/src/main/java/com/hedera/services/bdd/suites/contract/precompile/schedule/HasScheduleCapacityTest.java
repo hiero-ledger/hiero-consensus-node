@@ -58,13 +58,10 @@ public class HasScheduleCapacityTest {
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
-                .andAssert(txn -> txn.hasResults(
-                        ContractFnResultAsserts.resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
-                                        ContractFnResultAsserts.isLiteralResult(new Object[] {true})),
-                        // for child record asserting, because hasScheduleCapacity is a view function
-                        ContractFnResultAsserts.anyResult()))
+                .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
+                        .resultThruAbi(
+                                getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
+                                ContractFnResultAsserts.isLiteralResult(new Object[] {true}))))
                 .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
     }
 
