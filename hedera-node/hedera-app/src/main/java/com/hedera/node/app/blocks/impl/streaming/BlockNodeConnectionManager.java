@@ -760,6 +760,8 @@ public class BlockNodeConnectionManager {
                                         + "connection ({}) we are attempting to connect to and this new connection attempt will be ignored",
                                 activeConnection,
                                 connection);
+
+                        connection.close();
                         return;
                     }
                 }

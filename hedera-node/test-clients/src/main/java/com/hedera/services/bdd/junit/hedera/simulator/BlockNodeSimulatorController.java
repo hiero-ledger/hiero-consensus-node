@@ -203,15 +203,6 @@ public class BlockNodeSimulatorController {
     }
 
     /**
-     * Get the number of simulated block nodes being controlled.
-     *
-     * @return the number of simulated block nodes
-     */
-    public int getSimulatorCount() {
-        return simulatedBlockNodes.size();
-    }
-
-    /**
      * Shutdown all simulated block nodes to simulate connection drops.
      * The servers can be restarted using {@link #startAllSimulators()}.
      */

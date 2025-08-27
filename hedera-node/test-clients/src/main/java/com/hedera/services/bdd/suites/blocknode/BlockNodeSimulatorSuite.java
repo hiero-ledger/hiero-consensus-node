@@ -180,8 +180,7 @@ public class BlockNodeSimulatorSuite {
                     portNumbers.add(spec.getBlockNodePortById(2));
                     portNumbers.add(spec.getBlockNodePortById(3));
                 }),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(0).shutDownImmediately(), // Pri 0
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -192,13 +191,12 @@ public class BlockNodeSimulatorSuite {
                         "onError invoked",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -207,13 +205,12 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
                                 portNumbers.get(2)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(2)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -222,13 +219,12 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
                                 portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(3)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).startImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -237,17 +233,16 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
-                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
+                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
                                 portNumbers.get(3)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
 
     @HapiTest
