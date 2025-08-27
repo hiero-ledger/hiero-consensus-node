@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -17,11 +18,14 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,6 +99,23 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * The reset period for the stream. This is used to periodically reset the stream to ensure increased stability and reliability.
      */
     private final Duration streamResetPeriod;
+    /**
+     * Configuration property: threshold in milliseconds above which a block acknowledgement is considered high latency.
+     */
+    private final long highLatencyThresholdMs;
+    /**
+     * Configuration property: number of consecutive high latency events before considering switching nodes.
+     */
+    private final int highLatencyEventsBeforeSwitching;
+    /**
+     * Map for tracking the timestamps when blocks are sent to the block node.
+     * The key is the block number and the value is the timestamp when the block was sent.
+     */
+    private final ConcurrentMap<Long, Instant> blockSendTimestamps = new ConcurrentHashMap<>();
+    /**
+     * Counter for tracking consecutive high latency events.
+     */
+    private final AtomicInteger consecutiveHighLatencyEvents = new AtomicInteger(0);
     /**
      * Queue for tracking the instances of EndOfStream responses received from the block node for this connection. This
      * queue will be periodically pruned.
@@ -188,6 +209,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+        this.highLatencyThresholdMs = blockNodeConnectionConfig.highLatencyThresholdMs();
+        this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
     }
 
     /**
@@ -269,6 +292,55 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
+
+        // Calculate latency if we have a send timestamp
+        final Instant sendTime = blockSendTimestamps.remove(acknowledgedBlockNumber);
+        if (sendTime != null) {
+            final Duration latency = Duration.between(sendTime, Instant.now());
+            final long latencyMs = latency.toMillis();
+
+            final String nodeAddress = blockNodeConfig.address() + ":" + blockNodeConfig.port();
+            blockStreamMetrics.recordAcknowledgementLatency(nodeAddress, latencyMs);
+
+            if (latencyMs > highLatencyThresholdMs) {
+                blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
+                final int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
+                if (highLatencyCount >= highLatencyEventsBeforeSwitching
+                        && !blockNodeConnectionManager.isOnlyKnownConnection(this)) {
+                    logger.info(
+                            "[{}] Block node has exceeded high latency threshold {} times consecutively. "
+                                    + "Latest latency: {}ms. Switching to a different node.",
+                            this,
+                            highLatencyCount,
+                            latencyMs);
+
+                    consecutiveHighLatencyEvents.set(0);
+
+                    final PublishStreamRequest endStreamTimeout = PublishStreamRequest.newBuilder()
+                            .endStream(PublishStreamRequest.EndStream.newBuilder()
+                                    .endCode(PublishStreamRequest.EndStream.Code.TIMEOUT)
+                                    .earliestBlockNumber(blockBufferService.getEarliestAvailableBlockNumber())
+                                    .latestBlockNumber(blockBufferService.getHighestAckedBlockNumber())
+                                    .build())
+                            .build();
+
+                    sendRequest(endStreamTimeout);
+
+                    close();
+                    blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
+                }
+            } else {
+                consecutiveHighLatencyEvents.set(0);
+            }
+
+            logger.debug(
+                    "[{}] Acknowledgement received for block {} with latency {} ms",
+                    this,
+                    acknowledgedBlockNumber,
+                    latencyMs);
+        } else {
+            logger.debug("[{}] Acknowledgement received for block {}", this, acknowledgedBlockNumber);
+        }
 
         if (currentBlockStreaming == -1) {
             logger.warn(
@@ -505,6 +577,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         requireNonNull(request, "request must not be null");
 
         if (connectionState.get() == ConnectionState.ACTIVE && blockNodeStreamObserver != null) {
+            // Record the timestamp when the block is sent
+            if (request.blockItems() != null
+                    && !request.blockItems().blockItems().isEmpty()) {
+                // Find the first block item with a block proof to get the block number
+                for (final BlockItem item : request.blockItems().blockItems()) {
+                    if (item.hasBlockProof()) {
+                        blockSendTimestamps.put(item.blockProof().block(), Instant.now());
+                        break;
+                    }
+                }
+            }
             blockNodeStreamObserver.onNext(request);
         }
     }
@@ -524,6 +607,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             logger.debug("[{}] Connection successfully closed", this);
         } catch (final RuntimeException e) {
             logger.warn("[{}] Error occurred while attempting to close connection", this);
+        } finally {
+            blockSendTimestamps.clear();
         }
     }
 
