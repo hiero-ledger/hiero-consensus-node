@@ -72,6 +72,20 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.6.2
 
+  #Thresholds for performance
+  #benchmarks
+  #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
+  #         20398 23374         12078          8259     1187               20023
+  #-15%
+  #         17338 19867         10266          7020     1008               17019
+  MinNFTscore: 10266
+  MinMerkleDBscore: 17019
+  MinHCSLoadTest: 19867
+  MinCryptoTransferLoadTest: 17338
+  MinHeliSwapLoadTest: 1008
+  MinSmartContractLoadTest: 7020
+
+
 jobs:
   performance-tests-start:
     name: Start
@@ -1135,6 +1149,42 @@ jobs:
               RESULT="success"
           fi
 
+          if [ "${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }}" -lt "${{ env.MinNFTscore }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }}" -lt "${{ env.MinMerkleDBscore }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} is below ${{ env.MinMerkleDBscore }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "${{ needs.performance-HCSLoadTest-report.outputs.output }}" -lt "${{ env.MinHCSLoadTest }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-HCSLoadTest-report.outputs.output }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "${{ needs.performance-CryptoTransferLoadTest-report.outputs.output }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-CryptoTransferLoadTest-report.outputs.output }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "${{ needs.performance-HeliSwapLoadTest-report.outputs.output }}" -lt "${{ env.MinHeliSwapLoadTest }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-HeliSwapLoadTest-report.outputs.output }} is below ${{ env.MinHeliSwapLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "${{ needs.performance-SmartContractLoadTest-report.outputs.output }}" -lt "${{ env.MinSmartContractLoadTest }}" ]
+          then
+            echo "Benchmark ${{ needs.performance-SmartContractLoadTest-report.outputs.output }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
@@ -1178,16 +1228,16 @@ jobs:
         run: |
 
           report="\
-            NftTransferLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} \n\
-            CryptoBenchMerkleDb ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} \n\
-            HCSLoadTest ${{ needs.performance-HCSLoadTest.outputs.output }} \n\
-            CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} \n\
-            HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} \n\
-            SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }}"
+            NftTransferLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
+            CryptoBenchMerkleDb ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} ${{ env.MinMerkleDBscore }}\n\
+            HCSLoadTest ${{ needs.performance-HCSLoadTest.outputs.output }} ${{ env.MinHCSLoadTest }}\n\
+            CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} ${{ env.MinCryptoTransferLoadTest }}\n\
+            HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} ${{ env.MinHeliSwapLoadTest }}\n\
+            SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }} ${{ env.MinSmartContractLoadTest }}"
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
-          freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' | perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3);printf("{\"type\": \"text\",\"text\": \"%-25s %7d %2d %7d\\\n\"}%s",$t,$d,(int(($d-$l)/100)),$l,$comma);'`
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS      Above min\n\"},$freport"
 
           cat <<EOF > slack_payload.json
           {
@@ -1250,9 +1300,14 @@ jobs:
             ]
           }
           EOF
+          #FIXME: debug below
+          echo "slack_payload.json :"
+          cat slack_payload.json
 
       ## Slack notifications
       - name: Report status (slack operations)
+        #FIXME: if: false
+        if: false
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.slack-report-webhook }}
