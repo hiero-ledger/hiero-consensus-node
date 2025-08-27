@@ -58,6 +58,7 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -105,6 +106,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -1445,6 +1447,19 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             return;
         }
 
-        daggerApp.blockNodeConnectionManager().start();
+        final BlockNodeConnectionConfig blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
+        try {
+            daggerApp.blockNodeConnectionManager().start();
+        } catch (final NoBlockNodesAvailableException e) {
+            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
+                logger.fatal("No block nodes available to connect to; shutting down");
+                shutdown();
+                System.exit(1);
+            } else {
+                logger.warn("No block nodes available to connect to");
+            }
+        }
     }
 }

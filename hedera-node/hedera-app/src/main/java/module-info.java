@@ -57,7 +57,6 @@ module com.hedera.node.app {
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
-    requires java.annotation;
     requires org.apache.commons.lang3;
     requires static transitive com.github.spotbugs.annotations;
     requires static com.google.auto.service;
