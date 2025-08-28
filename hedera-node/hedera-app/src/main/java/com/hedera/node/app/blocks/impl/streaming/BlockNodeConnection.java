@@ -9,15 +9,15 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.StreamObserver;
-import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
@@ -45,7 +46,7 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  * The connection goes through multiple states defined in {@link ConnectionState} and
  * uses exponential backoff for retries when errors occur.
  */
-public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
+public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
 
@@ -57,10 +58,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * The configuration specific to the block node this connection is for.
      */
     private final BlockNodeConfig blockNodeConfig;
-    /**
-     * The gRPC client to use for creating bi-directional streams between the consensus node and block node.
-     */
-    private final GrpcServiceClient grpcServiceClient;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -105,17 +102,15 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     private final AtomicBoolean streamShutdownInProgress = new AtomicBoolean(false);
     /**
-     * Stream observer used to send messages to the block node.
+     * Publish gRPC client used to send messages to the block node.
      */
-    private StreamObserver<PublishStreamRequest> blockNodeStreamObserver;
+    private final BlockStreamPublishServiceClient blockStreamPublishServiceClient;
+
+    private Pipeline<? super PublishStreamRequest> requestPipeline;
     /**
      * Reference to the current state of this connection.
      */
     private final AtomicReference<ConnectionState> connectionState;
-    /**
-     * The gRPC endpoint used to establish bi-directional communication between the consensus node and block node.
-     */
-    private final String grpcEndpoint;
     /**
      * Scheduled executor service that is used to schedule periodic reset of the stream to help ensure stream health.
      */
@@ -158,7 +153,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param blockBufferService the block stream state manager for block node connections
      * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
-     * @param grpcEndpoint the gRPC endpoint to connect to the block node
      * @param executorService the scheduled executor service used to perform async connection reconnects
      */
     public BlockNodeConnection(
@@ -166,19 +160,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final GrpcServiceClient grpcServiceClient,
+            @NonNull final BlockStreamPublishServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final String grpcEndpoint,
             @NonNull final ScheduledExecutorService executorService) {
         requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-        this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
+        this.blockStreamPublishServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
-        this.grpcEndpoint = requireNonNull(grpcEndpoint, "grpcEndpoint must not be null");
         this.executorService = requireNonNull(executorService, "executorService must not be null");
 
         final var blockNodeConnectionConfig =
@@ -191,11 +183,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     /**
-     * Creates a new bidi request observer for this block node connection.
+     * Creates a new bidi request pipeline for this block node connection.
      */
-    public void createRequestObserver() {
-        if (blockNodeStreamObserver == null) {
-            blockNodeStreamObserver = grpcServiceClient.bidi(grpcEndpoint, this);
+    public void createRequestPipeline() {
+        if (requestPipeline == null) {
+            requestPipeline = blockStreamPublishServiceClient.publishBlockStream(this);
             updateConnectionState(ConnectionState.PENDING);
         }
     }
@@ -234,7 +226,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     private void performStreamReset() {
-        if (connectionState.get() == ConnectionState.ACTIVE) {
+        if (getConnectionState() == ConnectionState.ACTIVE) {
             logger.debug("[{}] Performing scheduled stream reset", this);
             endTheStreamWith(RESET);
             blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
@@ -250,10 +242,20 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     /**
-     * Handles the failure of the stream by closing the connection and notifying the connection manager.
+     * Handles the failure of the stream by closing the connection,
+     * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        close();
+        close(true);
+        blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
+    }
+
+    /**
+     * Handles the failure of the stream by closing the connection,
+     * notifying the connection manager without calling onComplete on the request pipeline.
+     */
+    public void handleStreamFailureWithoutOnComplete() {
+        close(false);
         blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
     }
 
@@ -322,7 +324,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         // Check if we've exceeded the EndOfStream rate limit
         if (hasExceededEndOfStreamLimit()) {
-            close();
+            close(true);
             logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
@@ -339,7 +341,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         switch (responseCode) {
             case Code.ERROR, Code.PERSISTENCE_FAILED -> {
-                close();
+                close(true);
                 // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to retry
                 // to avoid overwhelming the node if it's having issues
@@ -351,7 +353,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
             case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST -> {
-                close();
+                close(true);
                 // We should restart the stream at the block immediately
                 // following the last verified and persisted block number
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
@@ -364,7 +366,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 restartStreamAtBlock(restartBlockNumber);
             }
             case Code.SUCCESS -> {
-                close();
+                close(true);
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
                 logger.debug("[{}] Block node orderly ended the stream at block {}", this, blockNumber);
@@ -375,7 +377,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // restart the stream from there
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 if (blockBufferService.getBlockState(restartBlockNumber) != null) {
-                    close();
+                    close(true);
                     logger.debug(
                             "[{}] Block node reported it is behind. Will restart stream at block {}.",
                             this,
@@ -394,7 +396,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 }
             }
             case Code.UNKNOWN -> {
-                close();
+                close(true);
                 // This should never happen, but if it does, schedule this connection for a retry attempt
                 // and in the meantime select a new node to stream to
                 logger.error("[{}] Block node reported an unknown error at block {}.", this, blockNumber);
@@ -448,7 +450,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             + "consensus node. Closing connection and will retry later",
                     this,
                     resendBlockNumber);
-            close();
+            close(true);
             blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
         }
     }
@@ -498,7 +500,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 .build();
 
         sendRequest(endStream);
-        close();
+        close(true);
     }
 
     /**
@@ -509,8 +511,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     public void sendRequest(@NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
-        if (connectionState.get() == ConnectionState.ACTIVE && blockNodeStreamObserver != null) {
-            blockNodeStreamObserver.onNext(request);
+        if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
+            requestPipeline.onNext(request);
         }
     }
 
@@ -518,12 +520,12 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Idempotent operation that closes this connection (if active) and releases associated resources. If there is a
      * failure in closing the connection, the error will be logged and not propagated back to the caller.
      */
-    public void close() {
+    public void close(final boolean callOnComplete) {
         try {
             logger.debug("[{}] Closing connection...", this);
 
+            closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.UNINITIALIZED);
-            closeObserver();
             jumpToBlock(-1L);
 
             logger.debug("[{}] Connection successfully closed", this);
@@ -532,18 +534,24 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void closeObserver() {
-        if (blockNodeStreamObserver != null) {
-            logger.debug("[{}] Closing request observer for block node", this);
+    private void closePipeline(final boolean callOnComplete) {
+        if (requestPipeline != null) {
+            logger.debug("[{}] Closing request pipeline for block node", this);
             streamShutdownInProgress.set(true);
 
             try {
-                blockNodeStreamObserver.onCompleted();
-                logger.debug("[{}] Request observer successfully closed", this);
+                if (getConnectionState() == ConnectionState.ACTIVE && callOnComplete) {
+                    requestPipeline.onComplete();
+                    logger.debug("[{}] Request pipeline successfully closed", this);
+                } else {
+                    logger.debug("[{}] Request pipeline closed without onComplete - connection not active", this);
+                }
             } catch (final Exception e) {
-                logger.warn("[{}] Error while completing request observer", this, e);
+                logger.warn("[{}] Error while completing request pipeline", this, e);
             }
-            blockNodeStreamObserver = null;
+            // Clear the pipeline reference to prevent further use
+            // pipelineLock ensures no thread is mid-call to requestPipeline.onNext()
+            requestPipeline = null;
         }
     }
 
@@ -582,6 +590,18 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         blockNodeConnectionManager.jumpToBlock(blockNumber);
     }
 
+    @Override
+    public void onSubscribe(Flow.Subscription subscription) {
+        logger.debug("[{}] onSubscribe", this);
+        subscription.request(Long.MAX_VALUE);
+    }
+
+    @Override
+    public void clientEndStreamReceived() {
+        logger.debug("[{}] Client end stream received", this);
+        Pipeline.super.clientEndStreamReceived();
+    }
+
     /**
      * Processes responses received from the block node through the bidirectional gRPC stream.
      * Handles {@link BlockAcknowledgement}s, {@link EndOfStream} response signals, {@link SkipBlock} and {@link ResendBlock}.
@@ -618,9 +638,13 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     @Override
     public void onError(final Throwable error) {
-        logger.debug("[{}] Stream encountered an error", this, error);
-        blockStreamMetrics.incrementOnErrorCount();
-        handleStreamFailure();
+        logger.debug("[{}] onError invoked", this, error);
+
+        if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
+            logger.warn("[{}] onError being handled", this, error);
+            blockStreamMetrics.incrementOnErrorCount();
+            handleStreamFailure();
+        }
     }
 
     /**
@@ -628,10 +652,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Triggers reconnection if completion was not initiated by this side.
      */
     @Override
-    public void onCompleted() {
-        if (streamShutdownInProgress.get()) {
+    public void onComplete() {
+        if (streamShutdownInProgress.getAndSet(false)) {
             logger.debug("[{}] Stream completed (stream close was in progress)", this);
-            streamShutdownInProgress.set(false);
         } else {
             logger.debug("[{}] Stream completed unexpectedly", this);
             handleStreamFailure();
@@ -650,7 +673,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     @Override
     public String toString() {
-        return blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/" + connectionState.get();
+        return blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/" + getConnectionState();
     }
 
     @Override
@@ -659,11 +682,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             return false;
         }
         final BlockNodeConnection that = (BlockNodeConnection) o;
-        return Objects.equals(blockNodeConfig, that.blockNodeConfig) && Objects.equals(grpcEndpoint, that.grpcEndpoint);
+        return Objects.equals(blockNodeConfig, that.blockNodeConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blockNodeConfig, grpcEndpoint);
+        return Objects.hash(blockNodeConfig);
     }
 }
