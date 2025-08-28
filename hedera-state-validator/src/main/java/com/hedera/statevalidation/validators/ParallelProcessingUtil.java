@@ -4,6 +4,7 @@ package com.hedera.statevalidation.validators;
 import static com.hedera.statevalidation.validators.Constants.PARALLELISM;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.function.Consumer;
@@ -29,5 +30,9 @@ public class ParallelProcessingUtil {
 
     public static ForkJoinTask<?> doNothing() {
         return VALIDATOR_FORK_JOIN_POOL.submit(() -> {});
+    }
+
+    public static <T> ForkJoinTask<T> submitSingleTask(Callable<T> task) {
+        return VALIDATOR_FORK_JOIN_POOL.submit(task);
     }
 }

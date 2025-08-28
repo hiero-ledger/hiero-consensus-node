@@ -120,16 +120,16 @@ jobs:
         if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         with:
-          api_key: ${{ secrets.ROOTLY_API_KEY }}
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
           summary: "Hiero Consensus Node - XTS Candidate Tagging Failed"
           details: |
             The tagging of commit `${{ inputs.ref }}` for the Extended Test Suite (XTS) promotion has failed.
             Please investigate the issue to ensure the commit is properly tagged for further testing and deployment processes.
-          notification_target_type: Service
-          notification_target: CI/CD Workflows
-          set_as_noise: true
-          alert_urgency: High
-          environments: CITR
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 

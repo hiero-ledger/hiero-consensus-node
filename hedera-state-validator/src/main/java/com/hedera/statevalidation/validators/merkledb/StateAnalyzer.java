@@ -123,7 +123,6 @@ public class StateAnalyzer {
 
                 while (dataIterator.next()) {
                     try {
-                        // int itemSize = dataIterator.getDataItemData().remaining();
                         int itemSize = 0;
                         final long path;
                         Object dataItemData = deser.apply(dataIterator.getDataItemData());
@@ -144,11 +143,15 @@ public class StateAnalyzer {
                             throw new UnsupportedOperationException("Unsupported data item type");
                         }
 
-                        long oldVal = itemCountByPath.getAndIncrement(path);
-                        if (oldVal > 0) {
+                        if (path >= indexSize) {
                             wastedSpaceInBytes.addAndGet(itemSize);
-                            if (oldVal == 1) {
-                                duplicateItemCount.incrementAndGet();
+                        } else {
+                            long oldVal = itemCountByPath.getAndIncrement(path);
+                            if (oldVal > 0) {
+                                wastedSpaceInBytes.addAndGet(itemSize);
+                                if (oldVal == 1) {
+                                    duplicateItemCount.incrementAndGet();
+                                }
                             }
                         }
                     } catch (Exception e) {
