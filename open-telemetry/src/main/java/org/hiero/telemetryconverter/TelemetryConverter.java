@@ -7,25 +7,24 @@ import static org.hiero.telemetryconverter.util.CleanColorfulFormatter.GREY;
 
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
-import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.ClasspathFileConfigSource;
+import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
+import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.opentelemetry.pbj.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.pbj.collector.trace.v1.TraceServiceInterface;
-import io.opentelemetry.pbj.common.v1.AnyValue;
-import io.opentelemetry.pbj.common.v1.KeyValue;
-import io.opentelemetry.pbj.resource.v1.Resource;
 import io.opentelemetry.pbj.trace.v1.ResourceSpans;
 import io.opentelemetry.pbj.trace.v1.ScopeSpans;
 import io.opentelemetry.pbj.trace.v1.Span;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -39,6 +38,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
+import org.hiero.telemetryconverter.config.ConverterConfig;
+import org.hiero.telemetryconverter.config.TraceClientConfig;
 import org.hiero.telemetryconverter.model.VirtualResource;
 import org.hiero.telemetryconverter.model.combined.BlockInfo;
 import org.hiero.telemetryconverter.model.trace.BlockTraceInfo;
@@ -68,11 +69,6 @@ public final class TelemetryConverter {
     public static final Options PROTO_OPTIONS =
             new Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
 
-    private static final Path PROJECT_ROOT = Paths.get("").toAbsolutePath();
-    private static final Path JFR_TRACE_DIR = PROJECT_ROOT.resolve("hedera-node/test-clients/build/hapi-test");
-    // we will take blocks only from one single node
-    private static final Path BLOCK_FILES_DIR = PROJECT_ROOT.resolve("hedera-node/test-clients/build/hapi-test/node0/data/blockStreams");
-
     /** Cache of all block traces found in the JFR file, keyed by block number. */
     private static final LongObjectHashMap<List<BlockTraceInfo>> blockTraces = new LongObjectHashMap<>();
     /** Cache of all round traces found in the JFR file, keyed by round number. */
@@ -81,14 +77,23 @@ public final class TelemetryConverter {
     private static final IntObjectHashMap<List<EventTraceInfo>> eventTraces = new IntObjectHashMap<>();
     /** Cache of all transaction traces found in the JFR file, keyed by transaction hash. */
     private static final IntObjectHashMap<List<TransactionTraceInfo>> transactionTraces = new IntObjectHashMap<>();
-    /** Directory to write test output files to */
-    private static final Path testOutputDir = PROJECT_ROOT.resolve("build/telemetry");
 
-    private static final TraceServiceInterface.TraceServiceClient traceClient = new TraceServiceInterface.TraceServiceClient(
-            createGrpcClient("http://localhost:4317"), PROTO_OPTIONS);
+    /** Directory to write debug output files to */
+    private static final Path debugOutputDir = Path.of("out/telemetry");
 
+    private static Configuration configuration;
+    private static TraceServiceInterface.TraceServiceClient traceClient;
 
-    public static void main(String[] args) throws IOException {
+    private static void loadConfiguration() throws IOException {
+        configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSources(new ClasspathFileConfigSource(Path.of("tracing.properties")))
+                .withSources(SystemPropertiesConfigSource.getInstance())
+                .withSources(SystemEnvironmentConfigSource.getInstance())
+                .build();
+    }
+
+    private static void initLogging() {
         // load the logging configuration from the classpath and make it colorful
         try (var loggingConfigIn = TelemetryConverter.class.getClassLoader().getResourceAsStream("logging.properties")) {
             if (loggingConfigIn != null) {
@@ -101,10 +106,24 @@ public final class TelemetryConverter {
         }
         CleanColorfulFormatter.makeLoggingColorful();
         LOGGER.log(INFO, "Using default logging configuration");
-        // clean or create testOutputDir. Delete contents if it exists, otherwise create new directory
+    }
+
+    private static void createGrpcClient() {
+        TraceClientConfig clientConfig = configuration.getConfigData(TraceClientConfig.class);
+
+        final Tls tls = Tls.builder().enabled(false).build();
+        final WebClient webClient = WebClient.builder().baseUri(clientConfig.url()).tls(tls).build();
+        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+                Duration.ofSeconds(clientConfig.readTimeoutSeconds()), tls, Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
+
+        PbjGrpcClient pbjGrpcClient = new PbjGrpcClient(webClient, config);
+        traceClient = new TraceServiceInterface.TraceServiceClient(pbjGrpcClient, PROTO_OPTIONS);
+    }
+
+    private static void initDebugOutput() {
         try {
-            if (Files.exists(testOutputDir)) {
-                try (Stream<Path> childFiles = Files.walk(testOutputDir)) {
+            if (Files.exists(debugOutputDir)) {
+                try (Stream<Path> childFiles = Files.walk(debugOutputDir)) {
                     childFiles.filter(Files::isRegularFile)
                             .forEach(path -> {
                                 try {
@@ -115,13 +134,27 @@ public final class TelemetryConverter {
                             });
                 }
             } else {
-                Files.createDirectories(testOutputDir);
+                Files.createDirectories(debugOutputDir);
             }
         } catch (IOException e) {
-            System.err.printf("Error creating build directory %s: %s%n", testOutputDir, e.getMessage());
+            System.err.printf("Error creating build directory %s: %s%n", debugOutputDir, e.getMessage());
         }
+    }
+
+    private static void init() throws IOException {
+        initLogging();
+        loadConfiguration();
+        createGrpcClient();
+        initDebugOutput();
+    }
+
+    public static void main(String[] args) throws IOException {
+        init();
+
+        ConverterConfig converterConfig = configuration.getConfigData(ConverterConfig.class);
+
         // start with reading all trace data from JFR file into maps that we can use later
-        try (Stream<Path> jfrDirFiles = Files.walk(JFR_TRACE_DIR)) {
+        try (Stream<Path> jfrDirFiles = Files.walk(converterConfig.jfrDirectory())) {
             jfrDirFiles
                     .filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jfr"))
                     .forEach(jfrFile -> {
@@ -142,7 +175,7 @@ public final class TelemetryConverter {
                 .toArray();
         LOGGER.log(INFO, "Found round traces from nodes: " + Arrays.toString(nodeIds));
         // now read the block files and match them with the round traces
-        try(Stream<Path> paths = java.nio.file.Files.walk(BLOCK_FILES_DIR)) {
+        try(Stream<Path> paths = java.nio.file.Files.walk(converterConfig.blockStreamsDirectory())) {
             sendSpans(paths.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".blk.gz"))
                     .sorted(Comparator.comparingLong(path -> {
                         // extract the block number from the file name, assuming it is in the format "<blockNum>.blk.gz"
@@ -202,13 +235,7 @@ public final class TelemetryConverter {
                                         .build();
                             }).toList())
                     .build();
-            // write json file
-            try(WritableStreamingData out = new WritableStreamingData(Files.newOutputStream(
-                    testOutputDir.resolve("ExportTraceServiceRequests"+spanIdCounter.incrementAndGet()+".json")))) {
-                ExportTraceServiceRequest.JSON.write(request, out);
-            } catch (IOException e) {
-                System.err.printf("Error writing spans to file: %s%n", e.getMessage());
-            }
+            debugTrace(request);
             // send to GRPC
             var response = traceClient.Export(request);
             LOGGER.log(INFO, "Sent "+numOfSpans+" spans to OpenTelemetry collector :: "+ GREY+ response);
@@ -217,13 +244,14 @@ public final class TelemetryConverter {
         }
     }
 
-    private static GrpcClient createGrpcClient(String baseUri) {
-        final Tls tls = Tls.builder().enabled(false).build();
-        final WebClient webClient = WebClient.builder().baseUri(baseUri).tls(tls).build();
-        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
-                Duration.ofSeconds(10), tls, Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
-
-        return new PbjGrpcClient(webClient, config);
+    private static void debugTrace(ExportTraceServiceRequest request) {
+        // write json file
+        try(WritableStreamingData out = new WritableStreamingData(Files.newOutputStream(
+                debugOutputDir.resolve("ExportTraceServiceRequests"+spanIdCounter.incrementAndGet()+".json")))) {
+            ExportTraceServiceRequest.JSON.write(request, out);
+        } catch (IOException e) {
+            System.err.printf("Error writing spans to file: %s%n", e.getMessage());
+        }
     }
 
 }

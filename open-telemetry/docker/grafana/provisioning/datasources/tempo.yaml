@@ -1,0 +1,22 @@
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    basicAuth: false
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        httpMethod: GET
+        datasourceUid: prometheus
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+      streamingEnabled:
+        search: true

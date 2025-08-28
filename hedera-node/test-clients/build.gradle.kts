@@ -440,3 +440,9 @@ val cleanValidation =
     }
 
 tasks.clean { dependsOn(cleanValidation) }
+
+tasks.register<Delete>("cleanData") {
+    description = "Clean up application output data directory"
+    group = "application"
+    delete(layout.projectDirectory.dir("build/hapi-test"))
+}

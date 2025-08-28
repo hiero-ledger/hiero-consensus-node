@@ -22,25 +22,28 @@ services:
       - ./tmp/tempo-data:/var/tempo
     ports:
       - "3200:3200" # tempo
-      - "4317:4317" # otlp grpc
+      - "4317:4317" # otlp/tempo grpc
     depends_on:
       - init
       #- otel-collector
     networks:
       - observe-network
 
-  #prometheus:
-  #  image: prom/prometheus
-  #  volumes:
-  #    - ./prometheus:/etc/prometheus
-  #  command:
-  #    - '--config.file=/etc/prometheus/prometheus.yml'
-  #  ports:
-  #    - "9090:9090"
-  #  networks:
-  #    - observe-network
-  #  extra_hosts:
-   #   - "host.docker.internal:host-gateway"
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - ./tmp/prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver'
+      - '--enable-feature=native-histograms'
+    ports:
+      - "9090:9090"
+    networks:
+      - observe-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   #otel-collector:
   #  image: otel/opentelemetry-collector:0.86.0
@@ -60,14 +63,14 @@ services:
       - GF_PLUGIN_ALLOW_LOCAL_MODE=true
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_SERVER_HTTP_PORT=3000
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor,traceToMetrics,serviceGraphs
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/etc/grafana/dashboards
     ports:
       - "3000:3000"
     depends_on:
-      #- prometheus
+      - prometheus
       - tempo
     networks:
       - observe-network

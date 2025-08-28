@@ -1,3 +1,5 @@
+apiVersion: 1
+
 datasources:
   - name: Prometheus
     type: prometheus
@@ -6,17 +8,6 @@ datasources:
     url: http://prometheus:9090
     basicAuth: false
     isDefault: false
-  - name: Tempo
-    type: tempo
-    uid: tempo
-    access: proxy
-    url: http://tempo:3200
-    basicAuth: false
-    isDefault: true
-    editable: false
+    editable: true
     jsonData:
-      httpMethod: GET
-      serviceMap:
-        datasourceUid: prometheus
-      streamingEnabled:
-        search: true
+      timeInterval: "3s" # matches the scrape interval in prometheus config

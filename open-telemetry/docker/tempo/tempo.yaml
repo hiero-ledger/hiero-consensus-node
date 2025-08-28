@@ -7,7 +7,7 @@ query_frontend:
   search:
     # The number of concurrent jobs to execute when searching the backend.
     # (default: 1000)
-    concurrent_jobs: 4
+    concurrent_jobs: 8
 
     # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces.
     # Time ranges before query_ingesters_until will be searched in the ingesters only.
@@ -45,15 +45,115 @@ compactor:
     block_retention: 24h # overall Tempo trace retention. set for demo purposes
 
 metrics_generator:
+  # This option only allows spans with end times that occur within the configured duration to be
+  # considered in metrics generation.
+  # This is to filter out spans that are outdated.
+  #  <duration> | default = 30s
+  metrics_ingestion_time_range_slack: 24h
+
+  # Timeout for metric requests
+  # <duration> | default = 30s
+  query_timeout: 30s
+
+  # Processor-specific configuration
+  processor:
+
+    service_graphs:
+
+      # Wait is the value to wait for an edge to be completed. default = 10s
+      wait: 10s
+      # MaxItems is the amount of edges that will be stored in the store. default = 10000
+      max_items: 10000
+      # Workers is the amount of workers that will be used to process the edges. default = 10
+      workers: 4
+      # Buckets for the latency histogram in seconds.
+      # default = [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+      # TODO - review and modify
+      histogram_buckets: [0.2, 0.5, 1, 1.7, 2.5, 3.5, 5, 7, 10]
+
+      # Additional dimensions to add to the metrics. Dimensions are searched for in the
+      # resource and span attributes and are added to the metrics if present.
+      # TODO see if ne need to modify it
+      #dimensions: <list of string>
+
+      # Attributes that will be used to create a peer edge
+      # Attributes are searched in the order they are provided
+      # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.18.0
+      # Example: ["peer.service", "db.name", "db.system", "host.name"]
+      # default = [ "peer.service", "db.name", "db.system" ]
+      # TODO see if ne need to modify it
+      peer_attributes: ["service.name"]
+
+      # Attribute Key to multiply span metrics
+      # Note that the attribute name is searched for in both
+      # resource and span level attributes.  default = ""
+      # span_multiplier_key:
+
+      # Enables additional labels for services and virtual nodes. <bool> | default = false
+      enable_virtual_node_label: false
+
+    span_metrics:
+
+      # Buckets for the latency histogram in seconds.
+      # <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384
+      # TODO - review and modify
+      histogram_buckets: [0.2, 0.5, 1, 1.7, 2.5, 3.5, 5, 7, 10]
+
+      # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
+      # directly from the respective resource and span properties.
+      intrinsic_dimensions:
+        # Whether to add the name of the service the span is associated with. <bool> | default = true
+        service: true
+        # Whether to add the name of the span. <bool> | default = true
+        span_name: true
+        # Whether to add the span kind describing the relationship between spans. <bool> | default = true
+        # We don't use it, so disabling for now
+        span_kind: false
+        # Whether to add the span status code. <bool> | default = true
+        # We don't use it, so disabling for now
+        status_code: false
+        # Whether to add a status message. Important note: The span status message may
+        # contain arbitrary strings and thus have a very high cardinality. <bool> | default = false
+        status_message: false
+
+      # Additional dimensions to add to the metrics along with the intrinsic dimensions.
+      # Dimensions are searched for in the resource and span attributes and are added to
+      # the metrics if present. <list of string>
+      # TODO see if we want to add node_id and round dimensions
+      # dimensions: []
+
+      # Enable traces_target_info metrics <bool> | default = false
+      enable_target_info: false
+
+      # Attribute Key to multiply span metrics
+      # Note that the attribute name is searched for in both
+      # resource and span level attributes. <string> | default = ""
+      # span_multiplier_key: ""
+
+      # List of policies that will be applied to spans for inclusion or exclusion.
+      #filter_policies: <list of filter policies config> | default = [ ]
+
+      # Drop specific labels from `traces_target_info` metrics
+      #target_info_excluded_dimensions: <list of string>
+
   registry:
+    # Interval to collect metrics and remote write them. <duration> | default = 15s
+    collection_interval: 5s
+
+    # Interval after which a series is considered stale and will be deleted from the registry (prometheus).
+    # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
+    # <duration> | default = 15m
+    stale_duration: 60m
+
     external_labels:
       source: tempo
-      cluster: docker-compose
+
   storage:
     path: /var/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
+
   traces_storage:
     path: /var/tempo/generator/traces
 

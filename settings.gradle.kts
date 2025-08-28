@@ -55,5 +55,5 @@ javaModules {
     directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 
     // The Hiero Telemetry Converter
-    module("open-telemetry") { group = "org.hiero.telemetryconverter" }
+    module("open-telemetry") { group = "org.hiero.telemetry" }
 }
