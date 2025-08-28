@@ -301,7 +301,7 @@ public class BlockNodeConnectionManager {
         requireNonNull(connection);
         requireNonNull(initialDelay);
 
-        logger.warn("[{}] Rescheduling connection for reconnect attempt", connection);
+        logger.debug("[{}] Rescheduling connection for reconnect attempt", connection);
 
         // Schedule retry for the failed connection after a delay (initialDelay)
         scheduleConnectionAttempt(connection, initialDelay, null, false);
@@ -387,7 +387,7 @@ public class BlockNodeConnectionManager {
             try {
                 connection.close();
             } catch (final RuntimeException e) {
-                logger.warn(
+                logger.debug(
                         "[{}] Error while closing connection during connection manager shutdown; ignoring",
                         connection,
                         e);
@@ -435,7 +435,7 @@ public class BlockNodeConnectionManager {
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
-            logger.warn("No block nodes found for attempted streaming");
+            logger.debug("No block nodes found for attempted streaming");
             return false;
         }
 
@@ -539,7 +539,7 @@ public class BlockNodeConnectionManager {
 
         final BlockNodeConnection activeConnection = activeConnectionRef.get();
         if (activeConnection == null) {
-            logger.warn("No active connections available for streaming block {}", blockNumber);
+            logger.debug("No active connections available for streaming block {}", blockNumber);
             return;
         }
 
@@ -788,14 +788,14 @@ public class BlockNodeConnectionManager {
                     try {
                         activeConnection.close();
                     } catch (final RuntimeException e) {
-                        logger.warn(
+                        logger.debug(
                                 "[{}] Failed to shutdown connection (shutdown reason: another connection was elevated to active)",
                                 activeConnection,
                                 e);
                     }
                 }
             } catch (final Exception e) {
-                logger.warn("[{}] Failed to establish connection to block node; will schedule a retry", connection);
+                logger.debug("[{}] Failed to establish connection to block node; will schedule a retry", connection);
                 reschedule();
             }
         }

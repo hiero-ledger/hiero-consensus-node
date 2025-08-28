@@ -323,7 +323,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         // Check if we've exceeded the EndOfStream rate limit
         if (hasExceededEndOfStreamLimit()) {
             close();
-            logger.warn(
+            logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
                     this,
@@ -343,7 +343,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to retry
                 // to avoid overwhelming the node if it's having issues
-                logger.warn(
+                logger.debug(
                         "[{}] Block node reported an error at block {}. Will attempt to reestablish the stream later.",
                         this,
                         blockNumber);
@@ -355,7 +355,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // We should restart the stream at the block immediately
                 // following the last verified and persisted block number
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                logger.warn(
+                logger.debug(
                         "[{}] Block node reported status indicating immediate restart should be attempted. "
                                 + "Will restart stream at block {}.",
                         this,
@@ -367,7 +367,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 close();
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
-                logger.warn("[{}] Block node orderly ended the stream at block {}", this, blockNumber);
+                logger.debug("[{}] Block node orderly ended the stream at block {}", this, blockNumber);
                 blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
             case Code.BEHIND -> {
@@ -376,7 +376,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 if (blockBufferService.getBlockState(restartBlockNumber) != null) {
                     close();
-                    logger.warn(
+                    logger.debug(
                             "[{}] Block node reported it is behind. Will restart stream at block {}.",
                             this,
                             restartBlockNumber);
@@ -385,7 +385,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
-                    logger.warn("[{}] Block node is behind and block state is not available.", this);
+                    logger.debug("[{}] Block node is behind and block state is not available.", this);
 
                     // Indicate that the block node should recover and catch up from another trustworthy block node
                     endTheStreamWith(TOO_FAR_BEHIND);
@@ -443,7 +443,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
-            logger.warn(
+            logger.debug(
                     "[{}] Block node requested a ResendBlock for block {} but that block does not exist on this "
                             + "consensus node. Closing connection and will retry later",
                     this,
@@ -606,7 +606,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             handleResendBlock(response.resendBlock());
         } else {
             blockStreamMetrics.incrementUnknownResponseCount();
-            logger.warn("[{}] Unexpected response received: {}", this, response);
+            logger.debug("[{}] Unexpected response received: {}", this, response);
         }
     }
 
@@ -618,7 +618,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     @Override
     public void onError(final Throwable error) {
-        logger.warn("[{}] Stream encountered an error", this, error);
+        logger.debug("[{}] Stream encountered an error", this, error);
         blockStreamMetrics.incrementOnErrorCount();
         handleStreamFailure();
     }
@@ -633,7 +633,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             logger.debug("[{}] Stream completed (stream close was in progress)", this);
             streamShutdownInProgress.set(false);
         } else {
-            logger.warn("[{}] Stream completed unexpectedly", this);
+            logger.debug("[{}] Stream completed unexpectedly", this);
             handleStreamFailure();
         }
     }
