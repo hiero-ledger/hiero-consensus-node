@@ -137,8 +137,6 @@ jobs:
 
       - name: LS
         run: |
-          echo "root folder"
-          ls -R
           echo "github folder"
           ls -R .github
 
