@@ -59,6 +59,8 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     // that in repeatable mode, every transaction gets its own event, and each event gets its own round
     private Duration roundDuration = DEFAULT_ROUND_DURATION;
 
+    private boolean bypassWithPreHip1127TxFormat = false;
+
     public RepeatableEmbeddedHedera(@NonNull final EmbeddedNode node) {
         super(node);
         platform = new SynchronousFakePlatform(defaultNodeId, executorService, metrics);
@@ -93,6 +95,14 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         return response;
     }
 
+    /**
+     * Causes the next transaction submitted to a non-default node to be encoded as
+     * a {@link Transaction} message, as before HIP-1127.
+     */
+    public void bypassNextWithPreHip1127TxFormat() {
+        this.bypassWithPreHip1127TxFormat = true;
+    }
+
     @Override
     public TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, final long eventBirthRound) {
         var response = OK_RESPONSE;
@@ -104,10 +114,18 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         } else {
             final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
             warnOfSkippedIngestChecks(nodeAccountId, nodeId);
-            // If skipping ingest, we submit a serialized SignedTransaction
-            final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
+            // If skipping ingest, we submit a serialized SignedTransaction unless the user
+            // has requested the next bypass use serialization format as before HIP-1127
+            final byte[] serializedTx;
+            if (bypassWithPreHip1127TxFormat) {
+                serializedTx = transaction.toByteArray();
+                bypassWithPreHip1127TxFormat = false;
+            } else {
+                // Otherwise, we submit a serialized Transaction message, as after HIP-1127
+                serializedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
+            }
             platform.lastCreatedEvent =
-                    new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(serializedSignedTx), eventBirthRound);
+                    new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(serializedTx), eventBirthRound);
         }
         return handleNextRounds(response);
     }

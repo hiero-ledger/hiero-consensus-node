@@ -514,8 +514,12 @@ public class TransactionChecker {
                 throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
             }
 
-            // Either the protobuf was malformed, or something else failed during parsing
-            logger.warn("ParseException while parsing protobuf", e);
+            final var parseError = e.getMessage() == null ? "" : e.getMessage();
+            // 0.65-only check to avoid warning about a serialized Transaction found in PCES immediately post-upgrade
+            if (!parseError.startsWith("java.io.IOException: Bad tag [26], field [3] wireType [2]")) {
+                // Either the protobuf was malformed, or something else failed during parsing
+                logger.warn("ParseException while parsing protobuf", e);
+            }
             throw new PreCheckException(parseErrorCode);
         }
     }
