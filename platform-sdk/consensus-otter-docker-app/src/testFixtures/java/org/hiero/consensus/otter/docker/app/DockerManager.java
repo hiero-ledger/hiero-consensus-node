@@ -20,6 +20,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,7 +43,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/HederaNode.jar";
 
     /** The string location of the docker application libraries */
     private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "/lib/*";
@@ -51,13 +52,13 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * The main class in the docker application jar that starts the
      * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
      */
-    private static final String CONSENSUS_NODE_MAIN_CLASS = "org.hiero.consensus.otter.docker.app.ConsensusNodeMain";
+    private static final String CONSENSUS_NODE_MAIN_CLASS = "com.hedera.node.app.ServicesMain";
 
     /**
      * The maximum duration to wait for the marker file written by the consensus node main class to indicate it's
      * service is up and running.
      */
-    private final Duration MAX_MARKER_FILE_WAIT_TIME = Duration.ofSeconds(10);
+    private final Duration MAX_MARKER_FILE_WAIT_TIME = Duration.ofMinutes(2L);
 
     /**
      * The ID of the consensus node in this container. The ID must not be changed even between restarts. In the future,
@@ -96,6 +97,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS,
+                "-local",
                 String.valueOf(selfId.id()));
 
         // Set the debug port for the node communication service in the java environment variable.
@@ -143,18 +145,25 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
+        final Instant deadline = Instant.now().plus(MAX_MARKER_FILE_WAIT_TIME);
         try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
             Path.of(CONTAINER_APP_WORKING_DIR).register(watchService, ENTRY_CREATE);
-            final WatchKey watchKey = watchService.poll(MAX_MARKER_FILE_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
-            if (watchKey == null) {
-                return false;
-            }
-            for (final WatchEvent<?> event : watchKey.pollEvents()) {
-                if (event.kind() == ENTRY_CREATE
-                        && STARTED_MARKER_FILE_NAME.equals(event.context().toString())) {
-                    log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
-                    Files.delete(STARTED_MARKER_FILE);
-                    return true;
+            while (Instant.now().isBefore(deadline)) {
+                final Duration timeLeft = Duration.between(Instant.now(), deadline);
+                final WatchKey watchKey = watchService.poll(timeLeft.toMillis(), TimeUnit.MILLISECONDS);
+                if (watchKey == null) {
+                    return false;
+                }
+                for (final WatchEvent<?> event : watchKey.pollEvents()) {
+                    if (event.kind() == ENTRY_CREATE
+                            && STARTED_MARKER_FILE_NAME.equals(event.context().toString())) {
+                        log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
+                        Files.delete(STARTED_MARKER_FILE);
+                        return true;
+                    }
+                }
+                if (! watchKey.reset()) {
+                    return false;
                 }
             }
             return false;

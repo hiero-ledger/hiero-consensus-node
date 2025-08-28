@@ -7,6 +7,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
@@ -78,7 +79,11 @@ public abstract class AbstractNetwork implements Network {
 
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
+    protected Roster roster = Roster.DEFAULT;
+
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
+
+    @Nullable
     private PartitionImpl remainingPartition;
 
     private final AsyncNetworkActions defaultStartAction;
@@ -100,6 +105,15 @@ public abstract class AbstractNetwork implements Network {
         this.defaultStartAction = withTimeout(defaultStartTimeout);
         this.defaultFreezeAction = withTimeout(defaultFreezeTimeout);
         this.defaultShutdownAction = withTimeout(defaultShutdownTimeout);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Roster roster() {
+        return roster;
     }
 
     /**

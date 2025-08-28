@@ -19,6 +19,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedT
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
@@ -141,7 +142,11 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
@@ -653,6 +658,25 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
     }
 
+    private static final String STARTED_MARKER_FILE_NAME = "consensus-node-started.marker";
+
+    /**
+     * Writes a marker file to indicate that the service has started and can now accept requests.
+     */
+    private static void writeStartedMarkerFile() {
+        final Path startedMarkerFile = getAbsolutePath(STARTED_MARKER_FILE_NAME);
+        try {
+            if (new File(startedMarkerFile.toString()).createNewFile()) {
+                logger.info("Consensus Node marker file written to {}", startedMarkerFile);
+            } else {
+                logger.info("Consensus Node marker file already exists at {}", startedMarkerFile);
+            }
+        } catch (final IOException e) {
+            logger.error("Failed to write Consensus Node marker file", e);
+            throw new UncheckedIOException("Failed to write Consensus Node marker file", e);
+        }
+    }
+
     /*==================================================================================================================
     *
     * Initialization Step 2: Initialize the state. Either genesis or restart or reconnect or some other trigger.
@@ -1023,6 +1047,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     void startGrpcServer() {
         if (isNotEmbedded() && !daggerApp.grpcServerManager().isRunning()) {
             daggerApp.grpcServerManager().start();
+            writeStartedMarkerFile();
         }
     }
 

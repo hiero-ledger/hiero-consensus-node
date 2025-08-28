@@ -53,6 +53,7 @@ tasks.testFixturesJar {
 }
 
 tasks.register<Sync>("copyDockerizedApp") {
+    dependsOn(":app:copyApp", ":app:copyLib")
     into(layout.buildDirectory.dir("data"))
     from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile"))
     into("apps") {
@@ -60,6 +61,13 @@ tasks.register<Sync>("copyDockerizedApp") {
         rename { "DockerApp.jar" }
     }
     into("lib") { from(configurations.testFixturesRuntimeClasspath) }
+    into("apps") {
+        from("../../hedera-node/data/apps/HederaNode.jar")
+    }
+    into("lib") {
+        from("../../hedera-node/data/lib")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
 }
 
 tasks.assemble { dependsOn("copyDockerizedApp") }

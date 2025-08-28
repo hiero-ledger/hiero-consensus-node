@@ -126,7 +126,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 .withSize(count)
                 .withWeightGenerator(weightGenerator)
                 .withRealKeysEnabled(true);
-        final Roster roster = rosterBuilder.build();
+        roster = rosterBuilder.build();
 
         simulatedNetwork = new SimulatedNetwork(randotron, roster);
 

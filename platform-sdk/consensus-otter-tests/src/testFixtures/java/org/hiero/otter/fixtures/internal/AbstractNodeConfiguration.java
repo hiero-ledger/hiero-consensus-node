@@ -13,6 +13,7 @@ import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,5 +138,14 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @Override
     public Configuration current() {
         return createConfiguration(overriddenProperties);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Map<String, String> overriddenProperties() {
+        return Collections.unmodifiableMap(overriddenProperties);
     }
 }

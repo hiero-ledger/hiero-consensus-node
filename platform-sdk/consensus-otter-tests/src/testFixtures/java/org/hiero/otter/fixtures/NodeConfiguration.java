@@ -6,6 +6,7 @@ import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class contains the current configuration of the node at the time it was requested via
@@ -82,4 +83,12 @@ public interface NodeConfiguration {
      */
     @NonNull
     Configuration current();
+
+    /**
+     * Returns a map of all properties that have been overridden in this configuration.
+     *
+     * @return a map of overridden properties
+     */
+    @NonNull
+    Map<String, String> overriddenProperties();
 }
