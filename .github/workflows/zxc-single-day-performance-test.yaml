@@ -1211,7 +1211,8 @@ jobs:
       needs.CryptoTransferLoadTest.result != 'success' ||
       needs.HeliSwapLoadTest.result != 'success' ||
       needs.SmartContractLoadTest.result != 'success' ||
-      needs.single-day-performance-test-result.result != 'success') &&
+      needs.single-day-performance-test-result.result != 'success' ||
+      needs.single-day-performance-test-result.outputs.result == 'failure') &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1250,7 +1251,8 @@ jobs:
             echo "- Crypto Transfer Load Test: ${{ needs.CryptoTransferLoadTest.result }}"
             echo "- HeliSwap Load Test: ${{ needs.HeliSwapLoadTest.result }}"
             echo "- Smart Contract Load Test: ${{ needs.SmartContractLoadTest.result }}"
-            echo "- Single Day Performance Test Result: ${{ needs.single-day-performance-test-result.result }}"
+            echo "- Single Day Performance Test Result (Workflow): ${{ needs.single-day-performance-test-result.result }}"
+            echo "- Single Day Performance Test Result: ${{ needs.single-day-performance-test-result.outputs.result }}"
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.performance-tests-start.outputs.commit-sha }}>"
