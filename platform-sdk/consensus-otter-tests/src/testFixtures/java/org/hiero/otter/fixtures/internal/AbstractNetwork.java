@@ -79,6 +79,8 @@ public abstract class AbstractNetwork implements Network {
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
+
+    @Nullable
     private PartitionImpl remainingPartition;
 
     private final AsyncNetworkActions defaultStartAction;
@@ -97,9 +99,9 @@ public abstract class AbstractNetwork implements Network {
             @NonNull final Duration defaultStartTimeout,
             @NonNull final Duration defaultFreezeTimeout,
             @NonNull final Duration defaultShutdownTimeout) {
-        this.defaultStartAction = withTimeout(defaultStartTimeout);
-        this.defaultFreezeAction = withTimeout(defaultFreezeTimeout);
-        this.defaultShutdownAction = withTimeout(defaultShutdownTimeout);
+        this.defaultStartAction = new AsyncNetworkActionsImpl(defaultStartTimeout);
+        this.defaultFreezeAction = new AsyncNetworkActionsImpl(defaultFreezeTimeout);
+        this.defaultShutdownAction = new AsyncNetworkActionsImpl(defaultShutdownTimeout);
     }
 
     /**
@@ -203,6 +205,7 @@ public abstract class AbstractNetwork implements Network {
             partitions.clear();
             remainingPartition = null;
         } else {
+            assert remainingPartition != null; // because there are at least 3 partitions
             for (final Node node : partition.nodes()) {
                 partitions.put(node.selfId(), remainingPartition);
                 remainingPartition.nodes.add(node);

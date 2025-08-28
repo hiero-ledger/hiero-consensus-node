@@ -98,7 +98,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** An instance of asynchronous actions this node can perform with the default time. */
-    private final AsyncNodeActions defaultAsyncActions = withTimeout(DEFAULT_TIMEOUT);
+    private final AsyncNodeActions defaultAsyncActions = new ContainerAsyncNodeActions(DEFAULT_TIMEOUT);
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
