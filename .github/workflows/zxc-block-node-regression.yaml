@@ -270,6 +270,7 @@ jobs:
         run: |
           FIRST_AVAILABLE_BLOCK=$(grpcurl \
             -plaintext \
+            -emit-defaults \
             -import-path protobuf-sources/src/main/proto \
             -import-path protobuf-sources/block-node-protobuf \
             -proto block-node/api/node_service.proto \
@@ -280,6 +281,7 @@ jobs:
           echo "First available block is $FIRST_AVAILABLE_BLOCK"
           LAST_AVAILABLE_BLOCK=$(grpcurl \
             -plaintext \
+            -emit-defaults \
             -import-path protobuf-sources/src/main/proto \
             -import-path protobuf-sources/block-node-protobuf \
             -proto block-node/api/node_service.proto \
