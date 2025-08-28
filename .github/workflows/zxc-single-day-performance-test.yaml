@@ -81,6 +81,7 @@ jobs:
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
+      commit-sha: ${{ steps.hederahash.outputs.sha }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -190,8 +191,10 @@ jobs:
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Set hederahash sha value
+        id: hederaHash
         run: |
           hederahash="$(git rev-parse HEAD)"
+          echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
@@ -1140,7 +1143,116 @@ jobs:
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
 
-  performance-report-to-Slack:
+  performance-report-to-rootly:
+    name: Report Failures to Rootly
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - performance-tests-start
+      - performance-NftTransferLoadTest-watch1
+      - performance-NftTransferLoadTest-report
+      - performance-HCSLoadTest
+      - performance-CryptoTransferLoadTest
+      - performance-HeliSwapLoadTest
+      - performance-SmartContractLoadTest
+      - single-day-performance-test-result
+    if: ${{ (needs.performance-tests-start.result != 'success' ||
+      needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
+      needs.performance-NftTransferLoadTest-report.result != 'success' ||
+      needs.HCSLoadTest.result != 'success' ||
+      needs.CryptoTransferLoadTest.result != 'success' ||
+      needs.HeliSwapLoadTest.result != 'success' ||
+      needs.SmartContractLoadTest.result != 'success' ||
+      needs.single-day-performance-test-result.result != 'success') &&
+      !cancelled() && always() }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Check Test Asset
+        id: check-test-asset
+        run: |
+          ADHOC="false"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc[0-9]$ ]]; then
+            ADHOC="true"
+          fi
+          echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Rootly Service Name
+        id: set-rootly-service
+        run: |
+          ROOTLY_SERVICE_NAME="CITR SDPT"
+          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title: "The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Performance Tests Start: ${{ needs.performance-tests-start.result }}"
+            echo "- Performance NFT Transfer Load Test (Watch 1): ${{ needs.performance-NftTransferLoadTest-watch1.result }}"
+            echo "- Performance NFT Transfer Load Test (Report): ${{ needs.performance-NftTransferLoadTest-report.result }}"
+            echo "- HCS Load Test: ${{ needs.HCSLoadTest.result }}"
+            echo "- Crypto Transfer Load Test: ${{ needs.CryptoTransferLoadTest.result }}"
+            echo "- HeliSwap Load Test: ${{ needs.HeliSwapLoadTest.result }}"
+            echo "- Smart Contract Load Test: ${{ needs.SmartContractLoadTest.result }}"
+            echo "- Single Day Performance Test Result: ${{ needs.single-day-performance-test-result.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.performance-tests-start.outputs.commit-sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### AdHoc Run?" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.check-test-asset.outputs.is-adhoc }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: rootly-alert
+        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Create Rootly Incident
+        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: ${{ steps.rootly-summary.outputs.title }}
+          kind: "normal"
+          create_public_incident: "false"
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          severity: "Triage Event"
+          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids }} || '' }}
+          environments: "CITR"
+          incident_types: "Performance Engineering,Platform CI"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Performance Engineering,Platform CI"
+
+  performance-report-to-slack:
     runs-on: hiero-citr-linux-medium
     needs:
       - performance-NftTransferLoadTest-report
@@ -1148,7 +1260,6 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
-
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

@@ -9,6 +9,8 @@ import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -26,7 +28,17 @@ public class NodeConnectInfo {
     private final int tlsPort;
     private final AccountID account;
 
+    private record DefaultShardRealm(long shard, long realm) {}
+
+    public NodeConnectInfo(String inString, long defaultShard, long defaultRealm) {
+        this(inString, new DefaultShardRealm(defaultShard, defaultRealm));
+    }
+
     public NodeConnectInfo(String inString) {
+        this(inString, null);
+    }
+
+    private NodeConnectInfo(@NonNull final String inString, @Nullable final DefaultShardRealm dsr) {
         String[] aspects = inString.split(":");
         int[] ports = Stream.of(aspects)
                 .filter(TxnUtils::isNumericLiteral)
@@ -47,7 +59,15 @@ public class NodeConnectInfo {
                 .filter(TxnUtils::isIdLiteral)
                 .map(HapiPropertySource::asAccount)
                 .findAny()
-                .orElse(HapiPropertySource.asAccount(asEntityString(0, 0, NEXT_DEFAULT_ACCOUNT_NUM++)));
+                .orElseGet(() -> {
+                    if (dsr != null) {
+                        return HapiPropertySource.asAccount(
+                                asEntityString(dsr.shard(), dsr.realm(), NEXT_DEFAULT_ACCOUNT_NUM++));
+                    } else {
+                        throw new IllegalArgumentException(
+                                "No account specified in '" + inString + "', and no defaults available");
+                    }
+                });
         host = Stream.of(aspects)
                 .filter(aspect -> !(isIdLiteral(aspect) || isNumericLiteral(aspect)))
                 .findAny()

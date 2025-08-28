@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.Provider;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
@@ -18,10 +21,11 @@ import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
  * Minimal utility to read/write a single Ed25519 key from/to an encrypted PEM file.
  */
 public final class Ed25519Utils {
-    private static final Provider ED_PROVIDER = new EdDSASecurityProvider();
     private static final EdDSANamedCurveSpec ED25519_PARAMS =
             EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
     private static final int ED25519_BYTE_LENGTH = 32;
+
+    public static final Provider ED_PROVIDER = new EdDSASecurityProvider();
 
     static boolean isValidEd25519Key(@NonNull final Bytes key) {
         return key.length() == ED25519_BYTE_LENGTH;
@@ -37,6 +41,18 @@ public final class Ed25519Utils {
 
     public static EdDSAPrivateKey readKeyFrom(final String pemLoc, final String passphrase) {
         return KeyUtils.readKeyFrom(new File(pemLoc), passphrase, ED_PROVIDER);
+    }
+
+    /**
+     * Reads an Ed25519 private key from the given input stream, using the provided passphrase to decrypt it.
+     * @param in the input stream to read the key from
+     * @param passphrase the passphrase to decrypt the key
+     * @return the Ed25519 key
+     */
+    public static EdDSAPrivateKey readKeyFrom(@NonNull final InputStream in, @NonNull final String passphrase) {
+        requireNonNull(in);
+        requireNonNull(passphrase);
+        return KeyUtils.readKeyFrom(in, passphrase, ED_PROVIDER);
     }
 
     public static byte[] extractEd25519PublicKey(@NonNull final EdDSAPrivateKey key) {
