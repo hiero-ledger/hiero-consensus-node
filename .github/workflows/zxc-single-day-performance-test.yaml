@@ -72,7 +72,7 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.6.2
   BlockNode_version: 0.17.0
-  NUM_OF_BLOCK_NODES: 3
+  NUM_OF_BLOCK_NODES: 7
 
 jobs:
   performance-tests-start:
@@ -339,6 +339,19 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get svc | grep 'block-node' | awk '{print $3}' > block_ips.txt
+          
+          #N-to-N mode
+          counter=0
+          for ip in `cat block_ips.txt`
+          do
+            echo "{\"nodes\": [" > block-nodes_$counter.json
+            echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            echo "]}" >> block-nodes_$counter.json
+            counter=`expr $counter + 1`
+          done
+          
+          if [ 0 -eq 1 ]
+          then
           echo "{\"nodes\": [" > block-nodes.json
           #no prio2    { \"address\": \"$_\", \"port\": 40841, \"priority\": 2 },
           cat block_ips.txt | perl -ne '~s/\n//g; if ($. < ${{ env.NUM_OF_BLOCK_NODES }}) {$comma=","} else {$comma="";} \
@@ -348,7 +361,8 @@ jobs:
           echo "block-nodes.json is:"
           cat block-nodes.json
           jq . block-nodes.json
-
+          fi
+          
           cat << EOF >> application.properties
           blockStream.blockNodeConnectionFileDir=data/config
           grpc.nodeOperatorPortEnabled=true
@@ -369,11 +383,12 @@ jobs:
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep network-node | awk '{print $1}'`
           do
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp application.properties $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh $i:/opt/hgcapp/services-hedera/HapiApp2.0/startPodJava.sh
               node_id=`echo ${i} | sed -e 's/network-node\([0-9][0-9]*\)-0/\1/g'`
               node_id=`expr $node_id - 1`
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp application.properties $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh $i:/opt/hgcapp/services-hedera/HapiApp2.0/startPodJava.sh
+
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- su - hedera -c bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} clean"
           done
 
