@@ -49,9 +49,9 @@ jobs:
             echo "Invalid semantic version: ${release_identifier}"
             exit 1
           fi
-          
+
           cleaned="${release_identifier#v}"
-          
+
           echo "Release identifier is valid: ${cleaned}"
           echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
           echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
@@ -86,7 +86,7 @@ jobs:
           echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "## Release Notes" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
-          
+
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Get All Changes in JSON Format
