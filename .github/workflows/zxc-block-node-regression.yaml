@@ -234,7 +234,7 @@ jobs:
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
           solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ inputs.branch_name }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
           solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
