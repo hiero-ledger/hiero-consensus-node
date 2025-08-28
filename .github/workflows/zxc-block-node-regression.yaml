@@ -59,6 +59,14 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
+      # Get latest tag for the checked out hiero-consensus-node
+      - name: Get Latest CN Tag
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest Consensus Node tag: $LATEST_TAG"
+          echo "CN_LATEST_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
+
       #  Checkout the block-node repository
       - name: Checkout Regression Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -76,7 +84,7 @@ jobs:
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
           echo "Latest Block Node tag: $LATEST_TAG"
           git checkout $LATEST_TAG
-          echo "BLOCK_NODE_TAG=${BLOCK_NODE_TAG}" >> "$GITHUB_ENV"
+          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -222,8 +230,8 @@ jobs:
           solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1         
-          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"          
-          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ inputs.ref }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
+          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
           solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
