@@ -68,7 +68,7 @@ jobs:
           echo "CN_LATEST_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the block-node repository
-      - name: Checkout Regression Code
+      - name: Checkout Block-Node Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: block-node
