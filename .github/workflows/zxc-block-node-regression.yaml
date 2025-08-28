@@ -86,15 +86,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # Checks out the latest tagged version of the JS-SDK
-      - name: Checkout Latest Tag (JS-SDK)
-        run: |
-          cd platform-sdk/sdk-server
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest JS-SDK tag: $LATEST_TAG"
-          git checkout $LATEST_TAG
-
       # Set up Java Environment
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -129,27 +120,6 @@ jobs:
           npm cache clean --force
           npm install
         working-directory: regression-tests/block-node
-
-      # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS Dependencies (sdk-server)
-        id: start-sdk-server
-        run: |
-          # Extract package versions from the parent package.json
-          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
-          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
-
-          echo "Using SDK version: $SDK_VERSION"
-          echo "Using long version: $LONG_VERSION"
-          echo "Using proto version: $PROTO_VERSION"
-
-          # Install with the extracted versions
-          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
-          pnpm install
-          nohup pnpm start &
-          server_pid=$!
-          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
-        working-directory: regression-tests/platform-sdk/sdk-server
 
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
@@ -235,13 +205,6 @@ jobs:
         with:
           name: Run Logs
           path: run.log
-
-      # Stop the Block Node Tests server
-      - name: Stop block-node-server
-        if: ${{ always() }}
-        run: |
-          echo ${{ steps.start-sdk-server.outputs.pid }}
-          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
 
       # Stop the solo nodes
       - name: Stop solo
