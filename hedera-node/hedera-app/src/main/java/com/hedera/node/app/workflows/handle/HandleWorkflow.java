@@ -161,10 +161,6 @@ public class HandleWorkflow {
     private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
-    /** Transaction trace for tracing purposes */
-    private final TransactionTrace transactionTrace = new TransactionTrace();
-    /** Round trace for tracing purposes */
-    private final RoundTrace roundTrace = new RoundTrace();
 
     @Inject
     public HandleWorkflow(
@@ -244,6 +240,8 @@ public class HandleWorkflow {
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
+        // Round trace for tracing purposes
+        final RoundTrace roundTrace = new RoundTrace();
         roundTrace.begin();
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
@@ -492,6 +490,7 @@ public class HandleWorkflow {
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+        final TransactionTrace transactionTrace = new TransactionTrace();
         transactionTrace.begin();
         final var handleStart = System.nanoTime();
 

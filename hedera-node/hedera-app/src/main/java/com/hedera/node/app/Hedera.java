@@ -387,11 +387,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
-    /**
-     * Event trace for tracing events arriving
-     */
-    private final EventTrace eventTrace = new EventTrace();
-
     @FunctionalInterface
     public interface StartupNetworksFactory {
         @NonNull
@@ -944,6 +939,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final Event event,
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
+        final EventTrace eventTrace = new EventTrace();
         eventTrace.begin();
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var creatorInfo =

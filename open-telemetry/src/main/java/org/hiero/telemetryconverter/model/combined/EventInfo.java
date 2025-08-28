@@ -116,6 +116,7 @@ public class EventInfo {
         } else {
             return transactions.stream()
                 .mapToLong(t -> t.transactionReceivedTimeNanos())
+                .filter(t -> t > 0) ///  filter missing data that is -1
                 .min()
                 .orElse(eventStartTimeNanos);
         }
@@ -127,6 +128,7 @@ public class EventInfo {
         } else {
             return transactions.stream()
                 .mapToLong(t -> t.transactionReceivedEndTimeNanos())
+                .filter(t -> t > 0) ///  filter missing data that is -1
                 .max()
                 .orElse(eventStartTimeNanos);
         }

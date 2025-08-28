@@ -101,11 +101,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final SyncGuard syncGuard;
 
     /**
-     * Event trace for tracing events arriving
-     */
-    private final EventTrace eventTrace = new EventTrace();
-
-    /**
      * Create new state class for an RPC peer
      *
      * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global state
@@ -397,6 +392,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param gossipEvent event received from the remote peer
      */
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
+        final EventTrace eventTrace = new EventTrace();
         eventTrace.begin();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setSenderId(peerId);
@@ -405,6 +401,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         if (eventTrace.isEnabled()) {
             eventTrace.eventHash = platformEvent.getEventCore().hashCode();
             eventTrace.eventType = EventType.RECEIVED.ordinal();
+            eventTrace.commit();
         }
     }
 }

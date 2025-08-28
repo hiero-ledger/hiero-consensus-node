@@ -190,10 +190,12 @@ public class RoundSpanCreator {
                 .name("All Execution")
                 .startTimeUnixNano(roundInfo.executedTraces().stream()
                         .mapToLong(RoundTraceInfo::startTimeNanos)
-                        .min().orElse(roundInfo.roundStartTimeNanos()))
+//                        .min().orElse(roundInfo.roundStartTimeNanos()))
+                        .min().orElseThrow())
                 .endTimeUnixNano(roundInfo.executedTraces().stream()
                         .mapToLong(RoundTraceInfo::endTimeNanos)
-                        .max().orElse(roundInfo.roundEndTimeNanos()))
+//                        .max().orElse(roundInfo.roundEndTimeNanos()))
+                        .max().orElseThrow())
                 .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
                 .build());
         for (long nodeId: nodeIds) {
@@ -230,11 +232,13 @@ public class RoundSpanCreator {
                     .startTimeUnixNano(roundInfo.executedTraces().stream()
                             .filter(t -> t.nodeId() == nodeId)
                             .mapToLong(RoundTraceInfo::startTimeNanos)
-                            .min().orElse(roundInfo.roundStartTimeNanos()))
+//                            .min().orElse(roundInfo.roundStartTimeNanos()))
+                            .min().orElseThrow())
                     .endTimeUnixNano(roundInfo.executedTraces().stream()
                             .filter(t -> t.nodeId() == nodeId)
                             .mapToLong(RoundTraceInfo::endTimeNanos)
-                            .max().orElse(roundInfo.roundEndTimeNanos()))
+//                            .max().orElse(roundInfo.roundEndTimeNanos()))
+                            .max().orElseThrow())
                     .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()),
                             Utils.kv("node",nodeId))
                     .build());

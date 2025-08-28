@@ -7,6 +7,6 @@ import java.nio.file.Path;
 
 @ConfigData("tracing.converter")
 public record ConverterConfig(
-        @ConfigProperty Path jfrDirectory,
-        @ConfigProperty Path blockStreamsDirectory
+        @ConfigProperty(defaultValue = "./../hedera-node/test-clients/build/hapi-test") Path jfrDirectory,
+        @ConfigProperty(defaultValue = "./../hedera-node/test-clients/build/hapi-test/node0/data/blockStreams") Path blockStreamsDirectory
 ) {}

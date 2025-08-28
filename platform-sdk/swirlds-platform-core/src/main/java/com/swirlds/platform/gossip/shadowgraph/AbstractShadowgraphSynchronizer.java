@@ -238,12 +238,6 @@ public class AbstractShadowgraphSynchronizer {
         this.shadowGraph.clear();
     }
 
-
-    /**
-     * Event trace for tracing events arriving
-     */
-    private final EventTrace eventTrace = new EventTrace();
-
     /**
      * Events sent here should be gossiped to the network
      *
@@ -251,6 +245,7 @@ public class AbstractShadowgraphSynchronizer {
      */
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
         // TODO Is this the best place to capture events being sent to gossip?
+        final EventTrace eventTrace = new EventTrace();
         if (eventTrace.isEnabled()) {
             // trace all self events we have sent
             eventTrace.eventHash = platformEvent.getEventCore().hashCode();

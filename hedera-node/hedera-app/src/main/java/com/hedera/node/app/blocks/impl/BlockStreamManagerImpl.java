@@ -148,8 +148,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
-    /** Trace to record block creation times for tracing */
-    private final BlockTrace blockTrace = new BlockTrace();
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -408,6 +406,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
+            final BlockTrace blockTrace = new BlockTrace();
             blockTrace.begin();
             lifecycle.onCloseBlock(state);
             if (state instanceof HederaVirtualMapState hederaNewStateRoot) {

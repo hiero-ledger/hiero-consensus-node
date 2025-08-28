@@ -84,7 +84,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             if (transactionTrace.isEnabled()) {
                 transactionTrace.txHash = txInfo.transactionID().hashCode();
                 transactionTrace.eventType = EventType.RECEIVED.ordinal();
-                transactionTrace.commit();
             }
             submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
         } catch (final InsufficientBalanceException e) {
@@ -102,6 +101,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             logger.error("Possibly CATASTROPHIC failure while running the ingest workflow", e);
             result = ResponseCodeEnum.FAIL_INVALID;
         }
+        transactionTrace.commit();
         // Reclaim any used throttle capacity if we failed (i.e., did not submit the transaction to consensus)
         if (result != OK) {
             checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);

@@ -63,10 +63,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     private Duration unhealthyDuration = Duration.ZERO;
 
     private final FutureEventBuffer futureEventBuffer;
-    /**
-     * Event trace for tracing events arriving
-     */
-    private final EventTrace eventTrace = new EventTrace();
 
     /**
      * Constructor.
@@ -117,6 +113,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         phase.activatePhase(ATTEMPTING_CREATION);
 
+        final EventTrace eventTrace = new EventTrace();
         eventTrace.begin();
         final PlatformEvent newEvent = creator.maybeCreateEvent();
         if (newEvent == null) {

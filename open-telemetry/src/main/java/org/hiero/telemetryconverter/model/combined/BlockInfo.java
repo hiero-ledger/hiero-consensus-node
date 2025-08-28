@@ -96,6 +96,7 @@ public class BlockInfo {
                 .flatMap(r -> r.events().stream())
                 .flatMap(e -> e.transactions().stream())
                 .mapToLong(TransactionInfo::transactionReceivedTimeNanos)
+                .filter(t -> t > 0) // ignore transactions with no timing data
                 .min().orElse(rounds.stream()
                         .flatMap(r -> r.events().stream())
                         .mapToLong(e -> e.createdTrace() != null ? e.createdTrace().startTimeNanos() : Long.MAX_VALUE)

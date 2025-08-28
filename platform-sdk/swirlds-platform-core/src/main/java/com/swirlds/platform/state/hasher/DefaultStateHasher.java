@@ -27,9 +27,6 @@ public class DefaultStateHasher implements StateHasher {
     private final MerkleCryptography merkleCryptography;
     private final StateHasherMetrics metrics;
 
-    /** Used to trace when the round is hashed. */
-    private final RoundTrace roundTrace = new RoundTrace();
-
     /**
      * Constructs a SignedStateHasher to hash SignedStates.  If the signedStateMetrics object is not null, the time
      * spent hashing is recorded. Any fatal errors that occur are passed to the provided FatalErrorConsumer. The hash is
@@ -50,6 +47,7 @@ public class DefaultStateHasher implements StateHasher {
     public ReservedSignedState hashState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
+        final RoundTrace roundTrace = new RoundTrace();
         roundTrace.begin();
         try {
             merkleCryptography
@@ -57,10 +55,11 @@ public class DefaultStateHasher implements StateHasher {
                     .get();
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
             // trace the hashing of a state to JFR
-            roundTrace.roundNum = reservedSignedState.get().getRound();
-            roundTrace.eventType = EventType.HASHED.ordinal();
-            roundTrace.commit();
-
+            if (roundTrace.isEnabled()) {
+                roundTrace.roundNum = reservedSignedState.get().getRound();
+                roundTrace.eventType = EventType.HASHED.ordinal();
+                roundTrace.commit();
+            }
             return reservedSignedState;
         } catch (final ExecutionException e) {
             logger.fatal(EXCEPTION.getMarker(), "Exception occurred during SignedState hashing", e);
