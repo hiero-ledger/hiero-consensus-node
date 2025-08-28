@@ -10,16 +10,12 @@ The converter takes two directories configuration as input:
 ### Collecting Flight Recorder Data
 To collect JFR data, you need to enable Java Flight Recorder on each Hedera Services node in one of these 3 methods:
  - By adding the following JVM option when running node to record all data while the node is running. (it must be 
-   shutdown cleanly and not force killed for data to be saved)
-   
+   shutdown cleanly and not force killed for data to be saved)  
    ```-XX:StartFlightRecording=filename=recording-node-1.jfr,disk=true,dumponexit=true```
- - By starting and stopping recording on demand using JCMD tool. For example, to start recording on node with PID 12345:
-
-   ```jcmd 12345 JFR.start name=MyRecording filename=recording-node-1.jfr duration=300s dumponexit=true```
-
+ - By starting and stopping recording on demand using JCMD tool. For example, to start recording on node with PID 12345:  
+   ```jcmd 12345 JFR.start name=MyRecording filename=recording-node-1.jfr duration=300s dumponexit=true```  
    Where 12345 is the process ID for the node process from `jps` command. To stop the recording before the duration expires:
-   ```jcmd 12345 JFR.stop name=MyRecording``` The duration can be omitted if you want to run recording until stopped.
-
+   ```jcmd 12345 JFR.stop name=MyRecording``` The duration can be omitted if you want to run recording until stopped.  
 ### How to process results and view in Grafana
 1. Collect all the JFR files from each node into a single directory, e.g. `./build/jfr-data`
 2. Collect Block Streams data from a single node into a directory, e.g. `./build/blockstreams-data`
@@ -39,14 +35,11 @@ To collect JFR data, you need to enable Java Flight Recorder on each Hedera Serv
 4. Start Docker containers, if not yet running  
    `./gradlew :open-telemetry:startDockerContainers`
 5. Run Open Telemetry converter to process HAPI test results and export to Tempo and Prometheus   
-   `./gradlew -Dtracing.converter.jfrDirectory=./../hedera-node/test-clients/build/hapi-test -Dtracing.converter.blockStreamsDirectory=./../hedera-node/test-clients/build/hapi-test/node0/data/blockStreams :open-telemetry:run`
+   `./gradlew :open-telemetry:runOnHapiTestOutput`
 6. Open Grafana dashboard at http://localhost:3000/explore and explore Spans and Metrics  
 7. Stop Docker containers, if needed  
-   `./gradlew :open-telemetry:stopDockerContainers`
+   `./gradlew :open-telemetry:stopDockerContainers`  
 
 
-### Telemetry Converter Development Loop 
-- Clean and restart Tempo  
-   `./gradlew :open-telemetry:cleanAndRestartTempo`
-- Run Telemetry Converter on HAPI test results
-   `./gradlew -Dtracing.converter.jfrDirectory=./../hedera-node/test-clients/build/hapi-test -Dtracing.converter.blockStreamsDirectory=./../hedera-node/test-clients/build/hapi-test/node0/data/blockStreams :open-telemetry:run`
+### Telemetry Converter Development Loop
+  `./gradlew :open-telemetry:re-runOnHapiTestOutput`

@@ -4,8 +4,6 @@ module org.hiero.telemetryconverter {
             com.swirlds.config.impl,
             com.swirlds.config.extensions;
 
-    exports org.hiero.telemetryconverter;
-
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires org.eclipse.collections.api;
