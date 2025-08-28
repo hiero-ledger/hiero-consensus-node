@@ -132,13 +132,13 @@ jobs:
           ref: main
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: Git-Semver Setup Action
-        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
-
       - name: LS
         run: |
           echo "github folder"
-          ls -R .github
+          ls -R .github | grep process_json_release_notes
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
       - name: Get All Changes in JSON Format
         run: |
