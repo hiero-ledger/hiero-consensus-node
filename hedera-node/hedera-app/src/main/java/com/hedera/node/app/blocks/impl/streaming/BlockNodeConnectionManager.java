@@ -318,7 +318,7 @@ public class BlockNodeConnectionManager {
         logger.warn("[{}] Closing and restarting connection at block {}", connection, blockNumber);
 
         // Close the connection first
-        connection.close();
+        connection.close(true);
 
         // Remove from connections map and clear active reference
         removeConnectionAndClearActive(connection);
@@ -686,7 +686,7 @@ public class BlockNodeConnectionManager {
                     currentStreamingBlockNumber,
                     latestBlockNumber);
 
-            connection.close();
+            connection.close(true);
             rescheduleConnection(connection, LONGER_RETRY_DELAY);
             return true;
         }
