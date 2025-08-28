@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (SDLT2)"
+        description: "Longevity test on given Longevity Machine (AdHoc5,6,7 or SDLT2)"
         type: string
       ref:
         required: true
