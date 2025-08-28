@@ -592,7 +592,7 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
-      - name: Report Failure (Rootly)
+      - name: Create Rootly Incident
         uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         continue-on-error: true # continue on error so we can get the slack reporting
         with:
