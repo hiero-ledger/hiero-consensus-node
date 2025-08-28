@@ -18,14 +18,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   canonical-test:
     name: Canonical
     runs-on: hiero-citr-linux-medium
-
-    permissions:
-      contents: read
-      id-token: write
 
     timeout-minutes: 90 # max one hour timeout
 
