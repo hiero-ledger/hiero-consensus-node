@@ -553,6 +553,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param callOnComplete whether to call onComplete on the request pipeline
      */
     public void close(final boolean callOnComplete) {
+        if (getConnectionState() == ConnectionState.CLOSED) {
+            logger.debug("[{}] Connection already closed.", this);
+            return;
+        }
+
         try {
             logger.debug("[{}] Closing connection...", this);
 
@@ -644,6 +649,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     public void onNext(final @NonNull PublishStreamResponse response) {
         requireNonNull(response, "response must not be null");
 
+        if (getConnectionState() == ConnectionState.CLOSED) {
+            logger.debug("[{}] onNext invoked but connection is already closed", this);
+            return;
+        }
+
         // Process the response
         if (response.hasAcknowledgement()) {
             blockStreamMetrics.incrementAcknowledgedBlockCount();
@@ -671,7 +681,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onError(final Throwable error) {
-        logger.debug("[{}] onError invoked", this, error);
+        logger.debug("[{}] onError invoked {}", this, error.getMessage());
 
         // Check if already in terminal state
         if (getConnectionState() == ConnectionState.CLOSED) {
@@ -689,6 +699,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onComplete() {
+        if (getConnectionState() == ConnectionState.CLOSED) {
+            logger.debug("[{}] onComplete invoked but connection is already closed", this);
+            return;
+        }
+
         if (streamShutdownInProgress.getAndSet(false)) {
             logger.debug("[{}] Stream completed (stream close was in progress)", this);
         } else {

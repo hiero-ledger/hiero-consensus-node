@@ -302,26 +302,19 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Closes a connection and restarts it at the specified block number.
+     * Schedules an immediate restart of the connection at the specified block number.
      * This method handles immediate restart scenarios with minimal delay.
      *
      * @param connection the connection to close and restart
      * @param blockNumber the block number to restart at
      */
     public void restartConnection(@NonNull final BlockNodeConnection connection, final long blockNumber) {
-        if (!isStreamingEnabled.get()) {
-            return;
-        }
-
         requireNonNull(connection, "connection must not be null");
-
-        logger.warn("[{}] Closing and restarting connection at block {}", connection, blockNumber);
-
-        // Close the connection first
-        connection.close(true);
 
         // Remove from connections map and clear active reference
         removeConnectionAndClearActive(connection);
+
+        logger.debug("[{}] Immediately scheduling connection at block {}", connection, blockNumber);
 
         // Schedule restart at the specific block
         scheduleConnectionAttempt(connection, Duration.ZERO, blockNumber, false);
@@ -404,7 +397,12 @@ public class BlockNodeConnectionManager {
         requireNonNull(initialDelay);
         final long delayMillis = Math.max(0, initialDelay.toMillis());
 
-        logger.info("[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
+        if (blockNumber == null) {
+            logger.debug("[{}] Scheduling reconnection for node in {} ms", connection, delayMillis);
+        } else {
+            logger.debug(
+                    "[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
+        }
 
         final BlockNodeConnection newConnection = createConnection(connection.getNodeConfig());
 
@@ -650,11 +648,13 @@ public class BlockNodeConnectionManager {
                 logger.error("Block stream worker interrupted", e);
                 Thread.currentThread().interrupt();
             } catch (final UncheckedIOException e) {
+                logger.debug("UncheckedIOException caught in block stream worker loop {}", e.getMessage());
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
                 if (activeConnection != null) {
                     activeConnection.handleStreamFailureWithoutOnComplete();
                 }
             } catch (final Exception e) {
+                logger.debug("Exception caught in block stream worker loop {}", e.getMessage());
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
                 if (activeConnection != null) {
                     activeConnection.handleStreamFailure();
