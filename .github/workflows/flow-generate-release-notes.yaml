@@ -55,6 +55,14 @@ jobs:
           echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
           echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Ensure tag is stable (no prerelease)
+        run: |
+          tag="v${{ steps.validate.outputs.release-identifier }}"
+          if [[ "${{ github.event_name }}" == "push" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Skipping prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
       - name: Checkout Code
         id: checkout_code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -134,7 +142,7 @@ jobs:
 
       - name: Process All Changes to Markdown File
         id: generate-md
-        run: python3 .github/workflows/support/scripts/process_json_release_notes.py
+        run: python3 .github/workflows/support/scripts/process_json_release_notes.py ./changes.json ./RELEASE_NOTES.md
 
       - name: Create Release Notes - Full Markdown Format
         run: |

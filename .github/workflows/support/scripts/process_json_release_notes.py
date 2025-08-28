@@ -1,9 +1,14 @@
 import json
 import re
 import os
+import sys
 
-json_file = "changes.json"
-output_file = "RELEASE_NOTES.md"
+if len(sys.argv) < 3:
+  print("Usage: process_json_release_notes.py <input_json> <output_md>")
+  sys.exit(1)
+
+json_file = sys.argv[1]
+output_file = sys.argv[2]
 
 repo = os.environ.get("GITHUB_REPOSITORY")
 pr_url_prefix = f"https://github.com/{repo}/pull/"
