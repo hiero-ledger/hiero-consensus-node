@@ -11,10 +11,13 @@ The converter takes two directories configuration as input:
 To collect JFR data, you need to enable Java Flight Recorder on each Hedera Services node in one of these 3 methods:
  - By adding the following JVM option when running node to record all data while the node is running. (it must be 
    shutdown cleanly and not force killed for data to be saved)
+   
    ```-XX:StartFlightRecording=filename=recording-node-1.jfr,disk=true,dumponexit=true```
  - By starting and stopping recording on demand using JCMD tool. For example, to start recording on node with PID 12345:
+
    ```jcmd 12345 JFR.start name=MyRecording filename=recording-node-1.jfr duration=300s dumponexit=true```
-   where 12345 is the process ID for the node process from `jps` command. To stop the recording before the duration expires:
+
+   Where 12345 is the process ID for the node process from `jps` command. To stop the recording before the duration expires:
    ```jcmd 12345 JFR.stop name=MyRecording``` The duration can be omitted if you want to run recording until stopped.
 
 ### How to process results and view in Grafana
