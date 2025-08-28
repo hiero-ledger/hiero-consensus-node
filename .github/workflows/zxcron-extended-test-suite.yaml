@@ -247,6 +247,19 @@ jobs:
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
+  mirror-node-regression-panel:
+    name: Mirror Node Regression Panel
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Mirror Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hiero-citr-linux-medium
@@ -255,7 +268,7 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-    #  - sdk-tck-regression-panel # currently we are not gating XTS-PASS on TCK Regression Panel success
+      - sdk-tck-regression-panel
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
@@ -310,11 +323,13 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.extended-test-suite.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
+      needs.sdk-tck-regression-panel.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
@@ -458,6 +473,7 @@ jobs:
       needs.abbreviated-panel.result != 'success' ||
       needs.extended-test-suite.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
+      needs.sdk-tck-regression-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 
@@ -579,7 +595,7 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
-      - name: Report Failure (Rootly)
+      - name: Create Rootly Incident
         uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         continue-on-error: true # continue on error so we can get the slack reporting
         with:

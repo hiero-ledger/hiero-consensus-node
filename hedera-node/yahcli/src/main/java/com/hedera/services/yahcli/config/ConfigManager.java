@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.config;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.readKeyPairFrom;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.yahcli.output.StdoutYahcliOutput.STDOUT_YAHCLI_OUTPUT;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -16,6 +17,8 @@ import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.config.domain.GlobalConfig;
 import com.hedera.services.yahcli.config.domain.NetConfig;
 import com.hedera.services.yahcli.config.domain.NodeConfig;
+import com.hedera.services.yahcli.output.FileYahcliOutput;
+import com.hedera.services.yahcli.output.YahcliOutput;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
@@ -45,11 +48,26 @@ public class ConfigManager {
     private String defaultPayer;
     private String defaultNodeAccount;
     private String targetName;
+    private String workingDir;
     private NetConfig targetNet;
+    private YahcliOutput output;
 
     public ConfigManager(Yahcli yahcli, GlobalConfig global) {
         this.yahcli = yahcli;
         this.global = global;
+    }
+
+    public static YahcliOutput outputFrom(Yahcli yahcli) {
+        final var outputFile = yahcli.getOutputFile();
+        if (outputFile != null) {
+            try {
+                return new FileYahcliOutput(Paths.get(outputFile));
+            } catch (IOException e) {
+                throw new UncheckedIOException("Could not use output file '" + outputFile + "'", e);
+            }
+        } else {
+            return STDOUT_YAHCLI_OUTPUT;
+        }
     }
 
     static ConfigManager from(Yahcli yahcli) throws IOException {
@@ -71,6 +89,10 @@ public class ConfigManager {
 
             return new ConfigManager(yahcli, globalConfig);
         }
+    }
+
+    public YahcliOutput output() {
+        return output;
     }
 
     public Map<String, String> asSpecConfig() {
@@ -112,9 +134,12 @@ public class ConfigManager {
 
     private void addPayerConfig(Map<String, String> specConfig, String payerId) {
         specConfig.put("default.payer", payerId);
-        var optKeyFile = ConfigUtils.keyFileFor(keysLoc(), "account" + defaultPayer);
+        final var typedNum = "account" + defaultPayer;
+        var optKeyFile = ConfigUtils.keyFileFor(keysLoc(), typedNum);
         if (optKeyFile.isEmpty()) {
-            fail(String.format("No key available for account %s!", payerId));
+            fail(String.format(
+                    "No key available for account %s at '%s'",
+                    payerId, Paths.get(keysLoc() + File.separator + typedNum).toAbsolutePath()));
         }
         var keyFile = optKeyFile.get();
         if (keyFile.getAbsolutePath().endsWith("pem")) {
@@ -179,7 +204,7 @@ public class ConfigManager {
     }
 
     public String keysLoc() {
-        return targetName + "/keys";
+        return workingDir + File.separator + targetName + File.separator + "keys";
     }
 
     public boolean useFixedFee() {
@@ -220,6 +245,8 @@ public class ConfigManager {
     }
 
     public void assertNoMissingDefaults() {
+        workingDir = yahcli.getWorkingDir();
+        output = outputFrom(yahcli);
         assertTargetNetIsKnown();
         assertDefaultPayerIsKnown();
         assertDefaultNodeAccountIsKnown();
@@ -302,6 +329,10 @@ public class ConfigManager {
 
     public String getTargetName() {
         return targetName;
+    }
+
+    public String getWorkingDir() {
+        return workingDir;
     }
 
     public ShardID shard() {
