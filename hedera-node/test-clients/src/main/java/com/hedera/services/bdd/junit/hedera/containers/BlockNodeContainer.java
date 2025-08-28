@@ -7,18 +7,21 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * A testcontainer for running a block node server instance.
+ * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final int INTERNAL_PORT = 8080;
-    private static final DockerImageName DEFAULT_IMAGE_NAME = DockerImageName.parse("block-node-server:0.4.0-SNAPSHOT");
-    private static final String blockNodeVersion = "0.4.0-SNAPSHOT";
+    private static final String BLOCK_NODE_VERSION = "0.16.1";
+    private static final DockerImageName DEFAULT_IMAGE_NAME =
+            DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
+    private static final int CONTAINER_PORT = 8080;
 
     /**
      * Creates a new block node container with the default image.
+     * @param blockNodeId the id of the block node
+     * @param port the internal port of the block node container to expose
      */
-    public BlockNodeContainer() {
-        this(DEFAULT_IMAGE_NAME);
+    public BlockNodeContainer(final long blockNodeId, final int port) {
+        this(DEFAULT_IMAGE_NAME, blockNodeId, port);
     }
 
     /**
@@ -26,12 +29,29 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      *
      * @param dockerImageName the docker image to use
      */
-    public BlockNodeContainer(DockerImageName dockerImageName) {
+    private BlockNodeContainer(DockerImageName dockerImageName, final long blockNodeId, final int port) {
         super(dockerImageName);
-        withExposedPorts(INTERNAL_PORT);
-        withEnv("VERSION", blockNodeVersion);
-        waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofMinutes(2)));
-        waitingFor(Wait.forHealthcheck());
+
+        this.addFixedExposedPort(port, CONTAINER_PORT);
+        this.withNetworkAliases("block-node-" + blockNodeId)
+                .withEnv("VERSION", BLOCK_NODE_VERSION)
+                .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofMinutes(2)))
+                .waitingFor(Wait.forHealthcheck());
+    }
+
+    @Override
+    public void start() {
+        if (!isRunning()) {
+            super.start();
+        }
+        waitForHealthy(Duration.ofMinutes(2));
+    }
+
+    @Override
+    public void stop() {
+        if (isRunning()) {
+            super.stop();
+        }
     }
 
     /**
@@ -39,7 +59,21 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      *
      * @return the host port mapped to the container's internal port
      */
-    public int getGrpcPort() {
-        return getMappedPort(INTERNAL_PORT);
+    public int getPort() {
+        return getMappedPort(CONTAINER_PORT);
+    }
+
+    /**
+     * Waits for the block node container to be healthy by configuring the health check timeout.
+     *
+     * @param timeout the maximum duration to wait for the container's health check to pass
+     */
+    public void waitForHealthy(final Duration timeout) {
+        this.waitingFor(Wait.forHealthcheck().withStartupTimeout(timeout));
+    }
+
+    @Override
+    public String toString() {
+        return this.getHost() + ":" + this.getPort();
     }
 }

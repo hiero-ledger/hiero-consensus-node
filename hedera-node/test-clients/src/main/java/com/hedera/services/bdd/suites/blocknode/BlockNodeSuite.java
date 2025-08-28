@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -37,16 +36,16 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This suite is for testing with the block node simulator.
+ * This suite class tests the behaviour of consensus node to block node communication.
  */
-@Tag(BLOCK_NODE_SIMULATOR)
+@Tag(BLOCK_NODE)
 @OrderedInIsolation
-public class BlockNodeSimulatorSuite {
+public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -67,10 +66,10 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -135,7 +134,7 @@ public class BlockNodeSimulatorSuite {
                 doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -154,10 +153,10 @@ public class BlockNodeSimulatorSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -182,11 +181,11 @@ public class BlockNodeSimulatorSuite {
                 }),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(), // Pri 0
+                blockNode(0).shutDownImmediately(), // Pri 0
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.getFirst()),
                         String.format(
@@ -201,15 +200,15 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT24H",
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).shutDownImmediately(), // Pri 1
+                blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(1)),
                         String.format(
@@ -224,15 +223,15 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(2)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT24H",
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(2).shutDownImmediately(), // Pri 2
+                blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(10, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(2)),
                         String.format(
@@ -247,15 +246,15 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(3)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT24H",
                                 portNumbers.get(3)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).startImmediately(),
+                blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(25, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -265,7 +264,8 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M", portNumbers.get(1)),
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT24H",
+                                portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
@@ -283,7 +283,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -334,7 +334,7 @@ public class BlockNodeSimulatorSuite {
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).updateSendingBlockAcknowledgements(false),
+                blockNode(0).updateSendingBlockAcknowledgements(false),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 sourcingContextual(
@@ -360,7 +360,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -371,7 +371,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
@@ -379,7 +379,7 @@ public class BlockNodeSimulatorSuite {
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -392,7 +392,7 @@ public class BlockNodeSimulatorSuite {
                     LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(20));
                 }),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNodeSimulator(0).startImmediately(),
+                blockNode(0).startImmediately(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
@@ -418,12 +418,12 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockNode.streamResetPeriod", "1m",
+                            "blockNode.streamResetPeriod", "10s",
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
@@ -438,13 +438,13 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(30, SECONDS),
                         Duration.of(15, SECONDS),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT10S",
                                 portNumbers.getFirst()))),
-                burstOfTps(300, Duration.ofSeconds(60)),
+                waitUntilNextBlocks(6).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
-                        Duration.of(90, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(15, SECONDS),
                         // Verify that the periodic reset is performed after the period and the connection is closed
                         String.format(
