@@ -84,7 +84,7 @@ jobs:
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
           echo "Latest Block Node tag: $LATEST_TAG"
           git checkout $LATEST_TAG
-          echo "BLOCK_NODE_TAG=${BLOCK_NODE_TAG}" >> "$GITHUB_ENV"
+          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
