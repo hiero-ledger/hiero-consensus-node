@@ -6,6 +6,8 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
+import com.swirlds.base.telemetry.EventTrace;
+import com.swirlds.base.telemetry.EventTrace.EventType;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
@@ -61,6 +63,10 @@ public class DefaultEventCreationManager implements EventCreationManager {
     private Duration unhealthyDuration = Duration.ZERO;
 
     private final FutureEventBuffer futureEventBuffer;
+    /**
+     * Event trace for tracing events arriving
+     */
+    private final EventTrace eventTrace = new EventTrace();
 
     /**
      * Constructor.
@@ -111,6 +117,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         phase.activatePhase(ATTEMPTING_CREATION);
 
+        eventTrace.begin();
         final PlatformEvent newEvent = creator.maybeCreateEvent();
         if (newEvent == null) {
             // The only reason why the event creator may choose not to create an event
@@ -120,6 +127,13 @@ public class DefaultEventCreationManager implements EventCreationManager {
             eventCreationRules.eventWasCreated();
             // We created an event, we won't be allowed to create another until some time has elapsed.
             phase.activatePhase(RATE_LIMITED);
+
+            // trace event creation
+            if(eventTrace.isEnabled()) {
+                eventTrace.eventHash = newEvent.getEventCore().hashCode();
+                eventTrace.eventType = EventType.CREATED.ordinal();
+                eventTrace.commit();
+            }
         }
 
         return newEvent;

@@ -14,6 +14,7 @@ public enum VirtualResource {
     CONSENSUS("hiero-cn-consensus"),
     EXECUTION("hiero-cn-execution"),
     BLOCK_FINISHING("hiero-cn-blk-finishing"),
+    ROUNDS("hiero-cn-rounds"), // general resource for round traces
     CN("hiero-cn"); // general resource for the CN
     public final Resource resource;
 

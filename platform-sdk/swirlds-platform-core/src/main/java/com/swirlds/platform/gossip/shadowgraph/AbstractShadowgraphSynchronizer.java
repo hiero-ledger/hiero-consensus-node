@@ -4,6 +4,8 @@ package com.swirlds.platform.gossip.shadowgraph;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 
+import com.swirlds.base.telemetry.EventTrace;
+import com.swirlds.base.telemetry.EventTrace.EventType;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -236,12 +238,25 @@ public class AbstractShadowgraphSynchronizer {
         this.shadowGraph.clear();
     }
 
+
+    /**
+     * Event trace for tracing events arriving
+     */
+    private final EventTrace eventTrace = new EventTrace();
+
     /**
      * Events sent here should be gossiped to the network
      *
      * @param platformEvent event to be sent outside
      */
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        // TODO Is this the best place to capture events being sent to gossip?
+        if (eventTrace.isEnabled()) {
+            // trace all self events we have sent
+            eventTrace.eventHash = platformEvent.getEventCore().hashCode();
+            eventTrace.eventType = EventType.GOSSIPED.ordinal();
+            eventTrace.commit();
+        }
         this.shadowGraph.addEvent(platformEvent);
     }
 

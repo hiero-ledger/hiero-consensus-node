@@ -8,6 +8,8 @@ import com.google.common.collect.ImmutableList;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.base.telemetry.EventTrace;
+import com.swirlds.base.telemetry.EventTrace.EventType;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
@@ -91,6 +93,11 @@ public class SyncGossipModular implements Gossip {
     private ReconnectController reconnectController;
 
     /**
+     * Event trace for tracing events arriving
+     */
+    private final EventTrace eventTrace = new EventTrace();
+
+    /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
      * @param platformContext               the platform context
@@ -162,7 +169,15 @@ public class SyncGossipModular implements Gossip {
                     platformContext,
                     rosterSize,
                     syncMetrics,
-                    event -> receivedEventHandler.accept(event),
+                    event -> {
+                        receivedEventHandler.accept(event);
+                        if (eventTrace.isEnabled()) {
+                            // trace all self events we have sent
+                            eventTrace.eventHash = event.getEventCore().hashCode();
+                            eventTrace.eventType = EventType.RECEIVED.ordinal();
+                            eventTrace.commit();
+                        }
+                    },
                     syncManager,
                     intakeEventCounter,
                     selfId);
@@ -186,7 +201,15 @@ public class SyncGossipModular implements Gossip {
                     shadowgraph,
                     rosterSize,
                     syncMetrics,
-                    event -> receivedEventHandler.accept(event),
+                    event -> {
+                        receivedEventHandler.accept(event);
+                        if (eventTrace.isEnabled()) {
+                            // trace all self events we have sent
+                            eventTrace.eventHash = event.getEventCore().hashCode();
+                            eventTrace.eventType = EventType.RECEIVED.ordinal();
+                            eventTrace.commit();
+                        }
+                    },
                     syncManager,
                     intakeEventCounter,
                     new CachedPoolParallelExecutor(threadManager, "node-sync"));

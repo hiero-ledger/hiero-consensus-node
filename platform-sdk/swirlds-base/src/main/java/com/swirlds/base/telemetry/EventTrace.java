@@ -9,6 +9,8 @@ package com.swirlds.base.telemetry;
 @jdk.jfr.Category({"Hiero"})
 public class EventTrace extends jdk.jfr.Event {
     public enum EventType {
+        @jdk.jfr.Label("Created")
+        CREATED,
         @jdk.jfr.Label("Gossiped")
         GOSSIPED,
         @jdk.jfr.Label("Received")

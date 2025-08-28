@@ -7,6 +7,7 @@ import io.opentelemetry.pbj.common.v1.KeyValue;
 import io.opentelemetry.pbj.trace.v1.Span;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.System.Logger.Level;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -18,11 +19,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.hiero.telemetryconverter.model.VirtualResource;
+import org.hiero.telemetryconverter.model.combined.EventInfo;
 
 /**
  * Utility methods for telemetry conversion.
  */
 public final class Utils {
+    private static final System.Logger LOGGER = System.getLogger(Utils.class.getName());
     public static final String OPEN_TELEMETRY_SCHEMA_URL = "https://opentelemetry.io/schemas/1.0.0";
     private static final ZoneId UTC = ZoneId.of("UTC");
 
@@ -121,7 +124,19 @@ public final class Utils {
     }
 
     public static void putSpan(Map<VirtualResource, List<Span>> spanMap, VirtualResource resource, Span span) {
-        spanMap.computeIfAbsent(resource, k -> new ArrayList<>()).add(span);
+        // validate the spans time range
+        final Span editedSpan;
+        if (span.startTimeUnixNano() >= span.endTimeUnixNano()) {
+            LOGGER.log(Level.WARNING, () ->
+                    "Invalid span time range, start time must be before end time: " + span);
+            // TODO hack for now
+            editedSpan = span.copyBuilder()
+                    .endTimeUnixNano(span.startTimeUnixNano() + 1)
+                    .build();
+        } else {
+            editedSpan = span;
+        }
+        spanMap.computeIfAbsent(resource, k -> new ArrayList<>()).add(editedSpan);
     }
 
     public static KeyValue kv(String key, String value) {
@@ -130,5 +145,33 @@ public final class Utils {
 
     public static KeyValue kv(String key, long value) {
         return KeyValue.newBuilder().key(key).value(AnyValue.newBuilder().intValue(value).build()).build();
+    }
+
+    /**
+     * Format a duration in a human readable format with days, hours, minutes, seconds and milliseconds.
+     *
+     * @param duration the duration to format
+     * @return the formatted duration
+     */
+    public static String formatDurationHumanDecimalSeconds(java.time.Duration duration) {
+        long totalNanos = duration.toNanos();
+        long days = totalNanos / 86_400_000_000_000L;
+        totalNanos %= 86_400_000_000_000L;
+        long hours = totalNanos / 3_600_000_000_000L;
+        totalNanos %= 3_600_000_000_000L;
+        long minutes = totalNanos / 60_000_000_000L;
+        totalNanos %= 60_000_000_000L;
+        long seconds = totalNanos / 1_000_000_000L;
+        long nanos = totalNanos % 1_000_000_000L;
+
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) sb.append(days).append("d ");
+        if (hours > 0) sb.append(hours).append("h ");
+        if (minutes > 0) sb.append(minutes).append("m ");
+        if (seconds > 0 || nanos > 0 || sb.length() == 0) {
+            double secWithFraction = seconds + nanos / 1_000_000_000.0;
+            sb.append(String.format("%.5fs", secWithFraction));
+        }
+        return sb.toString().trim();
     }
 }

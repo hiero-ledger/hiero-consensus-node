@@ -115,6 +115,8 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.telemetry.EventTrace;
+import com.swirlds.base.telemetry.EventTrace.EventType;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -384,6 +386,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private StoreMetricsServiceImpl storeMetricsService;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
+
+    /**
+     * Event trace for tracing events arriving
+     */
+    private final EventTrace eventTrace = new EventTrace();
 
     @FunctionalInterface
     public interface StartupNetworksFactory {
@@ -937,6 +944,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final Event event,
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
+        eventTrace.begin();
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
@@ -965,6 +973,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .preHandleWorkflow()
                 .preHandle(
                         readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+        if (eventTrace.isEnabled()) {
+            eventTrace.eventHash = event.getEventCore().hashCode();
+            eventTrace.eventType = EventType.PRE_HANDLED.ordinal();
+            eventTrace.commit();
+        }
     }
 
     public void onNewRecoveredState() {

@@ -234,18 +234,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         // create a send list based on the known set
         final List<PlatformEvent> sendList = sharedShadowgraphSynchronizer.createSendList(
                 selfId, state.eventsTheyHave, state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
-        eventTrace.begin();
         sender.sendEvents(sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
-        if (eventTrace.isEnabled()) {
-            // trace all self events we have sent
-            sendList.stream()
-                    .filter(platformEvent -> platformEvent.getCreatorId().equals(selfId))
-                    .forEach(platformEvent -> {
-                        eventTrace.eventHash = platformEvent.getEventCore().hashCode();
-                        eventTrace.eventType = EventType.GOSSIPED.ordinal();
-                        eventTrace.commit();
-                    });
-        }
 
         outgoingEventsCounter += sendList.size();
         sender.sendEndOfEvents();

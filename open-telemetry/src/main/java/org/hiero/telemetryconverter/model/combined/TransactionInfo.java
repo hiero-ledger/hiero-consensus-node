@@ -47,11 +47,11 @@ public class TransactionInfo {
                     .filter(t -> t.eventType() == TransactionTraceInfo.EventType.EXECUTED).toList();
             // find the earliest received time
             if (receivedTraces.isEmpty()) {
-                LOGGER.log(WARNING, () -> "In Block "+blockNum+" : No RECEIVED transaction traces found in JFR files for transaction " +
-                        transactionBody.transactionID());
+//                LOGGER.log(WARNING, () -> "In Block "+blockNum+" : No RECEIVED transaction traces found in JFR files for transaction " +
+//                        transactionBody.transactionID());
                 // TODO hack, for missing data
-                transactionReceivedStartTimeNanos = timestampToUnixEpocNanos(transactionBody.transactionID().transactionValidStart());
-                transactionReceivedEndTimeNanos = transactionReceivedStartTimeNanos;
+                transactionReceivedStartTimeNanos = -1;
+                transactionReceivedEndTimeNanos = -1;
             } else {
                 var receivedTimeStats = receivedTraces.stream()
                         .mapToLong(TransactionTraceInfo::startTimeNanos).summaryStatistics();
@@ -65,6 +65,10 @@ public class TransactionInfo {
             System.err.println("Failed to parse signed transaction: " + e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    public boolean hasReceivedTimingData() {
+        return transactionReceivedStartTimeNanos > 0 && transactionReceivedEndTimeNanos > 0;
     }
 
     public int txHash() {

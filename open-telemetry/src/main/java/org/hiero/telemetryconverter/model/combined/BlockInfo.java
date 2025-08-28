@@ -1,5 +1,6 @@
 package org.hiero.telemetryconverter.model.combined;
 
+import static java.lang.System.Logger.Level.WARNING;
 import static org.hiero.telemetryconverter.util.Utils.unixEpocNanosToInstant;
 
 import com.hedera.hapi.block.stream.Block;
@@ -38,6 +39,7 @@ public class BlockInfo {
     private final List<RoundInfo> rounds = new ArrayList<>();
     private final long blockStartTimeNanos;
     private final long blockEndTimeNanos;
+    private final long txCount;
 
     public BlockInfo(final Path blockFile,
             final LongObjectHashMap<List<BlockTraceInfo>> blockTraces,
@@ -105,6 +107,23 @@ public class BlockInfo {
         blockEndTimeNanos = blockCreationTraces.stream()
                 .mapToLong(BlockTraceInfo::endTimeNanos)
                 .max().orElseThrow();
+
+        // print warning if missing transaction received timing data
+        long missingTxTimingData = rounds.stream()
+                .map(r -> r.events())
+                .flatMap(List::stream)
+                .flatMap(e -> e.transactions().stream())
+                .filter(t -> !t.hasReceivedTimingData())
+                .count();
+        txCount = rounds.stream()
+                .map(r -> r.events())
+                .flatMap(List::stream)
+                .mapToLong(e -> e.transactions().size())
+                .sum();
+        if (missingTxTimingData > 0) {
+            LOGGER.log(WARNING, () -> "Block "+blockNum+" : "+
+                    missingTxTimingData+" transactions of "+txCount+" were missing received timing in JFR files");
+        }
     }
 
     public long blockNum() {
@@ -146,10 +165,7 @@ public class BlockInfo {
                 ", events=" + rounds.stream()
                         .mapToLong(r -> r.events().size())
                         .sum() +
-                ", transactions=" + rounds.stream()
-                            .flatMap(r -> r.events().stream())
-                            .mapToLong(e -> e.transactions().size())
-                            .sum() +
+                ", transactions=" + txCount +
                 ", blockStartTimeNanos=" + unixEpocNanosToInstant(blockStartTimeNanos) +
                 ", blockEndTimeNanos=" + unixEpocNanosToInstant(blockEndTimeNanos) +
                 '}';

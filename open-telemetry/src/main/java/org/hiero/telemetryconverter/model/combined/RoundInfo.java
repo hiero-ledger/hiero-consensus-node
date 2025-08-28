@@ -1,5 +1,7 @@
 package org.hiero.telemetryconverter.model.combined;
 
+import static java.lang.System.Logger.Level.WARNING;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -19,6 +21,7 @@ import org.hiero.telemetryconverter.util.WarningException;
  * we have everything in one place to produce spans with.
  */
 public class RoundInfo {
+    private static final System.Logger LOGGER = System.getLogger(RoundInfo.class.getName());
     private final long blockNumber;
     private final long roundNumber;
     private final List<RoundTraceInfo> createdTraces = new ArrayList<>();

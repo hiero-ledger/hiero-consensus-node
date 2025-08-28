@@ -1,5 +1,7 @@
 package org.hiero.telemetryconverter.model.combined;
 
+import static java.lang.System.Logger.Level.INFO;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -14,6 +16,7 @@ import org.hiero.telemetryconverter.model.trace.TransactionTraceInfo;
  * we have everything in one place to produce spans with.
  */
 public class EventInfo {
+    private static final System.Logger LOGGER = System.getLogger(EventInfo.class.getName());
     private final int eventHash;// EventCore.hashCode() value
     private final long eventCreatorNodeId;
     private final EventTraceInfo createdTrace;

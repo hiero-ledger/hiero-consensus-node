@@ -1,6 +1,7 @@
 package org.hiero.telemetryconverter;
 
 import static java.lang.System.Logger.Level.INFO;
+import static org.hiero.telemetryconverter.util.Utils.formatDurationHumanDecimalSeconds;
 
 import java.io.IOException;
 import java.lang.System.Logger.Level;
@@ -13,6 +14,7 @@ import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 import org.hiero.telemetryconverter.model.trace.BlockTraceInfo;
 import org.hiero.telemetryconverter.model.trace.EventTraceInfo;
+import org.hiero.telemetryconverter.model.trace.EventTraceInfo.EventType;
 import org.hiero.telemetryconverter.model.trace.RoundTraceInfo;
 import org.hiero.telemetryconverter.model.trace.TransactionTraceInfo;
 import org.hiero.telemetryconverter.util.Utils;
@@ -59,11 +61,11 @@ public class JfrFileReader {
                                     endTimeNanos-startTimeNanos);
                             if (!duration.equals(e.getDuration())) throw new IllegalStateException(
                                     "Inconsistent duration in Round event: " + e);
-                            if (duration.getSeconds() >= 1) {
+                            if (duration.getSeconds() >= 3) {
                                 LOGGER.log(Level.WARNING,
                                         () -> String.format(
                                                 "Long duration in Round event: %d, duration: %s",
-                                                roundNum, duration));
+                                                roundNum, formatDurationHumanDecimalSeconds(duration)));
                             }
                             final RoundTraceInfo roundTraceInfo = new RoundTraceInfo(nodeId, roundNum,
                                     RoundTraceInfo.EventType.values()[eventTypeOrdinal],
@@ -114,5 +116,15 @@ public class JfrFileReader {
                         + "{4} transaction traces",
                 jfrFile.getFileName(), numberOfBlockTraces, numberOfRoundTraces, numberOfEventTraces,
                 numberOfTransactionTraces);
+        LOGGER.log(INFO,
+                "    {0} event traces, gossiped traces: {1}, received traces: {2}, pre-handled traces: {3}",
+                numberOfEventTraces,
+                eventTraces.values().stream().flatMap(List::stream)
+                        .filter(et -> et.eventType() == EventType.GOSSIPED).count(),
+                eventTraces.values().stream().flatMap(List::stream)
+                        .filter(et -> et.eventType() == EventType.RECEIVED).count(),
+                eventTraces.values().stream().flatMap(List::stream)
+                        .filter(et -> et.eventType() == EventType.PRE_HANDLED).count()
+        );
     }
 }
