@@ -73,8 +73,8 @@ jobs:
 
       - name: LS
         run: |
-          echo "github folder"
-          ls -aR | grep process_json_release_notes
+          echo "run ls"
+          ls -a
 
       - name: Validate Tag Exists
         run: |
