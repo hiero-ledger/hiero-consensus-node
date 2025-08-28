@@ -166,6 +166,7 @@ jobs:
           git_user_signingkey: true
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
       - name: Tag SDPT Result
         run: |
           RESULT="${{ needs.run-single-day-performance-test.outputs.result }}"
@@ -255,6 +256,7 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -585,6 +587,7 @@ jobs:
             ]
           }
           EOF
+
       - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -592,6 +595,7 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
+
       - name: Report failure (slack release-team)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
