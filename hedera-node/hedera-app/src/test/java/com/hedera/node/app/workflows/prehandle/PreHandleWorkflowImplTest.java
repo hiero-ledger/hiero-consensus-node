@@ -230,6 +230,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final Transaction platformTx = createAppPayloadWrapper(randomByteArray(123));
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenThrow(new PreCheckException(INVALID_TRANSACTION));
+            when(transactionChecker.parseAndCheck(any(Bytes.class), anyInt()))
+                    .thenThrow(new PreCheckException(INVALID_TRANSACTION));
 
             // When we try to pre-handle the transaction
             workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), txns -> {});
