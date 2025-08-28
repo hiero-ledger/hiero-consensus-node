@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
+import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -30,16 +31,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
-import com.swirlds.platform.cli.utils.HederaAppUtils;
+import com.swirlds.platform.cli.utils.AppUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SavedStateUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.swirldapp.AppLoaderException;
-import com.swirlds.platform.swirldapp.SwirldAppLoader;
+import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -239,10 +240,11 @@ public class CrystalTransplantCommand extends AbstractCommand {
             throw new RuntimeException(e);
         }
 
-        try {
-            SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
-        } catch (final AppLoaderException e) {
-            System.err.printf("Could not load the application definition for self-id %s. %s %n", selfId, e);
+        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+        final SwirldMain<? extends MerkleNodeState> appMain = appMain(appDefinition, platformStateFacade);
+
+        if (appMain == null) {
+            System.out.printf("Could not load application main %s %n", appDefinition);
             System.exit(RETURN_CODE_ERROR);
         }
 
@@ -256,14 +258,34 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 version,
                 savedStateFiles,
-                HederaAppUtils::createrNewMerkleNodeState,
-                new PlatformStateFacade(),
+                v -> {
+                    try {
+                        return appMain.stateRootFromVirtualMap().apply(v);
+                    } catch (UnsupportedOperationException e) {
+                        // TODO while test apps don't support virtualmap
+                        return appMain.newStateRoot();
+                    }
+                },
+                platformStateFacade,
                 platformContext)) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),
                     state.get().getState().getRoot());
             return new StateInformation(
                     state.get().getRound(), state.get().getRoster(), newHash, savedStateFiles.getFirst());
+        }
+    }
+
+    private SwirldMain<? extends MerkleNodeState> appMain(
+            final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
+        try {
+            if (AppUtils.HDERA_MAIN.equals(appDefinition.getMainClassName())) {
+                return AppUtils.createHederaAppMain(platformContext, platformStateFacade);
+            } else {
+                return loadAppMain(appDefinition.getMainClassName());
+            }
+        } catch (Exception e) {
+            return null;
         }
     }
 

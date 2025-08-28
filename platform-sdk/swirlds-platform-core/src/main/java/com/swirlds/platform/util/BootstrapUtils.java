@@ -30,6 +30,7 @@ import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
@@ -179,7 +180,7 @@ public final class BootstrapUtils {
      *
      * @param appMainName the name of the app main class
      */
-    public static @NonNull SwirldMain loadAppMain(@NonNull final String appMainName) {
+    public static @NonNull SwirldMain<? extends MerkleNodeState> loadAppMain(@NonNull final String appMainName) {
         requireNonNull(appMainName);
         try {
             final Class<?> mainClass = Class.forName(appMainName);
@@ -196,7 +197,7 @@ public final class BootstrapUtils {
                 throw new RuntimeException("Class " + appMainName + " does not have a zero arg constructor.");
             }
 
-            return (SwirldMain) constructor.newInstance();
+            return (SwirldMain<? extends MerkleNodeState>) constructor.newInstance();
         } catch (final ClassNotFoundException
                 | InstantiationException
                 | IllegalAccessException

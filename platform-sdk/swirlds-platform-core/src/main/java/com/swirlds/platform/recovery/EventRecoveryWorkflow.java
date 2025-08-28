@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -21,7 +20,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.cli.utils.HederaAppUtils;
+import com.swirlds.platform.cli.utils.AppUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -140,20 +139,21 @@ public final class EventRecoveryWorkflow {
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
         ParameterProvider.getInstance().setParameters(appDefinition.getAppParameters());
 
-        final SwirldMain appMain = loadAppMain(mainClassName);
-
         if (!Files.exists(resultingStateDirectory)) {
             Files.createDirectories(resultingStateDirectory);
         }
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
-
-        final SwirldMain<?> hederaApp = HederaAppUtils.createHederaApp(platformContext, platformStateFacade, appMain);
+        final SwirldMain<? extends MerkleNodeState> hederaApp =
+                AppUtils.createHederaAppMain(platformContext, platformStateFacade);
 
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                signedStateFile, HederaAppUtils::createrNewMerkleNodeState, platformStateFacade, platformContext);
+                signedStateFile,
+                v -> hederaApp.stateRootFromVirtualMap().apply(v),
+                platformStateFacade,
+                platformContext);
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-            HederaAppUtils.updateStateHash(hederaApp, deserializedSignedState);
+            AppUtils.updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
                     STARTUP.getMarker(),
