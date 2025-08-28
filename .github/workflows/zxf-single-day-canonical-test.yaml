@@ -313,9 +313,9 @@ jobs:
         id: set-create-incident
         run: |
           CREATE_INCIDENT="false"
-          if [[ "${{ needs.canonical-test.outputs.start-canonical-test }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.check-if-exist }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.parameters }}" =~ ^(cancelled|failure)$ ]]; then
+          if [[ "${{ needs.canonical-test.outputs.start-canonical-test }}" == "failure" ]] \
+            || [[ "${{ needs.canonical-test.outputs.check-if-exist }}" == "failure" ]] \
+            || [[ "${{ needs.canonical-test.outputs.parameters }}" == "failure" ]]; then
             CREATE_INCIDENT="true"
           fi
           echo "create=${CREATE_INCIDENT}" >> "${GITHUB_OUTPUT}"
