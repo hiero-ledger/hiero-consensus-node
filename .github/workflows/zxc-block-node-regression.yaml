@@ -76,6 +76,7 @@ jobs:
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
           echo "Latest Block Node Explorer tag: $LATEST_TAG"
           git checkout $LATEST_TAG
+          echo "BLOCK_NODE_TAG=${BLOCK_NODE_TAG}" >> "$GITHUB_ENV"
 
       # Checkout the JS-SDK server -- if needed
       - name: Checkout JS-SDK Server
@@ -123,12 +124,13 @@ jobs:
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
 
+      # Commenting this out since BN does not have a npm package.json
       # Set up the npm dependencies and cache on the block-node repository
-      - name: Set up the tck-client
-        run: |
-          npm cache clean --force
-          npm install
-        working-directory: regression-tests/block-node
+      # - name: Set up the tck-client
+      #  run: |
+      #    npm cache clean --force
+      #    npm install
+      #  working-directory: regression-tests/block-node
 
       # Set up the npm dependencies and cache on the sdk-server
       - name: Install NodeJS Dependencies (sdk-server)
@@ -167,40 +169,71 @@ jobs:
           verbosity: 3
           wait: 120s
 
+      # Create Mirror Values Override File (uses BN service)
+      # This is a temporary workaround until we have a proper release of the mirror node chart that supports block nodes
+      # and the latest version of blockstream in `0.65.0`
+      - name: Create Mirror Values Override File
+        run: |
+          cat <<EOF > mirror-bn-values.yaml
+          importer:
+            image:
+              registry: docker.io
+              repository: xinatswirlds/importer
+              tag: e741ea2b2
+          hiero:
+            mirror:
+              importer:
+                block:
+                  enabled: true
+                  nodes:
+                    - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                      port: 40840
+                  sourceType: BLOCK_NODE
+              downloader:
+                record:
+                  enabled: false
+              startDate: 1970-01-01T00:00:00Z
+              stream:
+                maxSubscribeAttempts: 10
+                responseTimeout: 10s
+          EOF
+
       # Set up solo
       - name: Configure and run solo
         run: |
           kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+          sleep 10
           solo init
           solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1         
+          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"          
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ inputs.ref }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
           solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
           solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-
+          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
 
       # Perform block node regression tests
-      - name: Start block-node-test-client
-        env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
-          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
-          NODE_IP: "127.0.0.1:50211"
-          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
-          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
-        run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
-          cp .env.custom_node .env
-          npm run test
-        working-directory: regression-tests/block-node # required
+      # There are NO block-node-
+#      - name: Start block-node-test-client
+#        env:
+#          OPERATOR_ACCOUNT_ID: "0.0.2"
+#          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
+#          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
+#          NODE_IP: "127.0.0.1:50211"
+#          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
+#          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
+#        run: |
+#          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+#          cp .env.custom_node .env
+#          npm run test
+#        working-directory: regression-tests/block-node # required
 
       - name: Block Node Regression Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
