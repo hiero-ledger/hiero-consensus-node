@@ -60,12 +60,15 @@ jobs:
           fetch-depth: 0
 
       # Get latest tag for the checked out hiero-consensus-node
-      - name: Get Latest CN Tag
+      - name: Get Latest Stable CN Tag
         run: |
           git fetch --tags
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Consensus Node tag: $LATEST_TAG"
-          echo "CN_LATEST_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
+          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [[ -z "${LATEST_STABLE:-}" ]]; then
+            echo "No stable v*.*.* tags found."; exit 1
+          fi
+          echo "Latest stable tag: ${LATEST_STABLE}"
+          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
 
       #  Checkout the block-node repository
       - name: Checkout Block-Node Code
@@ -231,7 +234,7 @@ jobs:
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1         
           solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ inputs.branch_name }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
           solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
