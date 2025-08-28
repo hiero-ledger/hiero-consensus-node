@@ -264,23 +264,25 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
+
+        logger.debug("[{}] BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
+
+        acknowledgeBlocks(acknowledgedBlockNumber, true);
+    }
+
+    /**
+     * Acknowledges the blocks up to the specified block number.
+     * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
+     */
+    private void acknowledgeBlocks(long acknowledgedBlockNumber, boolean maybeJumpToBlock) {
         final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
-
-        if (currentBlockStreaming == -1) {
-            logger.warn(
-                    "[{}] Received acknowledgement for block {}, but we haven't streamed anything to the node",
-                    this,
-                    acknowledgedBlockNumber);
-            return;
-        }
-
-        logger.debug("[{}] BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
-
-        if (acknowledgedBlockNumber > currentBlockProducing || acknowledgedBlockNumber > currentBlockStreaming) {
+        if (maybeJumpToBlock
+                && (acknowledgedBlockNumber > currentBlockProducing
+                        || acknowledgedBlockNumber > currentBlockStreaming)) {
             /*
             We received an acknowledgement for a block that the consensus node is either currently streaming or
             producing. This likely indicates this consensus node is behind other consensus nodes (since the
@@ -314,6 +316,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         // Include this new EoS response in our set that tracks the occurrences of EoS responses
         endOfStreamTimestamps.add(Instant.now());
+
+        // Update the latest acknowledged block number
+        acknowledgeBlocks(blockNumber, false);
 
         // Check if we've exceeded the EndOfStream rate limit
         if (hasExceededEndOfStreamLimit()) {

@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.suites.HapiSuite;
@@ -52,7 +51,7 @@ public class SetupStakeCommand implements Callable<Integer> {
         try {
             assertValidParams();
         } catch (Exception any) {
-            COMMON_MESSAGES.warn("Please check the parameters and try again (got '" + any.getMessage() + "')");
+            config.output().warn("Please check the parameters and try again (got '" + any.getMessage() + "')");
             return 1;
         }
         long stakePerNode = TOTAL_HBAR_SUPPLY / config.numNodesInTargetNet() / 4;
@@ -88,9 +87,9 @@ public class SetupStakeCommand implements Callable<Integer> {
                     .append(" for ")
                     .append(perNodeStake)
                     .append("\n"));
-            COMMON_MESSAGES.info(msgSb.toString());
+            config.output().info(msgSb.toString());
         } else {
-            COMMON_MESSAGES.warn("FAILED - staking not initialized for '" + config.getTargetName() + "'");
+            config.output().warn("FAILED - staking not initialized for '" + config.getTargetName() + "'");
             return 1;
         }
 

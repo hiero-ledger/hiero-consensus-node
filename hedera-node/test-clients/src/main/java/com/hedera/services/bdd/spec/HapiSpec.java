@@ -906,11 +906,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     "default.shard", "" + targetNetwork.shard(),
                     "default.realm", "" + targetNetwork.realm()));
         } catch (Exception ignore) {
+            final long shard = HapiPropertySource.getConfigShard();
+            final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
-                    hapiSetup.nodes(),
-                    clientsFor(hapiSetup),
-                    HapiPropertySource.getConfigShard(),
-                    HapiPropertySource.getConfigRealm());
+                    hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
         }
     }
 
@@ -1207,7 +1206,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
 
             dynamicNodes = Arrays.stream(dynamicNodes.split(","))
-                    .map(NodeConnectInfo::new)
+                    .map(inString -> new NodeConnectInfo(inString, 0, 0))
                     .map(info -> {
                         final var acct = info.getAccount();
                         return info.uri() + ":"
