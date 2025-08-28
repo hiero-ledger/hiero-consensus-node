@@ -35,7 +35,6 @@ jobs:
         id: extract-version
         run: |
           echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
-          echo "Version Number to Process: ${version}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate and Correct Release Identifier
         id: validate
