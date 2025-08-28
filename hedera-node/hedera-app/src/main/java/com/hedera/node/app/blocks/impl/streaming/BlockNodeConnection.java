@@ -416,7 +416,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             this,
                             restartBlockNumber);
 
-                    restartStreamAtBlock(restartBlockNumber);
+                    closeAndRestart(restartBlockNumber);
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
