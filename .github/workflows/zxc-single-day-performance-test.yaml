@@ -1238,7 +1238,7 @@ jobs:
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
             perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
             $excl=""; if ($p<=0) {$excl="\\\u2757";}
-            printf("{\"type\": \"text\",\"text\": \"%-25s %7d %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
+            printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport"
 
           cat <<EOF > slack_payload.json
@@ -1302,14 +1302,9 @@ jobs:
             ]
           }
           EOF
-          #FIXME: debug below
-          echo "slack_payload.json :"
-          cat slack_payload.json
 
       ## Slack notifications
       - name: Report status (slack operations)
-        #FIXME: if: false
-        if: false
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.slack-report-webhook }}
