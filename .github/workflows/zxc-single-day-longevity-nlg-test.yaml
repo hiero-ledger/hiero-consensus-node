@@ -38,7 +38,9 @@ on:
       # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
       kubernetes-cluster:
         required: true
+        type: string
         default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
+        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
