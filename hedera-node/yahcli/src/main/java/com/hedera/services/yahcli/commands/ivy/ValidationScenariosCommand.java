@@ -104,7 +104,7 @@ public class ValidationScenariosCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = ivyCommand.getYahcli();
         final var config = ConfigUtils.configFrom(yahcli);
-        final var scenariosLoc = config.scenariosDir();
+        final var scenariosLoc = config.scenariosDirOrThrow();
         configYmlPath = guaranteedExtantDir(Paths.get(scenariosLoc)).resolve("config.yml");
         loadScenariosConfig(config);
         requireNonNull(scenariosConfig);

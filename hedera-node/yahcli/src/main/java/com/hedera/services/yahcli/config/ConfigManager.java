@@ -254,7 +254,14 @@ public class ConfigManager {
         return workingDir + File.separator + targetName + File.separator + "keys";
     }
 
-    public String scenariosDir() {
+    /**
+     * Returns the relative path to the {@code yahcli ivy vs} scenarios config YML, or throws if this
+     * {@link ConfigManager} has not been fully initialized from a {@link Yahcli} invocation.
+     * @return the relative path to the {@code yahcli ivy vs} scenarios config YML
+     */
+    public String scenariosDirOrThrow() {
+        requireNonNull(workingDir);
+        requireNonNull(targetName);
         return workingDir + File.separator + targetName + File.separator + "scenarios";
     }
 

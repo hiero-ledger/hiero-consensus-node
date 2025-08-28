@@ -28,6 +28,7 @@ module com.hedera.node.yahcli {
     requires com.hedera.node.app;
     requires com.hedera.node.hapi;
     requires com.hedera.node.test.clients;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
@@ -35,7 +36,6 @@ module com.hedera.node.yahcli {
     requires info.picocli;
     requires net.i2p.crypto.eddsa;
     requires org.apache.logging.log4j;
-    requires org.jetbrains.annotations;
     requires org.junit.jupiter.api;
     requires org.yaml.snakeyaml;
 }

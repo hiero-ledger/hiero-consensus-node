@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.readKeyPairFrom;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.readUnknownTypeKeyFrom;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSources;
@@ -132,7 +132,7 @@ public class HapiSpecSetup {
         final var path = f.getAbsolutePath();
         if (path.endsWith("pem")) {
             final var passphrase = getPassphrase(f, passphraseEnvVar).orElseThrow();
-            return loadPemKeyOrThrow(f, passphrase);
+            return readUnknownTypeKeyFrom(f, passphrase);
         } else if (path.endsWith("words")) {
             final var mnemonic = Bip0032.mnemonicFromFile(path);
             return mnemonicToEd25519Key(mnemonic);
@@ -146,14 +146,13 @@ public class HapiSpecSetup {
         }
     }
 
-    private static PrivateKey loadPemKeyOrThrow(@NonNull final File pemFile, @NonNull final String passphrase) {
-        try {
-            return readKeyPairFrom(pemFile, passphrase).getPrivate();
-        } catch (Exception ignore) {
-        }
-        return readECKeyFrom(pemFile, passphrase);
-    }
-
+    /**
+     * If there is a passphrase environment variable, and it is set, return that.  Otherwise, if there is a
+     * a passphrase file next to the given PEM file, return that. Otherwise, return empty.
+     * @param pemFile the PEM file to look next to for a passphrase file
+     * @param passphraseEnvVar if available the environment variable that may contain the passphrase for a PEM file
+     * @return the passphrase, if available
+     */
     private static Optional<String> getPassphrase(
             @NonNull final File pemFile, @Nullable final String passphraseEnvVar) {
         String fromEnv;
@@ -172,7 +171,6 @@ public class HapiSpecSetup {
 
     /**
      * Returns the Ed25519 private key for the default payer in this spec setup.  This method will only return an Ed25519 key if the default payer key does point to an Ed25519 key
-     *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
     private EdDSAPrivateKey payerKeyAsEd25519() {
