@@ -121,7 +121,7 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
           echo "Latest JS-SDK tag: $LATEST_TAG"
-          git checkout $LATEST_TAG        
+          git checkout $LATEST_TAG
 
       # Set up Java Environment
       - name: Setup Java
@@ -232,7 +232,7 @@ jobs:
           solo init
           solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1         
+          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
           solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version  "${{ env.BLOCK_NODE_TAG }}"
           solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
@@ -246,7 +246,7 @@ jobs:
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-0 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
 
-       # ---- BN verification with grpcurl ----
+        # ---- BN verification with grpcurl ----
 
       # produce protobuf source artifact
       - name: Produce Protobuf proto artifact
@@ -296,7 +296,7 @@ jobs:
             if (( LAST_AVAILABLE_BLOCK < 1 )); then
                 echo "Last available block is less than 1"
                 exit 1
-            fi          
+            fi
 
       # Start the TCK client
       - name: Start tck-client
