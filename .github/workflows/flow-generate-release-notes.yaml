@@ -55,7 +55,7 @@ jobs:
           echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
           echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Ensure tag is stable (no prerelease)
+      - name: Skip Autogen Release Notes on Release Candidate Tag
         run: |
           tag="v${{ steps.validate.outputs.release-identifier }}"
           if [[ "${{ github.event_name }}" == "push" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
