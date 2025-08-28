@@ -12,11 +12,7 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Iterator;
 import java.util.Objects;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -72,31 +68,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final BlockStreamMetrics blockStreamMetrics;
     /**
-     * Configuration property: the maximum number of EndOfStream responses permitted on this connection before taking
-     * corrective action (e.g. reconnecting).
-     */
-    private final int maxEndOfStreamsAllowed;
-    /**
-     * Configuration property: the time window in which a certain number of EndOfStream responses is permitted before
-     * corrective action is taken. This works alongside {@link BlockNodeConnection#maxEndOfStreamsAllowed}.
-     */
-    private final Duration endOfStreamTimeFrame;
-    /**
-     * If corrective action needs to be taken (e.g. reconnect) because of too many EndOfStream responses in the
-     * permitted time frame, then this duration is used as the delay for acting upon that corrective action. For example,
-     * if a reconnect is needed and the delay is configured to five seconds, then the reconnect will be scheduled in
-     * five seconds.
-     */
-    private final Duration endOfStreamScheduleDelay;
-    /**
      * The reset period for the stream. This is used to periodically reset the stream to ensure increased stability and reliability.
      */
     private final Duration streamResetPeriod;
-    /**
-     * Queue for tracking the instances of EndOfStream responses received from the block node for this connection. This
-     * queue will be periodically pruned.
-     */
-    private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
     /**
      * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
      */
@@ -173,13 +147,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
-
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-
-        this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
-        this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
-        this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
     }
 
@@ -356,25 +325,24 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         logger.debug("[{}] Received EndOfStream response (block={}, responseCode={})", this, blockNumber, responseCode);
 
-        // Include this new EoS response in our set that tracks the occurrences of EoS responses
-        endOfStreamTimestamps.add(Instant.now());
-
         // Update the latest acknowledged block number
         acknowledgeBlocks(blockNumber, false);
 
         // Check if we've exceeded the EndOfStream rate limit
-        if (hasExceededEndOfStreamLimit()) {
+        // Record the EndOfStream event and check if the rate limit has been exceeded.
+        // The connection manager maintains persistent stats for each node across connections.
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig)) {
             logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
                     this,
-                    endOfStreamTimestamps.size(),
-                    maxEndOfStreamsAllowed,
-                    endOfStreamTimeFrame,
-                    endOfStreamScheduleDelay);
+                    blockNodeConnectionManager.getEndOfStreamCount(blockNodeConfig),
+                    blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
+                    blockNodeConnectionManager.getEndOfStreamTimeframe(),
+                    blockNodeConnectionManager.getEndOfStreamScheduleDelay());
 
             // Schedule delayed retry through connection manager
-            closeAndReschedule(endOfStreamScheduleDelay, true);
+            closeAndReschedule(blockNodeConnectionManager.getEndOfStreamScheduleDelay(), true);
             return;
         }
 
@@ -484,33 +452,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     resendBlockNumber);
             closeAndReschedule(LONGER_RETRY_DELAY, true);
         }
-    }
-
-    /**
-     * Checks if the EndOfStream rate limit has been exceeded.
-     * This method maintains a queue of timestamps for the last EndOfStream responses
-     * and checks if the number of responses exceeds the configurable limit
-     * within the configurable time frame.
-     *
-     * @return true if the rate limit has been exceeded, false otherwise
-     */
-    private boolean hasExceededEndOfStreamLimit() {
-        final Instant now = Instant.now();
-        final Instant cutoff = now.minus(endOfStreamTimeFrame);
-
-        // Remove expired timestamps
-        final Iterator<Instant> it = endOfStreamTimestamps.iterator();
-        while (it.hasNext()) {
-            final Instant timestamp = it.next();
-            if (timestamp.isBefore(cutoff)) {
-                it.remove();
-            } else {
-                break;
-            }
-        }
-
-        // Check if we've exceeded the limit
-        return endOfStreamTimestamps.size() > maxEndOfStreamsAllowed;
     }
 
     /**

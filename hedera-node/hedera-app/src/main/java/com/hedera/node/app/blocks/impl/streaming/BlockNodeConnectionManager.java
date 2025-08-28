@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -153,6 +154,25 @@ public class BlockNodeConnectionManager {
     private final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
 
     /**
+     * Tracks health and connection history for each block node across multiple connection instances.
+     * This data persists beyond individual BlockNodeConnection lifecycles.
+     */
+    private final Map<BlockNodeConfig, BlockNodeStats> nodeStats;
+
+    /**
+     * Configuration property: the maximum number of EndOfStream responses permitted before taking corrective action.
+     */
+    private final int maxEndOfStreamsAllowed;
+    /**
+     * Configuration property: the time window in which EndOfStream responses are counted for rate limiting.
+     */
+    private final Duration endOfStreamTimeFrame;
+    /**
+     * Configuration property: delay before retrying after EndOfStream rate limit is exceeded.
+     */
+    private final Duration endOfStreamScheduleDelay;
+
+    /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
@@ -170,7 +190,12 @@ public class BlockNodeConnectionManager {
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.sharedExecutorService = requireNonNull(sharedExecutorService, "sharedExecutorService must not be null");
-
+        this.nodeStats = new ConcurrentHashMap<>();
+        final var blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+        this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
+        this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
+        this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -923,5 +948,66 @@ public class BlockNodeConnectionManager {
                 connection.close(true);
             }
         }
+    }
+
+    /**
+     * Increments the count of EndOfStream responses for the specified block node
+     * and then checks if this new count exceeds the configured rate limit.
+     *
+     * @param blockNodeConfig the configuration for the block node
+     * @return true if the rate limit is exceeded, otherwise false
+     */
+    public boolean recordEndOfStreamAndCheckLimit(@NonNull final BlockNodeConfig blockNodeConfig) {
+        if (!isStreamingEnabled.get()) {
+            return false;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final Instant now = Instant.now();
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+
+        return stats.addEndOfStreamAndCheckLimit(now, maxEndOfStreamsAllowed, endOfStreamTimeFrame);
+    }
+
+    /**
+     * Gets the configured delay for EndOfStream rate limit violations.
+     *
+     * @return the delay before retrying after rate limit exceeded
+     */
+    public Duration getEndOfStreamScheduleDelay() {
+        return endOfStreamScheduleDelay;
+    }
+
+    /**
+     * Gets the configured timeframe for counting EndOfStream responses.
+     *
+     * @return the timeframe for rate limiting EndOfStream responses
+     */
+    public Duration getEndOfStreamTimeframe() {
+        return endOfStreamTimeFrame;
+    }
+
+    /**
+     * Gets the maximum number of EndOfStream responses allowed before taking corrective action.
+     *
+     * @return the maximum number of EndOfStream responses permitted
+     */
+    public int getMaxEndOfStreamsAllowed() {
+        return maxEndOfStreamsAllowed;
+    }
+
+    /**
+     * Retrieves the total count of EndOfStream responses received from the specified block node.
+     *
+     * @param blockNodeConfig the configuration for the block node
+     * @return the total count of EndOfStream responses
+     */
+    public int getEndOfStreamCount(@NonNull final BlockNodeConfig blockNodeConfig) {
+        if (!isStreamingEnabled.get()) {
+            return 0;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+        final BlockNodeStats stats = nodeStats.get(blockNodeConfig);
+        return stats != null ? stats.getEndOfStreamCount() : 0;
     }
 }
