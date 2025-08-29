@@ -67,12 +67,11 @@ on:
         default: false
         type: boolean
         description: "Algorithmic analysis"
-
-      #disable-notifications:
-      #  required: false
-      #  default: true
-      #  type: boolean
-      #  description: "If true, skip tag and notifications"
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
@@ -464,7 +463,8 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
-        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        if: false
+        #if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -598,6 +598,7 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: false
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
@@ -606,6 +607,7 @@ jobs:
           payload-file-path: slack_payload.json
 
       - name: Report failure (slack release-team)
+        if: false
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}

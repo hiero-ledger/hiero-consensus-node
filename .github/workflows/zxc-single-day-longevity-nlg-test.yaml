@@ -100,8 +100,10 @@ jobs:
 
       - name: Checkout target BN Code
         run: |
-          git clone --depth=1 -b ${{ inputs.bnref }} https://github.com/hiero-ledger/hiero-block-node.git target_block_node
-
+          git clone https://github.com/hiero-ledger/hiero-block-node.git target_block_node
+          cd target_block_node
+          git checkout ${{ inputs.bnref }}
+          cd "${{ github.workspace }}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -730,7 +732,7 @@ jobs:
       - single-day-longevity-test-result
     if: ${{ (needs.longevity-tests-start.result != 'success' ||
       needs.single-day-longevity-test-result.result != 'success') &&
-      !cancelled() && always() }}
+      !cancelled() && always() && never() }} #FIXME: never()
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -755,7 +757,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title: "The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -815,6 +817,7 @@ jobs:
 
   longevity-report-to-Slack:
     runs-on: hiero-citr-linux-medium
+    if: false
     needs:
       - longevity-tests-start
     steps:
