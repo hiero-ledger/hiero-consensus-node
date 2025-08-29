@@ -57,4 +57,8 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.container to
+            com.hedera.node.test.clients;
+    exports org.hiero.otter.fixtures.container.network to
+            com.fasterxml.jackson.databind;
 }

@@ -89,7 +89,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final TurtleMarkerFileObserver markerFileObserver;
-    private final AsyncNodeActions asyncNodeActions = new TurtleAsyncNodeActions();
+    private final AsyncNodeActions defaultAsyncActions = new TurtleAsyncNodeActions();
 
     private PlatformContext platformContext;
 
@@ -146,58 +146,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void killImmediately() {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
-
-            doShutdownNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
-     */
-    @Override
-    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
-     */
-    @Override
-    public void stopSyntheticBottleneck() {
-        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void start() {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
-
-            throwIfIn(RUNNING, "Node has already been started.");
-            throwIfIn(DESTROYED, "Node has already been destroyed.");
-
-            // Start node from current state
-            doStartNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
+    @NonNull
+    protected AsyncNodeActions defaultAsyncActions() {
+        return defaultAsyncActions;
     }
 
     /**
@@ -205,7 +157,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
-        return asyncNodeActions;
+        return defaultAsyncActions;
     }
 
     /**
@@ -466,8 +418,34 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
          * {@inheritDoc}
          */
         @Override
+        public void start() {
+            try {
+                ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
+
+                throwIfIn(RUNNING, "Node has already been started.");
+                throwIfIn(DESTROYED, "Node has already been destroyed.");
+
+                // Start node from current state
+                doStartNode();
+
+            } finally {
+                ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
         public void killImmediately() {
-            TurtleNode.this.killImmediately();
+            try {
+                ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
+
+                doShutdownNode();
+
+            } finally {
+                ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+            }
         }
 
         /**
@@ -484,14 +462,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         @Override
         public void stopSyntheticBottleneck() {
             throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void start() {
-            TurtleNode.this.start();
         }
     }
 }

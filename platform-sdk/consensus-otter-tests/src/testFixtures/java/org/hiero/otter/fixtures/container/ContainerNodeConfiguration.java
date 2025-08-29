@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
-import java.util.Map;
 import java.util.function.Supplier;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
@@ -21,16 +22,6 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
-        overriddenProperties.put("event.eventsLogDir", "/opt/DockerApp/hgcapp");
-    }
-
-    /**
-     * Returns the overridden properties for this node configuration.
-     *
-     * @return an unmodifiable map of overridden properties
-     */
-    @NonNull
-    public Map<String, String> overriddenProperties() {
-        return Collections.unmodifiableMap(overriddenProperties);
+        overriddenProperties.put(EventConfig_.EVENTS_LOG_DIR, CONTAINER_APP_WORKING_DIR + "/eventsStreams");
     }
 }

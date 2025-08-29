@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,6 +44,14 @@ public interface Network {
     default List<Node> nodes() {
         return topology().nodes();
     }
+
+    /**
+     * Returns the {@link Roster} of the network.
+     *
+     * @return the roster of the network
+     */
+    @NonNull
+    Roster roster();
 
     /**
      * Returns the {@link Topology} of the network.

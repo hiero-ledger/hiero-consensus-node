@@ -48,7 +48,7 @@ public class WorkingDirUtils {
     private static final Path BASE_WORKING_LOC = Path.of("./build");
     private static final String DEFAULT_SCOPE = "hapi";
     private static final String KEYS_FOLDER = "keys";
-    private static final String CONFIG_FOLDER = "config";
+    public static final String CONFIG_FOLDER = "config";
     private static final String LOG4J2_XML = "log4j2.xml";
     private static final String PROJECT_BOOTSTRAP_ASSETS_LOC = "hedera-node/configuration/dev";
     private static final String TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC = "../configuration/dev";
@@ -81,7 +81,7 @@ public class WorkingDirUtils {
     public static final String CANDIDATE_ROSTER_JSON = "candidate-roster.json";
     public static final String APPLICATION_PROPERTIES = "application.properties";
 
-    private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
+    public static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
 
     private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
 
@@ -192,7 +192,7 @@ public class WorkingDirUtils {
         return requireNonNull(new SemanticVersionConverter().convert(versionLiteral));
     }
 
-    private static Path bootstrapAssetsLoc() {
+    public static Path bootstrapAssetsLoc() {
         return Paths.get(System.getProperty("user.dir")).endsWith("hedera-services")
                 ? Path.of(PROJECT_BOOTSTRAP_ASSETS_LOC)
                 : Path.of(TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC);

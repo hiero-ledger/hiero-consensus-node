@@ -65,11 +65,11 @@ public abstract class AbstractTimeManager implements TimeManager {
 
         Instant now = start;
         while (!condition.getAsBoolean() && now.isBefore(end)) {
-            advanceTime(granularity);
-            now = now();
             for (final TimeTickReceiver receiver : timeTickReceivers) {
                 receiver.tick(now);
             }
+            advanceTime(granularity);
+            now = now();
         }
 
         return condition.getAsBoolean();

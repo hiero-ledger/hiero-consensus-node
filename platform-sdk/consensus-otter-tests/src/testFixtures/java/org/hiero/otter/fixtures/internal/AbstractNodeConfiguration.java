@@ -13,11 +13,11 @@ import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.jetbrains.annotations.NotNull;
@@ -108,20 +108,13 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NotNull final String key, @NotNull final List<NetworkEndpoint> endpoints) {
         throwIfNodeIsRunning();
-        final String value = endpoints.stream()
-                .map(AbstractNodeConfiguration::convertEndpoint)
-                .collect(Collectors.joining(","));
-        overriddenProperties.put(key, value);
-        return this;
-    }
-
-    private static String convertEndpoint(@NonNull final NetworkEndpoint endpoint) {
         try {
-            return OBJECT_MAPPER.writeValueAsString(endpoint).replaceAll("\"", "\\\"");
+            overriddenProperties.put(key, OBJECT_MAPPER.writeValueAsString(endpoints));
         } catch (final JsonProcessingException e) {
             // This should not happen as the list is expected to be serializable
             throw new RuntimeException("Exception while serializing endpoints", e);
         }
+        return this;
     }
 
     private void throwIfNodeIsRunning() {
@@ -137,5 +130,14 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @Override
     public Configuration current() {
         return createConfiguration(overriddenProperties);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Map<String, String> overriddenProperties() {
+        return Collections.unmodifiableMap(overriddenProperties);
     }
 }
