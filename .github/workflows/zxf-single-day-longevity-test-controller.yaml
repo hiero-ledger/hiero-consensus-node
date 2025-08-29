@@ -74,6 +74,7 @@ jobs:
       nlg-accounts: "100000000"
       nlg-time: "960"
       add-app-props: ""
+      kubernetes-cluster: "k8s.pft.dal.lat.ope.eng.hashgraph.io"
       add-settings: ""
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
