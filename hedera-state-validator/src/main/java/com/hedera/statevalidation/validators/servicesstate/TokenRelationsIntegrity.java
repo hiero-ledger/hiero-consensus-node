@@ -3,6 +3,7 @@ package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
 import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,7 +17,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
@@ -57,9 +58,9 @@ public class TokenRelationsIntegrity {
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.TOKENS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_KEY);
 
         assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);
@@ -74,7 +75,7 @@ public class TokenRelationsIntegrity {
         AtomicInteger accountFailCounter = new AtomicInteger(0);
         AtomicInteger tokenFailCounter = new AtomicInteger(0);
 
-        final int targetStateId = stateIdFor(TokenServiceImpl.NAME, V0490TokenSchema.TOKEN_RELS_KEY);
+        final int targetStateId = stateIdFor(TokenService.NAME, V0490TokenSchema.TOKEN_RELS_KEY);
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
@@ -102,11 +103,13 @@ public class TokenRelationsIntegrity {
                     assertEquals(accountId1, accountId2);
                     assertEquals(tokenId1, tokenId2);
 
-                    if (!tokenAccounts.contains(accountId1)) {
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY, accountId1))) {
                         accountFailCounter.incrementAndGet();
                     }
 
-                    if (!tokenTokens.contains(tokenId1)) {
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(TokenService.NAME, V0490TokenSchema.TOKENS_KEY, tokenId1))) {
                         tokenFailCounter.incrementAndGet();
                     }
                     objectsProcessed.incrementAndGet();
