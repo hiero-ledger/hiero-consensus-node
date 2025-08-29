@@ -13,7 +13,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -734,7 +733,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(bufferService, times(2)).getLowestUnackedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
@@ -798,7 +797,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         activeConnectionRef.set(null);
 
-        doReturn(10L).when(bufferService).getLowestUnackedBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
 
@@ -809,7 +808,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(bufferService, times(2)).getLowestUnackedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
 
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
