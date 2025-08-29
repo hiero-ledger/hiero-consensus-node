@@ -55,11 +55,11 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-single-day-longevity-nlg-test:
+  run-single-day-longevity-test:
     name: Longevity Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
+    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       test-asset: "SDLT2"
@@ -77,7 +77,7 @@ jobs:
     name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - verify-tag
     steps:
       - name: Harden Runner
@@ -104,7 +104,7 @@ jobs:
 
       - name: Tag SDLT Result
         run: |
-          RESULT="${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
           if [ "$RESULT" == "success" ]; then
@@ -180,11 +180,11 @@ jobs:
     needs:
       - verify-tag
       - tag-sdlt-result
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
       needs.tag-sdlt-result.result == 'success' &&
-      needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
+      needs.run-single-day-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
     steps:
@@ -237,7 +237,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
@@ -303,13 +303,13 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - tag-sdlt-result
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
       needs.tag-sdlt-result.result != 'success' ||
-      needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
+      needs.run-single-day-longevity-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
       !cancelled() && always() }}
@@ -373,7 +373,7 @@ jobs:
             echo "------------------------------------"
             echo "Status of each job:"
             echo "- Verify Tag: ${{ needs.verify-tag.result }}"
-            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
             echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
             echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
             echo "- Report Success: ${{ needs.report-success.result }}"
@@ -465,7 +465,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
