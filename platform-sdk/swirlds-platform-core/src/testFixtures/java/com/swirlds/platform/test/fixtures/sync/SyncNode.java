@@ -176,7 +176,7 @@ public class SyncNode {
     private void addToShadowGraph(final PlatformEvent newEvent) {
         try {
             shadowGraph.addEvent(newEvent);
-        } catch (ShadowgraphInsertionException e) {
+        } catch (final ShadowgraphInsertionException e) {
             fail("Something went wrong adding initial events to the shadow graph.", e);
         }
     }
@@ -226,7 +226,8 @@ public class SyncNode {
                 eventHandler,
                 syncManager,
                 mock(IntakeEventCounter.class),
-                executor);
+                executor,
+                lag -> {});
     }
 
     /**
