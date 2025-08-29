@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newAccountCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.yahcliAccounts;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.concurrent.atomic.AtomicLong;

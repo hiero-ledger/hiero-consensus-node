@@ -269,14 +269,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .join());
                 this.clients = HapiClients.clientsFor(this);
             });
+            // We only need one thread to wait for readiness
             if (ready.compareAndSet(null, deferredRun)) {
-                // We only need one thread to wait for readiness
                 deferredRun.runAsync();
+                // Only attach onReady listeners once
+                deferredRun.futureOrThrow().thenRun(() -> onReadyListeners.forEach(listener -> listener.accept(this)));
             }
         }
-        final var future = ready.get().futureOrThrow();
-        future.thenRun(() -> onReadyListeners.forEach(listener -> listener.accept(this)));
-        future.join();
+        ready.get().futureOrThrow().join();
     }
 
     /**
