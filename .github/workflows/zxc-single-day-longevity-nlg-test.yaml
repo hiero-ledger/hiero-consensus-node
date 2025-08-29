@@ -379,7 +379,7 @@ jobs:
           
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
-           helm upgrade --install --set name=block-node-{$i} --set appName=block-node-{$i} block-node-{$i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+           helm upgrade --install --set name=block-node-${i} --set appName=block-node-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           done
           sleep 30
           
