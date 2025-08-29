@@ -103,11 +103,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final long realm;
 
     private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
 
-    private Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
+    private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -215,6 +216,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         });
     }
 
+    /**
+     * Add a listener to be notified when the network is ready.
+     * @param listener the listener to notify when the network is ready
+     */
+    public void onReady(@NonNull final Consumer<HederaNetwork> listener) {
+        requireNonNull(listener);
+        if (ready.get() != null) {
+            throw new IllegalStateException("Listeners must be registered before awaitReady()");
+        }
+        onReadyListeners.add(listener);
+    }
+
     private void executePostInitWorkingDirActions(HederaNode node) {
         for (Consumer<HederaNode> action : postInitWorkingDirActions) {
             action.accept(node);
@@ -256,9 +269,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .join());
                 this.clients = HapiClients.clientsFor(this);
             });
+            // We only need one thread to wait for readiness
             if (ready.compareAndSet(null, deferredRun)) {
-                // We only need one thread to wait for readiness
                 deferredRun.runAsync();
+                // Only attach onReady listeners once
+                deferredRun.futureOrThrow().thenRun(() -> onReadyListeners.forEach(listener -> listener.accept(this)));
             }
         }
         ready.get().futureOrThrow().join();

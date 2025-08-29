@@ -21,12 +21,14 @@ module com.hedera.node.yahcli {
 
     exports com.hedera.services.yahcli.config.domain;
     exports com.hedera.services.yahcli.config;
+    exports com.hedera.services.yahcli.output;
 
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app;
     requires com.hedera.node.hapi;
     requires com.hedera.node.test.clients;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
