@@ -34,11 +34,6 @@ on:
         type: boolean
         default: true
         description: "Run Mirror Node Regression Panel"
-      enable-block-node-regression-panel:
-        required: true
-        type: boolean
-        default: true
-        description: "Run BN Regression Panel"
 
 permissions:
   id-token: write
@@ -138,18 +133,6 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "Mirror Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-
-  block-node-regression-panel:
-    name: Block Node Regression Panel
-    if: ${{ inputs.enable-block-node-regression-panel == true }}
-    uses: ./.github/workflows/zxc-block-node-regression.yaml
-    with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
-      custom-job-name: "Dry Run: Block Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
