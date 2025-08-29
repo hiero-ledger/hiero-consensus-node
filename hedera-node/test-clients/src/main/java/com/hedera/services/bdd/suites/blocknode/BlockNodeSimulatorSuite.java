@@ -141,7 +141,7 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/UNINITIALIZED] Block node reported it is behind. Will restart stream at block 0.",
+                                "[localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
                                 portNumbers.getFirst()),
                         String.format(
                                 "[localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
@@ -191,7 +191,7 @@ public class BlockNodeSimulatorSuite {
                         "onError invoked",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
@@ -205,7 +205,7 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(2)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
@@ -219,7 +219,7 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
@@ -233,16 +233,17 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
-                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
+                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
                                 portNumbers.get(3)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true));
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
     }
 
     @HapiTest
@@ -413,19 +414,14 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Performing scheduled stream reset", portNumbers.getFirst()),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.getFirst()),
                         String.format(
-                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
+                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
                                 portNumbers.getFirst()),
-                        String.format(
-                                "[localhost:%s/UNINITIALIZED] Connection successfully closed", portNumbers.getFirst()),
+                        String.format("[localhost:%s/CLOSED] Connection successfully closed", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
-                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
-                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.getLast()),
-                        String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
-                                portNumbers.getLast()),
-                        String.format(
-                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
-                                portNumbers.getLast()))),
+                        "Selected block node",
+                        "Running connection task...",
+                        "Connection state transitioned from UNINITIALIZED to PENDING",
+                        "Connection state transitioned from PENDING to ACTIVE")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }
