@@ -19,7 +19,6 @@ import com.hedera.services.yahcli.config.domain.NetConfig;
 import com.hedera.services.yahcli.config.domain.NodeConfig;
 import com.hedera.services.yahcli.test.bdd.YahcliVerbs;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -109,6 +108,6 @@ public class YahcliLauncherSessionListener implements LauncherSessionListener {
             throw new UncheckedIOException("Could not write yahcli config to " + configPath.toAbsolutePath(), e);
         }
         YahcliVerbs.setDefaultConfigLoc(configPath.toAbsolutePath().toString());
-        YahcliVerbs.setDefaultWorkingDir(BUILD_DIR + File.separator + SCOPE);
+        YahcliVerbs.setDefaultWorkingDir(BASE_WORKING_DIR.toAbsolutePath().toString());
     }
 }

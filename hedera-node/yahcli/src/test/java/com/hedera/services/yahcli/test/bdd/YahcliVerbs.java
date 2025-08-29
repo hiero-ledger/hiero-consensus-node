@@ -5,6 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.yahcli.commands.ivy.scenarios.Scenarios;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -13,6 +16,11 @@ import org.junit.jupiter.api.Assertions;
 
 public class YahcliVerbs {
     private static final Pattern NEW_ACCOUNT_PATTERN = Pattern.compile("account num=(\\d+)");
+    private static final Pattern ACCOUNT_BALANCE_PATTERN = Pattern.compile("\\d+\\.\\d+\\.(\\d+)\\s*\\|\\s*(\\d+)");
+    private static final Pattern CURRENCY_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern TOKEN_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -79,6 +87,63 @@ public class YahcliVerbs {
     }
 
     /**
+     * Returns a callback that will parse multiple account balances in the output, and pass the
+     * balances—keyed by account number—to a callback
+     * @param cb the callback to capture the account balances
+     * @return the output consumer
+     */
+    public static Consumer<String> newBalanceCapturer(@NonNull final Consumer<Map<Long, Long>> cb) {
+        return output -> {
+            final Map<Long, Long> balancesByAcctNum = new HashMap<>();
+            final var m = ACCOUNT_BALANCE_PATTERN.matcher(output);
+            while (m.find()) {
+                balancesByAcctNum.put(Long.parseLong(m.group(1)), Long.parseLong(m.group(2)));
+            }
+            if (!balancesByAcctNum.isEmpty()) {
+                cb.accept(balancesByAcctNum);
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + ACCOUNT_BALANCE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that parses values from a currency (i.e. hbar, tinybar, or kilobar) crypto transfer.
+     * For the token equivalent, see {@link #newTokenTransferCapturer(Consumer)}.
+     * @param cb the callback to capture the transfer outputs
+     * @return the output consumer
+     */
+    public static Consumer<String> newCurrencyTransferCapturer(@NonNull final Consumer<CryptoTransferOutput> cb) {
+        return output -> {
+            final var m = CURRENCY_TRANSFER_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(new CryptoTransferOutput(Long.parseLong(m.group(1)), m.group(2), Long.parseLong(m.group(3))));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + CURRENCY_TRANSFER_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Like {@link #newCurrencyTransferCapturer(Consumer)}, but for token transfers.
+     * @param cb the callback to capture the transfer outputs
+     * @return the output consumer
+     */
+    public static Consumer<String> newTokenTransferCapturer(@NonNull final Consumer<CryptoTransferOutput> cb) {
+        return output -> {
+            final var m = TOKEN_TRANSFER_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(new CryptoTransferOutput(Long.parseLong(m.group(1)), m.group(2), Long.parseLong(m.group(3))));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + TOKEN_TRANSFER_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    // Note: denom can be hbar|kilobar|tinybar or a token number
+    public record CryptoTransferOutput(long amount, String denom, long toAcctNum) {}
+
+    /**
      * Prepend the given strings to the front of the given array.
      * @param a the array
      * @param ps the strings to prepend
@@ -109,5 +174,23 @@ public class YahcliVerbs {
     public static void setDefaultWorkingDir(@NonNull final String workingDir) {
         requireNonNull(workingDir);
         DEFAULT_WORKING_DIR.set(requireNonNull(workingDir));
+    }
+
+    /**
+     * Builds the absolute <b>filename</b> of a given key relative to Yahcli's default network. The
+     * resulting format should be an absolute path ending with {@code <default network name>/keys},
+     * e.g. {@code localhost/keys}.
+     * @param keyFile the file name of the key
+     * @return the path of the key file
+     */
+    public static String asYcDefaultNetworkKey(@NonNull final String keyFile) {
+        requireNonNull(keyFile);
+        return Path.of(absDefaultNetworkKeysDir(), keyFile).toString();
+    }
+
+    private static String absDefaultNetworkKeysDir() {
+        return Path.of(DEFAULT_WORKING_DIR.get(), TEST_NETWORK, "keys")
+                .toAbsolutePath()
+                .toString();
     }
 }
