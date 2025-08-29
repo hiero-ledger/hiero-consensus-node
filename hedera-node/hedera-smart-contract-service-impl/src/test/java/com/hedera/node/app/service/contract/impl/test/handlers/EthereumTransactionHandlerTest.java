@@ -402,7 +402,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD + 1);
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
@@ -412,7 +412,7 @@ class EthereumTransactionHandlerTest {
         // check at least intrinsic gas
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

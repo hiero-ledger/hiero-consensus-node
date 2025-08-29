@@ -19,12 +19,13 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
+import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.contractvalidation.MaxCodeSizeRule;
 import org.hyperledger.besu.evm.contractvalidation.PrefixCodeRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,11 +35,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomContractCreationProcessorTest {
-    private static final List<ContractValidationRule> STANDARD_RULES =
-            List.of(MaxCodeSizeRule.of(0x6000), PrefixCodeRule.of());
 
     @Mock
     private EVM evm;
+
+    @Mock
+    private EvmConfiguration evmConfiguration;
 
     @Mock
     private GasCalculator gasCalculator;
@@ -59,8 +61,10 @@ class CustomContractCreationProcessorTest {
 
     @BeforeEach
     void setUp() {
+        var standardRules =
+                List.of(MaxCodeSizeRule.from(EvmSpecVersion.defaultVersion(), evmConfiguration), PrefixCodeRule.of());
         subject = new CustomContractCreationProcessor(
-                evm, gasCalculator, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, STANDARD_RULES, INITIAL_CONTRACT_NONCE);
+                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, standardRules, INITIAL_CONTRACT_NONCE);
     }
 
     @Test
@@ -69,6 +73,7 @@ class CustomContractCreationProcessorTest {
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(contract.getCode()).willReturn(Bytes.EMPTY);
+        given(contract.isStorageEmpty()).willReturn(true);
         given(worldUpdater.getOrCreate(EIP_1014_ADDRESS)).willReturn(contract);
         given(frame.getValue()).willReturn(WEI_VALUE);
 
@@ -128,6 +133,7 @@ class CustomContractCreationProcessorTest {
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(contract.getCode()).willReturn(Bytes.EMPTY);
+        given(contract.isStorageEmpty()).willReturn(true);
         given(worldUpdater.getOrCreate(EIP_1014_ADDRESS)).willReturn(contract);
         given(frame.getValue()).willReturn(WEI_VALUE);
         final var maybeReasonToHalt = Optional.of(ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
@@ -164,6 +170,25 @@ class CustomContractCreationProcessorTest {
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(contract.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        given(worldUpdater.getOrCreate(EIP_1014_ADDRESS)).willReturn(contract);
+
+        subject.start(frame, tracer);
+
+        verify(worldUpdater, never())
+                .tryTransfer(NON_SYSTEM_LONG_ZERO_ADDRESS, EIP_1014_ADDRESS, WEI_VALUE.toLong(), false);
+        verify(contract, never()).setNonce(INITIAL_CONTRACT_NONCE);
+        final var maybeReasonToHalt = Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS);
+        verify(frame).setExceptionalHaltReason(maybeReasonToHalt);
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        verify(tracer).traceAccountCreationResult(frame, maybeReasonToHalt);
+    }
+
+    @Test
+    void haltsWithInsufficientGasIfContractExistsWithNonEmptyStorage() {
+        given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(contract.getCode()).willReturn(Bytes.EMPTY);
+        given(contract.isStorageEmpty()).willReturn(false);
         given(worldUpdater.getOrCreate(EIP_1014_ADDRESS)).willReturn(contract);
 
         subject.start(frame, tracer);

@@ -524,7 +524,8 @@ public class TestHelpers {
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
     public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
-    public static final Code CONTRACT_CODE = CodeFactory.createCode(pbjToTuweniBytes(CALL_DATA), 0, false);
+    public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+    public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
@@ -874,7 +875,7 @@ public class TestHelpers {
             @NonNull final HederaEvmBlocks blocks,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull ContractOperationStreamBuilder recordBuilder) {
+            @NonNull final ContractOperationStreamBuilder recordBuilder) {
         return new HederaEvmContext(
                 NETWORK_GAS_PRICE,
                 false,
@@ -997,7 +998,7 @@ public class TestHelpers {
         private Tuple transferList;
 
         public TransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.transferList = Tuple.singleton(accountAmounts);
+            transferList = Tuple.singleton(accountAmounts);
             return this;
         }
 
@@ -1037,12 +1038,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
             return this;
         }
 
