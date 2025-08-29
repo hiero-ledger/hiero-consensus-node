@@ -46,10 +46,10 @@ public record OpsDurationSchedule(
                         opsDurationByOpCodeArray[opsDurationPair.left().intValue()] = opsDurationPair.right());
         return new OpsDurationSchedule(
                 opsDurationByOpCodeArray,
-                opsDurationConfig.accountLazyCreationOpsDurationMultiplier(),
                 opsDurationConfig.opsGasBasedDurationMultiplier(),
                 opsDurationConfig.precompileGasBasedDurationMultiplier(),
                 opsDurationConfig.systemContractGasBasedDurationMultiplier(),
+                opsDurationConfig.accountLazyCreationOpsDurationMultiplier(),
                 DEFAULT_MULTIPLIERS_DENOMINATOR);
     }
 
