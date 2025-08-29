@@ -30,7 +30,9 @@ public interface BlockStreamModule {
     @Singleton
     static BlockBufferService provideBlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockBufferService(configProvider, blockStreamMetrics);
+        final BlockBufferService bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        bufferService.start();
+        return bufferService;
     }
 
     @Provides
@@ -49,7 +51,9 @@ public interface BlockStreamModule {
     @Singleton
     static BlockStreamMetrics provideBlockStreamMetrics(
             @NonNull final NodeInfo selfNodeInfo, @NonNull final Metrics metrics) {
-        return new BlockStreamMetrics(metrics, selfNodeInfo);
+        final BlockStreamMetrics bsm = new BlockStreamMetrics(metrics, selfNodeInfo);
+        bsm.registerMetrics();
+        return bsm;
     }
 
     @Provides

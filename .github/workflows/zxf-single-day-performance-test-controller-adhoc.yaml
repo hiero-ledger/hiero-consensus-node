@@ -131,6 +131,7 @@ jobs:
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
+      kubernetes-cluster: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
       add-settings: "${{ inputs.add-settings }}"
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"

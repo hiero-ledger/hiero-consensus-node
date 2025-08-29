@@ -34,6 +34,13 @@ on:
         default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      # For Adhoc runs, we use Chicago:                 k8s.pft.chi.lat.ope.eng.hashgraph.io
+      # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
+      kubernetes-cluster:
+        required: true
+        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
+        type: string
+        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
@@ -121,16 +128,16 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          certificate-ttl: 168h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -239,6 +246,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ inputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -653,15 +661,15 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -837,14 +845,14 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
