@@ -9,6 +9,8 @@ public class Constants {
 
     public static String STATE_DIR = System.getProperty("state.dir");
 
+    public static String TMP_DIR = System.getProperty("tmp.dir", "");
+
     public static String NODE_NAME = System.getProperty("node.name");
 
     //
