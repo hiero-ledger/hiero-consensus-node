@@ -358,8 +358,9 @@ public class SimulatedBlockNodeServer {
                                     // We might want to catch up using a supplier from
                                     // another BN simulator
                                     if (externalLastVerifiedBlockNumberSupplier != null
-                                            && externalLastVerifiedBlockNumberSupplier.get() - lastVerifiedBlockNumber.get()
-                                            > 1) {
+                                            && externalLastVerifiedBlockNumberSupplier.get()
+                                                            - lastVerifiedBlockNumber.get()
+                                                    > 1) {
                                         lastVerifiedBlockNumber.set(externalLastVerifiedBlockNumberSupplier.get());
                                     }
 
