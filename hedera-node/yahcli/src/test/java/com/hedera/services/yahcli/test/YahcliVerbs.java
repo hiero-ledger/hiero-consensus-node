@@ -17,6 +17,12 @@ import org.junit.jupiter.api.Assertions;
 public class YahcliVerbs {
     private static final Pattern NEW_ACCOUNT_PATTERN = Pattern.compile("account num=(\\d+)");
     private static final Pattern ACCOUNT_BALANCE_PATTERN = Pattern.compile("\\d+\\.\\d+\\.(\\d+)\\s*\\|\\s*(\\d+)");
+    // .i. SUCCESS - sent 1000000 hbar to account 11.12.1002 with memo: '"Yes or no"'
+    // .i. SUCCESS - sent 1 1002 to account 11.12.1001 with memo: '"Never gonna make you cry"
+    private static final Pattern CURRENCY_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern TOKEN_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -73,6 +79,45 @@ public class YahcliVerbs {
             }
         };
     }
+
+    /**
+     * TODO
+     * Returns a callback that will parse multiple account balances in the output, and pass the
+     * balances—keyed by account number—to a callback
+     * @param cb the callback to capture the account balances
+     * @return the output consumer
+     */
+    public static Consumer<String> newCurrencyTransferCapturer(@NonNull final Consumer<CryptoTransferOutput> cb) {
+        return output -> {
+            final var m = CURRENCY_TRANSFER_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(new CryptoTransferOutput(Long.parseLong(m.group(1)), m.group(2), Long.parseLong(m.group(3))));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + CURRENCY_TRANSFER_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * TODO
+     * Returns a callback that will parse multiple account balances in the output, and pass the
+     * balances—keyed by account number—to a callback
+     * @param cb the callback to capture the account balances
+     * @return the output consumer
+     */
+    public static Consumer<String> newTokenTransferCapturer(@NonNull final Consumer<CryptoTransferOutput> cb) {
+        return output -> {
+            final var m = TOKEN_TRANSFER_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(new CryptoTransferOutput(Long.parseLong(m.group(1)), m.group(2), Long.parseLong(m.group(3))));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + TOKEN_TRANSFER_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    // Note: denom can be hbar|kilobar|tinybar or a token num
+    public record CryptoTransferOutput(long amount, String denom, long toAcctNum) {}
 
     /**
      * Prepend the given strings to the front of the given array.
