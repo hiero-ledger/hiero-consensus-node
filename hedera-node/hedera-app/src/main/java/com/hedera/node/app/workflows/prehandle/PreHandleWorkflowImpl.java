@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
@@ -183,7 +184,20 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
             if (previousResult == null) {
-                txInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
+                TransactionInfo parsedTxInfo;
+                try {
+                    parsedTxInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
+                } catch (PreCheckException e) {
+                    // 0.65-only fallback to reparse as a serialized Transaction message since this
+                    // event may be part of 0.64 PCES replay just after the upgrade boundary
+                    if (e.responseCode() == INVALID_TRANSACTION) {
+                        // Throws again if this also fails to parse as a Transaction
+                        parsedTxInfo = transactionChecker.parseAndCheck(serializedSignedTx, maxBytes);
+                    } else {
+                        throw e;
+                    }
+                }
+                txInfo = parsedTxInfo;
             } else {
                 txInfo = previousResult.txInfo();
             }
