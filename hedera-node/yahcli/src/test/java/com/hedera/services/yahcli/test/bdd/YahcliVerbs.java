@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.test;
+package com.hedera.services.yahcli.test.bdd;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.services.yahcli.test.bdd.YahcliCallOperation;
+import com.hedera.services.yahcli.commands.ivy.scenarios.Scenarios;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -30,6 +30,35 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliAccounts(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "accounts"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code ivy} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliIvy(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "ivy"));
+    }
+
+    /**
+     * Returns an operation that will load the yahcli scenarios config and pass it to the given
+     * callback.
+     * @param cb the callback to accept the config
+     * @return the operation
+     */
+    public static YahcliScenariosConfigOperation assertYahcliScenariosConfig(@NonNull final Consumer<Scenarios> cb) {
+        requireNonNull(cb);
+        return new YahcliScenariosConfigOperation(false, cb, null);
+    }
+
+    /**
+     * Returns an operation that will delete any existing yahcli scenarios {@code config.yml}.
+     * @return the operation
+     */
+    public static YahcliScenariosConfigOperation deleteYahcliScenariosConfig() {
+        return new YahcliScenariosConfigOperation(true, null, null);
     }
 
     /**
