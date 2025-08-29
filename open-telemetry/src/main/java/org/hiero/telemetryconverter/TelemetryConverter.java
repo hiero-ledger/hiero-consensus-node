@@ -3,6 +3,7 @@ package org.hiero.telemetryconverter;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
+import static org.hiero.telemetryconverter.util.CleanColorfulFormatter.GREEN;
 import static org.hiero.telemetryconverter.util.CleanColorfulFormatter.GREY;
 
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
@@ -224,21 +225,23 @@ public final class TelemetryConverter {
         final int numOfSpans = spanMap.values().stream().mapToInt(List::size).sum();
         LOGGER.log(INFO, "Start sending "+numOfSpans+" spans to OpenTelemetry collector");
         try {
-            final ExportTraceServiceRequest request = ExportTraceServiceRequest.newBuilder()
-                    .resourceSpans(
-                            spanMap.entrySet().stream().map(entry -> {
-                                final VirtualResource vr = entry.getKey();
-                                final List<Span> spans = entry.getValue();
-                                return ResourceSpans.newBuilder()
-                                        .resource(vr.resource)
-                                        .scopeSpans(ScopeSpans.newBuilder().spans(spans).build())
-                                        .build();
-                            }).toList())
-                    .build();
-            debugTrace(request);
-            // send to GRPC
-            var response = traceClient.Export(request);
-            LOGGER.log(INFO, "Sent "+numOfSpans+" spans to OpenTelemetry collector :: "+ GREY+ response);
+            for(VirtualResource vr : spanMap.keySet()) {
+                final List<Span> spans = spanMap.get(vr);
+                for (int i = 0; i < spans.size(); i += 5000) {
+                    final List<Span> spansBatch = spans.subList(i, Math.min(i + 5000, spans.size()));
+                    final ExportTraceServiceRequest request = ExportTraceServiceRequest.newBuilder()
+                            .resourceSpans(ResourceSpans.newBuilder()
+                                                .resource(vr.resource)
+                                                .scopeSpans(ScopeSpans.newBuilder().spans(spansBatch).build())
+                                                .build())
+                            .build();
+                    debugTrace(request);
+                    // send to GRPC
+                    var response = traceClient.Export(request);
+                    LOGGER.log(INFO, "    Sent "+spansBatch.size()+" spans to OpenTelemetry collector :: "+ GREY+ response);
+                }
+            }
+            LOGGER.log(INFO, GREEN + "Sent all "+numOfSpans+" spans to OpenTelemetry collector");
         } catch (Exception e) {
             LOGGER.log(ERROR, "Error sending spans to OpenTelemetry collector: " + e.getMessage(), e);
         }

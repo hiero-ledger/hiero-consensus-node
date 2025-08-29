@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Tag;
 public class UmbrellaRedux {
     public static final String DEFAULT_PROPERTIES = "regression-mixed_ops.properties";
 
-    private final AtomicLong duration = new AtomicLong(30);
+    private final AtomicLong duration = new AtomicLong(120);
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(100);
     private final AtomicInteger maxPendingOps = new AtomicInteger(Integer.MAX_VALUE);
     private final AtomicInteger backoffSleepSecs = new AtomicInteger(1);

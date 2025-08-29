@@ -4,9 +4,11 @@ import static org.hiero.telemetryconverter.model.VirtualResource.BLOCK_FINISHING
 import static org.hiero.telemetryconverter.model.VirtualResource.EXECUTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import io.opentelemetry.pbj.common.v1.KeyValue;
 import io.opentelemetry.pbj.trace.v1.Span;
 import io.opentelemetry.pbj.trace.v1.Span.Event;
 import io.opentelemetry.pbj.trace.v1.Span.Link;
+import io.opentelemetry.pbj.trace.v1.Span.SpanKind;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +27,8 @@ import org.hiero.telemetryconverter.util.Utils;
  * Create trace spans for a block, from the perspective of the block.
  */
 public class BlockSpanCreator {
+    private static final KeyValue BLOCK_LEVEL = Utils.kv("level", "block");
+
     public static Map<VirtualResource, List<Span>> createBlockSpans(final BlockInfo blockInfo, final long[] nodeIds) {
         final Map<VirtualResource, List<Span>> spanMap = new HashMap<>();
         try {
@@ -48,6 +52,8 @@ public class BlockSpanCreator {
                             ",T="+blockInfo.txCount()+")")
                     .startTimeUnixNano(blockInfo.blockStartTimeNanos())
                     .endTimeUnixNano(blockInfo.blockEndTimeNanos())
+                    .attributes(BLOCK_LEVEL, Utils.kv("block", blockInfo.blockNum()))
+                    .kind(SpanKind.SPAN_KIND_SERVER)
                     .build();
             Utils.putSpan(spanMap, VirtualResource.CN, blockSpan);
             // create round traces
@@ -79,6 +85,8 @@ public class BlockSpanCreator {
                         .map(RoundInfo::createdTraces)
                         .flatMap(List::stream)
                         .mapToLong(RoundTraceInfo::endTimeNanos).max().orElseThrow())
+                .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()))
+                .kind(SpanKind.SPAN_KIND_SERVER)
                 .build());
         // create spans for each round in the block
         for (var round : blockInfo.rounds()) {
@@ -98,7 +106,7 @@ public class BlockSpanCreator {
                     .name("Round " + round.roundNumber()+"  ")
                     .startTimeUnixNano(round.roundStartTimeNanos())
                     .endTimeUnixNano(round.roundEndTimeNanos())
-                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                     .links(Link.newBuilder()
                             .traceId(RoundSpanCreator.roundTraceID(round, digest)) // 16 byte trace id
                             .spanId(RoundSpanCreator.roundSpanID(round))
@@ -118,7 +126,8 @@ public class BlockSpanCreator {
                         .endTimeUnixNano(round.events().stream()
                                 .mapToLong(EventInfo::lastTransactionOrEventCreationEnd)
                                 .max().orElseThrow())
-                        .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                        .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                        .kind(SpanKind.SPAN_KIND_SERVER)
                         .build());
             }
             // create span for summary of all events creation in round
@@ -133,25 +142,26 @@ public class BlockSpanCreator {
                     .endTimeUnixNano(round.events().stream().map(EventInfo::createdTrace)
                             .mapToLong(EventTraceInfo::endTimeNanos)
                             .max().orElseThrow())
-                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .kind(SpanKind.SPAN_KIND_SERVER)
                     .build());
             // create span for summary of all events gossip in round
             if (round.events().stream().map(EventInfo::gossipedTraces).mapToLong(List::size).sum() > 0) {
                 Utils.putSpan(spanMap, VirtualResource.GOSSIP, Span.newBuilder()
-                        .traceId(blockTraceID) // 16 byte trace id
-                        .spanId(Utils.longToHash8Bytes(round.roundNumber(), 3)) // 8 byte span id
-                        .parentSpanId(roundSpanID)
-                        .name("Gossip")
-                        .startTimeUnixNano(round.events().stream().map(EventInfo::gossipedTraces)
-                                .flatMap(List::stream)
-                                .mapToLong(EventTraceInfo::startTimeNanos)
-                                .min().orElseThrow())
-                        .endTimeUnixNano(round.events().stream().map(EventInfo::gossipedTraces)
-                                .flatMap(List::stream)
-                                .mapToLong(EventTraceInfo::endTimeNanos)
-                                .max().orElseThrow())
-                        .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
-                        .build());
+                    .traceId(blockTraceID) // 16 byte trace id
+                    .spanId(Utils.longToHash8Bytes(round.roundNumber(), 3)) // 8 byte span id
+                    .parentSpanId(roundSpanID)
+                    .name("Gossip")
+                    .startTimeUnixNano(round.events().stream().map(EventInfo::gossipedTraces)
+                            .flatMap(List::stream)
+                            .mapToLong(EventTraceInfo::startTimeNanos)
+                            .min().orElseThrow())
+                    .endTimeUnixNano(round.events().stream().map(EventInfo::gossipedTraces)
+                            .flatMap(List::stream)
+                            .mapToLong(EventTraceInfo::endTimeNanos)
+                            .max().orElseThrow())
+                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .build());
             }
             // create span for consensus time span
             Utils.putSpan(spanMap, VirtualResource.CONSENSUS, Span.newBuilder()
@@ -163,7 +173,7 @@ public class BlockSpanCreator {
                             .mapToLong(EventInfo::endOfGossipOrEventCreation).max().orElseThrow())
                     .endTimeUnixNano(round.createdTraces().stream().mapToLong(RoundTraceInfo::endTimeNanos).min().orElseThrow())
                     .events(roundCreatedOnNodeEvents)
-                    .attributes(Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                     .build());
             // create round execution span
             Utils.putSpan(spanMap, EXECUTION, Span.newBuilder()
@@ -173,6 +183,7 @@ public class BlockSpanCreator {
                     .name("Round " + round.roundNumber()+" Execution")
                     .startTimeUnixNano(round.executionStartTimeNanos())
                     .endTimeUnixNano(round.executionEndTimeNanos())
+                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
                     .build());
         }
     }
@@ -205,6 +216,7 @@ public class BlockSpanCreator {
                 .name("Block Finishing")
                 .startTimeUnixNano(Math.min(startOfBlockHashing, startOfBlockCreation))
                 .endTimeUnixNano(Math.max(endOfBlockHashing, endOfBlockCreation))
+                .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()))
                 .build());
         // create block hashing span
         Utils.putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
@@ -214,6 +226,7 @@ public class BlockSpanCreator {
                 .name("State Hashing")
                 .startTimeUnixNano(startOfBlockHashing)
                 .endTimeUnixNano(endOfBlockHashing)
+                .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()))
                 .build());
         // create block creation span
         Utils.putSpan(spanMap, BLOCK_FINISHING, Span.newBuilder()
@@ -223,6 +236,7 @@ public class BlockSpanCreator {
                 .name("Block Creation")
                 .startTimeUnixNano(startOfBlockCreation)
                 .endTimeUnixNano(endOfBlockCreation)
+                .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()))
                 .build());
     }
 }

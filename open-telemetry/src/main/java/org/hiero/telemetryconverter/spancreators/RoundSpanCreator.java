@@ -4,6 +4,7 @@ import static org.hiero.telemetryconverter.model.VirtualResource.EXECUTION;
 import static org.hiero.telemetryconverter.util.Utils.putSpan;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import io.opentelemetry.pbj.common.v1.KeyValue;
 import io.opentelemetry.pbj.trace.v1.Span;
 import io.opentelemetry.pbj.trace.v1.Span.Event;
 import java.security.MessageDigest;
@@ -21,6 +22,7 @@ import org.hiero.telemetryconverter.model.trace.RoundTraceInfo;
 import org.hiero.telemetryconverter.util.Utils;
 
 public class RoundSpanCreator {
+    private static final KeyValue ROUND_LEVEL = Utils.kv("level", "round");
 
     /** create a unique span id for the round */
     public static long roundSpanNum(final RoundInfo roundInfo) {
@@ -50,7 +52,7 @@ public class RoundSpanCreator {
                     .name("Round " + roundInfo.roundNumber()+" in block " + roundInfo.blockNumber())
                     .startTimeUnixNano(roundInfo.roundStartTimeNanos())
                     .endTimeUnixNano(roundInfo.roundEndTimeNanos())
-                    .attributes(Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()))
+                    .attributes(ROUND_LEVEL, Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()))
                     .build();
             putSpan(spanMap, VirtualResource.ROUNDS, blockSpan);
         } catch (Exception e) {
@@ -78,7 +80,7 @@ public class RoundSpanCreator {
                         .flatMap(List::stream)
                         .mapToLong(EventTraceInfo::endTimeNanos).max()
                         .orElseThrow())
-                .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
+                .attributes(ROUND_LEVEL, Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
                 .build());
         for(EventInfo event: roundInfo.events()) {
             final List<Event> eventEvents = new ArrayList<>();
@@ -87,7 +89,7 @@ public class RoundSpanCreator {
                     .map(tx -> Event.newBuilder()
                         .name("Tx Received")
                         .timeUnixNano(tx.transactionReceivedTimeNanos())
-                        .attributes(Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
+                        .attributes(ROUND_LEVEL, Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
                                 Utils.kv("node",event.eventCreatorNodeId()))
                         .build())
                     .forEach(eventEvents::add);
@@ -95,7 +97,7 @@ public class RoundSpanCreator {
                 eventEvents.add(Event.newBuilder()
                     .name("Event Gossip")
                     .timeUnixNano(et.startTimeNanos())
-                    .attributes(Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
+                    .attributes(ROUND_LEVEL, Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
                             Utils.kv("node",event.eventCreatorNodeId()))
                     .build());
             }
@@ -103,7 +105,7 @@ public class RoundSpanCreator {
                 eventEvents.add(Event.newBuilder()
                     .name("Event Prehandled")
                     .timeUnixNano(et.startTimeNanos())
-                    .attributes(Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
+                    .attributes(ROUND_LEVEL, Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
                             Utils.kv("node",event.eventCreatorNodeId()))
                     .build());
             }
@@ -114,7 +116,7 @@ public class RoundSpanCreator {
                     .name("Event, created on N"+event.eventCreatorNodeId()+" T"+event.transactions().size())
                     .startTimeUnixNano(event.createdTrace().startTimeNanos())
                     .endTimeUnixNano(event.createdTrace().endTimeNanos())
-                    .attributes(Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
+                    .attributes(ROUND_LEVEL, Utils.kv("block",roundInfo.blockNumber()), Utils.kv("round",roundInfo.roundNumber()),
                             Utils.kv("node",event.eventCreatorNodeId()), Utils.kv("transactions",event.transactions().size()))
                     .events(eventEvents)
                     .build());
@@ -179,7 +181,7 @@ public class RoundSpanCreator {
                 .endTimeUnixNano(roundInfo.createdTraces().stream()
                         .mapToLong(RoundTraceInfo::endTimeNanos).max()
                         .orElseThrow())
-                .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
+                .attributes(ROUND_LEVEL, Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
                 .build());
         // create round execution span
         final Bytes overallExecutionSpanID = Utils.longToHash8Bytes(roundSpanNum, 5);
@@ -190,13 +192,11 @@ public class RoundSpanCreator {
                 .name("All Execution")
                 .startTimeUnixNano(roundInfo.executedTraces().stream()
                         .mapToLong(RoundTraceInfo::startTimeNanos)
-//                        .min().orElse(roundInfo.roundStartTimeNanos()))
                         .min().orElseThrow())
                 .endTimeUnixNano(roundInfo.executedTraces().stream()
                         .mapToLong(RoundTraceInfo::endTimeNanos)
-//                        .max().orElse(roundInfo.roundEndTimeNanos()))
                         .max().orElseThrow())
-                .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
+                .attributes(ROUND_LEVEL, Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()))
                 .build());
         for (long nodeId: nodeIds) {
             // create span for consensus time span
@@ -206,18 +206,28 @@ public class RoundSpanCreator {
                     .spanId(Utils.longToHash8Bytes(roundSpanNum, nodeId * 1000 + 1)) // 8 byte span id
                     .parentSpanId(overallConsensusSpanID)
                     .name("Consensus N"+nodeId)
-//                    .startTimeUnixNano(roundInfo.events().stream()
-//                            .filter(e -> e.eventCreatorNodeId() == nodeId)
-//                            .mapToLong(EventInfo::endOfGossipOrEventCreation).max().orElseThrow())
-                    .startTimeUnixNano(roundInfo.createdTraces().stream()
-                            .filter(t -> t.nodeId() == nodeId)
-                            .mapToLong(RoundTraceInfo::startTimeNanos).min()
-                            .orElseThrow())
+                    .startTimeUnixNano(roundInfo.events().stream()
+                            .mapToLong(e -> {
+                                // if it is a self event then take end of creation time
+                                if(e.eventCreatorNodeId() == nodeId) {
+                                    return e.createdTrace().endTimeNanos();
+                                } else { // otherwise take start of gossip end time
+                                    return e.gossipedTraces().stream()
+                                        .filter(t -> t.nodeId() == nodeId)
+                                        .mapToLong(EventTraceInfo::endTimeNanos)
+                                        .min().orElseThrow();
+                                }
+                            })
+                            .max().orElseThrow())
+//                    .startTimeUnixNano(roundInfo.createdTraces().stream()
+//                            .filter(t -> t.nodeId() == nodeId)
+//                            .mapToLong(RoundTraceInfo::startTimeNanos).min()
+//                            .orElseThrow())
                     .endTimeUnixNano(roundInfo.createdTraces().stream()
                             .filter(t -> t.nodeId() == nodeId)
                             .mapToLong(RoundTraceInfo::endTimeNanos).max()
                             .orElseThrow())
-                    .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()),
+                    .attributes(ROUND_LEVEL, Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()),
                             Utils.kv("node",nodeId))
                     .build());
             } catch (NoSuchElementException e) {
@@ -239,7 +249,7 @@ public class RoundSpanCreator {
                             .mapToLong(RoundTraceInfo::endTimeNanos)
 //                            .max().orElse(roundInfo.roundEndTimeNanos()))
                             .max().orElseThrow())
-                    .attributes(Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()),
+                    .attributes(ROUND_LEVEL, Utils.kv("block", roundInfo.blockNumber()), Utils.kv("round", roundInfo.roundNumber()),
                             Utils.kv("node",nodeId))
                     .build());
         }

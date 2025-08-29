@@ -15,7 +15,7 @@ query_frontend:
     # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
     # query_backend_after must be less than or equal to query_ingesters_until.
     # (default: 15m)
-    query_backend_after: 0m     # Search backend storage immediately
+    query_backend_after: 5m     # Search backend storage immediately
     # (default: 30m)
     query_ingesters_until: 24h  # Keep searching ingesters for data up to 24h old
 
@@ -38,7 +38,7 @@ ingester:
   max_block_duration: 5m
   # duration to keep blocks in the ingester after they have been flushed
   # (default: 15m)
-  complete_block_timeout: 30s # Closes blocks after 15s of inactivity
+  complete_block_timeout: 5m # Closes blocks after 15s of inactivity
 
 compactor:
   compaction:
@@ -69,7 +69,7 @@ metrics_generator:
       # Buckets for the latency histogram in seconds.
       # default = [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
       # TODO - review and modify
-      histogram_buckets: [0.2, 0.5, 1, 1.7, 2.5, 3.5, 5, 7, 10]
+      # histogram_buckets: [0.2, 0.5, 1, 1.7, 2.5, 3.5, 5, 7, 10]
 
       # Additional dimensions to add to the metrics. Dimensions are searched for in the
       # resource and span attributes and are added to the metrics if present.
@@ -82,7 +82,7 @@ metrics_generator:
       # Example: ["peer.service", "db.name", "db.system", "host.name"]
       # default = [ "peer.service", "db.name", "db.system" ]
       # TODO see if ne need to modify it
-      peer_attributes: ["service.name"]
+      # peer_attributes: ["service.name"]
 
       # Attribute Key to multiply span metrics
       # Note that the attribute name is searched for in both
@@ -90,7 +90,7 @@ metrics_generator:
       # span_multiplier_key:
 
       # Enables additional labels for services and virtual nodes. <bool> | default = false
-      enable_virtual_node_label: false
+      # enable_virtual_node_label: false
 
     span_metrics:
 
@@ -105,7 +105,7 @@ metrics_generator:
         # Whether to add the name of the service the span is associated with. <bool> | default = true
         service: true
         # Whether to add the name of the span. <bool> | default = true
-        span_name: true
+        span_name: false
         # Whether to add the span kind describing the relationship between spans. <bool> | default = true
         # We don't use it, so disabling for now
         span_kind: false
@@ -120,7 +120,7 @@ metrics_generator:
       # Dimensions are searched for in the resource and span attributes and are added to
       # the metrics if present. <list of string>
       # TODO see if we want to add node_id and round dimensions
-      # dimensions: []
+      dimensions: ["node", "layer"]
 
       # Enable traces_target_info metrics <bool> | default = false
       enable_target_info: false
@@ -132,6 +132,12 @@ metrics_generator:
 
       # List of policies that will be applied to spans for inclusion or exclusion.
       #filter_policies: <list of filter policies config> | default = [ ]
+#      filter_policies:
+#        - include:
+#            match_type: strict
+#            attributes:
+#              - key: level
+#                value: "round"
 
       # Drop specific labels from `traces_target_info` metrics
       #target_info_excluded_dimensions: <list of string>
@@ -143,10 +149,14 @@ metrics_generator:
     # Interval after which a series is considered stale and will be deleted from the registry (prometheus).
     # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
     # <duration> | default = 15m
-    stale_duration: 60m
+    stale_duration: 24h
 
     external_labels:
       source: tempo
+
+  remote_write:
+    - url: http://prometheus:9090/api/v1/write
+      send_exemplars: true
 
   storage:
     path: /var/tempo/generator/wal
