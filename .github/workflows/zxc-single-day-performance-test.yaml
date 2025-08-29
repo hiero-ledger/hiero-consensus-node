@@ -1188,7 +1188,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title: "The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
