@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -44,7 +43,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 @HapiTestLifecycle
@@ -124,7 +122,6 @@ public class AtomicBatchTokenAirdropTest {
     @Order(3)
     @HapiTest
     @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
-    @Tag(MATS)
     public Stream<DynamicTest> atomicAirdropToContract(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
                     final SpecAccount sender,

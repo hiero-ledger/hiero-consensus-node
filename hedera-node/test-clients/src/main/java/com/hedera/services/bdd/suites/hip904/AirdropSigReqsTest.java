@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.AirdropOperation.Airdrop.forFungible;
@@ -38,7 +37,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Characterizes the interactions of HIP-904 transactions and signing requirements with,
@@ -89,7 +87,6 @@ public class AirdropSigReqsTest {
 
     @HapiTest
     @DisplayName("complete a sender hollow account")
-    @Tag(MATS)
     final Stream<DynamicTest> completeSenderHollowAccount(@Account SpecAccount misc) {
         final var serialNo = nextSerialNoToDrop.getAndIncrement();
         return hapiTest(
@@ -115,7 +112,6 @@ public class AirdropSigReqsTest {
 
     @HapiTest
     @DisplayName("work with all combinations of sender/receiver aliases")
-    @Tag(MATS)
     final Stream<DynamicTest> workWithAllAliasCombinations(@Account SpecAccount receiver) {
         return hapiTest(
                 airdropTo(receiver, AliasUsage.NEITHER),
