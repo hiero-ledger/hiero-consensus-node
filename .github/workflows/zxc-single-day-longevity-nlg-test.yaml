@@ -99,10 +99,9 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Checkout target BN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: target_block_node
-          ref: ${{ inputs.bnref }}
+        run: |
+          git clone --depth=1 -b ${{ inputs.bnref }} https://github.com/hiero-ledger/hiero-block-node.git target_block_node
+
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
