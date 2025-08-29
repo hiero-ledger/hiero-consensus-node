@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamPublishServiceInterface;
@@ -94,6 +95,7 @@ public class SimulatedBlockNodeServer {
     private final List<Pipeline<? super PublishStreamResponse>> activeStreams = new CopyOnWriteArrayList<>();
 
     private final Random random = new Random();
+    private final Supplier<Long> externalLastVerifiedBlockNumberSupplier;
 
     private boolean hasEverBeenShutdown = false;
 
@@ -103,12 +105,13 @@ public class SimulatedBlockNodeServer {
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
-     * @param lastVerifiedBlockNumber an optional last verified block number
+     * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
+     * from an external source, can be null if not needed
      */
-    public SimulatedBlockNodeServer(final int port, @Nullable final Long lastVerifiedBlockNumber) {
+    public SimulatedBlockNodeServer(final int port, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.serviceImpl = new MockBlockStreamServiceImpl();
-        this.lastVerifiedBlockNumber.set(lastVerifiedBlockNumber);
+        this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
         final PbjConfig pbjConfig = PbjConfig.builder()
                 .name("pbj")
@@ -139,6 +142,8 @@ public class SimulatedBlockNodeServer {
 
     /**
      * Stops the server with a grace period for shutdown.
+     * This method will wait up to 5 seconds for the server to terminate gracefully.
+     * If interrupted, the current thread's interrupt flag will be set.
      */
     public void stop() {
         if (webServer != null) {
@@ -287,7 +292,18 @@ public class SimulatedBlockNodeServer {
      * @param responseCode the EndOfStream response code to send, never null
      * @param blockNumber the block number to include in the response
      */
-    private record EndOfStreamConfig(@NonNull EndOfStream.Code responseCode, long blockNumber) {}
+    private record EndOfStreamConfig(@NonNull EndOfStream.Code responseCode, long blockNumber) {
+        /**
+         * Creates a new EndOfStreamConfig with the specified response code and block number.
+         *
+         * @param responseCode the EndOfStream response code to send
+         * @param blockNumber the block number to include in the response
+         * @throws NullPointerException if responseCode is null
+         */
+        private EndOfStreamConfig {
+            requireNonNull(responseCode, "Response code cannot be null");
+        }
+    }
 
     /**
      * Implementation of the BlockStreamService that can be configured to respond
@@ -338,6 +354,16 @@ public class SimulatedBlockNodeServer {
                                 if (item.hasBlockHeader()) {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
+
+                                    // We might want to catch up using a supplier from
+                                    // another BN simulator
+                                    if (externalLastVerifiedBlockNumberSupplier != null
+                                            && externalLastVerifiedBlockNumberSupplier.get()
+                                                            - lastVerifiedBlockNumber.get()
+                                                    > 1) {
+                                        lastVerifiedBlockNumber.set(externalLastVerifiedBlockNumberSupplier.get());
+                                    }
+
                                     final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
                                     if (blockNumber - lastVerifiedBlockNum > 1) {
                                         handleBehindResponse(replies, blockNumber, lastVerifiedBlockNum);
@@ -515,7 +541,6 @@ public class SimulatedBlockNodeServer {
                     try {
                         sendEndOfStream(pipeline, responseCode, blockNumber);
                         // Assuming EndOfStream terminates the connection from server side perspective
-                        // pipeline.onComplete();
                         streamsToRemove.add(pipeline); // Mark for removal after iteration
                     } catch (final Exception e) {
                         log.error("Failed to send EndOfStream to stream {} on port {}", pipeline.hashCode(), port, e);

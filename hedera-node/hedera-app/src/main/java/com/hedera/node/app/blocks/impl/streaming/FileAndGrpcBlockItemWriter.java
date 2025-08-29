@@ -31,27 +31,24 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
     }
 
     @Override
-    public void openBlock(long blockNumber) {
+    public void openBlock(final long blockNumber) {
         this.fileBlockItemWriter.openBlock(blockNumber);
         this.grpcBlockItemWriter.openBlock(blockNumber);
     }
 
     @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item, "item cannot be null");
+        requireNonNull(bytes, "bytes cannot be null");
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         this.grpcBlockItemWriter.writePbjItem(item);
-    }
-
-    @Override
-    public void writeItem(@NonNull byte[] bytes) {
-        this.fileBlockItemWriter.writeItem(bytes);
-        // The GrpcBlockItemWriter doesn't support writeItem, so we don't call it here
     }
 
     @Override
@@ -68,7 +65,18 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
+    public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+    }
+
+    /**
+     * Jumps to a specific block number after a freeze event.
+     * This method only affects the gRPC writer, not the file writer.
+     *
+     * @param blockNumber the block number to jump to after freeze
+     */
+    @Override
+    public void jumpToBlockAfterFreeze(final long blockNumber) {
+        this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
     }
 }

@@ -58,6 +58,7 @@ jobs:
       enable-time-consuming-tests: true
       enable-hammer-tests: true
       enable-hapi-tests-time-consuming: true
+      enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:

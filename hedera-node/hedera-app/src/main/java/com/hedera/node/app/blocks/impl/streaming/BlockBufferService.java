@@ -160,6 +160,15 @@ public class BlockBufferService {
     }
 
     /**
+     * Shuts down the block buffer service and its associated resources.
+     * This terminates the executor service and shuts down the block node connection manager.
+     */
+    public void shutdown() {
+        execSvc.shutdownNow();
+        blockNodeConnectionManager.shutdown();
+    }
+
+    /**
      * @return the interval in which the block buffer periodic operations will be invoked
      */
     private Duration workerTaskInterval() {
@@ -854,6 +863,11 @@ public class BlockBufferService {
         } while (!backpressureCompletableFutureRef.compareAndSet(oldCf, newCf));
     }
 
+    /**
+     * Schedules the next buffer pruning task based on the configured prune interval.
+     * If the prune interval is set to 0, a default interval of 1 second is used to periodically
+     * check if the configuration has changed.
+     */
     private void scheduleNextWorkerTask() {
         if (!grpcStreamingEnabled) {
             return;

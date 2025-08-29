@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirVersion;
 import static com.hedera.services.bdd.spec.HapiSpec.doTargetSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAllLogsAfter;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -41,6 +42,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -116,12 +118,17 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetNetwork
                         .getPostInitWorkingDirActions()
                         .add(targetBlockNodeNetwork::configureBlockNodeConnectionInformation);
+                // Configure block node communication log level to DEBUG for better diagnostics
+                targetNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(node -> targetNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+
                 // Configure block node mode based on annotation
-                for (BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
+                for (final BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
                     targetBlockNodeNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
                 }
 
-                for (SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
+                for (final SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
                     targetBlockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
                             .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodeIds());
@@ -172,20 +179,22 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // If a per-method network exists, run validation and terminate it
                 try {
                     // Create a temporary HapiSpec to run the validation against the per-method network
+                    // Validate logs after a short delay to ensure all log entries are flushed
+                    final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
                     final var streamValidationOp = validateStreams();
                     final var validationSpec = new HapiSpec(
-                            "StreamValidation",
-                            new com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp[] {streamValidationOp});
-                    validationSpec.setTargetNetwork(SHARED_NETWORK.get());
+                            "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
+                    validationSpec.setTargetNetwork(
+                            requireNonNull(SHARED_NETWORK.get(), "Shared network cannot be null"));
                     validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
                     // Execute the validation spec
                     try {
                         validationSpec.execute();
-                    } catch (Throwable e) {
+                    } catch (final Throwable e) {
                         throw new RuntimeException(e);
                     }
-                } catch (Exception e) {
-                    System.err.println("Error during post-test stream validation: " + e.getMessage());
+                } catch (final Exception e) {
+                    System.err.println("Error during post-test log and stream validation: " + e.getMessage());
                 } finally {
                     // Ensure network termination even if validation fails
                     SHARED_NETWORK.get().terminate();
