@@ -117,7 +117,7 @@ jobs:
     name: Longevity Test
     needs:
       - verify-tag
-    uses: zxc-single-day-longevity-test.yaml
+    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
