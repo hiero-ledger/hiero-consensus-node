@@ -12,6 +12,10 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.bootstr
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.networkFrom;
 import static java.util.Objects.requireNonNull;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import org.hiero.otter.fixtures.container.ContainerNode;
 import org.testcontainers.containers.Container.ExecResult;
@@ -64,8 +69,11 @@ public class ContainerWorkingDirInitializer {
                 Network.JSON.toJSON(network));
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc());
-        // Update properties in application.properties
+
+        // Add application properties to application.properties
         updateApplicationProperties();
+        // Add platform properties to node-overrides.yaml
+        updatePlatformProperties();
     }
 
     /**
@@ -150,27 +158,46 @@ public class ContainerWorkingDirInitializer {
     }
 
     private void updateApplicationProperties() {
-        for (final Map.Entry<String, String> entry : overriddenProperties.entrySet()) {
-            updateApplicationProperty(entry.getKey(), entry.getValue());
-        }
+        updateApplicationProperty("hedera.recordStream.logDir", workingDir.resolve("recordStream").toString());
+        updateApplicationProperty("blockStream.blockFileDir", workingDir.resolve("blockStreams").toString());
     }
 
-    private void updateApplicationProperty(@NonNull final String key, @NonNull final String subFolder) {
+    private void updateApplicationProperty(@NonNull final String key, @NonNull final String value) {
         try {
             final String containerPath = workingDir
                     .resolve(DATA_DIR)
                     .resolve(CONFIG_FOLDER)
                     .resolve("application.properties")
                     .toString();
-            final String update = key + "=" + workingDir.resolve(subFolder);
+            final String update = key + "=" + value;
             final ExecResult result = container.execInContainer("sh", "-c", String.format("printf '%%s\\n' '%s' >> %s", update, containerPath));
             if (result.getExitCode() != 0) {
                 throw new IOException("Failed to add property: " + update + "\n" + result.getStderr());
             }
         } catch (final IOException | InterruptedException e) {
-            throw new UncheckedIOException(new IOException("Error updating property in container", e));
+            throw new UncheckedIOException(new IOException("Error updating application property in container", e));
         }
     }
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
+
+    private void updatePlatformProperties() {
+        try {
+            final Map<String, Map<String, Object>> hierarchicalProperties = new HashMap<>();
+            for (final var entry : overriddenProperties.entrySet()) {
+                final String key = entry.getKey();
+                final String topLevel = key.substring(0, key.indexOf('.'));
+                final String remainder = key.substring(key.indexOf('.') + 1);
+                final Map<String, Object> subValue = hierarchicalProperties.computeIfAbsent(topLevel, k -> new HashMap<>());
+                subValue.put(remainder, OBJECT_MAPPER.readTree(entry.getValue()));
+            }
+
+            final Path path = workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve("node-overrides.yaml");
+            final String result = OBJECT_MAPPER.writeValueAsString(hierarchicalProperties);
+            writeStringUnchecked(path, result);
+        } catch (final JsonProcessingException e) {
+            throw new UncheckedIOException(new IOException("Error updating platform property in container", e));
+        }
+    }
 
 }

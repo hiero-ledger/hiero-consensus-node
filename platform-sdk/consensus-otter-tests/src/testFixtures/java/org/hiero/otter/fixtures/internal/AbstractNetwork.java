@@ -2,17 +2,12 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.utility.Threshold;
-import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -25,22 +20,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -49,12 +36,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
-import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
-import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -287,7 +268,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void freeze() {
-        defaultFreezeAction.freeze();
+        throw new UnsupportedOperationException("Freeze not supported in this network");
+//        defaultFreezeAction.freeze();
     }
 
     /**
@@ -360,7 +342,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
-        nodes().forEach(node -> node.version(version));
+        throw new UnsupportedOperationException("Versioning not supported in this network");
+//        nodes().forEach(node -> node.version(version));
     }
 
     /**
@@ -368,7 +351,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        nodes().forEach(Node::bumpConfigVersion);
+        throw new UnsupportedOperationException("Versioning not supported in this network");
+//        nodes().forEach(Node::bumpConfigVersion);
     }
 
     /**
@@ -377,9 +361,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodeConsensusResults newConsensusResults() {
-        final List<SingleNodeConsensusResult> results =
-                nodes().stream().map(Node::newConsensusResult).toList();
-        return new MultipleNodeConsensusResultsImpl(results);
+        throw new UnsupportedOperationException("New Consensus Results not supported in this network");
+//        final List<SingleNodeConsensusResult> results =
+//                nodes().stream().map(Node::newConsensusResult).toList();
+//        return new MultipleNodeConsensusResultsImpl(results);
     }
 
     /**
@@ -388,10 +373,11 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     @Override
     public MultipleNodeLogResults newLogResults() {
-        final List<SingleNodeLogResult> results =
-                nodes().stream().map(Node::newLogResult).toList();
-
-        return new MultipleNodeLogResultsImpl(results);
+        throw new UnsupportedOperationException("New Log Results not supported in this network");
+//        final List<SingleNodeLogResult> results =
+//                nodes().stream().map(Node::newLogResult).toList();
+//
+//        return new MultipleNodeLogResultsImpl(results);
     }
 
     /**
@@ -400,9 +386,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodePlatformStatusResults newPlatformStatusResults() {
-        final List<SingleNodePlatformStatusResult> statusProgressions =
-                nodes().stream().map(Node::newPlatformStatusResult).toList();
-        return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
+        throw new UnsupportedOperationException("New Platform Status Results not supported in this network");
+//        final List<SingleNodePlatformStatusResult> statusProgressions =
+//                nodes().stream().map(Node::newPlatformStatusResult).toList();
+//        return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
     }
 
     /**
@@ -411,9 +398,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodeReconnectResults newReconnectResults() {
-        final List<SingleNodeReconnectResult> reconnectResults =
-                nodes().stream().map(Node::newReconnectResult).toList();
-        return new MultipleNodeReconnectResultsImpl(reconnectResults);
+        throw new UnsupportedOperationException("New Reconnect Results not supported in this network");
+//        final List<SingleNodeReconnectResult> reconnectResults =
+//                nodes().stream().map(Node::newReconnectResult).toList();
+//        return new MultipleNodeReconnectResultsImpl(reconnectResults);
     }
 
     /**
@@ -422,9 +410,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodePcesResults newPcesResults() {
-        final List<SingleNodePcesResult> results =
-                nodes().stream().map(Node::newPcesResult).toList();
-        return new MultipleNodePcesResultsImpl(results);
+        throw new UnsupportedOperationException("New Pces Results not supported in this network");
+//        final List<SingleNodePcesResult> results =
+//                nodes().stream().map(Node::newPcesResult).toList();
+//        return new MultipleNodePcesResultsImpl(results);
     }
 
     /**
@@ -433,9 +422,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodeMarkerFileResults newMarkerFileResults() {
-        final List<SingleNodeMarkerFileResult> results =
-                nodes().stream().map(Node::newMarkerFileResult).toList();
-        return new MultipleNodeMarkerFileResultsImpl(results);
+        throw new UnsupportedOperationException("New Marker Files Results not supported in this network");
+//        final List<SingleNodeMarkerFileResult> results =
+//                nodes().stream().map(Node::newMarkerFileResult).toList();
+//        return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
     /**
@@ -443,25 +433,26 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
-        final Set<Node> otherNodes = nodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
-                .collect(Collectors.toSet());
-
-        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
-
-        long weightOfAheadNodes = 0;
-        for (final Node maybeAheadNode : otherNodes) {
-            final EventWindow peerEventWindow =
-                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
-
-            // If any peer in the required list says the "self" node is not behind, the node is not behind.
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                weightOfAheadNodes += maybeAheadNode.weight();
-            }
-        }
-        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, totalWeight());
+        throw new UnsupportedOperationException("NodeIsBehindByNodeWeight not supported in this network");
+//        final Set<Node> otherNodes = nodes().stream()
+//                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+//                .collect(Collectors.toSet());
+//
+//        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+//        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
+//
+//        long weightOfAheadNodes = 0;
+//        for (final Node maybeAheadNode : otherNodes) {
+//            final EventWindow peerEventWindow =
+//                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
+//
+//            // If any peer in the required list says the "self" node is not behind, the node is not behind.
+//            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+//                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+//                weightOfAheadNodes += maybeAheadNode.weight();
+//            }
+//        }
+//        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, totalWeight());
     }
 
     /**
@@ -469,25 +460,26 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = nodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
-                .collect(Collectors.toSet());
-
-        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
-
-        int numNodesAhead = 0;
-        for (final Node maybeAheadNode : otherNodes) {
-            final EventWindow peerEventWindow =
-                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
-
-            // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                numNodesAhead++;
-            }
-        }
-        return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
+        throw new UnsupportedOperationException("NodeIsBehindByNodeCount not supported in this network");
+//        final Set<Node> otherNodes = nodes().stream()
+//                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+//                .collect(Collectors.toSet());
+//
+//        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+//        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
+//
+//        int numNodesAhead = 0;
+//        for (final Node maybeAheadNode : otherNodes) {
+//            final EventWindow peerEventWindow =
+//                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
+//
+//            // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
+//            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+//                    == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+//                numNodesAhead++;
+//            }
+//        }
+//        return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
     }
 
     /**
@@ -557,16 +549,16 @@ public abstract class AbstractNetwork implements Network {
 
             log.info("Starting network...");
             state = State.RUNNING;
-            for (final Node node : nodes()) {
-                node.start();
-            }
+//            for (final Node node : nodes()) {
+//                node.start();
+//            }
 
-            transactionGenerator().start();
+//            transactionGenerator().start();
 
-            log.debug("Waiting for nodes to become active...");
-            if (!timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout)) {
-                fail("Timeout while waiting for nodes to become active.");
-            }
+//            log.debug("Waiting for nodes to become active...");
+//            if (!timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout)) {
+//                fail("Timeout while waiting for nodes to become active.");
+//            }
         }
 
         /**
@@ -574,24 +566,25 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void freeze() {
-            throwIfInState(State.INIT, "Network has not been started yet.");
-            throwIfInState(State.SHUTDOWN, "Network has been shut down.");
-
-            log.info("Sending freeze transaction...");
-            final byte[] freezeTransaction =
-                    createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
-            nodes().stream()
-                    .filter(Node::isActive)
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
-                    .submitTransaction(freezeTransaction);
-
-            log.debug("Waiting for nodes to freeze...");
-            if (!timeManager().waitForCondition(() -> allNodesInStatus(FREEZE_COMPLETE), timeout)) {
-                fail("Timeout while waiting for all nodes to freeze.");
-            }
-
-            transactionGenerator().stop();
+            throw new UnsupportedOperationException("Freezing not supported in this network");
+//            throwIfInState(State.INIT, "Network has not been started yet.");
+//            throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+//
+//            log.info("Sending freeze transaction...");
+//            final byte[] freezeTransaction =
+//                    createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
+//            nodes().stream()
+//                    .filter(Node::isActive)
+//                    .findFirst()
+//                    .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
+//                    .submitTransaction(freezeTransaction);
+//
+//            log.debug("Waiting for nodes to freeze...");
+//            if (!timeManager().waitForCondition(() -> allNodesInStatus(FREEZE_COMPLETE), timeout)) {
+//                fail("Timeout while waiting for all nodes to freeze.");
+//            }
+//
+//            transactionGenerator().stop();
         }
 
         /**
@@ -603,13 +596,13 @@ public abstract class AbstractNetwork implements Network {
             throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
             log.info("Killing nodes immediately...");
-            for (final Node node : nodes()) {
-                node.killImmediately();
-            }
+//            for (final Node node : nodes()) {
+//                node.killImmediately();
+//            }
 
             state = State.SHUTDOWN;
 
-            transactionGenerator().stop();
+//            transactionGenerator().stop();
         }
     }
 

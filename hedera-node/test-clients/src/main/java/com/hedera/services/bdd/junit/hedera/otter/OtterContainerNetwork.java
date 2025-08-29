@@ -15,6 +15,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.otter.fixtures.Network;
 
 /**
  * A Hedera network based on Otter's container environment.
@@ -23,20 +24,24 @@ public class OtterContainerNetwork extends AbstractGrpcNetwork implements Hedera
 
     private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
 
+    private final Network network;
     private final String configTxt;
 
     /**
      * Constructs a new OtterContainerNetwork.
      *
      * @param networkName the name of the network
+     * @param network the Otter network
      * @param nodes the nodes in the network
      * @param configTxt the configuration text for the nodes
      */
     public OtterContainerNetwork(
             @NonNull final String networkName,
+            @NonNull final Network network,
             @NonNull final List<HederaNode> nodes,
             @NonNull final String configTxt) {
         super(networkName, nodes);
+        this.network = requireNonNull(network);
         this.configTxt = requireNonNull(configTxt);
     }
 
@@ -47,6 +52,7 @@ public class OtterContainerNetwork extends AbstractGrpcNetwork implements Hedera
 
     @Override
     public void start() {
+        network.start();
         for (final HederaNode node : nodes) {
             node.initWorkingDir(configTxt);
             node.start();
@@ -55,6 +61,7 @@ public class OtterContainerNetwork extends AbstractGrpcNetwork implements Hedera
 
     @Override
     public void terminate() {
+        network.shutdown();
         for (final HederaNode node : nodes) {
             node.stopFuture();
         }

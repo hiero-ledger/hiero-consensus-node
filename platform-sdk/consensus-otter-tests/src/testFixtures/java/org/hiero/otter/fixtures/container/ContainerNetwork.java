@@ -10,6 +10,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.gossip.config.GossipConfig_;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -29,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.container.utils.DockerUtils;
@@ -104,7 +105,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+        throw new UnsupportedOperationException("Freeze transactions are not supported in the container environment.");
+//        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -169,13 +171,13 @@ public class ContainerNetwork extends AbstractNetwork {
         final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
         final String toxiproxyIpAddress = getNetworkIpAddress(toxiproxyContainer, network);
         networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
-//        for (final ContainerNode sender : newNodes) {
-//            final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
-//                    .filter(receiver -> !receiver.equals(sender))
-//                    .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
-//                    .toList();
-//            sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
-//        }
+        for (final ContainerNode sender : newNodes) {
+            final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
+                    .filter(receiver -> !receiver.equals(sender))
+                    .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
+                    .toList();
+            sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+        }
 
         return newNodes;
     }

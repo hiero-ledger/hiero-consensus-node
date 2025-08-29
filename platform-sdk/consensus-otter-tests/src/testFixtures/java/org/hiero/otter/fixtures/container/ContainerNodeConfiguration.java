@@ -5,6 +5,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAI
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
@@ -21,8 +22,6 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
-        overriddenProperties.put("hedera.recordStream.logDir", CONTAINER_APP_WORKING_DIR + "/recordStream");
-        overriddenProperties.put("blockStream.blockFileDir", CONTAINER_APP_WORKING_DIR + "/blockStreams");
-        overriddenProperties.put("event.eventsLogDir", CONTAINER_APP_WORKING_DIR + "/eventsStreams");
+        overriddenProperties.put(EventConfig_.EVENTS_LOG_DIR, CONTAINER_APP_WORKING_DIR + "/eventsStreams");
     }
 }

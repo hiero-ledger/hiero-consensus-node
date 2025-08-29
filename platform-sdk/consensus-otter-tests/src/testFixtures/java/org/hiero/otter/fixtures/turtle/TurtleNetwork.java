@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -91,7 +90,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+        throw new UnsupportedOperationException("Freeze transactions are not supported in the container environment.");
+//        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**

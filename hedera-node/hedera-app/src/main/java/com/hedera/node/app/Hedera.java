@@ -722,6 +722,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
         try {
             migrateSchemas(state, deserializedVersion, trigger, platformConfig);
+            logPlatformConfiguration(platformConfig);
             logConfiguration();
         } catch (final Throwable t) {
             logger.fatal("Critical failure during schema migration", t);
@@ -1345,6 +1346,15 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var lines = new ArrayList<String>();
             lines.add("Active Configuration:");
             Utils.allProperties(config).forEach((key, value) -> lines.add(key + " = " + value));
+            logger.info(String.join("\n", lines));
+        }
+    }
+
+    private void logPlatformConfiguration(@NonNull final Configuration configuration) {
+        if (logger.isInfoEnabled()) {
+            final var lines = new ArrayList<String>();
+            lines.add("Active Platform Configuration:");
+            Utils.allProperties(configuration).forEach((key, value) -> lines.add(key + " = " + value));
             logger.info(String.join("\n", lines));
         }
     }

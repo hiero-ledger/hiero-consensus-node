@@ -53,7 +53,7 @@ public class OtterFactory {
         final List<HederaNode> hederaNodes =
                 nodes.stream().map(OtterFactory::createContainerNode).toList();
         final String configTxt = configTxtForRoster(networkName, roster);
-        return new OtterContainerNetwork(networkName, hederaNodes, configTxt);
+        return new OtterContainerNetwork(networkName, network, hederaNodes, configTxt);
     }
 
     private static HederaNode createContainerNode(@NonNull final ContainerNode node) {
