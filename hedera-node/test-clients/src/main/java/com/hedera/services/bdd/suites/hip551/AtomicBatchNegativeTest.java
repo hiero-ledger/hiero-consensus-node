@@ -955,7 +955,7 @@ public class AtomicBatchNegativeTest {
                             .payingWith("batchOperator")
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
+                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.00183, 5),
                     getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
                             .has(accountWith().nonce(1L)),
                     getTxnRecord("ethCall")

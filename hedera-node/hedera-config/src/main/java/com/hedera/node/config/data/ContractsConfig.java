@@ -38,7 +38,7 @@ public record ContractsConfig(
                 boolean throttleThrottleByGas,
         @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
                 boolean throttleThrottleByOpsDuration,
-        @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
                 long precompileExchangeRateGasCost,
         @ConfigProperty(value = "precompile.htsDefaultGasCost", defaultValue = "10000") @NetworkProperty
