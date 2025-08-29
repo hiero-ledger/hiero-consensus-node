@@ -19,6 +19,11 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      bnref:
+        required: true
+        default: "main"
+        description: "Version of block-node: branch, tag, commit"
+        type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
@@ -57,11 +62,17 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      disable-notifications:
+      perf_analysis:
         required: false
-        default: true
+        default: false
         type: boolean
-        description: "If true, skip tag and notifications"
+        description: "Algorithmic analysis"
+
+      #disable-notifications:
+      #  required: false
+      #  default: true
+      #  type: boolean
+      #  description: "If true, skip tag and notifications"
 
 defaults:
   run:

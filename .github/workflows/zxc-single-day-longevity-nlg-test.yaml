@@ -14,9 +14,14 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      bnref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        type: string
       solo-version:
         required: true
-        default: "v0.41.0"
+        default: "v0.43.0"
         description: "Solo Version:"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
@@ -86,6 +91,18 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Checkout target CN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: target_consensus_node
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout target BN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: target_block_node
+          ref: ${{ inputs.bnref }}
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -177,6 +194,7 @@ jobs:
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.bnref=${{ inputs.bnref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -187,12 +205,22 @@ jobs:
       - name: Set hederahash sha value
         id: hederahash
         run: |
-          hederahash="$(git rev-parse HEAD)"
+          hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: |
+          cd "${{ github.workspace }}"/target_consensus_node
+          ./gradlew clean assemble
+          cd "${{ github.workspace }}"
+
+      - name: Compile BN
+        run: |
+          cd "${{ github.workspace }}"/target_block_node
+          ./gradlew block-node-app:distTar
+          #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -253,7 +281,7 @@ jobs:
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
@@ -320,9 +348,54 @@ jobs:
           cd "${{ github.workspace}}"/solo
           export BLOCK_NODE_VERSION="${{ env.BlockNode_version }}"
 
+          #FIXME: when root access and entrypoint fixed
+          if [ 0 -eq 1 ]
+          then
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            task solo:block:add
+          done
+          sleep 30
+          fi
+          
+          #WORKAROUND:
+
+          # Generate the blocknode-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml blocknode-values.yaml
+
+          #Disable auto-start
+          sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' blocknode-values.yaml
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" blocknode-values.yaml
+          if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="single-day-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="multi-day-longevity-test"
+          else
+            NETWORK_OWNER="adhoc-longevity-test"
+          fi
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
+          
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+           helm upgrade --install --set name=block-node-{$i} --set appName=block-node-{$i} block-node-{$i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          done
+          sleep 30
+          
+          
+          BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
+          
+          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
+          do
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${BNtarname} $i:/tmp/blocknode.tar
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "\
+                mkdir -p /opt/hiero/block-node/data/historic;  \
+                mkdir -p /opt/hiero/block-node/data/live;      \
+                mkdir -p /opt/hiero/block-node/logs;           \
+                mkdir -p /opt/hiero/block-node/logs/config;    \
+                export SERVER_PORT=40840;                      \
+                nohup java -Xms16G -Xmx16G -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
+                  --module org.hiero.block.node.app/org.hiero.block.node.app.BlockNodeApp >/opt/hiero/block-node/logs/block-node.log 2>&1 &"
           done
           sleep 30
 
@@ -438,6 +511,13 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+
+      - name: Distribution of pods and nodes
+        run: |
+          set +x
+          set +e
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods -o=custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
 
       - name: Start Longevity test
         run: |
