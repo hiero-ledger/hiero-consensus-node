@@ -196,6 +196,7 @@ public class BlockNodeConnectionManager {
         this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
+
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -600,7 +601,7 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object
+        // Create the connection object with fresh gRPC client
         final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
