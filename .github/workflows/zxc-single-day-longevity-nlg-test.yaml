@@ -730,9 +730,10 @@ jobs:
     needs:
       - longevity-tests-start
       - single-day-longevity-test-result
-    if: ${{ (needs.longevity-tests-start.result != 'success' ||
-      needs.single-day-longevity-test-result.result != 'success') &&
-      !cancelled() && always() && never() }} #FIXME: never()
+    #if: ${{ (needs.longevity-tests-start.result != 'success' ||
+    #  needs.single-day-longevity-test-result.result != 'success') &&
+    #  !cancelled() && always() }}
+    if: false
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
