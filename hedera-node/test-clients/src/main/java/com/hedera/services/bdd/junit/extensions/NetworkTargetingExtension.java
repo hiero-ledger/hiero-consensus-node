@@ -186,6 +186,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                             "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
                     validationSpec.setTargetNetwork(
                             requireNonNull(SHARED_NETWORK.get(), "Shared network cannot be null"));
+                    validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
                     // Execute the validation spec
                     try {
                         validationSpec.execute();

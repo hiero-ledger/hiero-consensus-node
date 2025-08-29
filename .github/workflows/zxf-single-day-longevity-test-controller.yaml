@@ -138,6 +138,7 @@ jobs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -173,6 +174,7 @@ jobs:
             echo "Found slack user for email: ${EMAIL}"
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
@@ -309,10 +311,12 @@ jobs:
       - run-single-day-longevity-nlg-test
       - tag-sdlt-result
       - get-commit-info
+      - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
       needs.tag-sdlt-result.result != 'success' ||
       needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
-      needs.get-commit-info.result != 'success') &&
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
@@ -351,6 +355,79 @@ jobs:
         continue-on-error: true
         with:
           path: run.log
+
+      - name: Set Service Name
+        id: set-service
+        run: |
+          ROOTLY_SERVICE="CITR SDLT"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The SDLT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create Rootly Incident
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        continue-on-error: true # continue on error so we can get the slack reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Platform CI,Performance Engineering"
 
       - name: Build Slack Payload Message
         id: payload

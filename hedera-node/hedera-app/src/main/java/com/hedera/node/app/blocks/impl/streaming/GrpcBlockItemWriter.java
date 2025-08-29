@@ -82,7 +82,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void closeCompleteBlock() {
         blockBufferService.closeBlock(blockNumber);
-        logger.debug("Closed block in GrpcBlockItemWriter");
+        logger.debug("Closed block in GrpcBlockItemWriter {}", blockNumber);
     }
 
     @Override
