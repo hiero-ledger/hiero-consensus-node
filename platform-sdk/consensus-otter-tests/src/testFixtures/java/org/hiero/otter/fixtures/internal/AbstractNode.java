@@ -8,7 +8,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -20,11 +22,20 @@ public abstract class AbstractNode implements Node {
      * Represents the lifecycle states of a node.
      */
     public enum LifeCycle {
+        /** The node is initializing. */
         INIT,
+
+        /** The node is running. */
         RUNNING,
+
+        /** The node was shut down, but can be started again. */
         SHUTDOWN,
+
+        /** The node was destroyed and cannot be started again. */
         DESTROYED
     }
+
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     protected final NodeId selfId;
     protected final long weight;
@@ -49,25 +60,11 @@ public abstract class AbstractNode implements Node {
      * Constructor for the AbstractNode class.
      *
      * @param selfId the unique identifier for this node
-     * @param weight the weight of this node
-     */
-    protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
-        this.selfId = requireNonNull(selfId, "selfId must not be null");
-        this.weight = weight;
-    }
-
-    /**
-     * Constructor for the AbstractNode class.
-     *
-     * @param selfId the unique identifier for this node
      * @param roster the roster for the network this node is part of
      */
     protected AbstractNode(@NonNull final NodeId selfId, final Roster roster) {
-        this(selfId, getWeight(selfId, roster));
-    }
-
-    private static long getWeight(@NonNull final NodeId selfId, @NonNull final Roster roster) {
-        return roster.rosterEntries().stream()
+        this.selfId = requireNonNull(selfId, "selfId must not be null");
+        this.weight = roster.rosterEntries().stream()
                 .filter(r -> r.nodeId() == selfId.id())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
@@ -138,6 +135,72 @@ public abstract class AbstractNode implements Node {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void start() {
+        doStart(DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * The actual implementation of the start logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the node to start
+     */
+    protected abstract void doStart(@NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void killImmediately() {
+        doKillImmediately(DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * The actual implementation of the kill logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the node to stop
+     */
+    protected abstract void doKillImmediately(@NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+        doStartSyntheticBottleneck(delayPerRound, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * The actual implementation of the synthetic bottleneck logic, to be provided by subclasses.
+     *
+     * @param delayPerRound the artificial delay to introduce per consensus round
+     * @param timeout the maximum duration to wait for the bottleneck to start
+     */
+    protected abstract void doStartSyntheticBottleneck(@NonNull Duration delayPerRound, @NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopSyntheticBottleneck() {
+        doStopSyntheticBottleneck(DEFAULT_TIMEOUT);
+    }
+
+    @Override
+    public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
+        return new AsyncNodeActionsImpl(timeout);
+    }
+
+    /**
+     * The actual implementation of the stop synthetic bottleneck logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the bottleneck to stop
+     */
+    protected abstract void doStopSyntheticBottleneck(@NonNull Duration timeout);
+
+    /**
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
      *
      * @param expected throw if the node is in this lifecycle state
@@ -167,5 +230,34 @@ public abstract class AbstractNode implements Node {
     @Override
     public String toString() {
         return "Node{id=" + selfId.id() + '}';
+    }
+
+    private class AsyncNodeActionsImpl implements AsyncNodeActions {
+
+        private final Duration timeout;
+
+        private AsyncNodeActionsImpl(@NonNull final Duration timeout) {
+            this.timeout = requireNonNull(timeout);
+        }
+
+        @Override
+        public void start() {
+            doStart(timeout);
+        }
+
+        @Override
+        public void killImmediately() {
+            doKillImmediately(timeout);
+        }
+
+        @Override
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            doStartSyntheticBottleneck(delayPerRound, timeout);
+        }
+
+        @Override
+        public void stopSyntheticBottleneck() {
+            doStopSyntheticBottleneck(timeout);
+        }
     }
 }

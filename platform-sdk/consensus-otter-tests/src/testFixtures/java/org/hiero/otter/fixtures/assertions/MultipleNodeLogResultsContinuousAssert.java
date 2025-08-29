@@ -125,7 +125,7 @@ public class MultipleNodeLogResultsContinuousAssert
         final LogSubscriber subscriber = logEntry -> switch (state) {
             case ACTIVE -> {
                 if ((logEntry.nodeId() == null || !suppressedNodeIds.contains(logEntry.nodeId()))
-                        && !suppressedLogMarkers.contains(logEntry.marker())) {
+                        && (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))) {
                     check.accept(logEntry);
                 }
                 yield CONTINUE;
