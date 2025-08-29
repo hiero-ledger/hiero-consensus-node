@@ -35,6 +35,8 @@ public abstract class AbstractNode implements Node {
         DESTROYED
     }
 
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
+
     protected final NodeId selfId;
     protected final long weight;
 
@@ -133,44 +135,70 @@ public abstract class AbstractNode implements Node {
     }
 
     /**
-     * Gets the default async actions for this node.
-     *
-     * @return the default async actions
-     */
-    @NonNull
-    protected abstract AsyncNodeActions defaultAsyncActions();
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public void start() {
-        defaultAsyncActions().start();
+        doStart(DEFAULT_TIMEOUT);
     }
+
+    /**
+     * The actual implementation of the start logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the node to start
+     */
+    protected abstract void doStart(@NonNull Duration timeout);
 
     /**
      * {@inheritDoc}
      */
     @Override
     public void killImmediately() {
-        defaultAsyncActions().killImmediately();
+        doKillImmediately(DEFAULT_TIMEOUT);
     }
+
+    /**
+     * The actual implementation of the kill logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the node to stop
+     */
+    protected abstract void doKillImmediately(@NonNull Duration timeout);
 
     /**
      * {@inheritDoc}
      */
     @Override
     public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-        defaultAsyncActions().startSyntheticBottleneck(delayPerRound);
+        doStartSyntheticBottleneck(delayPerRound, DEFAULT_TIMEOUT);
     }
+
+    /**
+     * The actual implementation of the synthetic bottleneck logic, to be provided by subclasses.
+     *
+     * @param delayPerRound the artificial delay to introduce per consensus round
+     * @param timeout the maximum duration to wait for the bottleneck to start
+     */
+    protected abstract void doStartSyntheticBottleneck(@NonNull Duration delayPerRound, @NonNull Duration timeout);
 
     /**
      * {@inheritDoc}
      */
     @Override
     public void stopSyntheticBottleneck() {
-        defaultAsyncActions().stopSyntheticBottleneck();
+        doStopSyntheticBottleneck(DEFAULT_TIMEOUT);
     }
+
+    @Override
+    public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
+        return new AsyncNodeActionsImpl(timeout);
+    }
+
+    /**
+     * The actual implementation of the stop synthetic bottleneck logic, to be provided by subclasses.
+     *
+     * @param timeout the maximum duration to wait for the bottleneck to stop
+     */
+    protected abstract void doStopSyntheticBottleneck(@NonNull Duration timeout);
 
     /**
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
@@ -202,5 +230,34 @@ public abstract class AbstractNode implements Node {
     @Override
     public String toString() {
         return "Node{id=" + selfId.id() + '}';
+    }
+
+    private class AsyncNodeActionsImpl implements AsyncNodeActions {
+
+        private final Duration timeout;
+
+        private AsyncNodeActionsImpl(@NonNull final Duration timeout) {
+            this.timeout = requireNonNull(timeout);
+        }
+
+        @Override
+        public void start() {
+            doStart(timeout);
+        }
+
+        @Override
+        public void killImmediately() {
+            doKillImmediately(timeout);
+        }
+
+        @Override
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            doStartSyntheticBottleneck(delayPerRound, timeout);
+        }
+
+        @Override
+        public void stopSyntheticBottleneck() {
+            doStopSyntheticBottleneck(timeout);
+        }
     }
 }
