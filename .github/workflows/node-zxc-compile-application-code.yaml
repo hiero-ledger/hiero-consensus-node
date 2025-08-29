@@ -3,16 +3,6 @@ name: "ZXC: [Node] Compile Application Code"
 on:
   workflow_call:
     inputs:
-      use-mats-tag:
-        description: "Use MATS Tag for hapi tests"
-        type: boolean
-        required: false
-        default: false
-      mats-postfix:
-        description: "MATS Tag Postfix"
-        type: string
-        required: false
-        default: ""
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: boolean
@@ -127,6 +117,11 @@ on:
         description: "The branch, tag or SHA to checkout."
         required: false
         type: string
+      mats-postfix:
+        description: "MATS Tag Postfix"
+        type: string
+        required: false
+        default: ""
 
     secrets:
       access-token:

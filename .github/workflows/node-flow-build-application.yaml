@@ -133,7 +133,7 @@ jobs:
       enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
       enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
       enable-network-log-capture: true
-      mats-postfix: Mats
+      mats-postfix: MATS
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
