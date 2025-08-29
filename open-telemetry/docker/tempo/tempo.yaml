@@ -154,10 +154,6 @@ metrics_generator:
     external_labels:
       source: tempo
 
-  remote_write:
-    - url: http://prometheus:9090/api/v1/write
-      send_exemplars: true
-
   storage:
     path: /var/tempo/generator/wal
     remote_write:
