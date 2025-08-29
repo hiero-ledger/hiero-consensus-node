@@ -60,29 +60,13 @@ jobs:
           fetch-depth: 0
 
       #  Checkout the json-rpc-relay repository
-      - name: Checkout Regression Code
+      - name: Checkout JSON-RPC Relay
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: regression-tests/json-rpc-relay
           repository: hiero-ledger/hiero-json-rpc-relay
           fetch-depth: 0
           fetch-tags: true
-
-      # temporarily checkout the branch that contains the XTS code
-      - name: Checkout Relay XTS Branch (temporary)
-        run: |
-          cd regression-tests/json-rpc-relay
-          git fetch origin
-          git checkout quest-open-a-portal-for-the-sitter-mountains
-
-      # # checkout the latest json-rpc-relay tag if needed
-      # - name: Checkout Latest Tag (Relay)
-      #   run: |
-      #     cd regression-tests/json-rpc-relay
-      #     git fetch --tags
-      #     LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-      #     echo "Latest JSON-RPC Relay tag: $LATEST_TAG"
-      #     git checkout $LATEST_TAG
 
       # Set up Java Environment
       - name: Setup Java
@@ -125,46 +109,39 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
+          node_image: kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d
+          version: v0.29.0
+          kubectl_version: v1.32.5
           verbosity: 3
           wait: 120s
 
       # Set up solo
       - name: Configure and run solo
         run: |
-          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
-          solo init
-          solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
-          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
-          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-          solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-          solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-
-          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
-          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
-          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
-          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/mirror-web3 -n "${{ env.SOLO_NAMESPACE }}" 8545:http &
+            kind create cluster -n "${SOLO_CLUSTER_NAME}"
+            solo init
+            solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+            solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+            solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+            solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo node start --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
 
       # Perform JSON-RPC Relay regression tests
       - name: Start json-rpc-relay-test-client
         env:
           CHAIN_ID: "0x12a"
-          MIRROR_NODE_URL: "http://127.0.0.1:5551"
-          MIRROR_NODE_URL_WEB3: "http://127.0.0.1:8545"
+          MIRROR_NODE_URL: "http://127.0.0.1:8081"
           HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
-          OPERATOR_ID_MAIN: "0.0.2"
-          OPERATOR_KEY_MAIN: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
-        run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_KEY_MAIN }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
-          npm run build && npm run acceptancetest:xts
-        working-directory: regression-tests/json-rpc-relay # required
+          OPERATOR_ID_MAIN: 0.0.2
+          OPERATOR_KEY_MAIN: 302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
+          REDIS_ENABLED: false
+          USE_ASYNC_TX_PROCESSING: false
+        run: npm run build && npm run acceptancetest:xts
+        working-directory: regression-tests/json-rpc-relay
 
       - name: JSON-RPC Relay Regression Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
