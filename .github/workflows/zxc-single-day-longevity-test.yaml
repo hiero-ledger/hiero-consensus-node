@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Single Day Longevity NLG Test"
+name: "ZXC: [CITR] Single Day Longevity Test"
 
 on:
   workflow_call:
