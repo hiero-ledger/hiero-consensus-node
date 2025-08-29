@@ -224,7 +224,7 @@ public final class StartupStateUtils {
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @return the loaded state
      */
-    private static ReservedSignedState loadLatestState(
+    public static ReservedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateFiles,

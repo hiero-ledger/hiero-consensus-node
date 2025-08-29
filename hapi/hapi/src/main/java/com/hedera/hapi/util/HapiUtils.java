@@ -19,7 +19,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Utility class for working with the HAPI. We might move this to the HAPI project.
@@ -29,6 +31,15 @@ public class HapiUtils {
     public static final Key EMPTY_KEY_LIST =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     public static final long FUNDING_ACCOUNT_EXPIRY = 33197904000L;
+
+    /** From <a href="https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string"></a> */
+    // suppress the warning that the regular expression is too complicated
+    @SuppressWarnings({"java:S5843", "java:S5998"})
+    public static final Pattern SEMVER_SPEC_REGEX = Pattern.compile(
+            "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)"
+                    + "(?:\\."
+                    + "(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)"
+                    + "*))?$");
 
     /** A {@link Comparator} for {@link AccountID}s. Sorts first by account number, then by alias. */
     public static final Comparator<AccountID> ACCOUNT_ID_COMPARATOR = (o1, o2) -> {
@@ -288,6 +299,34 @@ public class HapiUtils {
             baseVersion.append("+").append(version.build());
         }
         return baseVersion.toString();
+    }
+
+    /**
+     * Parses a semantic version string and converts it into a {@link SemanticVersion} object.
+     * The input string must adhere to the semantic versioning format as defined by semver.org.
+     *
+     * @param value The semantic version string to be parsed.
+     * @return A {@link SemanticVersion} object representing the parsed version.
+     * @throws IllegalArgumentException if the input string is not a valid semantic version.
+     */
+    public static SemanticVersion fromString(@NonNull final String value) {
+        Objects.requireNonNull(value, "value must not be null");
+        final var matcher = SEMVER_SPEC_REGEX.matcher(value);
+        if (matcher.matches()) {
+            final var builder = SemanticVersion.newBuilder()
+                    .major(Integer.parseInt(matcher.group(1)))
+                    .minor(Integer.parseInt(matcher.group(2)))
+                    .patch(Integer.parseInt(matcher.group(3)));
+            if (matcher.group(4) != null) {
+                builder.pre(matcher.group(4));
+            }
+            if (matcher.group(5) != null) {
+                builder.build(matcher.group(5));
+            }
+            return builder.build();
+        } else {
+            throw new IllegalArgumentException("'" + value + "' is not a valid semantic version");
+        }
     }
 
     /**
