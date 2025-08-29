@@ -17,8 +17,10 @@ public enum VirtualResource {
     ROUNDS("hiero-cn-rounds"), // general resource for round traces
     CN("hiero-cn"); // general resource for the CN
     public final Resource resource;
+    public final String serviceName;
 
     VirtualResource(String serviceName) {
+        this.serviceName = serviceName;
         this.resource = Resource.newBuilder()
                 .attributes(new KeyValue("service.name", AnyValue.newBuilder().stringValue(serviceName).build()))
                 .build();

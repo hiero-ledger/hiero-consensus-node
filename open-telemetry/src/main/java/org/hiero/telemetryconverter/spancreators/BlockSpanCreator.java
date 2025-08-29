@@ -142,8 +142,11 @@ public class BlockSpanCreator {
                     .endTimeUnixNano(round.events().stream().map(EventInfo::createdTrace)
                             .mapToLong(EventTraceInfo::endTimeNanos)
                             .max().orElseThrow())
-                    .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
-                    .kind(SpanKind.SPAN_KIND_SERVER)
+                    .attributes(BLOCK_LEVEL,
+                            Utils.kv("block",blockInfo.blockNum()),
+                            Utils.kv("round",round.roundNumber()),
+                            Utils.kv("peer.service",VirtualResource.GOSSIP.serviceName))
+                    .kind(SpanKind.SPAN_KIND_CLIENT)
                     .build());
             // create span for summary of all events gossip in round
             if (round.events().stream().map(EventInfo::gossipedTraces).mapToLong(List::size).sum() > 0) {
@@ -161,6 +164,7 @@ public class BlockSpanCreator {
                             .mapToLong(EventTraceInfo::endTimeNanos)
                             .max().orElseThrow())
                     .attributes(BLOCK_LEVEL, Utils.kv("block",blockInfo.blockNum()), Utils.kv("round",round.roundNumber()))
+                    .kind(SpanKind.SPAN_KIND_SERVER)
                     .build());
             }
             // create span for consensus time span
