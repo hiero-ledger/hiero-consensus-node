@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchContractSignatureValidationTest {
@@ -97,6 +99,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate internal call with value to account requiring receiver signature")
+    @Tag(MATS)
     public final Stream<DynamicTest> internalCallWithValueToAccountWithReceiverSigRequired() {
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT),

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class MiscellaneousFeesSuite {
     private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
@@ -76,6 +78,7 @@ public class MiscellaneousFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for get transaction record")
+    @Tag(MATS)
     final Stream<DynamicTest> miscGetTransactionRecordBaseUSDFee() {
         String baseTransactionGetRecord = "baseTransactionGetRecord";
         String createTxn = "createTxn";
@@ -95,6 +98,7 @@ public class MiscellaneousFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for atomic batch transaction")
+    @Tag(MATS)
     public Stream<DynamicTest> validateAtomicBatchBaseUSDFee() {
         final var batchOperator = "batchOperator";
 

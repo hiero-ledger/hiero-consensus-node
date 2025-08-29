@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchConsensusServiceEndToEndTest {
@@ -701,6 +703,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -1307,6 +1310,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     @DisplayName("Atomic Batch Consensus Service End-to-End Tests with Updates of Topics with Custom Fees")
     class AtomicBatchConsensusServiceWithCustomFeesUpdates {
         @HapiTest
+        @Tag(MATS)
         public Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesSuccessInBatch() {
 
             // submit message to topic inner transactions

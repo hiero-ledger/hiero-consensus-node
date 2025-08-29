@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.file;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -101,6 +102,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192")
 public class FileUpdateSuite {
@@ -368,6 +370,7 @@ public class FileUpdateSuite {
 
     @SuppressWarnings("java:S5960")
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+    @Tag(MATS)
     final Stream<DynamicTest> serviceFeeRefundedIfConsGasExhausted() {
         final var contract = "User";
         final var gasToOffer = 15_000_000;
@@ -425,6 +428,7 @@ public class FileUpdateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> chainIdChangesDynamically() {
         final var chainIdUser = "ChainIdUser";
         final var otherChainId = 0xABCDL;

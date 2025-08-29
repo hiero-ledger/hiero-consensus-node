@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
@@ -1222,6 +1224,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Submit Key, Token Transfer and Submit Message to the Updated Topic with the Transfer Details"
                         + " Success in Atomic Batch")
+        @Tag(MATS)
         public Stream<DynamicTest> updateTopicTokenTransferAndSubmitMessageToTopicSuccessInBatch() {
 
             // topic update inner transaction
