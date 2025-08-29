@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
@@ -132,13 +133,25 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 contractsConfig.throttleThrottleByOpsDuration() && throttleAdviser != null;
         final OpsDurationCounter opsDurationCounter;
         if (opsDurationThrottleEnabled) {
-            final long availableOpsDurationUnits = throttleAdviser.availableOpsDurationCapacity();
+            final boolean hasAnyCapacityLeft = throttleAdviser.availableOpsDurationCapacity() > 0;
+            if (!hasAnyCapacityLeft) {
+                contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
+                final var outcome = maybeChargeFeesAndReturnOutcome(
+                        hevmTransaction.withException(new ResourceExhaustedException(CONSENSUS_GAS_EXHAUSTED)),
+                        context.body().transactionIDOrThrow().accountIDOrThrow(),
+                        rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
+                        true);
+
+                final var elapsedNanos = System.nanoTime() - startTimeNanos;
+                recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
+
+                return outcome;
+            }
 
             final var opsDurationSchedule =
                     OpsDurationSchedule.fromConfig(configuration.getConfigData(OpsDurationConfig.class));
 
-            opsDurationCounter =
-                    OpsDurationCounter.withInitiallyAvailableUnits(opsDurationSchedule, availableOpsDurationUnits);
+            opsDurationCounter = OpsDurationCounter.withSchedule(opsDurationSchedule);
         } else {
             opsDurationCounter = OpsDurationCounter.disabled();
         }
@@ -184,10 +197,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             // Update the ops duration throttle
             if (opsDurationThrottleEnabled) {
                 throttleAdviser.consumeOpsDurationThrottleCapacity(opsDurationCounter.opsDurationUnitsConsumed());
-            }
-
-            if (opsDurationCounter.limitReached()) {
-                contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;

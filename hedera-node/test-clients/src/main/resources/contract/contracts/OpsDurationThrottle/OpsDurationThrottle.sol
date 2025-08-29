@@ -65,4 +65,11 @@ contract OpsDurationThrottle {
             run();
         }
     }
+
+    function createNAccounts(uint base, uint n) public payable {
+        for (uint i = 0; i < n; i++) {
+            address payable addr = payable(address(uint160(base + i)));
+            addr.call{value: 1}("");
+        }
+    }
 }

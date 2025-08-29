@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -221,6 +222,14 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             return maybeHaltReason;
         }
         frame.decrementRemainingGas(gasCost);
+
+        final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
+        final var opsDurationSchedule = opsDurationCounter.schedule();
+        final var opsDurationCost = gasCost
+                * opsDurationSchedule.accountLazyCreationOpsDurationMultiplier()
+                / opsDurationSchedule.multipliersDenominator();
+        opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
+
         return Optional.empty();
     }
 

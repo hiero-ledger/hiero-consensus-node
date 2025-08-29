@@ -17,6 +17,7 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -89,7 +90,7 @@ class ThrottleServiceManagerTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private DeterministicThrottle cryptoTransferThrottle;

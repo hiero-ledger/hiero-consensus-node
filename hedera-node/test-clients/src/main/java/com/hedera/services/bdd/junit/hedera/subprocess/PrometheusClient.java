@@ -34,9 +34,7 @@ public class PrometheusClient {
             Pattern.compile("# HELP platform_PlatformStatus (.*)");
     private static final Pattern PROM_PLATFORM_STATUS_PATTERN =
             Pattern.compile("platform_PlatformStatus\\{.*\\} (\\d+)\\.\\d+");
-    private static final Pattern PROM_TXN_METRIC_PATTERN =
-            Pattern.compile("(transaction|ops|precompile|system_contract)_.*_duration_ns\\{.*\\}.*");
-    private static final Pattern PROM_THROTTLE_DURATION_METRIC_PATTERN =
+    private static final Pattern PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN =
             Pattern.compile("app_consOpsDurationPercentUsed\\{.*\\}.*");
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -73,21 +71,12 @@ public class PrometheusClient {
     }
 
     /**
-     * Returns a list of transaction duration metrics from the Prometheus endpoint
-     * * @param port the prometheus port
-     * @return a list with string representations of transaction duration metrics
-     */
-    public List<String> getTransactionMetrics(final int port) {
-        return getMetrics(port, PROM_TXN_METRIC_PATTERN);
-    }
-
-    /**
      * Returns a list of throttle duration metrics from the Prometheus endpoint
      * @param port the prometheus port
      * @return a list with string representations of throttle duration metrics
      */
-    public List<String> getThrottleDurationMetrics(final int port) {
-        return getMetrics(port, PROM_THROTTLE_DURATION_METRIC_PATTERN);
+    public List<String> getOpsDurationThrottlePercentUsedMetrics(final int port) {
+        return getMetrics(port, PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN);
     }
 
     private List<String> getMetrics(final int port, final Pattern pattern) {

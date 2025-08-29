@@ -31,7 +31,7 @@ public class LeakyBucketThrottle {
     public LeakyBucketThrottle(final long capacity, final int burstSeconds) {
         validateCapacityForRequested(capacity, burstSeconds);
         this.burstSeconds = burstSeconds;
-        this.bucket = new DiscreteLeakyBucket(capacity * burstSeconds);
+        this.bucket = DiscreteLeakyBucket.ofFixedCapacity(capacity * burstSeconds);
     }
 
     private void validateCapacityForRequested(final long capacity, final int burstSeconds) {
@@ -52,7 +52,7 @@ public class LeakyBucketThrottle {
      */
     public boolean allow(final long txLimit, final long elapsedNanos) {
         leakFor(elapsedNanos);
-        if (bucket.capacityFree() >= txLimit) {
+        if (bucket.brimfulCapacityFree() >= txLimit) {
             bucket.useCapacity(txLimit);
             lastAllowedUnits += txLimit;
             return true;
@@ -66,7 +66,7 @@ public class LeakyBucketThrottle {
     }
 
     long capacityFree() {
-        return bucket.capacityFree();
+        return bucket.brimfulCapacityFree();
     }
 
     /**
@@ -77,7 +77,7 @@ public class LeakyBucketThrottle {
      * @return the percent of the bucket that is used
      */
     double percentUsed(final long givenElapsedNanos) {
-        return 100.0 * capacityUsed(givenElapsedNanos) / bucket.totalCapacity();
+        return 100.0 * capacityUsed(givenElapsedNanos) / bucket.brimfulCapacity();
     }
 
     /**
@@ -88,7 +88,7 @@ public class LeakyBucketThrottle {
      * @return the free capacity of the bucket
      */
     long capacityFree(final long givenElapsedNanos) {
-        return bucket.totalCapacity() - capacityUsed(givenElapsedNanos);
+        return bucket.brimfulCapacity() - capacityUsed(givenElapsedNanos);
     }
 
     /**
@@ -109,7 +109,7 @@ public class LeakyBucketThrottle {
      * @return the percent of the bucket that is used
      */
     double instantaneousPercentUsed() {
-        return 100.0 * bucket.capacityUsed() / bucket.totalCapacity();
+        return 100.0 * bucket.capacityUsed() / bucket.brimfulCapacity();
     }
 
     /**
@@ -120,7 +120,7 @@ public class LeakyBucketThrottle {
      */
     public long freeToUsedRatio() {
         final var used = bucket.capacityUsed();
-        return (used == 0) ? Long.MAX_VALUE : bucket.capacityFree() / used;
+        return (used == 0) ? Long.MAX_VALUE : bucket.brimfulCapacityFree() / used;
     }
 
     void resetLastAllowedUse() {
@@ -143,11 +143,11 @@ public class LeakyBucketThrottle {
 
     private long effectiveLeak(final long elapsedNanos) {
         if (elapsedNanos >= TIME_TO_EMPTY) {
-            return bucket.totalCapacity();
+            return bucket.brimfulCapacity();
         } else {
-            return productWouldOverflow(elapsedNanos, bucket.totalCapacity())
+            return productWouldOverflow(elapsedNanos, bucket.brimfulCapacity())
                     ? Long.MAX_VALUE / TIME_TO_EMPTY
-                    : elapsedNanos * bucket.totalCapacity() / burstSeconds / TIME_TO_EMPTY;
+                    : elapsedNanos * bucket.brimfulCapacity() / burstSeconds / TIME_TO_EMPTY;
         }
     }
 }
