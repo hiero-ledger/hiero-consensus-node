@@ -2,103 +2,42 @@
 package com.swirlds.metrics.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class IntegerGaugeConfigTest {
+class IntegerGaugeConfigTest extends BaseConfigTest<IntegerGauge.Config> {
 
-    private static final String DEFAULT_FORMAT = "%d";
-
-    private static final String CATEGORY = "CaTeGoRy";
-    private static final String NAME = "NaMe";
-    private static final String DESCRIPTION = "DeScRiPtIoN";
-    private static final String UNIT = "UnIt";
-    private static final String FORMAT = "FoRmAt";
+    @Override
+    protected IntegerGauge.Config create(String category, String name) {
+        return new IntegerGauge.Config(category, name);
+    }
 
     @Test
-    @DisplayName("Constructor should store values")
-    void testConstructor() {
+    @DisplayName("Constructor initializes custom fields")
+    void testConstructorCustomFields() {
         // when
-        final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME);
+        final IntegerGauge.Config config = createBase();
 
         // then
-        assertThat(config.getCategory()).isEqualTo(CATEGORY);
-        assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
+        assertThat(config.getFormat()).isEqualTo(MetricConfig.NUMBER_FORMAT);
         assertThat(config.getInitialValue()).isZero();
     }
 
     @Test
-    @DisplayName("Constructor should throw IAE when passing illegal parameters")
-    void testConstructorWithIllegalParameter() {
-        assertThatThrownBy(() -> new IntegerGauge.Config(null, NAME)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IntegerGauge.Config("", NAME)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new IntegerGauge.Config(" \t\n", NAME)).isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("Custom setters store values")
+    void testCustomSetters() {
+        // given
+        final IntegerGauge.Config config = createBase().withInitialValue(42);
 
-        assertThatThrownBy(() -> new IntegerGauge.Config(CATEGORY, null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IntegerGauge.Config(CATEGORY, "")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new IntegerGauge.Config(CATEGORY, " \t\n"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(config.getInitialValue()).isEqualTo(42);
     }
 
     @Test
-    void testSetters() {
+    @DisplayName("toString contains custom values")
+    void testToStringCustom() {
         // given
-        final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME);
-
-        // when
-        final IntegerGauge.Config result = config.withDescription(DESCRIPTION)
-                .withUnit(UNIT)
-                .withFormat(FORMAT)
-                .withInitialValue(42);
-
-        // then
-        assertThat(config.getCategory()).isEqualTo(CATEGORY);
-        assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
-        assertThat(config.getInitialValue()).isZero();
-
-        assertThat(result.getCategory()).isEqualTo(CATEGORY);
-        assertThat(result.getName()).isEqualTo(NAME);
-        assertThat(result.getDescription()).isEqualTo(DESCRIPTION);
-        assertThat(result.getUnit()).isEqualTo(UNIT);
-        assertThat(result.getFormat()).isEqualTo(FORMAT);
-        assertThat(result.getInitialValue()).isEqualTo(42);
-    }
-
-    @Test
-    void testSettersWithIllegalParameters() {
-        // given
-        final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME);
-        final String longDescription = DESCRIPTION.repeat(50);
-
-        // then
-        assertThatThrownBy(() -> config.withDescription(null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> config.withDescription("")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> config.withDescription(" \t\n")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> config.withDescription(longDescription)).isInstanceOf(IllegalArgumentException.class);
-
-        assertThatThrownBy(() -> config.withUnit(null)).isInstanceOf(NullPointerException.class);
-
-        assertThatThrownBy(() -> config.withFormat(null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> config.withFormat("")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> config.withFormat(" \t\n")).isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void testToString() {
-        // given
-        final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME)
-                .withDescription(DESCRIPTION)
-                .withUnit(UNIT)
-                .withFormat(FORMAT)
-                .withInitialValue(42);
+        final IntegerGauge.Config config = createFull().withInitialValue(42);
 
         // then
         assertThat(config.toString()).contains(CATEGORY, NAME, DESCRIPTION, UNIT, FORMAT, "42");
