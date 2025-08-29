@@ -14,11 +14,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newAccountCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newBalanceCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newCurrencyTransferCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.newTokenTransferCapturer;
-import static com.hedera.services.yahcli.test.YahcliVerbs.yahcliAccounts;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newBalanceCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newCurrencyTransferCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newTokenTransferCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
