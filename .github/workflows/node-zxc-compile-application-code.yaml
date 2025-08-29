@@ -3,6 +3,16 @@ name: "ZXC: [Node] Compile Application Code"
 on:
   workflow_call:
     inputs:
+      use-mats-tag:
+        description: "Use MATS Tag for hapi tests"
+        type: boolean
+        required: false
+        default: false
+      mats-postfix:
+        description: "MATS Tag Postfix"
+        type: string
+        required: false
+        default: ""
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: boolean
@@ -298,7 +308,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-postfix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-postfix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-postfix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -23,9 +24,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 // Run this suite first in CI, since it assumes there are no NFTs in state at the beginning of the test
 @Order(Integer.MIN_VALUE)
+@Tag(MATS)
 public class UtilScalePricingCheck {
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
 

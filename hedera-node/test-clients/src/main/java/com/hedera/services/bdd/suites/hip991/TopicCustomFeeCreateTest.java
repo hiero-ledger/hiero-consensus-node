@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
@@ -61,6 +62,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @DisplayName("Topic custom fees")
@@ -294,6 +296,7 @@ public class TopicCustomFeeCreateTest extends TopicCustomFeeBase {
 
         @HapiTest
         @DisplayName("topic create with contract collector")
+        @Tag(MATS)
         final Stream<DynamicTest> topicWithContractCollector() {
             // TOPIC_FEE_019
             var mutableContract = "PayReceivable";

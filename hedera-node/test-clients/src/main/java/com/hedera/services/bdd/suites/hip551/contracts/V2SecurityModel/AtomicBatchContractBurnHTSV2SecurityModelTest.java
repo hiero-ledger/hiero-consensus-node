@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -77,6 +78,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchContractBurnHTSV2SecurityModelTest {
@@ -232,6 +234,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase4() {
         final var amountToBurn = 5L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -702,6 +705,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2SecurityBurnTokenWithFullPrefixAndPartialPrefixKeys() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> fungibleAddress2 = new AtomicReference<>();

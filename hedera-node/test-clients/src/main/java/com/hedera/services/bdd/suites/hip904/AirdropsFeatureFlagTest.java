@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -35,6 +36,7 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests expected behavior when the {@code "entities.unlimitedAutoAssociationsEnabled"} feature flag is toggled
@@ -44,6 +46,7 @@ public class AirdropsFeatureFlagTest {
     @LeakyHapiTest(
             requirement = PROPERTY_OVERRIDES,
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    @Tag(MATS)
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
         final var hollowAccountKey = "hollowAccountKey";
         final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();

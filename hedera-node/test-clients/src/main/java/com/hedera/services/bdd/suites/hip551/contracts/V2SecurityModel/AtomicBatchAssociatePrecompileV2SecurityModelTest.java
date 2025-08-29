@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator.ASSOCIATE_ONE;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
@@ -363,6 +365,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nestedAssociateNftAndNonFungibleTokens() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
@@ -492,6 +495,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tokenAssociateFromStaticcallAndCallcode() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();

@@ -91,14 +91,24 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -163,6 +173,91 @@ public class HandleWorkflow {
     private boolean checkedForTransplant;
     // Flag whether the 0.65 system account cleanup has been done; can be removed after that release
     private boolean systemAccountCleanupDone;
+
+    private static final String TEST_MAP_PATH =
+            "/Users/matthess/Downloads/repo/hedera-services/hedera-node/test-clients/src/test_map.txt";
+    private static final String PROJECT_ROOT = "/Users/matthess/Downloads/repo/hedera-services/hedera-node/";
+
+    public static void main(String[] args) throws IOException {
+        Map<String, List<String>> fileTests = parseTestMap(TEST_MAP_PATH);
+        for (Map.Entry<String, List<String>> entry : fileTests.entrySet()) {
+            String fileName = entry.getKey();
+            List<String> testNames = entry.getValue();
+            Path filePath = findFile(PROJECT_ROOT, fileName);
+            if (filePath == null) {
+                System.out.println("File not found: " + fileName);
+                continue;
+            }
+            List<String> lines = Files.readAllLines(filePath);
+            lines = insertImports(lines);
+            lines = annotateTests(lines, testNames);
+            Files.write(filePath, lines);
+            System.out.println("Updated: " + filePath);
+        }
+    }
+
+    private static Map<String, List<String>> parseTestMap(String path) throws IOException {
+        Map<String, List<String>> map = new LinkedHashMap<>();
+        List<String> lines = Files.readAllLines(Paths.get(path));
+        String currentFile = null;
+        for (String line : lines) {
+            if (!line.trim().isEmpty() && !line.startsWith(" ")) {
+                currentFile = line.trim();
+                map.put(currentFile, new ArrayList<>());
+            } else if (currentFile != null && line.contains("Stream<DynamicTest>")) {
+                String testName = line.replaceAll(".*Stream<DynamicTest>\\s*([a-zA-Z0-9_]+).*", "$1")
+                        .trim();
+                map.get(currentFile).add(testName);
+            }
+        }
+        return map;
+    }
+
+    private static Path findFile(String root, String fileName) throws IOException {
+        try (Stream<Path> files = Files.walk(Paths.get(root))) {
+            return files.filter(p -> p.getFileName().toString().equals(fileName))
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private static List<String> insertImports(List<String> lines) {
+        boolean hasTagImport = lines.stream().anyMatch(l -> l.contains("import org.junit.jupiter.api.Tag;"));
+        boolean hasMatsImport =
+                lines.stream().anyMatch(l -> l.contains("import static com.hedera.services.bdd.junit.TestTags.MATS;"));
+        if (hasTagImport && hasMatsImport) return lines;
+
+        int lastImportIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).startsWith("import ")) lastImportIdx = i;
+        }
+        List<String> newLines = new ArrayList<>(lines);
+        int insertIdx = lastImportIdx + 1;
+        if (!hasTagImport) newLines.add(insertIdx++, "import org.junit.jupiter.api.Tag;");
+        if (!hasMatsImport) newLines.add(insertIdx, "import static com.hedera.services.bdd.junit.TestTags.MATS;");
+        return newLines;
+    }
+
+    private static List<String> annotateTests(List<String> lines, List<String> testNames) {
+        Pattern methodPattern = Pattern.compile("^.*Stream<DynamicTest>\\s+([a-zA-Z0-9_]+)\\s*\\(");
+        Set<String> testSet = new HashSet<>(testNames);
+        List<String> newLines = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            Matcher m = methodPattern.matcher(line);
+            if (m.find() && testSet.contains(m.group(1))) {
+                if (i > 0 && lines.get(i - 1).contains("@Tag(MATS)")) {
+                    newLines.add(line);
+                } else {
+                    newLines.add("@Tag(MATS)");
+                    newLines.add(line);
+                }
+            } else {
+                newLines.add(line);
+            }
+        }
+        return newLines;
+    }
 
     @Inject
     public HandleWorkflow(

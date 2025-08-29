@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class FileCreateSuite {
     @HapiTest
@@ -84,6 +86,7 @@ public class FileCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(submitModified(
                 withSuccessivelyVariedBodyIds(), () -> fileCreate("file").contents("ABC")));
@@ -192,6 +195,7 @@ public class FileCreateSuite {
      * parsed as the expected protobuf messages.
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> fetchFiles() {
         return customHapiSpec("FetchFiles")
                 .withProperties(Map.of(

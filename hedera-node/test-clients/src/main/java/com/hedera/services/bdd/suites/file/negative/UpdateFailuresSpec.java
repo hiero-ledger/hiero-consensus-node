@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.negative;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -32,6 +33,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class UpdateFailuresSpec {
 
@@ -59,6 +61,7 @@ public class UpdateFailuresSpec {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> precheckRejectsUnauthorized() {
         // this test is to verify that the system files cannot be updated without privileged account
         return hapiTest(
@@ -72,6 +75,7 @@ public class UpdateFailuresSpec {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> precheckAllowsMissing() {
         return hapiTest(fileUpdate("1.2.3")
                 .payingWith(GENESIS)

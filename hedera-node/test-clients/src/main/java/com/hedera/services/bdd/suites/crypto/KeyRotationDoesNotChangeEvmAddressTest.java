@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -51,6 +52,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 public class KeyRotationDoesNotChangeEvmAddressTest {
@@ -111,6 +113,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
     */
     @Order(2)
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(
@@ -182,6 +185,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
      */
     @Order(3)
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(UtilStateChange.ECKind.EXPLICIT_ALIAS, UtilStateChange.ECKind.EXPLICIT_ALIAS.name());
