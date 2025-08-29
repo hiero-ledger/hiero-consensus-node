@@ -4,7 +4,6 @@ package com.hedera.services.yahcli.test.bdd;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.yahcli.test.YahcliVerbs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
