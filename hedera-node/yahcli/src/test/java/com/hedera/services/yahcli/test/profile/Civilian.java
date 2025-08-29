@@ -4,7 +4,7 @@ package com.hedera.services.yahcli.test.profile;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.yahcli.test.YahcliVerbs.asYcDefaultNetworkKey;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetworkKey;
 
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
@@ -13,6 +13,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ *  Represents a civilian profile with no special permissions
+ */
 public record Civilian(String suffix, long initialBalance) implements KnownProfileDefinition {
     // Default civilian profile
     public static final KnownProfileDefinition CIVILIAN = new Civilian();
