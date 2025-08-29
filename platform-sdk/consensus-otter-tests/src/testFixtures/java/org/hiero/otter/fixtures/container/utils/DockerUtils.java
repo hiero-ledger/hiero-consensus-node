@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container.utils;
-
 
 import com.github.dockerjava.api.model.ContainerNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,7 +18,8 @@ public class DockerUtils {
      * @param network the network the container is connected to
      * @return the IP address of a container
      */
-    public static String getNetworkIpAddress(@NonNull final GenericContainer<?> container, @NonNull final Network network) {
+    public static String getNetworkIpAddress(
+            @NonNull final GenericContainer<?> container, @NonNull final Network network) {
         final Map<String, ContainerNetwork> networks =
                 container.getContainerInfo().getNetworkSettings().getNetworks();
         return networks.values().stream()
@@ -27,5 +28,4 @@ public class DockerUtils {
                 .map(ContainerNetwork::getIpAddress)
                 .orElseThrow();
     }
-
 }

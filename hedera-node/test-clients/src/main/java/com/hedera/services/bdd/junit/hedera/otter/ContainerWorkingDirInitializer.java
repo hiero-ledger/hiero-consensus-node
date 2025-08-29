@@ -40,9 +40,7 @@ public class ContainerWorkingDirInitializer {
     private final String configTxt;
 
     public ContainerWorkingDirInitializer(
-            @NonNull final ContainerNode node,
-            @NonNull final Path workingDir,
-            @NonNull final String configTxt) {
+            @NonNull final ContainerNode node, @NonNull final Path workingDir, @NonNull final String configTxt) {
         this.container = requireNonNull(node.container());
         this.overriddenProperties = requireNonNull(node.configuration().overriddenProperties());
         this.workingDir = requireNonNull(workingDir);
@@ -107,8 +105,7 @@ public class ContainerWorkingDirInitializer {
         try {
             final String containerPath = path.toString();
             final ExecResult result = container.execInContainer(
-                    "sh", "-c",
-                    String.format("printf '%%s' '%s' > %s", content, containerPath));
+                    "sh", "-c", String.format("printf '%%s' '%s' > %s", content, containerPath));
             if (result.getExitCode() != 0) {
                 throw new IOException("Failed to write to path: " + containerPath + "\n" + result.getStderr());
             }
@@ -125,12 +122,10 @@ public class ContainerWorkingDirInitializer {
             // Create the file directly in the container with proper ownership from the start
             final String containerPath = target.toString();
             final ExecResult result = container.execInContainer(
-                    "sh", "-c",
-                    String.format("printf '%%s' '%s' > %s", content, containerPath));
+                    "sh", "-c", String.format("printf '%%s' '%s' > %s", content, containerPath));
 
             if (result.getExitCode() != 0) {
-                throw new IOException(
-                        "Failed to create file in container: " + source + "\n" + result.getStderr());
+                throw new IOException("Failed to create file in container: " + source + "\n" + result.getStderr());
             }
         } catch (final IOException | InterruptedException e) {
             throw new UncheckedIOException(new IOException("Error copying file to container", e));
@@ -149,7 +144,8 @@ public class ContainerWorkingDirInitializer {
                                     .resolve(CONFIG_FOLDER)
                                     .resolve(file.getFileName().toString()));
                 } else {
-                    copyToContainerUnchecked(file, workingDir.resolve(file.getFileName().toString()));
+                    copyToContainerUnchecked(
+                            file, workingDir.resolve(file.getFileName().toString()));
                 }
             });
         } catch (final IOException e) {
@@ -158,8 +154,10 @@ public class ContainerWorkingDirInitializer {
     }
 
     private void updateApplicationProperties() {
-        updateApplicationProperty("hedera.recordStream.logDir", workingDir.resolve("recordStream").toString());
-        updateApplicationProperty("blockStream.blockFileDir", workingDir.resolve("blockStreams").toString());
+        updateApplicationProperty(
+                "hedera.recordStream.logDir", workingDir.resolve("recordStream").toString());
+        updateApplicationProperty(
+                "blockStream.blockFileDir", workingDir.resolve("blockStreams").toString());
     }
 
     private void updateApplicationProperty(@NonNull final String key, @NonNull final String value) {
@@ -170,7 +168,8 @@ public class ContainerWorkingDirInitializer {
                     .resolve("application.properties")
                     .toString();
             final String update = key + "=" + value;
-            final ExecResult result = container.execInContainer("sh", "-c", String.format("printf '%%s\\n' '%s' >> %s", update, containerPath));
+            final ExecResult result = container.execInContainer(
+                    "sh", "-c", String.format("printf '%%s\\n' '%s' >> %s", update, containerPath));
             if (result.getExitCode() != 0) {
                 throw new IOException("Failed to add property: " + update + "\n" + result.getStderr());
             }
@@ -179,7 +178,8 @@ public class ContainerWorkingDirInitializer {
         }
     }
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
 
     private void updatePlatformProperties() {
         try {
@@ -188,16 +188,17 @@ public class ContainerWorkingDirInitializer {
                 final String key = entry.getKey();
                 final String topLevel = key.substring(0, key.indexOf('.'));
                 final String remainder = key.substring(key.indexOf('.') + 1);
-                final Map<String, Object> subValue = hierarchicalProperties.computeIfAbsent(topLevel, k -> new HashMap<>());
+                final Map<String, Object> subValue =
+                        hierarchicalProperties.computeIfAbsent(topLevel, k -> new HashMap<>());
                 subValue.put(remainder, OBJECT_MAPPER.readTree(entry.getValue()));
             }
 
-            final Path path = workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve("node-overrides.yaml");
+            final Path path =
+                    workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve("node-overrides.yaml");
             final String result = OBJECT_MAPPER.writeValueAsString(hierarchicalProperties);
             writeStringUnchecked(path, result);
         } catch (final JsonProcessingException e) {
             throw new UncheckedIOException(new IOException("Error updating platform property in container", e));
         }
     }
-
 }

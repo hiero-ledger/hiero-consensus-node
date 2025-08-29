@@ -48,7 +48,9 @@ public class OtterFactory {
     public static OtterContainerNetwork createContainerNetwork(@NonNull final String networkName, final int nodeCount) {
         final ContainerTestEnvironment env = new ContainerTestEnvironment();
         final Network network = env.network();
-        final List<ContainerNode> nodes = network.addNodes(nodeCount).stream().map(node -> (ContainerNode) node).toList();
+        final List<ContainerNode> nodes = network.addNodes(nodeCount).stream()
+                .map(node -> (ContainerNode) node)
+                .toList();
         final Roster roster = network.roster();
         final List<HederaNode> hederaNodes =
                 nodes.stream().map(OtterFactory::createContainerNode).toList();

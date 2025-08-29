@@ -60,7 +60,8 @@ public class OtterContainerNode extends AbstractNode implements HederaNode {
 
     @Override
     public HederaNode start() {
-        activeFuture.computeIfAbsent(PlatformStatus.ACTIVE, status -> CompletableFuture.runAsync(node::start, executor));
+        activeFuture.computeIfAbsent(
+                PlatformStatus.ACTIVE, status -> CompletableFuture.runAsync(node::start, executor));
         return this;
     }
 

@@ -162,7 +162,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                         return true;
                     }
                 }
-                if (! watchKey.reset()) {
+                if (!watchKey.reset()) {
                     return false;
                 }
             }

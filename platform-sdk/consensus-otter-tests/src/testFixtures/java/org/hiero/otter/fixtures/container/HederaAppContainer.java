@@ -59,7 +59,14 @@ public class HederaAppContainer extends GenericContainer<HederaAppContainer> {
         final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
         final int prometheusPort = prometheusConfig.endpointPortNumber();
 
-        addExposedPorts(CONTAINER_CONTROL_PORT, grpcPort, grpcTlsPort, nodeOperatorPort, workflowsPort, workflowsTlsPort, prometheusPort);
+        addExposedPorts(
+                CONTAINER_CONTROL_PORT,
+                grpcPort,
+                grpcTlsPort,
+                nodeOperatorPort,
+                workflowsPort,
+                workflowsTlsPort,
+                prometheusPort);
         this.waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, containerControlDebugPort));
 
         withEnv("JAVA_TOOL_OPTIONS", getJavaToolOptions(containerControlDebugPort));

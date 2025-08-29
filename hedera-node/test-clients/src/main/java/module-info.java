@@ -110,6 +110,7 @@ open module com.hedera.node.test.clients {
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.dockerjava.api;
     requires com.google.common;
     requires com.google.protobuf;
@@ -140,7 +141,6 @@ open module com.hedera.node.test.clients {
     requires org.yaml.snakeyaml;
     requires tuweni.bytes;
     requires tuweni.units;
-    requires com.fasterxml.jackson.dataformat.yaml;
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;

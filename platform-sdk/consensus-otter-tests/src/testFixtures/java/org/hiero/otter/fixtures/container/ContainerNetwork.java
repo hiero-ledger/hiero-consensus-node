@@ -86,7 +86,8 @@ public class ContainerNetwork extends AbstractNetwork {
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
-                .withDockerfile(Path.of("..", "..", "platform-sdk", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+                .withDockerfile(Path.of(
+                        "..", "..", "platform-sdk", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
         transactionGenerator.setNodesSupplier(topology::nodes);
     }
 
@@ -106,7 +107,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
         throw new UnsupportedOperationException("Freeze transactions are not supported in the container environment.");
-//        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+        //        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -160,8 +161,10 @@ public class ContainerNetwork extends AbstractNetwork {
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
 
-        // Something failed when trying to use domain names, thus we replace the alias with the internal IP address of the container
-        final List<RosterEntry> mappedEndpoints = newNodes.stream().map(node -> mapRosterEntry(node, roster)).toList();
+        // Something failed when trying to use domain names, thus we replace the alias with the internal IP address of
+        // the container
+        final List<RosterEntry> mappedEndpoints =
+                newNodes.stream().map(node -> mapRosterEntry(node, roster)).toList();
         roster = Roster.newBuilder().rosterEntries(mappedEndpoints).build();
 
         // set up the toxiproxy container and network behavior
@@ -183,8 +186,12 @@ public class ContainerNetwork extends AbstractNetwork {
     }
 
     private RosterEntry mapRosterEntry(@NonNull final ContainerNode node, @NonNull final Roster roster) {
-        final ServiceEndpoint endpoint = ServiceEndpoint.newBuilder().domainName(DockerUtils.getNetworkIpAddress(node.container(), network)).port(GOSSIP_PORT).build();
-        final RosterEntry oldEntry = RosterUtils.getRosterEntry(roster, node.selfId().id());
+        final ServiceEndpoint endpoint = ServiceEndpoint.newBuilder()
+                .domainName(DockerUtils.getNetworkIpAddress(node.container(), network))
+                .port(GOSSIP_PORT)
+                .build();
+        final RosterEntry oldEntry =
+                RosterUtils.getRosterEntry(roster, node.selfId().id());
         return oldEntry.copyBuilder().gossipEndpoint(endpoint).build();
     }
 

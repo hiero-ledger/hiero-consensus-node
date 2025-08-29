@@ -61,9 +61,7 @@ tasks.register<Sync>("copyDockerizedApp") {
         rename { "DockerApp.jar" }
     }
     into("lib") { from(configurations.testFixturesRuntimeClasspath) }
-    into("apps") {
-        from("../../hedera-node/data/apps/HederaNode.jar")
-    }
+    into("apps") { from("../../hedera-node/data/apps/HederaNode.jar") }
     into("lib") {
         from("../../hedera-node/data/lib")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
