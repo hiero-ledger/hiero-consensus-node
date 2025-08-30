@@ -14,7 +14,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -25,7 +25,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -36,7 +36,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -47,7 +47,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -58,7 +58,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -69,7 +69,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -80,7 +80,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 18
+            cpu: 22
             memory: 256Gi
           limits:
             cpu: 22
@@ -90,39 +90,39 @@ defaults:
     recordStreamUploader:
       resources:
         requests:
-          cpu: 500m
-          memory: 375Mi
+          cpu: 2000m
+          memory: 750Mi
         limits:
-          cpu: 1000m
+          cpu: 2000m
           memory: 750Mi
     eventStreamUploader:
       resources:
         requests:
-          cpu: 500m
-          memory: 375Mi
+          cpu: 2000m
+          memory: 750Mi
         limits:
-          cpu: 1000m
+          cpu: 2000m
           memory: 750Mi
     recordStreamSidecarUploader:
       resources:
         requests:
-          cpu: 500m
-          memory: 375Mi
+          cpu: 2000m
+          memory: 750Mi
         limits:
-          cpu: 1000m
+          cpu: 2000m
           memory: 750Mi
     blockstreamUploader:
       resources:
         requests:
-          cpu: 1000m
-          memory: 375Mi
+          cpu: 2000m
+          memory: 750Mi
         limits:
           cpu: 2000m
           memory: 750Mi
   root:
     resources:
       requests:
-        cpu: 18
+        cpu: 22
         memory: 256Gi
       limits:
         cpu: 22
@@ -224,3 +224,10 @@ envoyDeployment:
       operator: "Equal"
       value: "%NETWORK_ID%"
       effect: "NoSchedule"
+cheetah:
+  image:
+    tag: "0.3.4" # https://github.com/hashgraph/solo-cheetah/pkgs/container/solo-cheetah%2Fcheetah
+  maxProcessors: 10 # max number of concurrent processors for each pipeline
+  # whether cheetah should stop the pipelines if any error occurs; if false, it will continue with the expectation that the
+  # error may get fixed in the next run
+  stopOnError: false
