@@ -48,6 +48,7 @@ class RpcShadowgraphSynchronizerTest {
     private GossipRpcSender gossipSender;
     private RpcShadowgraphSynchronizer synchronizer;
     private StatusActionSubmitter statusSubmitter;
+    private Consumer<Double> lagReporter;
 
     @BeforeEach
     void testSetup() throws Exception {
@@ -81,6 +82,7 @@ class RpcShadowgraphSynchronizerTest {
 
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
+        this.lagReporter = mock(Consumer.class);
         this.synchronizer = new RpcShadowgraphSynchronizer(
                 platformContext,
                 NUM_NODES,
@@ -88,7 +90,8 @@ class RpcShadowgraphSynchronizerTest {
                 eventHandler,
                 fallenBehindManager,
                 new NoOpIntakeEventCounter(),
-                selfId);
+                selfId,
+                lagReporter);
 
         this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
     }
@@ -121,10 +124,37 @@ class RpcShadowgraphSynchronizerTest {
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(true);
         Mockito.verify(gossipSender).sendSyncData(any());
-        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 1000, 800), List.of()));
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of()));
+        Mockito.verify(lagReporter).accept(100.0);
         Mockito.verify(gossipSender).breakConversation();
         Mockito.verifyNoMoreInteractions(gossipSender);
         Mockito.verify(statusSubmitter).submitStatusAction(new FallenBehindAction());
+    }
+
+    @Test
+    void testMedianLag() {
+        for (int i = 2; i <= 5; i++) {
+            var otherNodeId = NodeId.of(i);
+            var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+            conversation.checkForPeriodicActions(true);
+            conversation.receiveSyncData(new SyncData(new EventWindow(20 + i, 20 + i, 10, 5), List.of()));
+            Mockito.verify(lagReporter).accept(21 + i / 2.0);
+        }
+    }
+
+    @Test
+    void testMedianLagDifferentOrder() {
+        for (int i = 5; i >= 2; i--) {
+            var otherNodeId = NodeId.of(i);
+            var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+            conversation.checkForPeriodicActions(true);
+            conversation.receiveSyncData(new SyncData(new EventWindow(20 + i, 20 + i, 10, 5), List.of()));
+            if (i != 2) {
+                Mockito.reset(lagReporter);
+            }
+        }
+
+        Mockito.verify(lagReporter).accept(23.5);
     }
 
     @Test
@@ -141,7 +171,7 @@ class RpcShadowgraphSynchronizerTest {
 
         // event if system is unhealthy, we need to finish sync
         assertTrue(conversation.checkForPeriodicActions(false));
-        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 1000, 800), List.of()));
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of()));
         Mockito.verify(gossipSender).breakConversation();
         Mockito.verify(statusSubmitter).submitStatusAction(new FallenBehindAction());
 
@@ -154,7 +184,7 @@ class RpcShadowgraphSynchronizerTest {
     void removeFallenBehind() {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
-        synchronizer.updateEventWindow(new EventWindow(100, 101, 1000, 800));
+        synchronizer.updateEventWindow(new EventWindow(100, 101, 10, 5));
         conversation.checkForPeriodicActions(true);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -167,7 +197,7 @@ class RpcShadowgraphSynchronizerTest {
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
         Mockito.verifyNoMoreInteractions(gossipSender);
         Mockito.clearInvocations(gossipSender);
-        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 1000, 800), List.of()));
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of()));
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(true);
         Mockito.verify(gossipSender).sendSyncData(any());
