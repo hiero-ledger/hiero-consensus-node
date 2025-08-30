@@ -88,7 +88,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
@@ -134,23 +133,15 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     // indices globally, assuming these indices do not change that often. We need to re-think index lookup,
     // but at this point all major rewrites seem to risky.
     private static final Map<String, Integer> INDEX_LOOKUP = new ConcurrentHashMap<>();
-    private LongSupplier roundSupplier;
-
-    private MerkleCryptography merkleCryptography;
-    private Time time;
 
     public Map<String, Map<String, StateMetadata<?, ?>>> getServices() {
         return services;
     }
 
-    private Configuration configuration;
-
-    private Metrics metrics;
-
     /**
      * Metrics for the snapshot creation process
      */
-    private MerkleRootSnapshotMetrics snapshotMetrics = new MerkleRootSnapshotMetrics();
+    private final MerkleRootSnapshotMetrics snapshotMetrics;
 
     /**
      * Maintains information about each service, and each state of each service, known by this
@@ -177,6 +168,13 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     private final RuntimeObjectRecord registryRecord;
 
+    private final Configuration configuration;
+
+    private final Metrics metrics;
+
+    private final Time time;
+
+    private final MerkleCryptography merkleCryptography;
     /**
      * Used to track the status of the Platform.
      * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
@@ -185,24 +183,18 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
     /**
      * Create a new instance. This constructor must be used for all creations of this class.
-     *
      */
-    public MerkleStateRoot() {
+    public MerkleStateRoot(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final MerkleCryptography merkleCryptography) {
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
-    }
-
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
-        this.time = time;
-        this.configuration = configuration;
-        this.metrics = metrics;
-        this.merkleCryptography = merkleCryptography;
-        this.roundSupplier = roundSupplier;
-        snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
+        this.configuration = requireNonNull(configuration);
+        this.metrics = requireNonNull(metrics);
+        this.time = requireNonNull(time);
+        this.merkleCryptography = requireNonNull(merkleCryptography);
+        this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
     /**
@@ -214,8 +206,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
+        this.configuration = from.configuration;
+        this.metrics = from.metrics;
+        this.time = from.time;
+        this.merkleCryptography = from.merkleCryptography;
+        this.snapshotMetrics = new MerkleRootSnapshotMetrics(from.metrics);
         this.listeners.addAll(from.listeners);
-        this.roundSupplier = from.roundSupplier;
         this.startupMode = from.startupMode;
 
         // Copy over the metadata
@@ -233,6 +229,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             }
         }
     }
+
+    protected abstract long getRound();
 
     public void disableStartupMode() {
         startupMode = false;
@@ -959,7 +957,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         throwIfMutable();
         throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, roundSupplier.getAsLong());
+        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, getRound());
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 

@@ -12,12 +12,17 @@ package com.swirlds.demo.iss;
  */
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
-import com.swirlds.common.context.PlatformContext;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -81,19 +86,11 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
     public ISSTestingToolState() {
-        // no-op
+        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
-
-        final PlatformContext platformContext = platform.getContext();
-        super.init(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis
         if (trigger == InitTrigger.GENESIS) {
@@ -191,6 +188,12 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         throwIfImmutable();
         setImmutable(true);
         return new ISSTestingToolState(this);
+    }
+
+    @Override
+    protected long getRound() {
+        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
+        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
     }
 
     /**

@@ -117,13 +117,13 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(platformConfig, metrics, time, genesisRoster, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
-                OtterAppState::new);
+                virtualMap -> new OtterAppState(virtualMap, platformConfig, metrics, time));
         final ReservedSignedState initialState = reservedState.state();
 
         final MerkleNodeState state = initialState.get().getState();
@@ -139,7 +139,7 @@ public class ConsensusNodeManager {
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade,
-                        OtterAppState::new)
+                        virtualMap -> new OtterAppState(virtualMap, platformConfig, metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

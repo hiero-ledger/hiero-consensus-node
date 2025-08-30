@@ -2,6 +2,7 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,17 +10,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
@@ -202,26 +200,8 @@ class SerializationTest extends MerkleTestBase {
     @Test
     void snapshot() throws IOException {
         final var schemaV1 = createV1Schema();
-        final var originalTree = createMerkleHederaState(schemaV1);
+        final var originalTree = (TestHederaVirtualMapState) createMerkleHederaState(schemaV1);
         final var tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
-        final var configBuilder = new TestConfigBuilder()
-                .withValue(StateConfig_.SIGNED_STATE_DISK, 1)
-                .withValue(
-                        StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        tempDir.toFile().toString());
-        final PlatformContext context = TestPlatformContextBuilder.create()
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .withTime(new FakeTime())
-                .build();
-
-        originalTree.init(
-                context.getTime(),
-                context.getConfiguration(),
-                context.getMetrics(),
-                context.getMerkleCryptography(),
-                () -> TEST_PLATFORM_STATE_FACADE
-                        .consensusSnapshotOf(originalTree)
-                        .round());
 
         // prepare the tree and create a snapshot
         originalTree.copy().release();
@@ -286,7 +266,8 @@ class SerializationTest extends MerkleTestBase {
 
     private TestHederaVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
         final VirtualMap virtualMap = parseTree(serializedBytes, dir);
-        final TestHederaVirtualMapState loadedTree = new TestHederaVirtualMapState(virtualMap);
+        final TestHederaVirtualMapState loadedTree =
+                new TestHederaVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         initServices(schemaV1, loadedTree);
 
         return loadedTree;

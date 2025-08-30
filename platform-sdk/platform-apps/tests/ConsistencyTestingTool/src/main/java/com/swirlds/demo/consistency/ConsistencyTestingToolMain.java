@@ -5,6 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
@@ -110,7 +113,8 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      * </p>
      */
     @Override
-    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
+            @NonNull Configuration configuration, @NonNull Metrics metrics, @NonNull Time time) {
         throw new UnsupportedOperationException();
     }
 

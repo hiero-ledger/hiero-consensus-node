@@ -148,13 +148,17 @@ class StateFileManagerTests {
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
         MerkleDb.resetDefaultInstancePath();
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readStateFile(
                 stateFile,
-                TestHederaVirtualMapState::new,
+                virtualMap -> new TestHederaVirtualMapState(
+                        virtualMap,
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime()),
                 TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
+                platformContext);
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
@@ -354,16 +358,21 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
-                    Configuration configuration =
-                            TestPlatformContextBuilder.create().build().getConfiguration();
+                    PlatformContext platformContext =
+                            TestPlatformContextBuilder.create().build();
+                    Configuration configuration = platformContext.getConfiguration();
                     // Restore to a new MerkleDb instance
                     MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            TestHederaVirtualMapState::new,
+                                            virtualMap -> new TestHederaVirtualMapState(
+                                                    virtualMap,
+                                                    platformContext.getConfiguration(),
+                                                    platformContext.getMetrics(),
+                                                    platformContext.getTime()),
                                             TEST_PLATFORM_STATE_FACADE,
-                                            PlatformContext.create(configuration))
+                                            platformContext)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -85,9 +85,8 @@ class MerkleStateRootTest extends MerkleTestBase {
         setupConstructableRegistry();
         registerMerkleStateRootClassIds();
         setupFruitMerkleMap();
-        stateRoot = new TestMerkleStateRoot();
-        stateRoot.init(
-                new FakeTime(), CONFIGURATION, new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+        stateRoot = new TestMerkleStateRoot(
+                CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
     }
 
     /** Looks for a merkle node with the given label */
@@ -885,7 +884,6 @@ class MerkleStateRootTest extends MerkleTestBase {
             merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()
                     .withConfigDataType(CryptoConfig.class)
                     .build());
-            stateRoot.init(new FakeTime(), CONFIGURATION, new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
         }
 
         @Test

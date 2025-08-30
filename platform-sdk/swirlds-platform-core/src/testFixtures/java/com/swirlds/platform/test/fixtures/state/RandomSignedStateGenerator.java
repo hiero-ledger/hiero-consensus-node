@@ -18,7 +18,6 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
@@ -157,14 +156,10 @@ public class RandomSignedStateGenerator {
             } else {
                 final String virtualMapLabel =
                         "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-                stateInstance = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+
+                stateInstance = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(
+                        virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
             }
-            stateInstance.init(
-                    Time.getCurrent(),
-                    CONFIGURATION,
-                    new NoOpMetrics(),
-                    TestMerkleCryptoFactory.getInstance(),
-                    () -> platformStateFacade.roundOf(stateInstance));
         } else {
             stateInstance = state;
         }
@@ -245,7 +240,6 @@ public class RandomSignedStateGenerator {
                 deleteOnBackgroundThread,
                 pcesRound,
                 platformStateFacade);
-        signedState.init(PlatformContext.create(configuration));
 
         if (calculateHash) {
             TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
