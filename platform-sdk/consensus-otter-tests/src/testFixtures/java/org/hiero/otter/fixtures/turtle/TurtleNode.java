@@ -36,7 +36,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -103,7 +103,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformWiring platformWiring;
+    private PlatformComponents platformComponents;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -342,7 +342,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             platformStatus = null;
             platform = null;
-            platformWiring = null;
+            platformComponents = null;
             model = null;
         }
         lifeCycle = SHUTDOWN;
@@ -428,14 +428,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withMetricsDocumentationEnabled(false)
                 .withGossip(network.getGossipInstance(legacyNodeId));
 
-        platformWiring = platformBuildingBlocks.platformWiring();
+        platformComponents = platformBuildingBlocks.platformComponents();
 
-        platformWiring
-                .getConsensusEngineOutputWire()
+        platformComponents
+                .consensusEngineWiring()
+                .consensusRoundsOutputWire()
                 .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
-        platformWiring
-                .getStatusStateMachineOutputWire()
+        platformComponents
+                .statusStateMachineWiring()
+                .getOutputWire()
                 .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
         InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
