@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"int256","name":"n","type":"int256"}],"name":"repeatedKeccak256","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"pure","type":"function"}]

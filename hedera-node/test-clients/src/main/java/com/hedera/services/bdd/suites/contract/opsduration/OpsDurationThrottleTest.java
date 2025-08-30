@@ -3,16 +3,23 @@ package com.hedera.services.bdd.suites.contract.opsduration;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.burstIncreasesThroughputBy;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
@@ -20,8 +27,16 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.throttleUsagePercentageLessThreshold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.throttleUsagePercentageMoreThanThreshold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -59,6 +74,7 @@ public class OpsDurationThrottleTest {
     protected static final String DURATION_PERIOD = "10000";
     protected static final String SMALLER_DURATION_PERIOD = "10";
     protected static final String RUN_MULTI_DURATION_PERIOD = "10000000";
+    private static final String KECCAK_HASHER = "KeccakHasher";
 
     @AfterEach
     public void restABit() {
@@ -86,8 +102,7 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 450)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "run")
                                             .gas(200_000L)
-                                            .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 95.0));
@@ -154,8 +169,7 @@ public class OpsDurationThrottleTest {
                                                     receiverAddress,
                                                     BigInteger.ONE)
                                             .gas(200_000L)
-                                            .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 98.0));
@@ -225,8 +239,7 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 700)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "opsRun")
                                             .gas(400_000L)
-                                            .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 90.0));
@@ -272,8 +285,7 @@ public class OpsDurationThrottleTest {
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "opsRunRevert")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
-                                                    ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED, THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 98.0));
@@ -320,8 +332,7 @@ public class OpsDurationThrottleTest {
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "opsRunHalt")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
-                                                    ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED, THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 95.0));
@@ -367,8 +378,7 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 800)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "run")
                                             .gas(200_000L)
-                                            .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, THROTTLED_AT_CONSENSUS)
                                             .countingSuccessfulTransactionTo(preSuccessCounter)))
                                     .toArray(HapiSpecOperation[]::new)));
                     overriding(OPS_DURATION_COUNTER_BURST_SECONDS, "2");
@@ -377,8 +387,7 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 800)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_COUNTER, "run")
                                             .gas(200_000L)
-                                            .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, THROTTLED_AT_CONSENSUS)
                                             .countingSuccessfulTransactionTo(postSuccessCounter)))
                                     .toArray(HapiSpecOperation[]::new)));
                     burstIncreasesThroughputBy(preSuccessCounter.get(), postSuccessCounter.get(), 200L);
@@ -402,8 +411,39 @@ public class OpsDurationThrottleTest {
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                         contractCall(OPS_DURATION_COUNTER, "runMulti", BigInteger.valueOf(1000000000))
                                 .gas(10_000_000L)
-                                .hasKnownStatus(ResponseCodeEnum.THROTTLED_AT_CONSENSUS))),
+                                .hasKnownStatus(THROTTLED_AT_CONSENSUS))),
                 restoreDefault(OPS_DURATION_COUNTER_BURST_SECONDS),
+                restoreDefault(MAX_OPS_DURATION));
+    }
+
+    @HapiTest
+    @Order(13)
+    @DisplayName("reach ops duration with Ethereum transaction and ensure only intrinsic gas is charged")
+    public Stream<DynamicTest> opsDurationThrottleExceededChargeIntrinsicGas() {
+        return hapiTest(
+                uploadInitCode(KECCAK_HASHER),
+                contractCreate(KECCAK_HASHER).gas(2_000_000L),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, "true"),
+                overriding(MAX_OPS_DURATION, RUN_MULTI_DURATION_PERIOD),
+                withOpContext((spec, opLog) -> allRunFor(
+                                spec,
+                                ethereumCall(KECCAK_HASHER, "repeatedKeccak256", BigInteger.valueOf(24000L))
+                                        .type(EthTxData.EthTransactionType.EIP1559)
+                                        .signingWith(SECP_256K1_SOURCE_KEY)
+                                        .payingWith(RELAYER)
+                                        .nonce(0L)
+                                        .gasPrice(10L)
+                                        .gasLimit(15_000_000L)
+                                        .via("exhaustOpsDuration")
+                                        .hasKnownStatusFrom(THROTTLED_AT_CONSENSUS)))
+                        .logged(),
+                getTxnRecord("exhaustOpsDuration")
+                        .logged()
+                        .hasPriority(
+                                recordWith().contractCallResult(resultWith().gasUsed(21216))),
                 restoreDefault(MAX_OPS_DURATION));
     }
 }
