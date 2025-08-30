@@ -396,7 +396,9 @@ jobs:
                 mkdir -p /opt/hiero/block-node/logs;           \
                 mkdir -p /opt/hiero/block-node/logs/config;    \
                 export SERVER_PORT=40840;                      \
-                nohup java -Xms16G -Xmx16G -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
+                cd /opt/hiero/block-node; \
+                tar xf /tmp/blocknode.tar; \
+                nohup java -Xms16G -Xmx28G -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
                   --module org.hiero.block.node.app/org.hiero.block.node.app.BlockNodeApp >/opt/hiero/block-node/logs/block-node.log 2>&1 &"
           done
           sleep 30
