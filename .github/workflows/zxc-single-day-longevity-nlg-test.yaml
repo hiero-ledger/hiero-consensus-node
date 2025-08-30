@@ -376,13 +376,14 @@ jobs:
             NETWORK_OWNER="adhoc-longevity-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
-          
+          sed -i -e 's/cpu: 20/cpu: 8/g' -e 's/auxiliary-services/consensus-node/g' blocknode-values.yaml
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
-           helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+           helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
+             --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
           done
-          sleep 30
-          
+          sleep 180
+          wait
           
           BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
           
