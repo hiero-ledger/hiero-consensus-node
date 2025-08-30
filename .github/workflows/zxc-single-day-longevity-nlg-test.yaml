@@ -294,7 +294,7 @@ jobs:
           elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
             NETWORK_OWNER="multi-day-longevity-test"
           else
-            NETWORK_OWNER="adhoc-longevity-test"
+            NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
@@ -373,7 +373,7 @@ jobs:
           elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
             NETWORK_OWNER="multi-day-longevity-test"
           else
-            NETWORK_OWNER="adhoc-longevity-test"
+            NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
           sed -i -e 's/cpu: 20/cpu: 8/g' -e 's/auxiliary-services/consensus-node/g' blocknode-values.yaml
@@ -496,7 +496,7 @@ jobs:
           elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
             NETWORK_OWNER="multi-day-longevity-test"
           else
-            NETWORK_OWNER="adhoc-longevity-test"
+            NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
