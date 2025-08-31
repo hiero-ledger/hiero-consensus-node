@@ -143,7 +143,7 @@ jobs:
         run: |
           curdir="$(pwd)"
 
-          git clone git@github.com:mgarbs/big-apps-testing.git
+          git clone https://github.com/mgarbs/big-apps-testing.git
 
           echo "${curdir}"
           cd big-apps-testing
