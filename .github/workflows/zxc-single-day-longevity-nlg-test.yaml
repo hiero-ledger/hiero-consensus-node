@@ -49,15 +49,16 @@ on:
         default: false
         type: boolean
         description: "Algorithmic analysis"
+
+    secrets:
+      slack-report-webhook:
+        required: true
+        description: "Slack webhook for SDLT outputs notifications"
       perf_ghp:
         required: true
         default: ""
         type: string
         description: "Algorithmic analysis GHP"
-    secrets:
-      slack-report-webhook:
-        required: true
-        description: "Slack webhook for SDLT outputs notifications"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -117,7 +118,7 @@ jobs:
 
       - name: Checkout Perf Analysis
         run: |
-          git clone https://"{{ inputs.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
+          git clone https://"{{ secrets.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
           cd performance-analysis-automation
           git checkout fixes_Jul25
           cd "${{ github.workspace }}"

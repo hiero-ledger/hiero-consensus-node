@@ -144,10 +144,10 @@ jobs:
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       bnref: "${{ inputs.bnref }}"
-      perf_ghp: "${{ inputs.bnref }}"
 
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      perf_ghp: ${{ inputs.perf_ghp }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
