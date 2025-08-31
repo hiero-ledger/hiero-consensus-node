@@ -102,7 +102,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@0.42.0
+          npm install -g "@hashgraph/solo@0.42.0"
 
           # verify the installation
           solo --version
