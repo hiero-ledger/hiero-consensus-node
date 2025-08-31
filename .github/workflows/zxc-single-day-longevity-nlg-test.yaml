@@ -246,6 +246,8 @@ jobs:
 
       - name: Compile
         run: |
+          set +e
+          set +x
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew clean assemble
 
