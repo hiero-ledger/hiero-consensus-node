@@ -10,6 +10,7 @@ import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -131,6 +132,8 @@ public interface HederaInjectionComponent {
     BlockRecordManager blockRecordManager();
 
     BlockNodeConnectionManager blockNodeConnectionManager();
+
+    BlockBufferService blockBufferService();
 
     BlockStreamManager blockStreamManager();
 

@@ -30,7 +30,9 @@ public interface BlockStreamModule {
     @Singleton
     static BlockBufferService provideBlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockBufferService(configProvider, blockStreamMetrics);
+        final BlockBufferService bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        bufferService.start();
+        return bufferService;
     }
 
     @Provides
@@ -63,14 +65,16 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo selfNodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
-            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService);
+            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
             case FILE_AND_GRPC ->
-                () -> new FileAndGrpcBlockItemWriter(configProvider, selfNodeInfo, fileSystem, blockBufferService);
+                () -> new FileAndGrpcBlockItemWriter(
+                        configProvider, selfNodeInfo, fileSystem, blockBufferService, blockNodeConnectionManager);
         };
     }
 
