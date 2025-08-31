@@ -159,6 +159,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (requestPipeline == null) {
             requestPipeline = blockStreamPublishServiceClient.publishBlockStream(this);
             updateConnectionState(ConnectionState.PENDING);
+            blockStreamMetrics.recordConnectionOpened();
         }
     }
 
@@ -484,7 +485,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(request, "request must not be null");
 
         if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
-            requestPipeline.onNext(request);
+            if (request.hasEndStream()) {
+                blockStreamMetrics.recordRequestEndStreamSent(
+                        request.endStream().endCode());
+            } else {
+                blockStreamMetrics.recordRequestSent(request.request().kind());
+            }
+            try {
+                requestPipeline.onNext(request);
+            } catch (final RuntimeException e) {
+                blockStreamMetrics.recordRequestSendFailure();
+                throw e;
+            }
         }
     }
 
@@ -499,9 +511,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return;
         }
 
-        try {
-            logger.debug("[{}] Closing connection...", this);
+        logger.debug("[{}] Closing connection...", this);
+        blockStreamMetrics.recordConnectionClosed();
 
+        try {
             closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.CLOSED);
             jumpToBlock(-1L);
@@ -597,19 +610,20 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Process the response
         if (response.hasAcknowledgement()) {
-            blockStreamMetrics.incrementAcknowledgedBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
-            blockStreamMetrics.incrementEndOfStreamCount(response.endStream().status());
+            blockStreamMetrics.recordResponseEndOfStreamReceived(
+                    response.endStream().status());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
-            blockStreamMetrics.incrementSkipBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
-            blockStreamMetrics.incrementResendBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleResendBlock(response.resendBlock());
         } else {
-            blockStreamMetrics.incrementUnknownResponseCount();
+            blockStreamMetrics.recordUnknownResponseReceived();
             logger.debug("[{}] Unexpected response received: {}", this, response);
         }
     }
@@ -623,13 +637,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     @Override
     public void onError(final Throwable error) {
         logger.debug("[{}] onError invoked {}", this, error.getMessage());
+        blockStreamMetrics.recordConnectionOnError();
 
         // Check if already in terminal state
         if (getConnectionState() == ConnectionState.CLOSED) {
             logger.debug("[{}] onError invoked but connection is already closed", this);
         } else if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
             logger.warn("[{}] onError being handled", this, error);
-            blockStreamMetrics.incrementOnErrorCount();
             handleStreamFailure();
         }
     }
@@ -640,6 +654,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onComplete() {
+        blockStreamMetrics.recordConnectionOnComplete();
         if (getConnectionState() == ConnectionState.CLOSED) {
             logger.debug("[{}] onComplete invoked but connection is already closed", this);
             return;

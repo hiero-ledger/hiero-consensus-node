@@ -47,9 +47,8 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockStreamMetrics provideBlockStreamMetrics(
-            @NonNull final NodeInfo selfNodeInfo, @NonNull final Metrics metrics) {
-        return new BlockStreamMetrics(metrics, selfNodeInfo);
+    static BlockStreamMetrics provideBlockStreamMetrics(@NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics);
     }
 
     @Provides

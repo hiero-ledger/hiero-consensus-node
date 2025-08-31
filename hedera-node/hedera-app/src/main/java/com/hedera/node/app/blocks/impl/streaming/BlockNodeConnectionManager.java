@@ -205,7 +205,6 @@ public class BlockNodeConnectionManager {
             availableBlockNodes = new ArrayList<>(extractBlockNodesConfigurations(blockNodeConnectionConfigPath));
             logger.info("Loaded block node configuration from {}", blockNodeConnectionConfigPath);
             logger.info("Block node configuration: {}", availableBlockNodes);
-            blockStreamMetrics.registerMetrics();
         } else {
             logger.info("Block node streaming is disabled; will not setup connections to block nodes");
             availableBlockNodes = new ArrayList<>();
@@ -629,6 +628,7 @@ public class BlockNodeConnectionManager {
 
         final BlockNodeConnection activeConnection = activeConnectionRef.get();
         if (activeConnection == null) {
+            blockStreamMetrics.recordNoActiveConnection();
             logger.debug("No active connections available for streaming block {}", blockNumber);
             return;
         }
@@ -904,6 +904,7 @@ public class BlockNodeConnectionManager {
                 }
             } catch (final Exception e) {
                 logger.debug("[{}] Failed to establish connection to block node; will schedule a retry", connection);
+                blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
             }
         }
