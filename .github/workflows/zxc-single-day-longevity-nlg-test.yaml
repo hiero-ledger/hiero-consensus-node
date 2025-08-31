@@ -191,9 +191,8 @@ jobs:
         run: |
           gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
           cd "${HOME}"
-          tar xvfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
-          ls -la .
-          ls -l "${COBERTURA_HOME}"
+          tar xfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
+
 
       - name: OS check procedure
         id: setup
