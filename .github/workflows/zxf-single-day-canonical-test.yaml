@@ -37,8 +37,6 @@ jobs:
       parameters: ${{ steps.parameters.outcome }}
       check-if-exist: ${{ steps.check-if-exist.outcome }}
       start-canonical-test: ${{ steps.start-canonical-test.outcome }}
-      summary: ${{ steps.summary.outcome }}
-      commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
 
     steps:
       - name: Harden Runner
@@ -65,7 +63,7 @@ jobs:
       - name: Install Utility Tools
         id: install-tools
         run: |-
-          # log functions
+         step-security # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
           log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
 
