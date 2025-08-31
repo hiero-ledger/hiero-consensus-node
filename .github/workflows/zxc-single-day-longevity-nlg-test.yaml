@@ -255,7 +255,7 @@ jobs:
           then
             echo "Instrumenting CN ..."
             cd "${{ github.workspace }}"/target_consensus_node/hedera-node
-            sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
+            sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
             cp sources_init.txt "${{ github.workspace }}"/report/
             head sources_init.txt
@@ -280,7 +280,7 @@ jobs:
             cd instrumentation
             tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
             tar xf $tarfile
-            sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
+            sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `find block-node-app-* -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
             rm $tarfile 
             mv `find block-node-app-* -type f -name '*.ser' -print` ../
@@ -763,7 +763,7 @@ jobs:
 
           #CN
           cd "${{ github.workspace }}"/target_consensus_node/hedera-node
-          sh "${{ github.workspace }}"/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}"
           
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
@@ -772,18 +772,18 @@ jobs:
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
           `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
-          sh "${{ github.workspace }}"/performance_analysis_scripts/anchorHTML.sh sources
-          perl "${{ github.workspace }}"/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
-          perl "${{ github.workspace }}"/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
-          perl "${{ github.workspace }}"/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
-          cp "${{ github.workspace }}"/performance_analysis_scripts/sorttable.js sources/
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/anchorHTML.sh sources
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
+          cp "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/sorttable.js sources/
           mkdir -p "${{ github.workspace }}"/report/algorithms/CN
           cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/CN
           cd "${{ github.workspace }}"
           
           #BN
           cd "${{ github.workspace }}"/target_block_node
-          sh "${{ github.workspace }}"/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node
           
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
@@ -792,11 +792,11 @@ jobs:
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
           `find . -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
-          sh "${{ github.workspace }}"/performance_analysis_scripts/anchorHTML.sh sources
-          perl "${{ github.workspace }}"/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
-          perl "${{ github.workspace }}"/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
-          perl "${{ github.workspace }}"/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
-          cp "${{ github.workspace }}"/performance_analysis_scripts/sorttable.js sources/
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/anchorHTML.sh sources
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
+          perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
+          cp "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/sorttable.js sources/
           mkdir -p "${{ github.workspace }}"/report/algorithms/BN
           cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/BN
           cd "${{ github.workspace }}"
