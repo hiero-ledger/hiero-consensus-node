@@ -116,7 +116,7 @@ jobs:
 
       - name: Checkout Perf Analysis
         run: |
-          git clone https://"{{ secrets.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
+          git clone https://"${{ secrets.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
           cd performance-analysis-automation
           git checkout fixes_Jul25
           cd "${{ github.workspace }}"
@@ -178,6 +178,23 @@ jobs:
         with:
           version: 3.39.2
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Install Cobertura
+        run: |
+          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
+          cd "${HOME}"
+          tar xvfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
+          ls -la .
+          ls -l "${COBERTURA_HOME}"
+
       - name: OS check procedure
         id: setup
         shell: bash
@@ -206,6 +223,7 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "COBERTURA_HOME=${HOME}/cobertura-assembly-2.1.2-SNAPSHOT" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |
@@ -236,10 +254,10 @@ jobs:
             cd "${{ github.workspace }}"/target_consensus_node/hedera-node
             sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
             `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
-            cp sources_init.txt "${{ github.workspace }}"/report/
+            #cp sources_init.txt "${{ github.workspace }}"/report/
           
-            tar cfz "${{ github.workspace }}"/report/initial_ser.tgz *.ser
-            sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/initial_ser.tgz /tmp/"initial_ser${{ github.run_number }}".tgz
+            #tar cfz "${{ github.workspace }}"/report/initial_ser.tgz *.ser
+            #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/initial_ser.tgz /tmp/"initial_ser${{ github.run_number }}".tgz
 
             cd ..
           fi
@@ -253,19 +271,20 @@ jobs:
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
-          
             mkdir instrumentation
             cd instrumentation
-            tarfile=$(ls -1 ./block-node/app/build/distributions/block-node-app-*.tar)
+            tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
             tar xf $tarfile
             sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
             `find block-node-app-* -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
             rm $tarfile 
+            mv `find block-node-app-* -type f -name '*.ser' -print` ../
             tar cvf $tarfile block-node-app-*
-            cp BNsources_init.txt "${{ github.workspace }}"/report/
           
-            tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
-            sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
+             
+            #cp BNsources_init.txt "${{ github.workspace }}"/report/
+            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
+            #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
 
             cd ..
           fi
@@ -758,10 +777,10 @@ jobs:
           
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
-          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          `find . -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
           
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
-          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          `find . -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
           sh "${{ github.workspace }}"/performance_analysis_scripts/anchorHTML.sh sources
           perl "${{ github.workspace }}"/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
