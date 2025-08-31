@@ -29,12 +29,6 @@ jobs:
 
     timeout-minutes: 120 # max two hours timeout
 
-  canonical-test:
-    name: Canonical
-    runs-on: hiero-citr-linux-large
-
-    timeout-minutes: 90 # max one hour timeout
-
     outputs:
       harden-runner: ${{ steps.harden-runner.outcome }}
       checkout-code: ${{ steps.checkout-code.outcome }}
