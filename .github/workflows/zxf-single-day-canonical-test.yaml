@@ -119,5 +119,46 @@ jobs:
           kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
           export CONSENSUS_NODE_VERSION="${NODE_VERSION}"
           solo quick-start single deploy | tee ${curdir}/solo.out
-          kubectl get pods
-          kubectl get svc
+
+          line=$(grep "0.0.1015" solo.out)
+          account_id=$(echo "$line" | sed -n 's/.*Account ID: \([0-9.]*\).*/\1/p')
+          private_key=$(echo "$line" | sed -n 's/.*Private Key: \(0x[a-fA-F0-9]*\).*/\1/p')
+          balance=$(echo "$line" | sed -n 's/.*Balance: \([0-9]*\) ℏ/\1/p')
+
+          cat > accounts.sh << EOF
+          #!/bin/bash
+
+          ACCOUNT_ID="$account_id"
+          ACCOUNT_PRIVATE_KEY="$private_key"
+          ACCOUNT_BALANCE="$balance"
+          EOF
+
+          echo "Generated accounts.sh with:"
+          echo "ACCOUNT_ID=\"$account_id\""
+          echo "ACCOUNT_PRIVATE_KEY=\"$private_key\""
+          echo "ACCOUNT_BALANCE=\"$balance\""
+       
+      - name: Run Saucerswap
+        id: run-saucerwap
+        run: |
+          curdir="$(pwd)"
+
+          git clone git@github.com:mgarbs/big-apps-testing.git
+
+          echo "${curdir}"
+          cd big-apps-testing
+          pwd
+          . ${curdir}/accounts.sh
+          sed "s/ENV_PRIVATE_KEY/$ACCOUNT_PRIVATE_KEY/g" tools/template-env > .env
+          cat .env
+
+          cp tools/run_saucerswap.sh .
+
+          bash ./run_saucerswap.sh
+          
+
+      - name: Destroy Solo Network
+        id: destroy-solo-network
+        run: |
+           solo quick-start single destroy
+
