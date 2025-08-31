@@ -56,8 +56,6 @@ on:
         description: "Slack webhook for SDLT outputs notifications"
       perf_ghp:
         required: true
-        default: ""
-        type: string
         description: "Algorithmic analysis GHP"
     outputs:
       result:
