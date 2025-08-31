@@ -144,6 +144,7 @@ jobs:
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       bnref: "${{ inputs.bnref }}"
+      perf_analysis: "${{ inputs.perf_analysis }}"
 
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
