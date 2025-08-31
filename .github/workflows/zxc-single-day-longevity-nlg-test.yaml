@@ -234,6 +234,7 @@ jobs:
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.add-app-props=${{ inputs.add-app-props }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.add-settings=${{ inputs.add-settings }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.perf_analysis=${{ inputs.perf_analysis }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Set hederahash sha value
@@ -250,6 +251,7 @@ jobs:
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
+            echo "Instrumenting CN ..."
             cd "${{ github.workspace }}"/target_consensus_node/hedera-node
             sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
             `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
@@ -602,6 +604,11 @@ jobs:
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
           NLG_c=32
+
+          if [ "${{ inputs.perf_analysis }}" = "true" ]
+          then
+            NLG_c=10
+          fi
 
           test=LongevityLoadTest
 
