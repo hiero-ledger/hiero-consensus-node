@@ -72,7 +72,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
-
+      perf_ghp:
+        required: true
+        default: ""
+        type: string
+        description: "Algorithmic analysis GHP"
 defaults:
   run:
     shell: bash

@@ -44,6 +44,16 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      perf_analysis:
+        required: false
+        default: false
+        type: boolean
+        description: "Algorithmic analysis"
+      perf_ghp:
+        required: true
+        default: ""
+        type: string
+        description: "Algorithmic analysis GHP"
     secrets:
       slack-report-webhook:
         required: true
@@ -103,6 +113,13 @@ jobs:
           git clone https://github.com/hiero-ledger/hiero-block-node.git target_block_node
           cd target_block_node
           git checkout ${{ inputs.bnref }}
+          cd "${{ github.workspace }}"
+
+      - name: Checkout Perf Analysis
+        run: |
+          git clone https://"{{ inputs.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
+          cd performance-analysis-automation
+          git checkout fixes_Jul25
           cd "${{ github.workspace }}"
 
       - name: Install KubeCtl
@@ -214,6 +231,19 @@ jobs:
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew clean assemble
+
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            cd "${{ github.workspace }}"/target_consensus_node/hedera-node
+            sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
+            `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
+            cp sources_init.txt "${{ github.workspace }}"/report/
+          
+            tar cfz "${{ github.workspace }}"/report/initial_ser.tgz *.ser
+            sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/initial_ser.tgz /tmp/"initial_ser${{ github.run_number }}".tgz
+
+            cd ..
+          fi
           cd "${{ github.workspace }}"
 
       - name: Compile BN
@@ -221,6 +251,26 @@ jobs:
           cd "${{ github.workspace }}"/target_block_node
           ./gradlew block-node-app:distTar
           #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
+
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+          
+            mkdir instrumentation
+            cd instrumentation
+            tarfile=$(ls -1 ./block-node/app/build/distributions/block-node-app-*.tar)
+            tar xf $tarfile
+            sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
+            `find block-node-app-* -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
+            rm $tarfile 
+            tar cvf $tarfile block-node-app-*
+            cp BNsources_init.txt "${{ github.workspace }}"/report/
+          
+            tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
+            sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
+
+            cd ..
+          fi
+
           cd "${{ github.workspace }}"
 
       - name: Setup Node
@@ -398,7 +448,7 @@ jobs:
                 export SERVER_PORT=40840;                      \
                 cd /opt/hiero/block-node; \
                 tar xf /tmp/blocknode.tar; \
-                nohup java -Xms16G -Xmx28G -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
+                nohup java -Xms16G -Xmx28G -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
                   --module org.hiero.block.node.app/org.hiero.block.node.app.BlockNodeApp >/opt/hiero/block-node/logs/block-node.log 2>&1 &"
           done
           sleep 30
@@ -675,6 +725,54 @@ jobs:
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Process Algorithm Analysis
+        run: |
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+          
+          #git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/pbj.git pbj
+
+          #CN
+          cd "${{ github.workspace }}"/target_consensus_node/hedera-node
+          sh "${{ github.workspace }}"/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}"
+          
+          bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
+          bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
+          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          
+          bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
+          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          
+          sh "${{ github.workspace }}"/performance_analysis_scripts/anchorHTML.sh sources
+          perl "${{ github.workspace }}"/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
+          perl "${{ github.workspace }}"/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
+          perl "${{ github.workspace }}"/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
+          cp "${{ github.workspace }}"/performance_analysis_scripts/sorttable.js sources/
+          mkdir -p "${{ github.workspace }}"/report/algorithms/CN
+          cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/CN
+          cd "${{ github.workspace }}"
+          
+          #BN
+          cd "${{ github.workspace }}"/target_block_node
+          sh "${{ github.workspace }}"/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node
+          
+          bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
+          bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
+          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          
+          bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
+          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          
+          sh "${{ github.workspace }}"/performance_analysis_scripts/anchorHTML.sh sources
+          perl "${{ github.workspace }}"/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
+          perl "${{ github.workspace }}"/performance_analysis_scripts/perfByCobertura.pl reportsXML/coverage2.xml  > stats.txt
+          perl "${{ github.workspace }}"/performance_analysis_scripts/gen_prof_max_derivative.pl stats.txt > sources/perf_report.html
+          cp "${{ github.workspace }}"/performance_analysis_scripts/sorttable.js sources/
+          mkdir -p "${{ github.workspace }}"/report/algorithms/BN
+          cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/BN
+          cd "${{ github.workspace }}"
+          fi
 
       - name: Publish logs
         if: ${{ !cancelled() }}
