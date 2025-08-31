@@ -64,8 +64,7 @@ jobs:
 
       - name: Install Kubectl
         id: kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 #
-v4.0.0
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.33.0
 
@@ -74,8 +73,7 @@ v4.0.0
     steps:
       - name: Harden Runner
         id: harden-runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 #
-v2.13.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -90,8 +88,7 @@ v2.13.0
 
       - name: Install Kubectl
         id: kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 #
-v4.0.0
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.33.0
 
