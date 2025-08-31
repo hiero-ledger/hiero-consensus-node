@@ -63,7 +63,7 @@ jobs:
       - name: Install Utility Tools
         id: install-tools
         run: |-
-         step-security # log functions
+          # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
           log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
 
