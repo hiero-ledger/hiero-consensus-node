@@ -255,8 +255,10 @@ jobs:
             cd "${{ github.workspace }}"/target_consensus_node/hedera-node
             sh "${{ github.workspace }}"/performance_analysis_scripts/instrumentCoverage.sh \
             `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
-            #cp sources_init.txt "${{ github.workspace }}"/report/
-          
+            cp sources_init.txt "${{ github.workspace }}"/report/
+            head sources_init.txt
+            echo "..."
+            tail sources_init.txt
             #tar cfz "${{ github.workspace }}"/report/initial_ser.tgz *.ser
             #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/initial_ser.tgz /tmp/"initial_ser${{ github.run_number }}".tgz
 
@@ -283,7 +285,7 @@ jobs:
             tar cvf $tarfile block-node-app-*
           
              
-            #cp BNsources_init.txt "${{ github.workspace }}"/report/
+            cp BNsources_init.txt "${{ github.workspace }}"/report/
             #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
             #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
 
