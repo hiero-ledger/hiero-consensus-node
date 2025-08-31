@@ -2,7 +2,7 @@ NAMESPACE=$1
 BN_LOG=/opt/hiero/block-node/logs
 TOOLDIR=`dirname $0`
 
-if [ -! -d  podlog_${NAMESPACE} ]
+if [ ! -d  podlog_${NAMESPACE} ]
 then
   mkdir podlog_${NAMESPACE}
 fi

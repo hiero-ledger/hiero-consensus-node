@@ -121,6 +121,10 @@ jobs:
           git checkout fixes_Jul25
           cd "${{ github.workspace }}"
 
+      - name: Checkout Perf Analysis
+        run: |
+          git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -280,14 +284,16 @@ jobs:
             cd instrumentation
             tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
             tar xf $tarfile
+            cd block-node-app-*
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
-            `find block-node-app-* -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
-            rm $tarfile 
-            mv `find block-node-app-* -type f -name '*.ser' -print` ../
-            tar cvf $tarfile block-node-app-*
-          
-             
+            `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
             cp BNsources_init.txt "${{ github.workspace }}"/report/
+
+            mv `find block-node-app-* -type f -name '*.ser' -print` ../..
+            cd ..
+            rm $tarfile 
+            tar cvf $tarfile block-node-app-*
+
             #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
             #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
 
@@ -787,10 +793,10 @@ jobs:
           
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
-          `find . -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          `find . ../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
           
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
-          `find . -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          `find . ../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
           sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/anchorHTML.sh sources
           perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
