@@ -287,7 +287,8 @@ jobs:
             `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
             cp BNsources_init.txt "${{ github.workspace }}"/report/
 
-            mv `find block-node-app-* -type f -name '*.ser' -print` ../..
+            cp `find block-node-app-* -type f -name '*.ser' -print` ../../
+            find find block-node-app-* -type f -name '*.ser' -exec rm {} \;
             cd ..
             rm $tarfile 
             tar cvf $tarfile block-node-app-*
@@ -475,7 +476,14 @@ jobs:
                 export SERVER_PORT=40840;                      \
                 cd /opt/hiero/block-node; \
                 tar xf /tmp/blocknode.tar; \
-                nohup java -Xms16G -Xmx28G -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
+
+                echo "Generate module allowances:"
+                java -p $(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") --list-modules |\
+                  awk -F @ '{print $1}' |  grep -E 'hiero|swirlds|hedera' | sort -u | grep -v 'file:' | perl -ne '~s/\n//g; print "--add-reads $_=cobertura ";' > module_reads.txt
+                cat module_reads.txt
+
+                nohup java -Xms16G -Xmx28G -Dnet.sourceforge.cobertura.datafile=cobertura.ser -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
+                  \$(cat module_reads.txt) \
                   --module org.hiero.block.node.app/org.hiero.block.node.app.BlockNodeApp >/opt/hiero/block-node/logs/block-node.log 2>&1 &"
           done
           sleep 30
@@ -787,8 +795,8 @@ jobs:
           
           #BN
           cd "${{ github.workspace }}"/target_block_node
-          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node
-          
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node /opt/hiero/block-node
+
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
           `find . ../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
