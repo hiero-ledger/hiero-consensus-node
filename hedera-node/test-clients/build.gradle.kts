@@ -72,7 +72,7 @@ val prCheckTags =
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
-        "hapiTestBlockNodeCommunication" to "BLOCK_NODE_SIMULATOR",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to
             "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE)",
         "hapiTestMiscRecords" to
@@ -144,11 +144,9 @@ tasks.register<Test>("testSubprocess") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE_SIMULATOR
+            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (
-                ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE_SIMULATOR")
-            )
+            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )

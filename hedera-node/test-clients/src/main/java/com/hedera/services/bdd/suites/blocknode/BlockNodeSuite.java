@@ -472,7 +472,7 @@ public class BlockNodeSuite {
                 waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // shutdown the block node. this will cause the block buffer to become saturated
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 // wait until the buffer is starting to get saturated
                 sourcingContextual(
@@ -498,7 +498,7 @@ public class BlockNodeSuite {
                                 "Block buffer is being restored from disk",
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 // restart the block node and let it catch up
-                blockNodeSimulator(0).startImmediately(),
+                blockNode(0).startImmediately(),
                 // create some more blocks and ensure the buffer/platform remains healthy
                 waitUntilNextBlocks(maxBufferSize + halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
