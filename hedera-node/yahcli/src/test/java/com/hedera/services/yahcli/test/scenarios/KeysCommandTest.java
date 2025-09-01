@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.test.scenarios;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.keyPrintCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newKeyCapturer;
@@ -10,6 +11,8 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliKeys;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +24,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
+@HapiTestLifecycle
 public class KeysCommandTest {
     private static final String KEY_NAME = "newKey";
     private static final String[] FILES_TO_DELETE = {
@@ -38,17 +42,19 @@ public class KeysCommandTest {
     }
 
     @AfterAll
-    public static void cleanupGeneratedKeys() {
-        for (String filename : FILES_TO_DELETE) {
-            Path path = Paths.get(filename);
-            try {
-                if (Files.exists(path)) {
-                    Files.delete(path);
-                    System.out.println("Deleted file: " + filename);
+    public static void shutdown(final TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(withOpContext((spec, log) -> {
+            for (String filename : FILES_TO_DELETE) {
+                Path path = Paths.get(filename);
+                try {
+                    if (Files.exists(path)) {
+                        Files.delete(path);
+                        log.info("Deleted file: {}", filename);
+                    }
+                } catch (IOException e) {
+                    log.error("Failed to delete file: {} - {}", filename, e.getMessage());
                 }
-            } catch (IOException e) {
-                System.err.println("Failed to delete file: " + filename + " - " + e.getMessage());
             }
-        }
+        }));
     }
 }
