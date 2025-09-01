@@ -2,9 +2,12 @@
 package com.hedera.services.yahcli.commands.ivy.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -83,7 +86,6 @@ public abstract class AbstractIvySuite extends HapiSuite {
             @NonNull final LongConsumer onCreatedNumber) {
         return doingContextual(spec -> {
             if (number == null) {
-                System.out.println("No file number for '" + name + "'; creating!");
                 final var creation = fileCreate(name)
                         .waclShape(KeyShape.listOf(ED25519))
                         .setNodeFrom(nodeAccounts.get())
@@ -116,6 +118,45 @@ public abstract class AbstractIvySuite extends HapiSuite {
                 spec.registry().saveKey(name, expectedKey);
                 spec.registry().saveFileId(name, fileId);
                 spec.keys().incorporateEd25519SimpleWacl(name, key);
+            }
+        });
+    }
+
+    protected SpecOperation ensureEd25519Topic(
+            @NonNull final String name,
+            @Nullable final Long number,
+            @NonNull final LongConsumer onCreatedNumber,
+            @NonNull final LongConsumer onObservedSequenceNumber) {
+        return doingContextual(spec -> {
+            if (number == null) {
+                final var creation = createTopic(name)
+                        .setNodeFrom(nodeAccounts.get())
+                        .adminKeyShape(ED25519)
+                        .hasRetryPrecheckFrom(BUSY)
+                        .advertisingCreation();
+                allRunFor(spec, creation);
+                onCreatedNumber.accept(spec.registry().getTopicID(name).getTopicNum());
+                yahcliKeys.exportTopicAdminKey(spec, name);
+                persistUpdatedScenarios.run();
+            } else {
+                final var topicId = spec.topicIdFactory().apply(number);
+                final var idLiteral = asTopicString(topicId);
+                final var infoLookup = getTopicInfo(idLiteral).setNodeFrom(nodeAccounts.get());
+                allRunFor(spec, infoLookup);
+                final var key = yahcliKeys.loadTopicAdminKey(number, EdDSAPrivateKey.class);
+                final var expectedKey = Key.newBuilder()
+                        .setEd25519(ByteString.copyFrom(key.getAbyte()))
+                        .build();
+                final var info =
+                        infoLookup.getResponse().getConsensusGetTopicInfo().getTopicInfo();
+                Assertions.assertEquals(
+                        expectedKey,
+                        info.getAdminKey(),
+                        String.format("Topic %s had a different admin key than expected", idLiteral));
+                onObservedSequenceNumber.accept(info.getSequenceNumber());
+                spec.registry().saveKey(name, expectedKey);
+                spec.registry().saveTopicId(name, topicId);
+                spec.keys().incorporate(name, key);
             }
         });
     }

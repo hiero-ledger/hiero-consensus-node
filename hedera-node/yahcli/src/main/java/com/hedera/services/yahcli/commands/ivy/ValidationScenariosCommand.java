@@ -15,6 +15,7 @@ import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterru
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyConsensusScenarioSuite;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoScenarioSuite;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyFileScenarioSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
@@ -149,7 +150,9 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                                 yahcliKeys,
                                 novel,
                                 scenariosLoc);
-                    case CONTRACT -> throw new AssertionError("Not implemented");
+                    case CONTRACT ->
+                        new IvyConsensusScenarioSuite(
+                                specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys, novel);
                     case CONSENSUS -> throw new AssertionError("Not implemented");
                     case XFERS -> throw new AssertionError("Not implemented");
                     case STAKING -> throw new AssertionError("Not implemented");

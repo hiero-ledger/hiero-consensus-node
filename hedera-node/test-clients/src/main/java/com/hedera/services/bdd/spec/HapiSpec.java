@@ -96,6 +96,7 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TopicID;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -518,6 +519,18 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .setShardNum(shard())
                 .setRealmNum(realm())
                 .setFileNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link FileID} for the target network.
+     * @return the account ID factory function
+     */
+    public LongFunction<TopicID> topicIdFactory() {
+        return num -> TopicID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setTopicNum(num)
                 .build();
     }
 

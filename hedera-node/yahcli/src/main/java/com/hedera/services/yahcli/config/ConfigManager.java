@@ -116,6 +116,11 @@ public class ConfigManager {
             }
 
             @Override
+            public <T extends PrivateKey> T loadTopicAdminKey(long number, Class<T> type) {
+                return loadTypedKeyOrThrow("topicAdmin" + number, type);
+            }
+
+            @Override
             public <T extends PrivateKey> T loadFileKey(long number, Class<T> type) {
                 return loadTypedKeyOrThrow("file" + number, type);
             }
@@ -135,6 +140,14 @@ public class ConfigManager {
                 final var passLoc = keysLoc() + File.separator + "file" + fileNum + ".pass";
                 exportCryptoKey(
                         spec, name, pemLoc, passLoc, key -> key.getKeyList().getKeys(0));
+            }
+
+            @Override
+            public void exportTopicAdminKey(@NonNull final HapiSpec spec, @NonNull final String name) {
+                final long topicNum = spec.registry().getTopicID(name).getTopicNum();
+                final var pemLoc = keysLoc() + File.separator + "topicAdmin" + topicNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "topicAdmin" + topicNum + ".pass";
+                exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
             }
 
             /**
