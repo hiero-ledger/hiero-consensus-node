@@ -13,7 +13,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final String BLOCK_NODE_VERSION = "0.16.1";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
-    private static final int CONTAINER_PORT = 8080;
+    private static final int GRPC_PORT = 40840;
+    private static final int HEALTH_PORT = 16007;
 
     /**
      * Creates a new block node container with the default image.
@@ -32,11 +33,16 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private BlockNodeContainer(DockerImageName dockerImageName, final long blockNodeId, final int port) {
         super(dockerImageName);
 
-        this.addFixedExposedPort(port, CONTAINER_PORT);
+        // Expose the gRPC port for block node communication
+        this.addFixedExposedPort(port, GRPC_PORT);
+        // Also expose the health check port
+        this.addExposedPort(HEALTH_PORT);
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
-                .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofMinutes(2)))
-                .waitingFor(Wait.forHealthcheck());
+                // Use HTTP health check on the health port to verify the service is ready
+                .waitingFor(Wait.forHttp("/-/healthy")
+                        .forPort(HEALTH_PORT)
+                        .withStartupTimeout(Duration.ofMinutes(2)));
     }
 
     @Override
@@ -60,7 +66,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * @return the host port mapped to the container's internal port
      */
     public int getPort() {
-        return getMappedPort(CONTAINER_PORT);
+        return getMappedPort(GRPC_PORT);
     }
 
     /**
