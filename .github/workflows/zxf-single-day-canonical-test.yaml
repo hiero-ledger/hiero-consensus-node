@@ -174,7 +174,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/
 
           git clone https://github.com/hashgraph/stablecoin-studio.git
-          cd stablecount-studio/contracts
+          cd stablecoin-studio/contracts
           npm install
           npm ci
           npx hardhat compile
