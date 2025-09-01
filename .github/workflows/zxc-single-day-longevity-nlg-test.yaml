@@ -288,8 +288,8 @@ jobs:
             cp BNsources_init.txt "${{ github.workspace }}"/report/
 
             cp `find block-node-app-* -type f -name '*.ser' -print` ../../
-            find block-node-app-* -type f -name '*.ser' -exec rm {} \;
             cd ..
+            find block-node-app-* -type f -name '*.ser' -exec rm {} \;
             rm $tarfile 
             tar cvf $tarfile block-node-app-*
 
@@ -478,7 +478,7 @@ jobs:
                 tar xf /tmp/blocknode.tar; \
 
                 echo "Generate module allowances:"
-                java -p $(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") --list-modules |\
+                java -p \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") --list-modules |\
                   awk -F @ '{print $1}' |  grep -E 'hiero|swirlds|hedera' | sort -u | grep -v 'file:' | perl -ne '~s/\n//g; print "--add-reads $_=cobertura ";' > module_reads.txt
                 cat module_reads.txt
 
