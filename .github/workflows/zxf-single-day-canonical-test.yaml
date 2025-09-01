@@ -155,7 +155,23 @@ jobs:
           cp tools/run_saucerswap.sh .
 
           bash ./run_saucerswap.sh
+
+          pwd
           
+      - name: Run StableCoin Studio
+        id: run-stablecoin-studio
+        run: |
+
+          git clone https://github.com/hashgraph/stablecoin-studio.git
+          cd stablecount-studio/contracts
+          npm install
+          npm ci
+          npx hardhat compile
+          npx hardhat test --network local
+          
+          pwd
+          
+
 
       - name: Destroy Solo Network
         id: destroy-solo-network
