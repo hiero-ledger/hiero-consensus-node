@@ -43,9 +43,9 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -114,7 +114,7 @@ public class ConversionUtils {
 
     /**
      * Given a {@link com.esaulpaugh.headlong.abi.Address}, returns its implied token id.
-     *
+     * <p>
      * Use the passed in EntityIdFactory to create the TokenID.  This means that the new TokenID
      * will have the same shard and realm as the EntityIdFactory's default shard and realm which it reads from configuration.
      *
@@ -630,6 +630,24 @@ public class ConversionUtils {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return entityIdFactory.newContractId(numberOfLongZero(address));
+    }
+
+    /**
+     * Converts
+     * - a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
+     * - an EVM address to a PBJ {@link ContractID} with alias instead of id number.
+     *
+     * @param entityIdFactory the entity id factory
+     * @param address the EVM address
+     * @return the PBJ {@link ContractID}
+     */
+    public static ContractID asContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (isLongZero(address)) {
+            return entityIdFactory.newContractId(numberOfLongZero(address));
+        } else {
+            return asEvmContractId(entityIdFactory, address);
+        }
     }
 
     /**

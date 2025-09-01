@@ -62,7 +62,7 @@ jobs:
           fi
 
   run-single-day-longevity-nlg-test:
-    name: Performance Test
+    name: Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
@@ -74,17 +74,17 @@ jobs:
       nlg-accounts: "100000000"
       nlg-time: "960"
       add-app-props: ""
+      kubernetes-cluster: "k8s.pft.dal.lat.ope.eng.hashgraph.io"
       add-settings: ""
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  tag-sdlt-passing:
-    name: Tag SDLT Passing
+  tag-sdlt-result:
+    name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-longevity-nlg-test
       - verify-tag
-    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -108,14 +108,27 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDLT Passing
+      - name: Tag SDLT Result
         run: |
-          TAG_NAME="sdlt-pass-${{ needs.verify-tag.outputs.build-number }}"
-          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          RESULT="${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          if [ "$RESULT" == "success" ]; then
+            TAG_NAME="sdlt-pass-${BUILD_NUM}"
+            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
+          elif [ "$RESULT" == "failure" ]; then
+            TAG_NAME="sdlt-fail-${BUILD_NUM}"
+            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
           git push --set-upstream origin --tags
 
-          echo "### SDLT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDLT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### SDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
@@ -126,6 +139,7 @@ jobs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -161,6 +175,7 @@ jobs:
             echo "Found slack user for email: ${EMAIL}"
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
@@ -170,11 +185,11 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - tag-sdlt-passing
+      - tag-sdlt-result
       - run-single-day-longevity-nlg-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdlt-passing.result == 'success' &&
+      needs.tag-sdlt-result.result == 'success' &&
       needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
@@ -224,7 +239,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
+                          "text": "Run Single Day Longevity Test"
                         },
                         {
                           "type": "plain_text",
@@ -236,7 +251,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.tag-sdlt-passing.result }}"
+                          "text": "${{ needs.tag-sdlt-result.result }}"
                         }
                       ]
                     },
@@ -295,12 +310,14 @@ jobs:
     needs:
       - verify-tag
       - run-single-day-longevity-nlg-test
-      - tag-sdlt-passing
+      - tag-sdlt-result
       - get-commit-info
+      - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdlt-passing.result != 'success' ||
+      needs.tag-sdlt-result.result != 'success' ||
       needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
-      needs.get-commit-info.result != 'success') &&
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
@@ -340,6 +357,79 @@ jobs:
         with:
           path: run.log
 
+      - name: Set Service Name
+        id: set-service
+        run: |
+          ROOTLY_SERVICE="CITR SDLT"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The SDLT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create Rootly Incident
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        continue-on-error: true # continue on error so we can get the slack reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Platform CI,Performance Engineering"
+
       - name: Build Slack Payload Message
         id: payload
         run: |
@@ -377,7 +467,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
+                        "text": "Run Single Day Longevity Test"
                       },
                       {
                         "type": "plain_text",
@@ -389,7 +479,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.tag-sdlt-passing.result }}"
+                        "text": "${{ needs.tag-sdlt-result.result }}"
                       },
                       {
                         "type": "plain_text",

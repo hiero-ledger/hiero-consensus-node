@@ -42,7 +42,8 @@
             "TokenGetNftInfos",
             "CryptoApproveAllowance",
             "CryptoDeleteAllowance",
-            "UtilPrng"
+            "UtilPrng",
+            "AtomicBatch"
           ]
         },
         {

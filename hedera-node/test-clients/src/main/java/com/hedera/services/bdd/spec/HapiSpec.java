@@ -274,6 +274,11 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Nullable
     private HederaNetwork targetNetwork;
     /**
+     * If non-null, the non-remote block node network to target with this spec.
+     */
+    @Nullable
+    private BlockNodeNetwork blockNodeNetwork;
+    /**
      * If non-null, an observer to receive the final state of this spec's register and key factory
      * after it has executed.
      */
@@ -445,6 +450,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         this.targetNetwork = requireNonNull(targetNetwork);
     }
 
+    public void setBlockNodeNetwork(@NonNull final BlockNodeNetwork blockNodeNetwork) {
+        this.blockNodeNetwork = requireNonNull(blockNodeNetwork);
+    }
+
     public void setSharedStates(@NonNull final List<SpecStateObserver.SpecState> sharedStates) {
         this.sharedStates = sharedStates;
     }
@@ -461,7 +470,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * @return the path to the record stream
      * @throws RuntimeException if the spec has no target network or the node is not found
      */
-    public @NonNull Path streamsLoc(@NonNull final NodeSelector selector) {
+    public @NonNull Path recordStreamsLoc(@NonNull final NodeSelector selector) {
         requireNonNull(selector);
         return targetNetworkOrThrow().getRequiredNode(selector).getExternalPath(RECORD_STREAMS_DIR);
     }
@@ -481,9 +490,21 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public LongFunction<ContractID> contractIdFactory() {
         return num -> ContractID.newBuilder()
-                .setShardNum(hapiSetup.shard())
-                .setRealmNum(hapiSetup.realm())
+                .setShardNum(shard())
+                .setRealmNum(realm())
                 .setContractNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link AccountID} for the target network.
+     * @return the account ID factory function
+     */
+    public LongFunction<AccountID> accountIdFactory() {
+        return num -> AccountID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setAccountNum(num)
                 .build();
     }
 
@@ -652,6 +673,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public List<HederaNode> getNetworkNodes() {
         return requireNonNull(targetNetwork).nodes();
+    }
+
+    public Set<Long> getBlockNodeNetworkIds() {
+        return requireNonNull(blockNodeNetwork).nodeIds();
     }
 
     public int getBlockNodePortById(final long nodeId) {
@@ -894,11 +919,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     "default.shard", "" + targetNetwork.shard(),
                     "default.realm", "" + targetNetwork.realm()));
         } catch (Exception ignore) {
+            final long shard = HapiPropertySource.getConfigShard();
+            final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
-                    hapiSetup.nodes(),
-                    clientsFor(hapiSetup),
-                    HapiPropertySource.getConfigShard(),
-                    HapiPropertySource.getConfigRealm());
+                    hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
         }
     }
 
@@ -1195,7 +1219,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
 
             dynamicNodes = Arrays.stream(dynamicNodes.split(","))
-                    .map(NodeConnectInfo::new)
+                    .map(inString -> new NodeConnectInfo(inString, 0, 0))
                     .map(info -> {
                         final var acct = info.getAccount();
                         return info.uri() + ":"

@@ -5,12 +5,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -40,12 +40,15 @@ class WriteStateToDiskListenerTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private BlockBufferService blockBufferService;
+
     private WriteStateToDiskListener subject;
 
     @BeforeEach
     void setUp() {
         subject = new WriteStateToDiskListener(
-                stateAccessor, executor, configProvider, startupNetworks, SemanticVersion.DEFAULT, entityIdFactory);
+                stateAccessor, executor, configProvider, startupNetworks, entityIdFactory, blockBufferService);
     }
 
     @Test
@@ -56,5 +59,6 @@ class WriteStateToDiskListenerTest {
         subject.notify(notification);
 
         verify(startupNetworks, times(1)).archiveStartupNetworks();
+        verify(blockBufferService, times(2)).persistBuffer();
     }
 }

@@ -267,7 +267,8 @@ public abstract class HapiSpecOperation implements SpecOperation {
             if (omitNodeAccount) {
                 builder.clearNodeAccountID();
             } else {
-                node.ifPresent((s) -> builder.setNodeAccountID(fixNodeFor(spec)));
+                final var nodeAccountId = fixNodeFor(spec);
+                builder.setNodeAccountID(nodeAccountId);
             }
             validDurationSecs.ifPresent(s -> builder.setTransactionValidDuration(
                     Duration.newBuilder().setSeconds(s).build()));

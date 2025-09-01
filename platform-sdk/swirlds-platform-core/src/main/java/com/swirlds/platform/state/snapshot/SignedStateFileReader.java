@@ -45,14 +45,14 @@ public final class SignedStateFileReader {
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
      *
      * @param stateFile                     the file to read from
-     * @param stateRootFunction             a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param stateFacade                   the facade to access the platform state
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     public static @NonNull DeserializedSignedState readStateFile(
             @NonNull final Path stateFile,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
             throws IOException {
@@ -74,7 +74,7 @@ public final class SignedStateFileReader {
                 });
 
         final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(stateRootFunction, data.stateRoot(), platformContext.getMetrics());
+                initializeMerkleNodeState(createStateFromVirtualMap, data.stateRoot(), platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 conf,

@@ -48,6 +48,16 @@ public class ConsensusRoundValidator {
     }
 
     /**
+     * Validates the given {@link ConsensusRound} object coming from separate nodes
+     *
+     * @param round1 the first round to use for validation from one node
+     * @param round2 the second round to use for validation from another node
+     */
+    public static void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {
+        validate(List.of(round1), List.of(round2));
+    }
+
+    /**
      * Validates the given {@link ConsensusRound} objects coming from a single node
      *
      * @param rounds the list of rounds to use for validation from one node
