@@ -256,7 +256,6 @@ jobs:
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-0 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
 
-
       # ---- BN verification with grpcurl ----
 
       # produce protobuf source artifact
@@ -288,7 +287,7 @@ jobs:
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
             -plaintext \
-            -emit-defaults \            
+            -emit-defaults \
             -import-path protobuf-sources/proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
@@ -365,7 +364,7 @@ jobs:
         with:
           name: run-logs
           path: |
-            bn0-logs.log            
+            bn0-logs.log
             mn0-logs.log
             ${{ env.CN_LOG_FOLDER }}
 
