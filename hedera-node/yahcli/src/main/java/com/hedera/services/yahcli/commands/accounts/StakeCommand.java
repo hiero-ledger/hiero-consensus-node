@@ -50,9 +50,10 @@ public class StakeCommand implements Callable<Integer> {
         final String target;
         final StakeSuite.TargetType type;
         final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
-        if (normalizedElectedAccountNum != null) {
+        final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
+        if (normalizedElectedNodeId != null) {
             type = StakeSuite.TargetType.NODE;
-            target = normalizedElectedAccountNum;
+            target = normalizedElectedNodeId;
         } else if (normalizedElectedAccountNum != null) {
             type = StakeSuite.TargetType.ACCOUNT;
             target = normalizedElectedAccountNum;
@@ -78,7 +79,6 @@ public class StakeCommand implements Callable<Integer> {
             final var msgSb = new StringBuilder("SUCCESS - account ")
                     .append(Utils.extractAccount(normalizedStakedAccountNum))
                     .append(" updated");
-            final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
             if (type != StakeSuite.TargetType.NONE) {
                 msgSb.append(", now staked to ")
                         .append(type.name())
