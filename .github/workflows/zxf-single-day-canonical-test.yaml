@@ -34,9 +34,15 @@ jobs:
       checkout-code: ${{ steps.checkout-code.outcome }}
       kubectl: ${{ steps.kubectl.outcome }}
       install-tools: ${{ steps.install-tools.outcome }}
-      parameters: ${{ steps.parameters.outcome }}
-      check-if-exist: ${{ steps.check-if-exist.outcome }}
-      start-canonical-test: ${{ steps.start-canonical-test.outcome }}
+      setup-node: ${{ steps.setup-node.outcome }}
+      install-solo: ${{ steps.install-solo.outcome }}
+      setup-kind: ${{ steps.setup-kind.outcome }}
+      deploy-solo: ${{ steps.deploy-solo.outcome }}
+      run-saucerswap: ${{ steps.run-saucerswap.outcome }}
+      run-bonzo: ${{ steps.run-bonzo.outcome }}
+      run-stablecoin-studio: ${{ steps.run-stablecoin-studio.outcome }}
+      destroy-solo: ${{ steps.destroy-solo.outcome }}
+      summary: ${{ steps.summary.outcome }}
 
     steps:
       - name: Harden Runner
@@ -69,11 +75,13 @@ jobs:
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
           log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
 
-          set +x
-          set +e
+          set -euo pipefail
           export TERM=vt100
-          cat /etc/*elease
+          
+          log_info "Installing utility tools..."
+          cat /etc/*release
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             net-tools iputils-ping node-typescript \
@@ -84,6 +92,14 @@ jobs:
           echo "Curl Version: $(curl --version | head -1)"
 
           log_pass "All tools successfully installed and verified"
+          
+          # Update Summary
+          {
+            echo "## Tool Installation Results"
+            echo "- **JQ Version**: $(jq --version)"
+            echo "- **Curl Version**: $(curl --version | head -1)"
+            echo "- **Installation Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Setup Node
         id: setup-node
@@ -92,13 +108,32 @@ jobs:
           node-version: 20.18.0
 
       - name: Install Solo
-        run: |
+        id: install-solo
+        timeout-minutes: 10
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+
+          set -euo pipefail
+          
+          log_info "Installing Hashgraph Solo..."
           npm install -g "@hashgraph/solo@0.42.0"
 
           # verify the installation
-          solo --version
+          SOLO_VERSION=$(solo --version)
+          log_pass "Solo successfully installed: ${SOLO_VERSION}"
+          
+          # Update Summary
+          {
+            echo "## Solo Installation Results"
+            echo "- **Solo Version**: ${SOLO_VERSION}"
+            echo "- **Installation Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Setup Kind
+        id: setup-kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
@@ -109,21 +144,51 @@ jobs:
           wait: 120s
 
       - name: Deploy with Solo
+        id: deploy-solo
+        timeout-minutes: 30
         env:
           NODE_VERSION: ${{ inputs.ref }}
-          SOLO_CLUSTER)NAME: "solo-bigapps"
-        run: |
-          set +x
-          set +e
-          curdir="$(pwd)"
-          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
-          export CONSENSUS_NODE_VERSION="${NODE_VERSION}"
-          solo quick-start single deploy | tee ${curdir}/solo.out
+          SOLO_CLUSTER_NAME: "solo-bigapps"
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
 
-          line=$(grep "0.0.1015" solo.out)
+          set -euo pipefail
+          
+          curdir="$(pwd)"
+          
+          log_info "Creating Kind cluster: ${SOLO_CLUSTER_NAME}"
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          
+          log_info "Deploying Solo network with consensus node version: ${NODE_VERSION}"
+          export CONSENSUS_NODE_VERSION="${NODE_VERSION}"
+          
+          if ! solo quick-start single deploy | tee "${curdir}/solo.out"; then
+            log_error "Solo deployment failed"
+            exit 1
+          fi
+
+          log_info "Extracting account information from deployment output"
+          line=$(grep "0.0.1015" solo.out) || {
+            log_error "Failed to find account information in solo output"
+            log_info "Solo output contents:"
+            cat solo.out
+            exit 1
+          }
+          
           account_id=$(echo "$line" | sed -n 's/.*Account ID: \([0-9.]*\).*/\1/p')
           private_key=$(echo "$line" | sed -n 's/.*Private Key: \(0x[a-fA-F0-9]*\).*/\1/p')
           balance=$(echo "$line" | sed -n 's/.*Balance: \([0-9]*\) ℏ/\1/p')
+          
+          # Validate extracted values
+          if [[ -z "${account_id}" || -z "${private_key}" || -z "${balance}" ]]; then
+            log_error "Failed to extract all required account information"
+            log_error "Account ID: '${account_id}', Private Key: '${private_key}', Balance: '${balance}'"
+            exit 1
+          fi
 
           cat > accounts.sh << EOF
           #!/bin/bash
@@ -133,55 +198,359 @@ jobs:
           ACCOUNT_BALANCE="$balance"
           EOF
 
-          echo "Generated accounts.sh with:"
-          echo "ACCOUNT_ID=\"$account_id\""
-          echo "ACCOUNT_PRIVATE_KEY=\"$private_key\""
-          echo "ACCOUNT_BALANCE=\"$balance\""
+          log_pass "Successfully generated accounts.sh with:"
+          log_info "ACCOUNT_ID=\"$account_id\""
+          log_info "ACCOUNT_PRIVATE_KEY=\"$private_key\""
+          log_info "ACCOUNT_BALANCE=\"$balance\""
+          
+          # Update Summary
+          {
+            echo "## Solo Network Deployment Results"
+            echo "- **Cluster Name**: ${SOLO_CLUSTER_NAME}"
+            echo "- **Consensus Node Version**: ${NODE_VERSION}"
+            echo "- **Account ID**: ${account_id}"
+            echo "- **Account Balance**: ${balance} ℏ"
+            echo "- **Deployment Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
        
       - name: Run Saucerswap
-        id: run-saucerwap
-        run: |
+        id: run-saucerswap
+        timeout-minutes: 20
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
 
-          cd ${GITHUB_WORKSPACE}/
+          set -euo pipefail
 
+          cd "${GITHUB_WORKSPACE}/"
+
+          log_info "Cloning big-apps-testing repository..."
           git clone --recurse-submodules https://github.com/mgarbs/big-apps-testing.git
           cd big-apps-testing
 
-          . ${GITHUB_WORKSPACE}/accounts.sh
+          log_info "Setting up environment for Saucerswap testing..."
+          if [[ ! -f "${GITHUB_WORKSPACE}/accounts.sh" ]]; then
+            log_error "accounts.sh not found - Solo deployment may have failed"
+            exit 1
+          fi
+          
+          # Source account information
+          . "${GITHUB_WORKSPACE}/accounts.sh"
+          
+          # Validate required environment variables
+          if [[ -z "${ACCOUNT_PRIVATE_KEY:-}" ]]; then
+            log_error "ACCOUNT_PRIVATE_KEY not set from accounts.sh"
+            exit 1
+          fi
+          
           sed "s/ENV_PRIVATE_KEY/$ACCOUNT_PRIVATE_KEY/g" tools/template-env > .env
+          log_info "Generated .env file:"
           cat .env
 
+          log_info "Preparing Saucerswap test script..."
           cp tools/run_saucerswap.sh .
 
-          bash ./run_saucerswap.sh || true
+          log_info "Running Saucerswap tests..."
+          SAUCERSWAP_EXIT_CODE=0
+          bash ./run_saucerswap.sh || SAUCERSWAP_EXIT_CODE=$?
+          
+          if [[ $SAUCERSWAP_EXIT_CODE -eq 0 ]]; then
+            log_pass "Saucerswap tests completed successfully"
+          else
+            log_warning "Saucerswap tests completed with exit code: $SAUCERSWAP_EXIT_CODE"
+          fi
+          
+          # Update Summary
+          {
+            echo "## Saucerswap Test Results"
+            echo "- **Exit Code**: $SAUCERSWAP_EXIT_CODE"
+            echo "- **Status**: $([[ $SAUCERSWAP_EXIT_CODE -eq 0 ]] && echo '✅ Passed' || echo '⚠️ Warning')"
+            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
           
       - name: Run Bonzo Finance
         id: run-bonzo
-        run: |
+        timeout-minutes: 30
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
 
-          cd ${GITHUB_WORKSPACE}/
+          set -euo pipefail
+
+          cd "${GITHUB_WORKSPACE}/"
           cd big-apps-testing/apps/bonzo
+          
+          log_info "Applying Bonzo Finance patches..."
           git apply ../bonzo.patch
+          
+          log_info "Installing Bonzo Finance dependencies..."
           npm ci --force
+          
+          log_info "Compiling Bonzo Finance contracts..."
           npm run compile
-          npm run hedera:mainnet:full:migration || true
+          
+          log_info "Running Bonzo Finance migration..."
+          BONZO_EXIT_CODE=0
+          npm run hedera:mainnet:full:migration || BONZO_EXIT_CODE=$?
+          
+          if [[ $BONZO_EXIT_CODE -eq 0 ]]; then
+            log_pass "Bonzo Finance migration completed successfully"
+          else
+            log_warning "Bonzo Finance migration completed with exit code: $BONZO_EXIT_CODE"
+          fi
+          
+          # Update Summary
+          {
+            echo "## Bonzo Finance Test Results"
+            echo "- **Exit Code**: $BONZO_EXIT_CODE"
+            echo "- **Status**: $([[ $BONZO_EXIT_CODE -eq 0 ]] && echo '✅ Passed' || echo '⚠️ Warning')"
+            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
           
       - name: Run StableCoin Studio
         id: run-stablecoin-studio
-        run: |
+        timeout-minutes: 30
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
 
-          cd ${GITHUB_WORKSPACE}/
+          set -euo pipefail
 
+          cd "${GITHUB_WORKSPACE}/"
+
+          log_info "Cloning StableCoin Studio repository..."
           git clone https://github.com/hashgraph/stablecoin-studio.git
           cd stablecoin-studio/contracts
+          
+          log_info "Installing StableCoin Studio dependencies..."
           npm install
           npm ci
+          
+          log_info "Compiling StableCoin Studio contracts..."
           npx hardhat compile
-          npx hardhat test --network local || true
+          
+          log_info "Running StableCoin Studio tests..."
+          STABLECOIN_EXIT_CODE=0
+          npx hardhat test --network local || STABLECOIN_EXIT_CODE=$?
+          
+          if [[ $STABLECOIN_EXIT_CODE -eq 0 ]]; then
+            log_pass "StableCoin Studio tests completed successfully"
+          else
+            log_warning "StableCoin Studio tests completed with exit code: $STABLECOIN_EXIT_CODE"
+          fi
+          
+          # Update Summary
+          {
+            echo "## StableCoin Studio Test Results"
+            echo "- **Exit Code**: $STABLECOIN_EXIT_CODE"
+            echo "- **Status**: $([[ $STABLECOIN_EXIT_CODE -eq 0 ]] && echo '✅ Passed' || echo '⚠️ Warning')"
+            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Destroy Solo Network
-        id: destroy-solo-network
+        id: destroy-solo
+        if: always()
+        timeout-minutes: 10
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
+          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
+          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
+
+          set -euo pipefail
+          
+          log_info "Destroying Solo network..."
+          DESTROY_EXIT_CODE=0
+          solo quick-start single destroy || DESTROY_EXIT_CODE=$?
+          
+          if [[ $DESTROY_EXIT_CODE -eq 0 ]]; then
+            log_pass "Solo network destroyed successfully"
+          else
+            log_warning "Solo network destruction completed with exit code: $DESTROY_EXIT_CODE"
+          fi
+          
+          log_info "Cleaning up Kind cluster..."
+          kind delete cluster -n "solo-bigapps" || log_warning "Failed to delete Kind cluster"
+          
+          # Update Summary
+          {
+            echo "## Cleanup Results"
+            echo "- **Solo Destruction Exit Code**: $DESTROY_EXIT_CODE"
+            echo "- **Status**: $([[ $DESTROY_EXIT_CODE -eq 0 ]] && echo '✅ Passed' || echo '⚠️ Warning')"
+            echo "- **Cleanup Time**: $(date '+%Y-%m-%d %T UTC')"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Summary
+        id: summary
+        if: always()
+        run: |-
+          # log functions
+          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+
+          # overall status
+          OVERALL_STATUS="✅ Success"
+          if [[ "${{ steps.deploy-solo.outcome }}" != "success" ]]; then
+            OVERALL_STATUS="❌ Failed (Solo Deployment)"
+          elif [[ "${{ steps.run-saucerswap.outcome }}" == "failure" ]]; then
+            OVERALL_STATUS="❌ Failed (Saucerswap)"
+          elif [[ "${{ steps.run-bonzo.outcome }}" == "failure" ]]; then
+            OVERALL_STATUS="❌ Failed (Bonzo Finance)"
+          elif [[ "${{ steps.run-stablecoin-studio.outcome }}" == "failure" ]]; then
+            OVERALL_STATUS="❌ Failed (StableCoin Studio)"
+          elif [[ "${{ steps.install-tools.outcome }}" != "success" ]]; then
+            OVERALL_STATUS="❌ Failed (Tool Installation)"
+          fi
+
+          # Summary
+          {
+            echo "# BigApps Test Workflow Summary"
+            echo
+            echo "## Overall Status: ${OVERALL_STATUS}"
+            echo
+            echo "## Input Parameters"
+            echo "- **Reference**: \`${{ inputs.ref }}\`"
+            echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
+            echo
+            echo "## Step Results"
+            echo "- **Tool Installation**: ${{ steps.install-tools.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Solo Installation**: ${{ steps.install-solo.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Kind Setup**: ${{ steps.setup-kind.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Solo Deployment**: ${{ steps.deploy-solo.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Saucerswap Tests**: ${{ steps.run-saucerswap.outcome == 'success' && '✅ Passed' || (steps.run-saucerswap.outcome == 'failure' && '❌ Failed') || '⚠️ Skipped' }}"
+            echo "- **Bonzo Finance Tests**: ${{ steps.run-bonzo.outcome == 'success' && '✅ Passed' || (steps.run-bonzo.outcome == 'failure' && '❌ Failed') || '⚠️ Skipped' }}"
+            echo "- **StableCoin Studio Tests**: ${{ steps.run-stablecoin-studio.outcome == 'success' && '✅ Passed' || (steps.run-stablecoin-studio.outcome == 'failure' && '❌ Failed') || '⚠️ Skipped' }}"
+            echo "- **Cleanup**: ${{ steps.destroy-solo.outcome == 'success' && '✅ Passed' || '⚠️ Warning' }}"
+            echo
+            echo "## Execution Details"
+            echo "- **Workflow Run ID**: ${{ github.run_id }}"
+            echo "- **Workflow Run Number**: ${{ github.run_number }}"
+            echo "- **Runner**: \`${{ runner.name }}\`"
+            echo "- **OS**: \`${{ runner.os }}\`"
+            echo "- **Triggered By**: ${{ github.actor }}"
+            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
+            echo
+            if [[ "${OVERALL_STATUS}" == *"Failed"* ]]; then
+              echo "## ⚠️ Troubleshooting"
+              echo "1. Check the Solo network deployment logs"
+              echo "2. Verify the account extraction was successful"
+              echo "3. Review individual application test outputs"
+              echo "4. Ensure all dependencies are properly installed"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  report-failures:
+    name: Report Failures to Rootly
+    needs: big-apps-test
+    if: ${{ needs.big-apps-test.result != 'success' }}
+    runs-on: hiero-citr-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Rootly Service
+        id: set-rootly-service
         run: |
-           solo quick-start single destroy
+          ROOTLY_SERVICE="Big Apps Testing"
+          if [[ "${{ needs.big-apps-test.outputs.harden-runner }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.big-apps-test.outputs.checkout-code }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.big-apps-test.outputs.install-tools }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.big-apps-test.outputs.setup-node }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.big-apps-test.outputs.install-solo }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.big-apps-test.outputs.setup-kind }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Incident Creation Flag
+        id: set-create-incident
+        run: |
+          CREATE_INCIDENT="false"
+          if [[ "${{ needs.big-apps-test.outputs.deploy-solo }}" == "failure" ]] \
+            || [[ "${{ needs.big-apps-test.outputs.run-saucerswap }}" == "failure" ]] \
+            || [[ "${{ needs.big-apps-test.outputs.run-bonzo }}" == "failure" ]] \
+            || [[ "${{ needs.big-apps-test.outputs.run-stablecoin-studio }}" == "failure" ]]; then
+            CREATE_INCIDENT="true"
+          fi
+          echo "create=${CREATE_INCIDENT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The Big Apps Test Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "- Harden Runner: ${{ needs.big-apps-test.outputs.harden-runner }}"
+            echo "- Checkout Code: ${{ needs.big-apps-test.outputs.checkout-code }}"
+            echo "- Install Tools: ${{ needs.big-apps-test.outputs.install-tools }}"
+            echo "- Setup Node: ${{ needs.big-apps-test.outputs.setup-node }}"
+            echo "- Install Solo: ${{ needs.big-apps-test.outputs.install-solo }}"
+            echo "- Setup Kind: ${{ needs.big-apps-test.outputs.setup-kind }}"
+            echo "- Deploy Solo: ${{ needs.big-apps-test.outputs.deploy-solo }}"
+            echo "- Run Saucerswap: ${{ needs.big-apps-test.outputs.run-saucerswap }}"
+            echo "- Run Bonzo Finance: ${{ needs.big-apps-test.outputs.run-bonzo }}"
+            echo "- Run StableCoin Studio: ${{ needs.big-apps-test.outputs.run-stablecoin-studio }}"
+            echo "- Destroy Solo: ${{ needs.big-apps-test.outputs.destroy-solo }}"
+            echo "- Summary: ${{ needs.big-apps-test.outputs.summary }}"
+            echo "------------------------------------"
+            echo "Workflow Information:"
+            echo "- Reference: ${{ inputs.ref }}"
+            echo "- Build Tag: ${{ inputs.build-tag }}"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create Rootly Incident
+        if: ${{ steps.set-create-incident.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI,Performance Engineering"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Platform CI,Performance Engineering"
 
