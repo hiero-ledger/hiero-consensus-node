@@ -5,12 +5,10 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -47,9 +45,9 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     /**
      * Creates an initialized {@code TurtleAppState}.
      *
-     * @param configuration   the platform configuration
-     * @param metrics         the platform metric
-     * @param time            the time instance
+     * @param configuration   the platform configuration instance to use when creating the new instance of state
+     * @param metrics         the platform metric instance to use when creating the new instance of state
+     * @param time            the time instance to use when creating the new instance of state
      * @param roster          the initial roster stored in the state
      * @param version         the software version to set in the state
      * @return state root
@@ -92,9 +90,11 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
         return new OtterAppState(virtualMap, configuration, metrics, time);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
-        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
-        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

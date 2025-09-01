@@ -453,9 +453,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * Creates a canonical {@link Hedera} instance for the given node id and metrics.
      *
      * @param platformStateFacade an object to access the platform state
-     * @param configuration the platform configuration
-     * @param metrics       the platform metric
-     * @param time          the time instance
+     * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param metrics       the platform metric instance to use when creating the new instance of state
+     * @param time          the time instance to use when creating the new instance of state
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(

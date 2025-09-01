@@ -340,12 +340,12 @@ class DefaultSignedStateValidatorTests {
         };
 
         return new RandomSignedStateGenerator()
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
                 .setState(new TestMerkleStateRoot(
                         CONFIGURATION,
                         new NoOpMetrics(),
                         Time.getCurrent(),
-                        MerkleCryptographyFactory.create(
-                                CONFIGURATION))) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                        MerkleCryptographyFactory.create(CONFIGURATION)))
                 .setRound(ROUND)
                 .setRoster(roster)
                 .setStateHash(stateHash)

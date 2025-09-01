@@ -371,12 +371,12 @@ class StateSigningTests {
                 .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .setCalculateHash(true)
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
                 .setState(new TestMerkleStateRoot(
                         CONFIGURATION,
                         new NoOpMetrics(),
                         Time.getCurrent(),
-                        MerkleCryptographyFactory.create(
-                                CONFIGURATION))) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                        MerkleCryptographyFactory.create(CONFIGURATION)))
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();

@@ -122,9 +122,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     /**
      * Initializes a {@link VirtualMapState}.
      *
-     * @param configuration the platform configuration
-     * @param metrics       the platform metric
-     * @param time          the time instance
+     * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param metrics       the platform metric instance to use when creating the new instance of state
+     * @param time          the time instance to use when creating the new instance of state
      */
     public VirtualMapState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
@@ -150,9 +150,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * Initializes a {@link VirtualMapState} with the specified {@link VirtualMap}.
      *
      * @param virtualMap    the virtual map with pre-registered metrics
-     * @param configuration the platform configuration
-     * @param metrics       the platform metric
-     * @param time          the time instance
+     * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param metrics       the platform metric instance to use when creating the new instance of state
+     * @param time          the time instance to use when creating the new instance of state
      */
     public VirtualMapState(
             @NonNull final VirtualMap virtualMap,
@@ -390,6 +390,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
 
     // Getters and setters
 
+    /**
+     * Retrieves the round number associated with this state.
+     *
+     * @return the round number as a long value
+     */
     protected abstract long getRound();
 
     public Map<String, Map<String, StateMetadata<?, ?>>> getServices() {

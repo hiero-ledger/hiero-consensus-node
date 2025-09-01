@@ -3,12 +3,10 @@ package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -62,9 +60,11 @@ public class TestHederaVirtualMapState extends VirtualMapState<TestHederaVirtual
         return new TestHederaVirtualMapState(virtualMap, configuration, metrics, time);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
-        final ConsensusSnapshot consensusSnapshot = TEST_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
-        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        return TEST_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

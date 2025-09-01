@@ -122,12 +122,12 @@ final class ReconnectTest {
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
                     .setCalculateHash(true)
+                    // FUTURE WORK: remove setState call use TestHederaVirtualMapState
                     .setState(new TestMerkleStateRoot(
                             CONFIGURATION,
                             new NoOpMetrics(),
                             Time.getCurrent(),
-                            MerkleCryptographyFactory.create(CONFIGURATION))) // FUTURE WORK: remove this line to use
-                    // TestHederaVirtualMapState
+                            MerkleCryptographyFactory.create(CONFIGURATION)))
                     .buildWithFacade();
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();

@@ -111,13 +111,12 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRound(firstRound)
                 .setSignatures(signatures)
                 .setCalculateHash(true)
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
                 .setState(new TestMerkleStateRoot(
                         platformContext.getConfiguration(),
                         platformContext.getMetrics(),
                         platformContext.getTime(),
-                        MerkleCryptographyFactory.create(
-                                platformContext.getConfiguration()))) // FUTURE WORK: remove this line to use
-                // TestHederaVirtualMapState
+                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 

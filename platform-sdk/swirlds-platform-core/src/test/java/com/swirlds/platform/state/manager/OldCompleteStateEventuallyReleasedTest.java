@@ -100,13 +100,12 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(0)
                 .setSignatures(signatures)
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
                 .setState(new TestMerkleStateRoot(
                         platformContext.getConfiguration(),
                         platformContext.getMetrics(),
                         platformContext.getTime(),
-                        MerkleCryptographyFactory.create(
-                                platformContext.getConfiguration()))) // FUTURE WORK: remove this line to use
-                // TestHederaVirtualMapState
+                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 
