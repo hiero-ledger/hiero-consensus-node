@@ -284,7 +284,7 @@ jobs:
             tar xf $tarfile
             cd block-node-app-*
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
-            `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' \) -print` > BNsources_init.txt 2>&1
+            `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
             cp BNsources_init.txt "${{ github.workspace }}"/report/
 
             cp `find block-node-app-* -type f -name '*.ser' -print` ../../
@@ -464,7 +464,12 @@ jobs:
           wait
           
           BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
-          
+
+          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "apt-get update; apt-get install -y unzip"
+          done
+
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
           do
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${BNtarname} $i:/tmp/blocknode.tar
@@ -475,15 +480,9 @@ jobs:
                 mkdir -p /opt/hiero/block-node/logs/config;    \
                 export SERVER_PORT=40840;                      \
                 cd /opt/hiero/block-node; \
-                tar xf /tmp/blocknode.tar; \
-                echo \"Generate module allowances:\"; \
-                java -p \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") --list-modules | awk -F @ '{print \$1}' |\
-                grep -E 'hiero|swirlds|hedera' | sort -u | grep -v 'file:' | perl -ne '~s/\n//g; print \"--add-reads \$_=cobertura \";' > module_reads.txt; \
-                cat module_reads.txt; \
-                nohup java -Xms16G -Xmx28G -Dnet.sourceforge.cobertura.datafile=cobertura.ser -classpath \"\" --module-path \$(find /opt/hiero/block-node/block-node-app* -type f -name '*.jar' -printf "%p:") \
-                  --add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura \
-                  \$(cat module_reads.txt) \
-                  --module org.hiero.block.node.app/org.hiero.block.node.app.BlockNodeApp >/opt/hiero/block-node/logs/block-node.log 2>&1 &"
+                tar xf /tmp/blocknode.tar;"
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; sh /tmp/startInstrumentedBN.sh"
           done
           sleep 30
 
@@ -795,13 +794,17 @@ jobs:
           #BN
           cd "${{ github.workspace }}"/target_block_node
           sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node /opt/hiero/block-node
+          echo "Debug"
+          pwd
+          ls -l *.ser
+          
 
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
-          `find . ../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          `find . ../pbj ../target_consensus_node -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
           
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
-          `find . ../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          `find . ../pbj ../target_consensus_node -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
           sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/anchorHTML.sh sources
           perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
