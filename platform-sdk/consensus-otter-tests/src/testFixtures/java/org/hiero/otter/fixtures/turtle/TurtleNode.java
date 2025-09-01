@@ -69,7 +69,6 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -78,6 +77,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    /** The thread context key for the node ID. */
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
     private final Randotron randotron;
@@ -167,7 +167,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
         throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
@@ -280,7 +280,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    @NonNull
+    public SingleNodeReconnectResult newReconnectResult() {
         throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 
@@ -314,10 +315,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 

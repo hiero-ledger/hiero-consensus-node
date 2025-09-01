@@ -62,11 +62,6 @@ import java.time.Duration;
  * @param validateInitialState          If false then do not do ISS validation on the state loaded from disk at startup.
  *                                      This should always be enabled in production environments. Disabling initial
  *                                      state validation is intended to be a test-only feature.
- * @param maxSignatureResubmitAge       The maximum age of a signature that can be resubmitted (if the host event
- *                                      becomes stale). If a signature is older than this value, it will not be
- *                                      resubmitted. Age is measured by taking the round number of the most recent round
- *                                      to reach consensus and subtracting the round that the signature transaction
- *                                      signs.
  */
 @ConfigData("state")
 public record StateConfig(
@@ -88,8 +83,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "emergencyRecovery.yaml") String emergencyStateFileName,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
-        @ConfigProperty(defaultValue = "true") boolean validateInitialState,
-        @ConfigProperty(defaultValue = "500") long maxSignatureResubmitAge) {
+        @ConfigProperty(defaultValue = "true") boolean validateInitialState) {
 
     /**
      * Get the main class name that should be used for signed states.

@@ -2,6 +2,7 @@
 package com.swirlds.platform.consensus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -9,6 +10,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -16,6 +18,7 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
+import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +35,8 @@ import org.junit.jupiter.api.Test;
  * Tests that validate that the consensus engine is fulfilling its event contract:
  * <ul>
  *     <li>Each event that reaches consensus must have been previously returned as a pre-consensus event</li>
- *     <li>Each pre-consensus event must eventually reach consensus or become stale (the stale part will be implemented soon)</li>
+ *     <li>Each event that becomes stale must have been previously returned as a pre-consensus event</li>
+ *     <li>Each pre-consensus event must eventually reach consensus or become stale</li>
  * </ul>
  */
 public class ConsensusEngineContractTest {
@@ -110,6 +114,52 @@ public class ConsensusEngineContractTest {
         validateOutputContract(restartIntake.getOutput());
     }
 
+    @Test
+    void staleEventsTest() {
+        // parameters
+        // we need at least 4 nodes to have stale events if all nodes have equal weight
+        final int minNodes = 4;
+        final int maxNodes = 15;
+        final int shunnedNodeIndex = 0; // the first node will be shunned
+
+        // setup
+        final Randotron random = Randotron.create();
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .withSize(random.nextInt(minNodes, maxNodes))
+                .build();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        eventEmitter
+                .getGraphGenerator()
+                .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
+                        roster.rosterEntries().size(), shunnedNodeIndex));
+        final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
+                .map(EventImpl::getBaseEvent)
+                .toList();
+
+        // start from genesis, validate the output
+        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        addToIntake(generatedEvents, random, genesisIntake);
+        validateOutputContract(genesisIntake.getOutput());
+
+        assertFalse(
+                genesisIntake.getOutput().getStaleEvents().isEmpty(), "This graph should produce some stale events");
+
+        // get a snapshot from the first run
+        final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
+
+        // load the snapshot into a new intake and validate that the output is consistent
+        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        restartIntake.loadSnapshot(snapshot);
+        addToIntake(generatedEvents, random, restartIntake);
+
+        assertEquals(
+                genesisIntake.getOutput().getLastConsensusRound().getSnapshot(),
+                restartIntake.getOutput().getLastConsensusRound().getSnapshot(),
+                "Both consensus instances should have reached same last consensus round");
+        validateOutputContract(restartIntake.getOutput());
+    }
+
     /**
      * This method modifies the original roster so that all weight is assigned to the first node, and all other nodes
      * have a weight of 0.
@@ -153,8 +203,8 @@ public class ConsensusEngineContractTest {
     /**
      * Generates a list of events for the given roster.
      *
-     * @param random  the random number generator
-     * @param roster  the roster to use to generate events
+     * @param random the random number generator
+     * @param roster the roster to use to generate events
      * @return a list of generated events
      */
     @NonNull
@@ -168,9 +218,9 @@ public class ConsensusEngineContractTest {
     /**
      * Adds the given events to the intake in a random order.
      *
-     * @param events  the events to add
-     * @param random  the random number generator
-     * @param intake  the test intake to add events to
+     * @param events the events to add
+     * @param random the random number generator
+     * @param intake the test intake to add events to
      */
     private static void addToIntake(
             @NonNull final List<PlatformEvent> events, @NonNull final Random random, @NonNull final TestIntake intake) {
@@ -195,23 +245,31 @@ public class ConsensusEngineContractTest {
         final EventWindow eventWindow = output.getLastConsensusRound().getEventWindow();
         final Set<Hash> consensusHashes = output.consensusEventHashes();
         final Set<Hash> preConsensusHashes = output.getPreConsensusEventHashes();
+        final Set<Hash> staleHashes = output.getStaleEventHashes();
 
         for (final PlatformEvent preConsensusEvent : output.getPreConsensusEvents()) {
             if (eventWindow.isAncient(preConsensusEvent)) {
                 assertTrue(
-                        consensusHashes.contains(preConsensusEvent.getHash()),
-                        "Event %s is an ancient pre-consensus event, but has not been returned as a consensus event. "
-                                        .formatted(preConsensusEvent
-                                                .getDescriptor()
-                                                .shortString())
-                                + "Every ancient pre-consensus event added should have reached consensus.");
+                        consensusHashes.contains(preConsensusEvent.getHash())
+                                ^ staleHashes.contains(preConsensusEvent.getHash()),
+                        """
+                                Event %s is an ancient pre-consensus event, but has not been returned as a consensus\s
+                                or stale event. Every ancient pre-consensus event added should have either reached\s
+                                consensus or become stale, but not both."""
+                                .formatted(preConsensusEvent.getDescriptor().shortString()));
             }
         }
 
         for (final Hash consensusHash : consensusHashes) {
             assertTrue(
                     preConsensusHashes.contains(consensusHash),
-                    "every consensus event hash should have been returned as a pre-consensus event");
+                    "every consensus event should have been returned as a pre-consensus event");
+        }
+
+        for (final Hash staleHash : staleHashes) {
+            assertTrue(
+                    preConsensusHashes.contains(staleHash),
+                    "every stale event should have been returned as a pre-consensus event");
         }
     }
 }

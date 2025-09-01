@@ -28,6 +28,6 @@ public record OpsDurationConfig(
                 List<LongPair> opsDurations129_to_192,
         @ConfigProperty(defaultValue = "240-26552,241-98859,242-2011,244-1596,245-11291,250-2091") @NetworkProperty
                 List<LongPair> opsDurations193_to_256,
-        @ConfigProperty(defaultValue = "566") @NetworkProperty long opsGasBasedDurationMultiplier,
+        @ConfigProperty(defaultValue = "1575") @NetworkProperty long opsGasBasedDurationMultiplier,
         @ConfigProperty(defaultValue = "1575") @NetworkProperty long precompileGasBasedDurationMultiplier,
-        @ConfigProperty(defaultValue = "566") @NetworkProperty long systemContractGasBasedDurationMultiplier) {}
+        @ConfigProperty(defaultValue = "1575") @NetworkProperty long systemContractGasBasedDurationMultiplier) {}
