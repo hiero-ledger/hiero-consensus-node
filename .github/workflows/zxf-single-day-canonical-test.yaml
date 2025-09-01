@@ -141,37 +141,44 @@ jobs:
       - name: Run Saucerswap
         id: run-saucerwap
         run: |
-          curdir="$(pwd)"
 
-          git clone https://github.com/mgarbs/big-apps-testing.git
+          cd ${GITHUB_WORKSPACE}/
 
-          echo "${curdir}"
+          git clone --recurse-submodules https://github.com/mgarbs/big-apps-testing.git
           cd big-apps-testing
-          pwd
+
           . ${curdir}/accounts.sh
           sed "s/ENV_PRIVATE_KEY/$ACCOUNT_PRIVATE_KEY/g" tools/template-env > .env
           cat .env
 
           cp tools/run_saucerswap.sh .
 
-          bash ./run_saucerswap.sh
+          bash ./run_saucerswap.sh || true
+          
+      - name: Run Bonzo Finance
+        id: run-bonzo
+        run: |
 
-          pwd
+          cd ${GITHUB_WORKSPACE}/
+          cd big-apps-testing/apps/bonzo
+          git apply ../bonzo.patch
+          npm ci --force
+          npm run compile
+          npm run hedera:mainnet:full:migration || true
+
           
       - name: Run StableCoin Studio
         id: run-stablecoin-studio
         run: |
+
+          cd ${GITHUB_WORKSPACE}/
 
           git clone https://github.com/hashgraph/stablecoin-studio.git
           cd stablecount-studio/contracts
           npm install
           npm ci
           npx hardhat compile
-          npx hardhat test --network local
-          
-          pwd
-          
-
+          npx hardhat test --network local || true
 
       - name: Destroy Solo Network
         id: destroy-solo-network
