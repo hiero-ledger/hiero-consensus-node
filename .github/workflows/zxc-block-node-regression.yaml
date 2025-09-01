@@ -268,7 +268,11 @@ jobs:
         working-directory: block-node/protobuf-sources
         run: |
           mkdir -p proto
-          tar -xzf block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz -C proto
+          # Extract the 'v' from the tag if it exists
+          PROTO_TAG="${{ env.BLOCK_NODE_TAG }}"
+          PROTO_TAG="${PROTO_TAG#v}"
+          # untar the artifact
+          tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
 
       - name: Install grpcurl
         run: |
@@ -342,17 +346,17 @@ jobs:
         if: always()
         run: |
           # Get BN Logs
-          kubectl logs -n "${NAMESPACE}" -l "app.kubernetes.io/name=block-node-0" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-0" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
 
           # Get MN Logs
-          kubectl logs -n "${NAMESPACE}" -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
 
       - name: Collect CN Logs
         if: always()
         run: |
           # Get CN Logs
-          solo node logs -d "${DEPLOYMENT}" --dev -q
-          BASE="${HOME}/.solo/logs/${NAMESPACE}"
+          solo node logs -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
