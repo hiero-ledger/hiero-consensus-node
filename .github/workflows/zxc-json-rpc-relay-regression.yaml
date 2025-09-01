@@ -76,7 +76,6 @@ jobs:
           java-version: 21.0.6
 
       # Set up the node environment
-      # Version 20.18.0 is the recommended version for solo.
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -94,9 +93,7 @@ jobs:
 
       # Set up the npm dependencies and cache on the json-rpc-relay repository
       - name: Install NodeJS Dependencies (json-rpc-relay)
-        run: |
-          npm cache clean --force
-          npm ci
+        run: npm ci
         working-directory: regression-tests/json-rpc-relay
 
       # Install solo and configure to use the artifacts from
@@ -109,9 +106,9 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
-          node_image: kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d
-          version: v0.29.0
-          kubectl_version: v1.32.5
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
           verbosity: 3
           wait: 120s
 
