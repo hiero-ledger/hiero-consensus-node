@@ -373,8 +373,8 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
