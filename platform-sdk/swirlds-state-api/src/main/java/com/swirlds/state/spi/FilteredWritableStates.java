@@ -10,6 +10,7 @@ import java.util.Set;
  * available set of states.
  */
 public class FilteredWritableStates extends FilteredReadableStates implements WritableStates {
+
     /** The {@link WritableStates} to delegate to */
     private final WritableStates delegate;
 
@@ -19,42 +20,39 @@ public class FilteredWritableStates extends FilteredReadableStates implements Wr
      * @param delegate The instance to delegate to
      * @param stateKeys The set of keys in {@code delegate} to expose
      */
-    public FilteredWritableStates(@NonNull final WritableStates delegate, @NonNull final Set<String> stateKeys) {
+    public FilteredWritableStates(@NonNull final WritableStates delegate, @NonNull final Set<Integer> stateKeys) {
         super(delegate, stateKeys);
         this.delegate = Objects.requireNonNull(delegate);
     }
 
     @NonNull
     @Override
-    public <K, V> WritableKVState<K, V> get(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find k/v state " + stateKey);
+    public <K, V> WritableKVState<K, V> get(final int stateId) {
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find k/v state ID " + stateId);
         }
 
-        return delegate.get(stateKey);
+        return delegate.get(stateId);
     }
 
     @NonNull
     @Override
-    public <T> WritableSingletonState<T> getSingleton(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find singleton state " + stateKey);
+    public <T> WritableSingletonState<T> getSingleton(final int stateId) {
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find singleton state ID " + stateId);
         }
 
-        return delegate.getSingleton(stateKey);
+        return delegate.getSingleton(stateId);
     }
 
     @NonNull
     @Override
-    public <E> WritableQueueState<E> getQueue(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find queue state " + stateKey);
+    public <E> WritableQueueState<E> getQueue(final int stateId) {
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find queue state ID " + stateId);
         }
 
-        return delegate.getQueue(stateKey);
+        return delegate.getQueue(stateId);
     }
 
     public WritableStates getDelegate() {

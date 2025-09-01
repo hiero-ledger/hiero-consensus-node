@@ -26,7 +26,8 @@ import java.util.Objects;
  * @param <V> The type of value
  */
 public record StateDefinition<K, V>(
-        @NonNull String stateKey,
+        int stateId,
+        @Nullable String stateKey,
         @Nullable Codec<K> keyCodec,
         @NonNull Codec<V> valueCodec,
         long maxKeysHint,
@@ -71,8 +72,11 @@ public record StateDefinition<K, V>(
      * @param <V> The value type
      */
     public static <K, V> StateDefinition<K, V> inMemory(
-            @NonNull final String stateKey, @NonNull final Codec<K> keyCodec, @NonNull final Codec<V> valueCodec) {
-        return new StateDefinition<>(stateKey, keyCodec, valueCodec, NO_MAX, false, false, false);
+            final int stateId,
+            @Nullable final String stateKey,
+            @NonNull final Codec<K> keyCodec,
+            @NonNull final Codec<V> valueCodec) {
+        return new StateDefinition<>(stateId, stateKey, keyCodec, valueCodec, NO_MAX, false, false, false);
     }
 
     /**
@@ -89,11 +93,12 @@ public record StateDefinition<K, V>(
      * @param <V> The value type
      */
     public static <K, V> StateDefinition<K, V> onDisk(
-            @NonNull final String stateKey,
+            final int stateId,
+            @Nullable final String stateKey,
             @NonNull final Codec<K> keyCodec,
             @NonNull final Codec<V> valueCodec,
             final long maxKeysHint) {
-        return new StateDefinition<>(stateKey, keyCodec, valueCodec, maxKeysHint, true, false, false);
+        return new StateDefinition<>(stateId, stateKey, keyCodec, valueCodec, maxKeysHint, true, false, false);
     }
 
     /**
@@ -106,8 +111,8 @@ public record StateDefinition<K, V>(
      * @param <V> The value type
      */
     public static <K, V> StateDefinition<K, V> singleton(
-            @NonNull final String stateKey, @NonNull final Codec<V> valueCodec) {
-        return new StateDefinition<>(stateKey, null, valueCodec, NO_MAX, false, true, false);
+            final int stateId, @Nullable final String stateKey, @NonNull final Codec<V> valueCodec) {
+        return new StateDefinition<>(stateId, stateKey, null, valueCodec, NO_MAX, false, true, false);
     }
 
     /**
@@ -120,7 +125,7 @@ public record StateDefinition<K, V>(
      * @param <V> The value type
      */
     public static <K, V> StateDefinition<K, V> queue(
-            @NonNull final String stateKey, @NonNull final Codec<V> elementCodec) {
-        return new StateDefinition<>(stateKey, null, elementCodec, NO_MAX, false, false, true);
+            final int stateId, @NonNull final String stateKey, @NonNull final Codec<V> elementCodec) {
+        return new StateDefinition<>(stateId, stateKey, null, elementCodec, NO_MAX, false, false, true);
     }
 }

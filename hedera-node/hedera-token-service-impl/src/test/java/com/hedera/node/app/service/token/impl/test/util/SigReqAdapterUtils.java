@@ -3,8 +3,10 @@ package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockStates;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockWritableStates;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.wellKnownAliasState;
@@ -155,7 +157,8 @@ public class SigReqAdapterUtils {
      */
     public static ReadableTokenStore wellKnownTokenStoreAt() {
         final var state = wellKnownTokenState();
-        return new ReadableTokenStoreImpl(mockStates(Map.of(TOKENS_KEY, state)), mock(ReadableEntityCounters.class));
+        return new ReadableTokenStoreImpl(
+                mockStates(Map.of(TOKENS_STATE_ID, state)), mock(ReadableEntityCounters.class));
     }
 
     /**
@@ -166,7 +169,7 @@ public class SigReqAdapterUtils {
      */
     public static WritableTokenStore wellKnownWritableTokenStoreAt() {
         return new WritableTokenStore(
-                mockWritableStates(Map.of(TOKENS_KEY, wellKnownTokenState())), mock(WritableEntityCounters.class));
+                mockWritableStates(Map.of(TOKENS_STATE_ID, wellKnownTokenState())), mock(WritableEntityCounters.class));
     }
 
     private static WritableKVState<TokenID, Token> wellKnownTokenState() {
@@ -299,7 +302,7 @@ public class SigReqAdapterUtils {
                         .deleted(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
-        return new MapWritableKVState<>(TokenService.NAME, TOKENS_KEY, destination);
+        return new MapWritableKVState<>(TokenService.NAME, TOKENS_STATE_ID, destination);
     }
 
     /**
@@ -340,9 +343,9 @@ public class SigReqAdapterUtils {
                         .balance(30)
                         .build());
 
-        final var wrappedState = new MapWritableKVState<>(TokenService.NAME, TOKEN_RELS_KEY, destination);
+        final var wrappedState = new MapWritableKVState<>(TokenService.NAME, TOKEN_RELS_STATE_ID, destination);
         return new WritableTokenRelationStore(
-                mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(WritableEntityCounters.class));
+                mockWritableStates(Map.of(TOKEN_RELS_STATE_ID, wrappedState)), mock(WritableEntityCounters.class));
     }
 
     /**
@@ -352,7 +355,7 @@ public class SigReqAdapterUtils {
      */
     public static ReadableAccountStoreImpl wellKnownAccountStoreAt() {
         return new ReadableAccountStoreImpl(
-                mockStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())),
+                mockStates(Map.of(ACCOUNTS_STATE_ID, wrappedAccountState(), ALIASES_STATE_ID, wellKnownAliasState())),
                 mock(ReadableEntityCounters.class));
     }
 
@@ -363,7 +366,8 @@ public class SigReqAdapterUtils {
      */
     public static WritableAccountStore wellKnownWritableAccountStoreAt() {
         return new WritableAccountStore(
-                mockWritableStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())),
+                mockWritableStates(
+                        Map.of(ACCOUNTS_STATE_ID, wrappedAccountState(), ALIASES_STATE_ID, wellKnownAliasState())),
                 mock(WritableEntityCounters.class));
     }
 
@@ -438,7 +442,7 @@ public class SigReqAdapterUtils {
         destination.put(
                 toPbj(FROM_OVERLAP_PAYER),
                 toPbjAccount(FROM_OVERLAP_PAYER.getAccountNum(), FROM_OVERLAP_PAYER_KT.asPbjKey(), DEFAULT_BALANCE));
-        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, destination);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID, destination);
     }
 
     private static Account toPbjAccount(final long number, final Key key, long balance) {

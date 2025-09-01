@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -31,10 +32,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
+
     @Mock
     private ReadableKVState<TokenID, Token> tokens;
 
-    private static final String TOKENS = "TOKENS";
     private final TokenID tokenId = TokenID.newBuilder().tokenNum(2000).build();
 
     @Mock
@@ -51,7 +52,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
     }
 
     private void initializeToken() {
-        given(states.<TokenID, Token>get(TOKENS)).willReturn(tokens);
+        given(states.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(tokens);
         token = createToken();
     }
 

@@ -33,10 +33,9 @@ public class ReadonlySingletonStateWrapper<T> implements ReadableSingletonState<
         return delegate.getServiceName();
     }
 
-    @NonNull
     @Override
-    public String getStateKey() {
-        return delegate.getStateKey();
+    public int getStateId() {
+        return delegate.getStateId();
     }
 
     @Nullable

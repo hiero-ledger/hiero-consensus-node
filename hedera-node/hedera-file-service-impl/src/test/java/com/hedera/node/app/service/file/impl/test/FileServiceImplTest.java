@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileServiceImplTest {
+
     @Mock
     private SchemaRegistry registry;
 
@@ -38,8 +39,8 @@ class FileServiceImplTest {
         final var statesToCreate = schema.statesToCreate(DEFAULT_CONFIG);
         assertThat(11).isEqualTo(statesToCreate.size());
         final var iter =
-                statesToCreate.stream().map(StateDefinition::stateKey).sorted().iterator();
-        assertThat(V0490FileSchema.BLOBS_KEY).isEqualTo(iter.next());
+                statesToCreate.stream().map(StateDefinition::stateId).sorted().iterator();
+        assertThat(V0490FileSchema.FILES_STATE_ID).isEqualTo(iter.next());
     }
 
     private FileService subject() {

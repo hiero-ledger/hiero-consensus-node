@@ -77,7 +77,7 @@ public final class ExchangeRateManager {
         // Services states must have a non-null midnight rates set, even at genesis, as
         // FeeService schema migrate() creates them in that case)
         midnightRates = state.getReadableStates(FeeService.NAME)
-                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_KEY)
+                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
                 .get();
         requireNonNull(midnightRates, "an initialized state must have a midnight rates set");
         log.info(
@@ -160,7 +160,7 @@ public final class ExchangeRateManager {
     public void updateMidnightRates(@NonNull final State state) {
         midnightRates = currentExchangeRateInfo.exchangeRates();
         final var singleton = state.getWritableStates(FeeService.NAME)
-                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_KEY);
+                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID);
         singleton.put(midnightRates);
         log.info("Updated midnight rates to {}", midnightRates);
     }

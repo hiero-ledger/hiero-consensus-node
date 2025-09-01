@@ -24,6 +24,7 @@ import java.util.Set;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableNftStore extends ReadableNftStoreImpl {
+
     /** The underlying data storage class that holds the NFT data. */
     private final WritableKVState<NftID, Nft> nftState;
 
@@ -37,7 +38,7 @@ public class WritableNftStore extends ReadableNftStoreImpl {
     public WritableNftStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.nftState = states.get(V0490TokenSchema.NFTS_KEY);
+        this.nftState = states.get(V0490TokenSchema.NFTS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

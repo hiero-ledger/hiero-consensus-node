@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -60,6 +60,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class AddressBookTestBase {
+
     private static final String A_NAME = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String B_NAME = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final String C_NAME = "cccccccccccccccccccccccccccccccc";
@@ -176,54 +177,54 @@ public class AddressBookTestBase {
         givenEntityCountersWithOneNodeInWritable();
         readableNodeState = readableNodeState();
         writableNodeState = emptyWritableNodeState();
-        given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
     protected void givenEntityCounters() {
-        given(writableStates.getSingleton(ENTITY_ID_STATE_KEY))
+        given(writableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
-        given(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, c -> {}));
-        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> EntityCounts.DEFAULT, c -> {}));
+        given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                        EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> EntityNumber.newBuilder()
                                 .build()));
-        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT));
+                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> EntityCounts.DEFAULT));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
         writableEntityCounters = new WritableEntityIdStore(writableStates);
     }
 
     protected void givenEntityCountersWithOneNodeInWritable() {
-        given(writableStates.getSingleton(ENTITY_ID_STATE_KEY))
+        given(writableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
-        given(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         () -> EntityCounts.newBuilder().numNodes(1).build(),
                         c -> {}));
-        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+        given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                        EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> EntityNumber.newBuilder()
                                 .build()));
-        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         () -> EntityCounts.newBuilder().numNodes(1).build()));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
         writableEntityCounters = new WritableEntityIdStore(writableStates);
@@ -233,8 +234,8 @@ public class AddressBookTestBase {
         givenEntityCountersWithOneNodeInWritable();
         readableNodeState = readableNodeState();
         writableNodeState = writableNodeStateWithOneKey();
-        given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
@@ -244,7 +245,7 @@ public class AddressBookTestBase {
         givenEntityCountersWithOneNodeInWritable();
         writableEntityCounters.incrementEntityTypeCount(EntityType.NODE);
         writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
@@ -252,27 +253,27 @@ public class AddressBookTestBase {
     protected void refreshStoresWithMoreNodeInWritable() {
         givenEntityCounters();
         writableNodeState = writableNodeStateWithMoreKeys();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
     @NonNull
     protected MapWritableKVState<EntityNumber, Node> emptyWritableNodeState() {
-        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_STATE_ID)
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<EntityNumber, Node> writableNodeStateWithOneKey() {
-        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_STATE_ID)
                 .value(nodeId, node)
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<EntityNumber, Node> writableNodeStateWithMoreKeys() {
-        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+        return MapWritableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_STATE_ID)
                 .value(nodeId, node)
                 .value(nodeId2, mock(Node.class))
                 .build();
@@ -280,14 +281,14 @@ public class AddressBookTestBase {
 
     @NonNull
     protected MapReadableKVState<EntityNumber, Node> readableNodeState() {
-        return MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+        return MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_STATE_ID)
                 .value(nodeId, node)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState.Builder<EntityNumber, Node> emptyReadableNodeStateBuilder() {
-        return MapReadableKVState.builder(AddressBookService.NAME, NODES_KEY);
+        return MapReadableKVState.builder(AddressBookService.NAME, NODES_STATE_ID);
     }
 
     protected void givenValidNode() {

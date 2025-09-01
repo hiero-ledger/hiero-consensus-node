@@ -4,8 +4,6 @@ package com.hedera.services.bdd.suites.integration;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -56,6 +54,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIM
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -287,11 +287,11 @@ public class ConcurrentIntegrationTests {
                 // Verify the candidate roster is set as part of handling the PREPARE_UPGRADE
                 viewSingleton(
                         RosterService.NAME,
-                        ROSTER_STATES_KEY,
+                        ROSTER_STATE_STATE_ID,
                         (RosterState rosterState) ->
                                 candidateRosterHash.set(new ProtoBytes(rosterState.candidateRosterHash()))),
-                sourcing(() ->
-                        viewMappedValue(RosterService.NAME, ROSTER_KEY, candidateRosterHash.get(), (Roster roster) -> {
+                sourcing(() -> viewMappedValue(
+                        RosterService.NAME, ROSTERS_STATE_ID, candidateRosterHash.get(), (Roster roster) -> {
                             final var entries = roster.rosterEntries();
                             assertEquals(
                                     CLASSIC_HAPI_TEST_NETWORK_SIZE + 1,

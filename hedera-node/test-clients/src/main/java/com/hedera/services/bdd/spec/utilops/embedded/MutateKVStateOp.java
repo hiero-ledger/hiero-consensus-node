@@ -12,15 +12,15 @@ import java.util.function.Consumer;
 public class MutateKVStateOp<K, V> extends UtilOp {
 
     private final String serviceName;
-    private final String stateKey;
+    private final int stateId;
     private final Consumer<WritableKVState<K, V>> observer;
 
     public MutateKVStateOp(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             @NonNull final Consumer<WritableKVState<K, V>> observer) {
         this.serviceName = requireNonNull(serviceName);
-        this.stateKey = requireNonNull(stateKey);
+        this.stateId = stateId;
         this.observer = requireNonNull(observer);
     }
 
@@ -28,7 +28,7 @@ public class MutateKVStateOp<K, V> extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         final var state = spec.embeddedStateOrThrow();
         final var writableStates = state.getWritableStates(serviceName);
-        observer.accept(requireNonNull(writableStates.get(stateKey)));
+        observer.accept(requireNonNull(writableStates.get(stateId)));
         spec.commitEmbeddedState();
         return false;
     }

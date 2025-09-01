@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.singleton;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRemove;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonWrite;
 
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,8 +19,8 @@ public class BackedWritableSingletonState<T> extends WritableSingletonStateBase<
     private final SingletonNode<T> backingStore;
 
     public BackedWritableSingletonState(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final SingletonNode<T> node) {
-        super(serviceName, stateKey);
+            @NonNull final String serviceName, final int stateId, @NonNull final SingletonNode<T> node) {
+        super(serviceName, stateId);
         this.backingStore = node;
     }
 
@@ -29,7 +29,7 @@ public class BackedWritableSingletonState<T> extends WritableSingletonStateBase<
     protected T readFromDataSource() {
         final var value = backingStore.getValue();
         // Log to transaction state log, what was read
-        logSingletonRead(computeLabel(serviceName, stateKey), value);
+        logSingletonRead(StateMetadata.computeLabel(serviceName, stateId), value);
         return value;
     }
 
@@ -38,7 +38,7 @@ public class BackedWritableSingletonState<T> extends WritableSingletonStateBase<
     protected void putIntoDataSource(@NonNull T value) {
         backingStore.setValue(value);
         // Log to transaction state log, what was put
-        logSingletonWrite(computeLabel(serviceName, stateKey), value);
+        logSingletonWrite(StateMetadata.computeLabel(serviceName, stateId), value);
     }
 
     /** {@inheritDoc} */
@@ -47,6 +47,6 @@ public class BackedWritableSingletonState<T> extends WritableSingletonStateBase<
         final var removed = backingStore.getValue();
         backingStore.setValue(null);
         // Log to transaction state log, what was removed
-        logSingletonRemove(computeLabel(serviceName, stateKey), removed);
+        logSingletonRemove(StateMetadata.computeLabel(serviceName, stateId), removed);
     }
 }

@@ -30,6 +30,7 @@ import java.util.Iterator;
 @Deprecated
 @DebugIterationEndpoint
 public class QueueNode<E> extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal {
+
     private static final long CLASS_ID = 0x990FF87AD2691DCL;
     public static final int CLASS_VERSION = 1;
 
@@ -60,11 +61,11 @@ public class QueueNode<E> extends PartialBinaryMerkleInternal implements Labeled
      */
     public QueueNode(
             @NonNull String serviceName,
-            @NonNull String stateKey,
+            final int stateId,
             final long queueNodeClassId,
             final long leafClassId,
             @NonNull final Codec<E> codec) {
-        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateKey)));
+        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateId)));
         setRight(new FCQueue<ValueLeaf<E>>());
         this.codec = requireNonNull(codec);
         this.queueNodeClassId = queueNodeClassId;

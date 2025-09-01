@@ -2,8 +2,6 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
-import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -57,9 +55,9 @@ public class TokenRelationsIntegrity {
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
+                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.TOKENS_KEY);
+                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
 
         assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);
@@ -74,14 +72,14 @@ public class TokenRelationsIntegrity {
         AtomicInteger accountFailCounter = new AtomicInteger(0);
         AtomicInteger tokenFailCounter = new AtomicInteger(0);
 
-        final int targetStateId = stateIdFor(TokenServiceImpl.NAME, V0490TokenSchema.TOKEN_RELS_KEY);
+        final int tokenRelsStateId = V0490TokenSchema.TOKEN_RELS_STATE_ID;
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = extractStateKeyValueStateId(keyBytes);
-            final int readValueStateId = extractStateKeyValueStateId(valueBytes);
-            if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
+            final int readKeyStateId = com.swirlds.state.merkle.StateKey.extractStateIdFromStateKey(keyBytes);
+            final int readValueStateId = com.swirlds.state.merkle.StateValue.extractStateIdFromStateValue(valueBytes);
+            if ((readKeyStateId == tokenRelsStateId) && (readValueStateId == tokenRelsStateId)) {
                 try {
                     final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
 

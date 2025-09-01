@@ -45,12 +45,12 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     protected final String serviceName;
 
     /** The state key. */
-    protected final String stateKey;
+    protected final int stateId;
 
     /** Create a new instance */
-    protected WritableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+    protected WritableQueueStateBase(@NonNull final String serviceName, final int stateId) {
         this.serviceName = requireNonNull(serviceName);
-        this.stateKey = requireNonNull(stateKey);
+        this.stateId = stateId;
     }
 
     /**
@@ -111,10 +111,9 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
         currentAddedElementIndex = 0;
     }
 
-    @NonNull
     @Override
-    public String getStateKey() {
-        return stateKey;
+    public int getStateId() {
+        return stateId;
     }
 
     @Override

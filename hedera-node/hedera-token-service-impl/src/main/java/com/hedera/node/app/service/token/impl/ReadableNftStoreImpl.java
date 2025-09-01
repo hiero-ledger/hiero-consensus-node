@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * Default implementation of {@link ReadableTokenStore}.
  */
 public class ReadableNftStoreImpl implements ReadableNftStore {
+
     /** The underlying data storage class that holds the token data. */
     private final ReadableKVState<NftID, Nft> nftState;
 
@@ -33,7 +34,7 @@ public class ReadableNftStoreImpl implements ReadableNftStore {
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.nftState = states.get(V0490TokenSchema.NFTS_KEY);
+        this.nftState = states.get(V0490TokenSchema.NFTS_STATE_ID);
     }
 
     @Override

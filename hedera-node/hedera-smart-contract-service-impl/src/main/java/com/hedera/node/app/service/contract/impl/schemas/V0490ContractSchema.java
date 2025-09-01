@@ -6,6 +6,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.platform.state.StateKey;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -18,13 +19,18 @@ import java.util.Set;
  * for both the contract storage and bytecode.
  */
 public class V0490ContractSchema extends Schema {
+
     private static final int MAX_BYTECODES = 50_000;
     private static final int MAX_STORAGE_ENTRIES = 1_000_000;
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
     public static final String STORAGE_KEY = "STORAGE";
+    public static final int STORAGE_STATE_ID = StateKey.KeyOneOfType.CONTRACTSERVICE_I_STORAGE.protoOrdinal();
+
     public static final String BYTECODE_KEY = "BYTECODE";
+    public static final int BYTECODE_STATE_ID = StateKey.KeyOneOfType.CONTRACTSERVICE_I_BYTECODE.protoOrdinal();
 
     public V0490ContractSchema() {
         super(VERSION);
@@ -45,10 +51,12 @@ public class V0490ContractSchema extends Schema {
     }
 
     private @NonNull StateDefinition<SlotKey, SlotValue> storageDef() {
-        return StateDefinition.onDisk(STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF, MAX_STORAGE_ENTRIES);
+        return StateDefinition.onDisk(
+                STORAGE_STATE_ID, STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF, MAX_STORAGE_ENTRIES);
     }
 
     private @NonNull StateDefinition<ContractID, Bytecode> bytecodeDef() {
-        return StateDefinition.onDisk(BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF, MAX_BYTECODES);
+        return StateDefinition.onDisk(
+                BYTECODE_STATE_ID, BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF, MAX_BYTECODES);
     }
 }

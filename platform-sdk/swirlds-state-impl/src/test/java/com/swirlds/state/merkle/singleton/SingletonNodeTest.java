@@ -21,7 +21,7 @@ class SingletonNodeTest extends MerkleTestBase {
         expectedValue = randomString(7);
         node = new SingletonNode<>(
                 FIRST_SERVICE,
-                STEAM_STATE_KEY,
+                STEAM_STATE_ID,
                 SingletonNode.CLASS_ID,
                 ProtoString.PROTOBUF,
                 ProtoString.newBuilder().value(expectedValue).build());

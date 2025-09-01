@@ -40,11 +40,9 @@ class ReadableBlockRecordStoreTest {
                 .build();
 
         final var blockState = new MapReadableStates(Map.of(
-                V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY,
+                V0490BlockRecordSchema.BLOCKS_STATE_ID,
                 new FunctionReadableSingletonState<>(
-                        BlockRecordService.NAME,
-                        V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY,
-                        () -> expectedBlockInfo)));
+                        BlockRecordService.NAME, V0490BlockRecordSchema.BLOCKS_STATE_ID, () -> expectedBlockInfo)));
         final var subject = new ReadableBlockRecordStore(blockState);
 
         // When

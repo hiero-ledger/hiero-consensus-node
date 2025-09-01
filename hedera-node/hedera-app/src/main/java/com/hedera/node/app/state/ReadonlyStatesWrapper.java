@@ -28,30 +28,30 @@ public class ReadonlyStatesWrapper implements ReadableStates {
 
     @NonNull
     @Override
-    public <K, V> ReadableKVState<K, V> get(@NonNull String stateKey) {
-        return new ReadonlyKVStateWrapper<>(delegate.get(stateKey));
+    public <K, V> ReadableKVState<K, V> get(final int stateId) {
+        return new ReadonlyKVStateWrapper<>(delegate.get(stateId));
     }
 
     @NonNull
     @Override
-    public <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey) {
-        return new ReadonlySingletonStateWrapper<>(delegate.getSingleton(stateKey));
+    public <T> ReadableSingletonState<T> getSingleton(final int stateId) {
+        return new ReadonlySingletonStateWrapper<>(delegate.getSingleton(stateId));
     }
 
     @NonNull
     @Override
-    public <E> ReadableQueueState<E> getQueue(@NonNull String stateKey) {
-        return new ReadonlyQueueStateWrapper<>(delegate.getQueue(stateKey));
+    public <E> ReadableQueueState<E> getQueue(final int stateId) {
+        return new ReadonlyQueueStateWrapper<>(delegate.getQueue(stateId));
     }
 
     @Override
-    public boolean contains(@NonNull String stateKey) {
-        return delegate.contains(stateKey);
+    public boolean contains(final int stateId) {
+        return delegate.contains(stateId);
     }
 
     @NonNull
     @Override
-    public Set<String> stateKeys() {
-        return delegate.stateKeys();
+    public Set<Integer> stateIds() {
+        return delegate.stateIds();
     }
 }

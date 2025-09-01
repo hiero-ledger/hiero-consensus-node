@@ -338,11 +338,11 @@ public interface Scenarios extends TransactionFactory {
     }
 
     default MapReadableKVState<AccountID, Account> defaultAccountKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", defaultAccounts());
+        return new MapReadableKVState<>(TokenService.NAME, 2 /* ACCOUNTS_STATE_ID */, defaultAccounts());
     }
 
     default MapReadableKVState<ProtoBytes, AccountID> defaultAliasesKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, "ALIASES", defaultAliases());
+        return new MapReadableKVState<>(TokenService.NAME, 3 /* ALIASES_STATE_ID */, defaultAliases());
     }
 
     default ReadableStates defaultTokenReadableStates() {

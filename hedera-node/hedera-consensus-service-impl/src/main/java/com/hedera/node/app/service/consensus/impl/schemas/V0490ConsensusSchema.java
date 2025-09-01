@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.consensus.impl.schemas;
 
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TopicID;
@@ -37,7 +38,8 @@ public class V0490ConsensusSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.onDisk(TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF, MAX_TOPICS));
+        return Set.of(
+                StateDefinition.onDisk(TOPICS_STATE_ID, TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF, MAX_TOPICS));
     }
 
     @Override

@@ -66,7 +66,6 @@ import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -118,14 +117,6 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     @Override
     public Set<StateType> stateTypes() {
         return TARGET_DATA_TYPES;
-    }
-
-    @Override
-    public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
-        Objects.requireNonNull(serviceName, "serviceName must not be null");
-        Objects.requireNonNull(stateKey, "stateKey must not be null");
-
-        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override

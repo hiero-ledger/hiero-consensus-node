@@ -7,6 +7,8 @@ import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.hints.HintsService;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -31,6 +33,7 @@ import java.util.Set;
  * </ul>
  */
 public class V059HintsSchema extends Schema {
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
 
@@ -38,9 +41,20 @@ public class V059HintsSchema extends Schema {
     private static final long MAX_PREPROCESSING_VOTES = 1L << 10;
 
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
-    public static final String ACTIVE_HINT_CONSTRUCTION_KEY = "ACTIVE_HINT_CONSTRUCTION";
-    public static final String NEXT_HINT_CONSTRUCTION_KEY = "NEXT_HINT_CONSTRUCTION";
+    public static final int HINTS_KEY_SETS_STATE_ID =
+            StateKey.KeyOneOfType.HINTSSERVICE_I_HINTS_KEY_SETS.protoOrdinal();
+
+    public static final String ACTIVE_HINTS_CONSTRUCTION_KEY = "ACTIVE_HINTS_CONSTRUCTION";
+    public static final int ACTIVE_HINTS_CONSTRUCTION_STATE_ID =
+            SingletonType.HINTSSERVICE_I_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal();
+
+    public static final String NEXT_HINTS_CONSTRUCTION_KEY = "NEXT_HINTS_CONSTRUCTION";
+    public static final int NEXT_HINTS_CONSTRUCTION_STATE_ID =
+            SingletonType.HINTSSERVICE_I_NEXT_HINTS_CONSTRUCTION.protoOrdinal();
+
     public static final String PREPROCESSING_VOTES_KEY = "PREPROCESSING_VOTES";
+    public static final int PREPROCESSING_VOTES_STATE_ID =
+            StateKey.KeyOneOfType.HINTSSERVICE_I_PREPROCESSING_VOTES.protoOrdinal();
 
     public V059HintsSchema() {
         super(VERSION);
@@ -49,10 +63,18 @@ public class V059HintsSchema extends Schema {
     @Override
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.singleton(ACTIVE_HINT_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.singleton(NEXT_HINT_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.onDisk(HINTS_KEY_SETS_KEY, HintsPartyId.PROTOBUF, HintsKeySet.PROTOBUF, MAX_HINTS),
+                StateDefinition.singleton(
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_ID, ACTIVE_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
+                StateDefinition.singleton(
+                        NEXT_HINTS_CONSTRUCTION_STATE_ID, NEXT_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
                 StateDefinition.onDisk(
+                        HINTS_KEY_SETS_STATE_ID,
+                        HINTS_KEY_SETS_KEY,
+                        HintsPartyId.PROTOBUF,
+                        HintsKeySet.PROTOBUF,
+                        MAX_HINTS),
+                StateDefinition.onDisk(
+                        PREPROCESSING_VOTES_STATE_ID,
                         PREPROCESSING_VOTES_KEY,
                         PreprocessingVoteId.PROTOBUF,
                         PreprocessingVote.PROTOBUF,
@@ -62,7 +84,8 @@ public class V059HintsSchema extends Schema {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
-        states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
-        states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
+        states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .put(HintsConstruction.DEFAULT);
+        states.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID).put(HintsConstruction.DEFAULT);
     }
 }

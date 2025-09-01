@@ -4,11 +4,11 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
@@ -75,6 +75,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableHintsStoreImplTest {
+
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final PreprocessingVote DEFAULT_VOTE = PreprocessingVote.newBuilder()
             .preprocessedKeys(PreprocessedKeys.DEFAULT)
@@ -120,16 +121,16 @@ class WritableHintsStoreImplTest {
     void setUp() {
         state = emptyState();
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
+                ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}),
-                ENTITY_COUNTS_KEY,
+                ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
         subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
@@ -197,7 +198,7 @@ class WritableHintsStoreImplTest {
         assertEquals(A_ROSTER_HASH, construction.targetRosterHash());
 
         final var activeConstruction = state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                 .get();
         requireNonNull(activeConstruction);
         assertSame(construction, activeConstruction);
@@ -236,14 +237,14 @@ class WritableHintsStoreImplTest {
         assertEquals(C_ROSTER_HASH, construction.targetRosterHash());
 
         final var nextConstruction = state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .get();
         requireNonNull(nextConstruction);
         assertSame(construction, nextConstruction);
 
         final var rotatedPartyId = new HintsPartyId(0, numParties);
         final var updatedKeySet = state.getWritableStates(HintsService.NAME)
-                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_KEY)
+                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID)
                 .get(rotatedPartyId);
         requireNonNull(updatedKeySet);
         assertEquals(666L, updatedKeySet.nodeId());
@@ -253,7 +254,7 @@ class WritableHintsStoreImplTest {
 
         final var newPartyId = new HintsPartyId(1, numParties);
         final var newKeySet = state.getWritableStates(HintsService.NAME)
-                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_KEY)
+                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID)
                 .get(newPartyId);
         requireNonNull(newKeySet);
         assertEquals(newKeyNodeId, newKeySet.nodeId());
@@ -272,18 +273,19 @@ class WritableHintsStoreImplTest {
         subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
-        assertFalse(constructionNow(NEXT_HINT_CONSTRUCTION_KEY).hasPreprocessingStartTime());
+                constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
+        assertFalse(constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID).hasPreprocessingStartTime());
 
         subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
+                constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
 
         final var then = CONSENSUS_NOW.plusSeconds(1L);
         subject.setPreprocessingStartTime(456L, then);
         assertEquals(
-                asTimestamp(then), constructionNow(NEXT_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
+                asTimestamp(then),
+                constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID).preprocessingStartTimeOrThrow());
     }
 
     @Test
@@ -299,7 +301,7 @@ class WritableHintsStoreImplTest {
 
         subject.setHintsScheme(456L, keys, nodePartyIds, nodeWeights);
 
-        final var construction = constructionNow(NEXT_HINT_CONSTRUCTION_KEY);
+        final var construction = constructionNow(NEXT_HINTS_CONSTRUCTION_STATE_ID);
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
                 List.of(new NodePartyId(1L, 2, 100L), new NodePartyId(3L, 6, 300L)),
@@ -335,7 +337,7 @@ class WritableHintsStoreImplTest {
 
         subject.handoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
 
-        assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
+        assertSame(nextConstruction, constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID));
 
         assertEquals(0L, votesNow().size());
         assertEquals(0L, keySetsNow().size());
@@ -376,15 +378,18 @@ class WritableHintsStoreImplTest {
                 .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
                 .build();
         final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
-        given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY))
+        given(writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME, CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
-        given(writableStates.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
+                        HintsService.NAME, CRS_STATE_STATE_ID, crsStateRef::get, crsStateRef::set));
+        given(writableStates.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME, NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
-        given(writableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
+                        HintsService.NAME, NEXT_HINTS_CONSTRUCTION_STATE_ID, () -> HintsConstruction.DEFAULT, c -> {}));
+        given(writableStates.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME, ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+                        HintsService.NAME,
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                        () -> HintsConstruction.DEFAULT,
+                        c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates, entityCounters);
         subject.setCrsState(crsState);
@@ -392,16 +397,16 @@ class WritableHintsStoreImplTest {
     }
 
     private ReadableKVState<PreprocessingVoteId, PreprocessingVote> votesNow() {
-        return state.getWritableStates(HintsService.NAME).get(V059HintsSchema.PREPROCESSING_VOTES_KEY);
+        return state.getWritableStates(HintsService.NAME).get(V059HintsSchema.PREPROCESSING_VOTES_STATE_ID);
     }
 
     private ReadableKVState<HintsPartyId, HintsKeySet> keySetsNow() {
-        return state.getWritableStates(HintsService.NAME).get(V059HintsSchema.HINTS_KEY_SETS_KEY);
+        return state.getWritableStates(HintsService.NAME).get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID);
     }
 
-    private HintsConstruction constructionNow(@NonNull final String key) {
+    private HintsConstruction constructionNow(final int stateId) {
         final var construction = state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(key)
+                .<HintsConstruction>getSingleton(stateId)
                 .get();
         return requireNonNull(construction);
     }
@@ -409,10 +414,10 @@ class WritableHintsStoreImplTest {
     private void setConstructions(@NonNull final HintsConstruction active, @NonNull final HintsConstruction next) {
         final var writableStates = state.getWritableStates(HintsService.NAME);
         state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                 .put(active);
         state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(next);
         ((CommittableWritableStates) writableStates).commit();
     }
@@ -425,7 +430,7 @@ class WritableHintsStoreImplTest {
     private void addSomeHintsKeySetsFor(@NonNull final Roster roster) {
         final var writableStates = state.getWritableStates(HintsService.NAME);
         final var keySets = state.getWritableStates(HintsService.NAME)
-                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_KEY);
+                .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID);
         final int numParties = partySizeForRoster(roster);
         for (int i = 0; i < numParties; i++) {
             final var partyId = new HintsPartyId(i, numParties);

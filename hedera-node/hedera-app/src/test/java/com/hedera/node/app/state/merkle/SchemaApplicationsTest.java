@@ -20,8 +20,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SchemaApplicationsTest {
+
     @SuppressWarnings("rawtypes")
-    private static final StateDefinition STATE_DEFINITION = StateDefinition.singleton("NUMBER", EntityNumber.PROTOBUF);
+    private static final StateDefinition STATE_DEFINITION =
+            StateDefinition.singleton(123, "NUMBER", EntityNumber.PROTOBUF);
 
     private static final SemanticVersion LATEST_VERSION =
             SemanticVersion.newBuilder().major(3).build();
@@ -56,7 +58,7 @@ class SchemaApplicationsTest {
     @Test
     void genesisUseWithRemovedStatesIsStateDefsAndMigrateIfNotCurrent() {
         given(schema.getVersion()).willReturn(PRECEDING_VERSION);
-        given(schema.statesToRemove()).willReturn(Set.of(STATE_DEFINITION.stateKey()));
+        given(schema.statesToRemove()).willReturn(Set.of(STATE_DEFINITION.stateId()));
         assertThat(subject.computeApplications(null, LATEST_VERSION, schema, config))
                 .containsExactly(STATE_DEFINITIONS, MIGRATION);
     }

@@ -24,9 +24,7 @@ public interface ReadableState {
      *
      * <p>The call is idempotent, always returning the same value. It must never return null.
      *
-     * @return The state key. This will never be null, and will always be the same value for an
-     *     instance of {@link ReadableState}.
+     * @return The state ID. This will always be the same value for an instance of {@link ReadableState}.
      */
-    @NonNull
-    String getStateKey();
+    int getStateId();
 }

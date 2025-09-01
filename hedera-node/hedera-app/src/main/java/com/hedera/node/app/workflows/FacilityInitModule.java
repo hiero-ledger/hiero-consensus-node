@@ -2,9 +2,9 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.util.FileUtilities.getFileContent;
 import static com.hedera.node.app.util.FileUtilities.observePropertiesAndPermissions;
@@ -48,6 +48,7 @@ import org.apache.logging.log4j.Logger;
  */
 @Module
 public interface FacilityInitModule {
+
     Logger log = LogManager.getLogger(FacilityInitModule.class);
 
     @FunctionalInterface
@@ -135,14 +136,14 @@ public interface FacilityInitModule {
     private static boolean hasHandledGenesisTxn(@NonNull final State state, @NonNull final StreamMode streamMode) {
         if (streamMode == RECORDS) {
             final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                    .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
             return !EPOCH.equals(Optional.ofNullable(blockInfo)
                     .map(BlockInfo::consTimeOfLastHandledTxn)
                     .orElse(EPOCH));
         } else {
             final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY)
+                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                     .get();
             return !EPOCH.equals(Optional.ofNullable(blockStreamInfo)
                     .map(BlockStreamInfo::lastHandleTime)

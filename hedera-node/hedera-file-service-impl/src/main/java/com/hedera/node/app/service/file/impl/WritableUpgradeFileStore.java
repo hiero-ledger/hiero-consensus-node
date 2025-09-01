@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
@@ -38,7 +39,7 @@ public class WritableUpgradeFileStore extends ReadableUpgradeFileStoreImpl {
     public WritableUpgradeFileStore(@NonNull final WritableStates states) {
         super(states);
         this.states = requireNonNull(states);
-        writableUpgradeFileState = requireNonNull(states.get(BLOBS_KEY));
+        writableUpgradeFileState = requireNonNull(states.get(FILES_STATE_ID));
     }
 
     /**
@@ -97,7 +98,9 @@ public class WritableUpgradeFileStore extends ReadableUpgradeFileStoreImpl {
 
     @NonNull
     private WritableQueueState<ProtoBytes> getUpgradeState(@NonNull FileID fileID) {
-        final String stateKey = UPGRADE_DATA_KEY.formatted(fileID.shardNum(), fileID.realmNum(), fileID.fileNum());
-        return Objects.requireNonNull(states.getQueue(stateKey));
+        final String stateKey =
+                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(fileID.fileNum()).toUpperCase();
+        final int stateId = StateKey.KeyOneOfType.fromString(stateKey).protoOrdinal();
+        return Objects.requireNonNull(states.getQueue(stateId));
     }
 }

@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.ZONE_UTC;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class StakePeriodManagerTest {
+
     @Mock
     private ConfigProvider configProvider;
 
@@ -211,8 +212,8 @@ class StakePeriodManagerTest {
         final AtomicReference<NetworkStakingRewards> backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L, Timestamp.DEFAULT));
         final var stakingRewardsState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
-        given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))
+                TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, backingValue::get, backingValue::set);
+        given(states.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn((WritableSingletonState) stakingRewardsState);
         stakingRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(states);
     }
@@ -221,8 +222,8 @@ class StakePeriodManagerTest {
         final AtomicReference<NetworkStakingRewards> backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(false, 1L, 2L, 3L, Timestamp.DEFAULT));
         final var stakingRewardsState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
-        given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))
+                TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, backingValue::get, backingValue::set);
+        given(states.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn((WritableSingletonState) stakingRewardsState);
         stakingRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(states);
     }

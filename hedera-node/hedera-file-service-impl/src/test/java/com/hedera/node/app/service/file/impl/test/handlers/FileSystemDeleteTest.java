@@ -4,6 +4,7 @@ package com.hedera.node.app.service.file.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -101,7 +102,7 @@ class FileSystemDeleteTest extends FileTestBase {
         subject = new FileSystemDeleteHandler(usageEstimator);
 
         writableFileState = writableFileStateWithOneKey();
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
         testConfig = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         lenient().when(preHandleContext.configuration()).thenReturn(testConfig);
@@ -166,7 +167,7 @@ class FileSystemDeleteTest extends FileTestBase {
         given(handleContext.body()).willReturn(newFileDeleteTxn());
 
         writableFileState = emptyWritableFileState();
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
@@ -196,7 +197,7 @@ class FileSystemDeleteTest extends FileTestBase {
         file = new File(fileId, expirationTime, null, Bytes.wrap(contents), memo, false, 0L);
 
         writableFileState = writableFileStateWithOneKey();
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 

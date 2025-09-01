@@ -11,18 +11,21 @@ import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 
 class ReadableQueueStateBaseTest extends StateTestBase {
+
+    public static final int FAKE_STATE_ID = Integer.MAX_VALUE / 3;
+
     @Test
     void stateKey() {
         final var subject =
-                ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
-        assertThat(subject.getStateKey()).isEqualTo("FAKE_KEY");
+                ListWritableQueueState.builder("FAKE_NAME", FAKE_STATE_ID).build();
+        assertThat(subject.getStateId()).isEqualTo(FAKE_STATE_ID);
     }
 
     @Test
     void peekIsNullWhenEmpty() {
         // Given an empty queue
         final var subject =
-                ListReadableQueueState.builder("FAKE_NAME", "FAKE_STATE").build();
+                ListReadableQueueState.builder("FAKE_NAME", FAKE_STATE_ID).build();
 
         // When we peek
         final var element = subject.peek();

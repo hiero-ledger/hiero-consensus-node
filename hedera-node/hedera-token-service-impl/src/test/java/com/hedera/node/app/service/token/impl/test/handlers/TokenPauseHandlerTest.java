@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -54,6 +54,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenPauseHandlerTest extends TokenHandlerTestBase {
+
     private TokenPauseHandler subject;
     private TransactionBody tokenPauseTxn;
     private FakePreHandleContext preHandleContext;
@@ -195,10 +196,10 @@ class TokenPauseHandlerTest extends TokenHandlerTestBase {
     @Test
     void doesntAddAnyKeyIfPauseKeyMissing() throws PreCheckException {
         final var copy = token.copyBuilder().pauseKey(Key.DEFAULT).build();
-        readableTokenState = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+        readableTokenState = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
                 .value(tokenId, copy)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(readableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         preHandleContext.registerStore(ReadableTokenStore.class, readableTokenStore);
 

@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.token.impl.test.api;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,6 +62,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenServiceApiImplTest {
+
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
     private static final Bytes EVM_ADDRESS =
             com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("89abcdef89abcdef89abcdef89abcdef89abcdef");
@@ -87,19 +88,19 @@ class TokenServiceApiImplTest {
             .build();
 
     private final WritableKVState<Bytes, AccountID> aliasesState =
-            new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.ALIASES_KEY);
+            new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.ALIASES_STATE_ID);
     private final WritableKVState<AccountID, Account> accountState =
-            new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY);
+            new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.ACCOUNTS_STATE_ID);
     private final WritableStates writableStates = new MapWritableStates(Map.of(
-            V0490TokenSchema.ACCOUNTS_KEY, accountState,
-            V0490TokenSchema.ALIASES_KEY, aliasesState));
+            V0490TokenSchema.ACCOUNTS_STATE_ID, accountState,
+            V0490TokenSchema.ALIASES_STATE_ID, aliasesState));
     private final WritableStates entityWritableStates = new MapWritableStates(Map.of(
-            ENTITY_ID_STATE_KEY,
+            ENTITY_ID_STATE_ID,
             new FunctionWritableSingletonState<>(
-                    EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.DEFAULT, c -> {}),
-            ENTITY_COUNTS_KEY,
+                    EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> EntityNumber.DEFAULT, c -> {}),
+            ENTITY_COUNTS_STATE_ID,
             new FunctionWritableSingletonState<>(
-                    EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, c -> {})));
+                    EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> EntityCounts.DEFAULT, c -> {})));
     private WritableAccountStore accountStore;
 
     @Mock

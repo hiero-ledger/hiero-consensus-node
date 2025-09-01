@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 @Deprecated
 @DebugIterationEndpoint
 public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal {
+
     public static final long CLASS_ID = 0x3832CC837AB77BFL;
     public static final int CLASS_VERSION = 1;
 
@@ -38,11 +39,11 @@ public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Lab
 
     public SingletonNode(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             long classId,
             @NonNull final Codec<T> codec,
             @Nullable final T value) {
-        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateKey)));
+        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateId)));
         setRight(new ValueLeaf<>(classId, codec, value));
     }
 

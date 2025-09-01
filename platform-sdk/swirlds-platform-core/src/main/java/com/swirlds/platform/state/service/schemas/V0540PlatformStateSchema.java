@@ -24,11 +24,15 @@ import java.util.function.Function;
  * Defines the {@link PlatformState} singleton and initializes it at genesis.
  */
 public class V0540PlatformStateSchema extends Schema {
+
     private static final Function<Configuration, SemanticVersion> UNAVAILABLE_VERSION_FN = config -> {
         throw new IllegalStateException("No version information available");
     };
 
     public static final String PLATFORM_STATE_KEY = "PLATFORM_STATE";
+    // State ID must match virtual_map_state.proto
+    public static final int PLATFORM_STATE_STATE_ID = 26;
+
     /**
      * A platform state to be used as the non-null platform state under any circumstance a genesis state
      * is encountered before initializing the States API.
@@ -53,12 +57,12 @@ public class V0540PlatformStateSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(PLATFORM_STATE_KEY, PlatformState.PROTOBUF));
+        return Set.of(StateDefinition.singleton(PLATFORM_STATE_STATE_ID, PLATFORM_STATE_KEY, PlatformState.PROTOBUF));
     }
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var stateSingleton = ctx.newStates().<PlatformState>getSingleton(PLATFORM_STATE_KEY);
+        final var stateSingleton = ctx.newStates().<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
         if (ctx.isGenesis()) {
             stateSingleton.put(UNINITIALIZED_PLATFORM_STATE);
             final var platformStateStore = new WritablePlatformStateStore(ctx.newStates());

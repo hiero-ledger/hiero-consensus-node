@@ -9,17 +9,17 @@ public class SingletonIntrospector {
 
     private final State state;
     private final String serviceName;
-    private final String stateName;
+    private final int stateId;
 
-    public SingletonIntrospector(State state, String serviceName, String stateName) {
+    public SingletonIntrospector(State state, String serviceName, int stateId) {
         this.state = state;
         this.serviceName = serviceName;
-        this.stateName = stateName;
+        this.stateId = stateId;
     }
 
     public void introspect() {
         Object singleton =
-                state.getReadableStates(serviceName).getSingleton(stateName).get();
+                state.getReadableStates(serviceName).getSingleton(stateId).get();
         System.out.println(getCodecFor(singleton).toJSON(singleton));
     }
 }

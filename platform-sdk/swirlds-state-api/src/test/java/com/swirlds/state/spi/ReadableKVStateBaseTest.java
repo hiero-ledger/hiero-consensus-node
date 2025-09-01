@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * ReadableKVStateBase#reset()}) will be covered by other tests in addition to this one.
  */
 public class ReadableKVStateBaseTest extends StateTestBase {
+
     private ReadableKVStateBase<ProtoBytes, ProtoBytes> state;
     protected Map<ProtoBytes, ProtoBytes> backingMap;
 
@@ -42,7 +43,7 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     }
 
     protected ReadableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(Map<ProtoBytes, ProtoBytes> backingMap) {
-        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, backingMap);
+        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, backingMap);
     }
 
     /** Make sure the constructor is holding onto the service name properly */
@@ -56,7 +57,7 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     @Test
     @DisplayName("The state key must match what was provided in the constructor")
     void testStateKey() {
-        assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
+        assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test;
 
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -40,9 +41,9 @@ class ReadableFileStoreImplTest extends FileTestBase {
     @Test
     void missingFileIsNull() {
         readableFileState.reset();
-        final var state =
-                MapReadableKVState.<Long, File>builder(FileService.NAME, FILES).build();
-        given(readableStates.<Long, File>get(FILES)).willReturn(state);
+        final var state = MapReadableKVState.<Long, File>builder(FileService.NAME, FILES_STATE_ID)
+                .build();
+        given(readableStates.<Long, File>get(FILES_STATE_ID)).willReturn(state);
         subject = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         assertThat(subject.getFileMetadata(WELL_KNOWN_FILE_ID)).isNull();

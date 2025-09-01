@@ -156,7 +156,7 @@ public final class SignedStateFileReader {
      */
     public static void registerServiceStates(@NonNull final MerkleNodeState state) {
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
-        registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.NAME);
+        registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
     }
 
     private static void registerServiceState(
@@ -203,6 +203,6 @@ public final class SignedStateFileReader {
     public static void unregisterServiceStates(@NonNull final SignedState signedState) {
         final MerkleNodeState state = signedState.getState();
         state.unregisterService(PlatformStateService.NAME);
-        state.unregisterService(RosterStateId.NAME);
+        state.unregisterService(RosterStateId.SERVICE_NAME);
     }
 }

@@ -10,11 +10,12 @@ import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class ReadableBlockRecordStore {
+
     /** The underlying data storage class that holds the block info data. */
     private final ReadableSingletonState<BlockInfo> blockInfo;
 
     public ReadableBlockRecordStore(@NonNull final ReadableStates states) {
-        this.blockInfo = requireNonNull(states.getSingleton(V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY));
+        this.blockInfo = requireNonNull(states.getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID));
     }
 
     /**

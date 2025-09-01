@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.schemas;
 
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.NODE_NUM_1;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.NODE_NUM_2;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.NODE_NUM_3;
@@ -67,37 +67,37 @@ class V0530TokenSchemaTest {
     @Test
     void setsStakingInfoMinStakeToZero() {
         final var accounts = MapWritableKVState.<AccountID, Account>builder(
-                        TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY)
+                        TokenService.NAME, V0490TokenSchema.ACCOUNTS_STATE_ID)
                 .build();
         final var entityIdState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, V0490EntityIdSchema.ENTITY_ID_STATE_KEY, () -> new EntityNumber(1000), c -> {});
+                TokenService.NAME, V0490EntityIdSchema.ENTITY_ID_STATE_ID, () -> new EntityNumber(1000), c -> {});
 
         final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(
-                        TokenService.NAME, STAKING_INFO_KEY)
+                        TokenService.NAME, STAKING_INFOS_STATE_ID)
                 .value(NODE_NUM_1, STAKING_INFO_1)
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
                 .build();
         final var previousStates = newStatesInstance(
                 accounts,
-                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_KEY)
+                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_STATE_ID)
                         .build(),
                 entityIdState,
                 stakingInfosState,
                 new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         () -> EntityCounts.newBuilder().build(),
                         c -> {}));
         final var newStates = newStatesInstance(
                 accounts,
-                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_KEY)
+                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_STATE_ID)
                         .build(),
                 entityIdState,
                 stakingInfosState,
                 new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         () -> EntityCounts.newBuilder().build(),
                         c -> {}));
         final var config = buildConfig(DEFAULT_NUM_SYSTEM_ACCOUNTS, true);
@@ -106,7 +106,7 @@ class V0530TokenSchemaTest {
         schema.migrate(new MigrationContextImpl(
                 previousStates, newStates, config, config, null, 0L, new HashMap<>(), startupNetworks));
 
-        final var updatedStates = newStates.get(STAKING_INFO_KEY);
+        final var updatedStates = newStates.get(STAKING_INFOS_STATE_ID);
         // sets minStake on all nodes to 0
         assertThat(updatedStates
                 .get(NODE_NUM_1)
@@ -131,7 +131,7 @@ class V0530TokenSchemaTest {
                 .state(aliases)
                 .state(stakingInfo)
                 .state(new FunctionWritableSingletonState<>(
-                        TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
+                        TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, () -> null, c -> {}))
                 .state(entityIdState)
                 .state(entityCounts)
                 .build();

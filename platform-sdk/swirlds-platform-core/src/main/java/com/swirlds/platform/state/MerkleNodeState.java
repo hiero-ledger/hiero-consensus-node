@@ -100,7 +100,7 @@ public interface MerkleNodeState extends State {
      * To prevent this and to allow the system to initialize all the services,
      * we unregister the PlatformStateService and RosterService after the validation is performed.
      * <p>
-     * Note that unlike the {@link #removeServiceState(String, String)} method in this class,
+     * Note that unlike the {@link #removeServiceState(String, int)} method in this class,
      * the unregisterService() method will NOT remove the merkle nodes that store the states of
      * the services being unregistered. This is by design because these nodes will be used
      * by the actual service states once the app initializes the States API in full.
@@ -113,9 +113,9 @@ public interface MerkleNodeState extends State {
      * Removes the node and metadata from the state merkle tree.
      *
      * @param serviceName The service name. Cannot be null.
-     * @param stateKey The state key
+     * @param stateId The state ID
      */
-    void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey);
+    void removeServiceState(@NonNull final String serviceName, final int stateId);
 
     /**
      * Loads a snapshot of a state.

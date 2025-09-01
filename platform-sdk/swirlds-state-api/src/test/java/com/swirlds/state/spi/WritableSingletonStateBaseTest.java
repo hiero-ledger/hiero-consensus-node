@@ -28,7 +28,7 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
     @Override
     protected WritableSingletonStateBase<ProtoBytes> createState() {
         return new FunctionWritableSingletonState<>(
-                COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get, backingStore::set);
+                COUNTRY_SERVICE_NAME, COUNTRY_STATE_ID, backingStore::get, backingStore::set);
     }
 
     @Nested
@@ -38,16 +38,7 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
         @DisplayName("Constructor throws NPE if serviceName is null")
         void nullServiceName() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new FunctionWritableSingletonState<>(null, COUNTRY_STATE_KEY, null, val -> {}))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("Constructor throws NPE if stateKey is null")
-        void nullStateKey() {
-            //noinspection DataFlowIssue
-            assertThatThrownBy(
-                            () -> new FunctionWritableSingletonState<>(COUNTRY_STATE_KEY, null, () -> AUSTRALIA, null))
+            assertThatThrownBy(() -> new FunctionWritableSingletonState<>(null, COUNTRY_STATE_ID, null, val -> {}))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -55,8 +46,8 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
         @DisplayName("Constructor throws NPE if backingStoreAccessor is null")
         void nullAccessor() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() ->
-                            new FunctionWritableSingletonState<>(COUNTRY_STATE_KEY, COUNTRY_STATE_KEY, null, val -> {}))
+            assertThatThrownBy(() -> new FunctionWritableSingletonState<>(
+                            COUNTRY_SERVICE_NAME, COUNTRY_STATE_ID, null, val -> {}))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -65,7 +56,7 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
         void nullMutator() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new FunctionWritableSingletonState<>(
-                            COUNTRY_STATE_KEY, COUNTRY_STATE_KEY, () -> AUSTRALIA, null))
+                            COUNTRY_SERVICE_NAME, COUNTRY_STATE_ID, () -> AUSTRALIA, null))
                     .isInstanceOf(NullPointerException.class);
         }
     }

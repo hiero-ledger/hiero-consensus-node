@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS_QUEUE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -58,6 +58,7 @@ import org.junit.jupiter.api.Assertions;
  * {@code N+1} top-level transaction, achieving uniqueness via nonce only.
  */
 public class RoleFreeBlockUnitSplit {
+
     private static final Set<HederaFunctionality> TRIGGERING_OPS = EnumSet.of(SCHEDULE_CREATE, SCHEDULE_SIGN);
 
     /**
@@ -293,9 +294,9 @@ public class RoleFreeBlockUnitSplit {
                         .anyMatch(change -> change.hasMapUpdate()
                                 || change.hasMapDelete()
                                 || (change.hasQueuePush()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal())
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())
                                 || (change.hasQueuePop()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal()));
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal()));
     }
 
     /**

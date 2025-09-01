@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
@@ -76,7 +76,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
     @BeforeEach
     void setUp() {
         files = new HashMap<>();
-        state = new FakeState().addService(FileService.NAME, Map.of(BLOBS_KEY, files));
+        state = new FakeState().addService(FileService.NAME, Map.of(FILES_STATE_ID, files));
 
         final var config = new TestConfigBuilder(false)
                 .withConverter(Bytes.class, new BytesConverter())

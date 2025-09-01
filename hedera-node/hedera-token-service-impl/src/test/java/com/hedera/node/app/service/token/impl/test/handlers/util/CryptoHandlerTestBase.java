@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -64,6 +64,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoHandlerTestBase {
+
     protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
     protected static final long SHARD =
             configuration.getConfigData(HederaConfig.class).shard();
@@ -227,10 +228,10 @@ public class CryptoHandlerTestBase {
         writableAccounts = emptyWritableAccountStateBuilder().build();
         readableAliases = emptyReadableAliasStateBuilder().build();
         writableAliases = emptyWritableAliasStateBuilder().build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
@@ -242,10 +243,10 @@ public class CryptoHandlerTestBase {
         writableAccounts = emptyWritableAccountStateBuilder().build();
         readableAliases = readableAliasState();
         writableAliases = emptyWritableAliasStateBuilder().build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
 
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
@@ -253,22 +254,22 @@ public class CryptoHandlerTestBase {
     }
 
     private void givenEntityCounters() {
-        given(writableStates.getSingleton(ENTITY_ID_STATE_KEY))
+        given(writableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         EntityIdService.NAME,
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
-        given(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, c -> {}));
-        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> EntityCounts.DEFAULT, c -> {}));
+        given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                        EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> EntityNumber.newBuilder()
                                 .build()));
-        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT));
+                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> EntityCounts.DEFAULT));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
         writableEntityCounters = new WritableEntityIdStore(writableStates);
     }
@@ -278,10 +279,10 @@ public class CryptoHandlerTestBase {
         writableAccounts = writableAccountStateWithOneKey();
         readableAliases = readableAliasState();
         writableAliases = writableAliasesStateWithOneKey();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
@@ -323,22 +324,22 @@ public class CryptoHandlerTestBase {
 
     @NonNull
     protected MapReadableKVState.Builder<AccountID, Account> emptyReadableAccountStateBuilder() {
-        return MapReadableKVState.builder(TokenService.NAME, ACCOUNTS_KEY);
+        return MapReadableKVState.builder(TokenService.NAME, ACCOUNTS_STATE_ID);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<AccountID, Account> emptyWritableAccountStateBuilder() {
-        return MapWritableKVState.builder(TokenService.NAME, ACCOUNTS_KEY);
+        return MapWritableKVState.builder(TokenService.NAME, ACCOUNTS_STATE_ID);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<ProtoBytes, AccountID> emptyWritableAliasStateBuilder() {
-        return MapWritableKVState.builder(TokenService.NAME, ALIASES_KEY);
+        return MapWritableKVState.builder(TokenService.NAME, ALIASES_STATE_ID);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<ProtoBytes, AccountID> emptyReadableAliasStateBuilder() {
-        return MapReadableKVState.builder(TokenService.NAME, ALIASES_KEY);
+        return MapReadableKVState.builder(TokenService.NAME, ALIASES_STATE_ID);
     }
 
     @NonNull

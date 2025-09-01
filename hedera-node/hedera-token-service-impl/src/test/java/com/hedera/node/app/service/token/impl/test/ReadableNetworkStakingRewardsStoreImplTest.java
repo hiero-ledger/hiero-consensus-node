@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableNetworkStakingRewardsStoreImplTest {
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ReadableStates states;
 
@@ -29,7 +30,7 @@ class ReadableNetworkStakingRewardsStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY)).willReturn(stakingRewardsState);
+        given(states.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID)).willReturn(stakingRewardsState);
         given(stakingRewardsState.get()).willReturn(new NetworkStakingRewards(true, 1L, 2L, 3L, Timestamp.DEFAULT));
         subject = new ReadableNetworkStakingRewardsStoreImpl(states);
     }

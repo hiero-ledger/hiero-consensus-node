@@ -11,65 +11,66 @@ import java.util.stream.Collectors;
  * available set of states.
  */
 public class FilteredReadableStates implements ReadableStates {
+
     /** The {@link ReadableStates} to delegate to */
     private final ReadableStates delegate;
     /** The set of states to honor in {@link #delegate}. */
-    private final Set<String> stateKeys;
+    private final Set<Integer> stateIds;
 
     /**
      * Create a new instance.
      *
      * @param delegate The instance to delegate to
-     * @param stateKeys The set of keys in {@code delegate} to expose
+     * @param stateIds The set of state IDs in {@code delegate} to expose
      */
-    public FilteredReadableStates(@NonNull final ReadableStates delegate, @NonNull final Set<String> stateKeys) {
+    public FilteredReadableStates(@NonNull final ReadableStates delegate, @NonNull final Set<Integer> stateIds) {
         this.delegate = Objects.requireNonNull(delegate);
 
         // Only include those state keys that are actually in the underlying delegate
-        this.stateKeys = stateKeys.stream().filter(delegate::contains).collect(Collectors.toUnmodifiableSet());
+        this.stateIds = stateIds.stream().filter(delegate::contains).collect(Collectors.toUnmodifiableSet());
     }
 
     @NonNull
     @Override
-    public <K, V> ReadableKVState<K, V> get(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find k/v state " + stateKey);
+    public <K, V> ReadableKVState<K, V> get(final int stateId) {
+        Objects.requireNonNull(stateId);
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find k/v state " + stateId);
         }
 
-        return delegate.get(stateKey);
+        return delegate.get(stateId);
     }
 
     @NonNull
     @Override
-    public <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find singleton state " + stateKey);
+    public <T> ReadableSingletonState<T> getSingleton(final int stateId) {
+        Objects.requireNonNull(stateId);
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find singleton state " + stateId);
         }
 
-        return delegate.getSingleton(stateKey);
+        return delegate.getSingleton(stateId);
     }
 
     @NonNull
     @Override
-    public <E> ReadableQueueState<E> getQueue(@NonNull String stateKey) {
-        Objects.requireNonNull(stateKey);
-        if (!contains(stateKey)) {
-            throw new IllegalArgumentException("Could not find queue state " + stateKey);
+    public <E> ReadableQueueState<E> getQueue(final int stateId) {
+        Objects.requireNonNull(stateId);
+        if (!contains(stateId)) {
+            throw new IllegalArgumentException("Could not find queue state " + stateId);
         }
 
-        return delegate.getQueue(stateKey);
+        return delegate.getQueue(stateId);
     }
 
     @Override
-    public boolean contains(@NonNull String stateKey) {
-        return stateKeys.contains(stateKey);
+    public boolean contains(final int stateId) {
+        return stateIds.contains(stateId);
     }
 
     @NonNull
     @Override
-    public Set<String> stateKeys() {
-        return stateKeys;
+    public Set<Integer> stateIds() {
+        return stateIds;
     }
 }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.queue;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
@@ -24,8 +24,8 @@ public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
 
     /** Create a new instance */
     public BackedReadableQueueState(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final QueueNode<E> node) {
-        super(serviceName, stateKey);
+            @NonNull final String serviceName, final int stateId, @NonNull final QueueNode<E> node) {
+        super(serviceName, stateId);
         this.dataSource = requireNonNull(node);
     }
 
@@ -33,7 +33,7 @@ public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
     @Override
     protected E peekOnDataSource() {
         final var value = dataSource.peek();
-        logQueuePeek(computeLabel(serviceName, stateKey), value);
+        logQueuePeek(StateMetadata.computeLabel(serviceName, stateId), value);
         return value;
     }
 

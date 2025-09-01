@@ -3,7 +3,7 @@ package com.hedera.services.bdd.spec.utilops.embedded;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.TokenService.NAME;
-import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
 public class ViewPendingAirdropOp extends UtilOp {
+
     private final String tokenName;
     private final String senderName;
     private final String receiverName;
@@ -37,7 +38,7 @@ public class ViewPendingAirdropOp extends UtilOp {
         final var state = spec.embeddedStateOrThrow();
         final var readableStates = state.getReadableStates(NAME);
         final ReadableKVState<PendingAirdropId, AccountPendingAirdrop> readableAirdropState =
-                readableStates.get(AIRDROPS_KEY);
+                readableStates.get(AIRDROPS_STATE_ID);
         final var pendingAirdropId = PendingAirdropId.newBuilder()
                 .receiverId(toPbj(TxnUtils.asId(receiverName, spec)))
                 .senderId(toPbj(TxnUtils.asId(senderName, spec)))

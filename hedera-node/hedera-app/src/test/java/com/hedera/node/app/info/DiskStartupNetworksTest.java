@@ -6,15 +6,15 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -324,9 +324,9 @@ class DiskStartupNetworksTest {
                 .toList();
         final var currentRoster = new Roster(rosterEntries);
         final var currentRosterHash = RosterUtils.hash(currentRoster).getBytes();
-        final var rosters = writableStates.<ProtoBytes, Roster>get(ROSTER_KEY);
+        final var rosters = writableStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID);
         rosters.put(new ProtoBytes(currentRosterHash), currentRoster);
-        final var rosterState = writableStates.<RosterState>getSingleton(ROSTER_STATES_KEY);
+        final var rosterState = writableStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID);
         rosterState.put(new RosterState(Bytes.EMPTY, List.of(new RoundRosterPair(0L, currentRosterHash)), false));
         ((CommittableWritableStates) writableStates).commit();
     }
@@ -335,7 +335,7 @@ class DiskStartupNetworksTest {
         final var writableStates = state.getWritableStates(AddressBookService.NAME);
         final var metadata =
                 network.nodeMetadata().stream().map(NodeMetadata::nodeOrThrow).toList();
-        final var nodes = writableStates.<EntityNumber, Node>get(NODES_KEY);
+        final var nodes = writableStates.<EntityNumber, Node>get(NODES_STATE_ID);
         metadata.forEach(node -> nodes.put(new EntityNumber(node.nodeId()), node));
         ((CommittableWritableStates) writableStates).commit();
     }

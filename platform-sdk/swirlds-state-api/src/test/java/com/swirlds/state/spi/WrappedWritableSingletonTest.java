@@ -20,7 +20,7 @@ class WrappedWritableSingletonTest extends StateTestBase {
 
     private WritableSingletonStateBase<ProtoBytes> createState() {
         delegate = new FunctionWritableSingletonState<>(
-                COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get, backingStore::set);
+                COUNTRY_SERVICE_NAME, COUNTRY_STATE_ID, backingStore::get, backingStore::set);
         return new WrappedWritableSingletonState<>(delegate);
     }
 

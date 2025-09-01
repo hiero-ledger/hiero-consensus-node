@@ -7,12 +7,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXP
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -127,6 +127,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 @Singleton
 @SuppressWarnings("deprecation")
 public class SystemTransactions {
+
     private static final Logger log = LogManager.getLogger(SystemTransactions.class);
 
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
@@ -424,7 +425,7 @@ public class SystemTransactions {
             }
             // On success, actually remove the legacy account from state
             final var tokenStates = state.getWritableStates(TokenService.NAME);
-            final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
+            final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_STATE_ID);
             accountsState.remove(legacyAccountId.get());
             ((CommittableWritableStates) tokenStates).commit();
             if (streamMode != RECORDS) {
@@ -454,7 +455,7 @@ public class SystemTransactions {
                 .getConfiguration()
                 .getConfigData(LedgerConfig.class)
                 .fundingAccount());
-        final var accountsState = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_KEY);
+        final var accountsState = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
         for (; i < FIRST_POST_SYSTEM_FILE_ENTITY && systemContext.hasDispatchesRemaining(); i++) {
             final var accountId = idFactory.newAccountId(i);
             final var legacyAccount = accountsState.get(accountId);
@@ -895,7 +896,7 @@ public class SystemTransactions {
             long prevEntityNum;
             if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
                 prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
                 countsBefore.put(requireNonNull(countsBefore.get())
                         .copyBuilder()
@@ -903,7 +904,7 @@ public class SystemTransactions {
                         .build());
             } else {
                 WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
                 prevEntityNum = requireNonNull(controlledNum.get()).number();
                 if (nextEntityNum != 0) {
                     controlledNum.put(new EntityNumber(nextEntityNum - 1));
@@ -924,14 +925,14 @@ public class SystemTransactions {
             }
             if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
                 countsBefore.put(requireNonNull(countsBefore.get())
                         .copyBuilder()
                         .numNodes(isSuccess ? Math.max(nextEntityNum + 1, prevEntityNum) : prevEntityNum)
                         .build());
             } else {
                 WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
                 if (nextEntityNum != 0) {
                     controlledNum.put(new EntityNumber(prevEntityNum));
                 }

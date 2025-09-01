@@ -17,12 +17,12 @@ public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E>
 
     protected final String serviceName;
 
-    protected final String stateKey;
+    protected final int stateId;
 
     /** Create a new instance */
-    protected ReadableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+    protected ReadableQueueStateBase(@NonNull final String serviceName, final int stateId) {
         this.serviceName = Objects.requireNonNull(serviceName);
-        this.stateKey = Objects.requireNonNull(stateKey);
+        this.stateId = stateId;
     }
 
     @Override
@@ -33,8 +33,8 @@ public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E>
 
     @Override
     @NonNull
-    public final String getStateKey() {
-        return stateKey;
+    public final int getStateId() {
+        return stateId;
     }
 
     @Nullable

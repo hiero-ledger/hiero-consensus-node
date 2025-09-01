@@ -11,6 +11,7 @@ import java.util.Set;
  */
 @Deprecated(forRemoval = true, since = "0.59.0")
 public class V059TssBaseSchema extends Schema {
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(59).build();
 
@@ -20,7 +21,10 @@ public class V059TssBaseSchema extends Schema {
 
     @NonNull
     @Override
-    public Set<String> statesToRemove() {
-        return Set.of("TSS_MESSAGES", "TSS_VOTES", "TSS_ENCRYPTION_KEYS");
+    public Set<Integer> statesToRemove() {
+        return Set.of(
+                V0560TssBaseSchema.TSS_MESSAGES_STATE_ID,
+                V0560TssBaseSchema.TSS_VOTES_STATE_ID,
+                V0580TssBaseSchema.TSS_ENCRYPTION_KEYS_STATE_ID);
     }
 }

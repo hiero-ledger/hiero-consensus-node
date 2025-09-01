@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.B_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.C_COMPLEX_KEY;
@@ -50,6 +50,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class TokenHandlerTestBase {
+
     protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
     protected static final long SHARD =
             configuration.getConfigData(HederaConfig.class).shard();
@@ -132,8 +133,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenOnlyInReadable() {
         readableTokenState = readableTokenState();
         writableTokenState = emptyWritableTokenState();
-        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -142,8 +143,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenInWritable() {
         readableTokenState = readableTokenState();
         writableTokenState = writableTokenStateWithOneKey();
-        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -151,20 +152,20 @@ public class TokenHandlerTestBase {
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> writableTokenStateWithOneKey() {
-        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
                 .value(tokenId, token)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TokenID, Token> readableTokenState() {
-        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
                 .value(tokenId, token)
                 .build();
     }

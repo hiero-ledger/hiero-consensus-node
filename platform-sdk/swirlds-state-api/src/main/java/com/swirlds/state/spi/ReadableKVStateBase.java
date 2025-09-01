@@ -32,31 +32,31 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
     /** The service name, which cannot be null */
     protected final String serviceName;
 
-    /** The state key, which cannot be null */
-    protected final String stateKey;
+    /** The state ID */
+    protected final int stateId;
 
     /**
      * Create a new StateBase.
      *
      * @param serviceName The name of the service that owns the state. Cannot be null.
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
      */
-    protected ReadableKVStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
-        this(serviceName, stateKey, new ConcurrentHashMap<>());
+    protected ReadableKVStateBase(@NonNull final String serviceName, final int stateId) {
+        this(serviceName, stateId, new ConcurrentHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
      * @param serviceName The name of the service that owns the state. Cannot be null.
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
      * @param readCache A map that is used to init the cache.
      */
     // This constructor is used by some consumers of the API that are outside of this repository.
     protected ReadableKVStateBase(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull ConcurrentMap<K, V> readCache) {
+            @NonNull final String serviceName, final int stateId, @NonNull ConcurrentMap<K, V> readCache) {
         this.serviceName = Objects.requireNonNull(serviceName);
-        this.stateKey = Objects.requireNonNull(stateKey);
+        this.stateId = stateId;
         this.readCache = Objects.requireNonNull(readCache);
         this.unmodifiableReadKeys = Collections.unmodifiableSet(readCache.keySet());
     }
@@ -70,9 +70,8 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
 
     /** {@inheritDoc} */
     @Override
-    @NonNull
-    public final String getStateKey() {
-        return stateKey;
+    public final int getStateId() {
+        return stateId;
     }
 
     /** {@inheritDoc} */

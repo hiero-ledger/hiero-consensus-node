@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableFreezeStoreTest {
+
     @Mock(strictness = LENIENT)
     protected WritableStates writableStates;
 
@@ -45,9 +46,12 @@ class WritableFreezeStoreTest {
     @Test
     void testFreezeTime() {
         final AtomicReference<ProtoBytes> freezeTimeBackingStore = new AtomicReference<>(null);
-        when(writableStates.getSingleton(FREEZE_TIME_KEY))
+        when(writableStates.getSingleton(FREEZE_TIME_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        FreezeService.NAME, FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+                        FreezeService.NAME,
+                        FREEZE_TIME_STATE_ID,
+                        freezeTimeBackingStore::get,
+                        freezeTimeBackingStore::set));
         final AtomicReference<ProtoBytes> lastFrozenBackingStore = new AtomicReference<>(null);
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
@@ -64,9 +68,9 @@ class WritableFreezeStoreTest {
     @Test
     void testUpdateFileHash() {
         final AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(null);
-        when(writableStates.getSingleton(UPGRADE_FILE_HASH_KEY))
+        when(writableStates.getSingleton(UPGRADE_FILE_HASH_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        FreezeService.NAME, UPGRADE_FILE_HASH_KEY, backingStore::get, backingStore::set));
+                        FreezeService.NAME, UPGRADE_FILE_HASH_STATE_ID, backingStore::get, backingStore::set));
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
         // test with no file hash set

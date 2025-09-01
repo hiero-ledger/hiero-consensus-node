@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -40,6 +41,7 @@ import java.util.function.Consumer;
  * </ol>
  */
 public class V0560BlockStreamSchema extends Schema {
+
     /**
      * The block stream manager increments the previous number when starting a block; so to start
      * the genesis block number at {@code 0}, we set the "previous" number to {@code -1}.
@@ -51,6 +53,8 @@ public class V0560BlockStreamSchema extends Schema {
     private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
 
     public static final String BLOCK_STREAM_INFO_KEY = "BLOCK_STREAM_INFO";
+    public static final int BLOCK_STREAM_INFO_STATE_ID =
+            SingletonType.BLOCKSTREAMSERVICE_I_BLOCK_STREAM_INFO.protoOrdinal();
 
     /**
      * The version of the schema.
@@ -70,13 +74,14 @@ public class V0560BlockStreamSchema extends Schema {
 
     @Override
     public @NonNull Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
-        return Set.of(StateDefinition.singleton(BLOCK_STREAM_INFO_KEY, BlockStreamInfo.PROTOBUF));
+        return Set.of(
+                StateDefinition.singleton(BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_KEY, BlockStreamInfo.PROTOBUF));
     }
 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_KEY);
+        final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         if (ctx.isGenesis()) {
             state.put(GENESIS_INFO);
         } else {

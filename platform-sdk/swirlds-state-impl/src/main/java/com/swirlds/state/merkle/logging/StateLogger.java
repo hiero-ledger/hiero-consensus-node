@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.state.merkle.memory.InMemoryKey;
-import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.merkle.singleton.ValueLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
@@ -201,26 +200,6 @@ public class StateLogger {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug(
                     "      PUT into map {} key {} value {}",
-                    label,
-                    formatKey(key),
-                    value == null ? "null" : value.toString());
-        }
-    }
-
-    /**
-     * Log the removal of an entry from a map.
-     *
-     * @param label The label of the map
-     * @param key The key removed to the map
-     * @param value The value removed to the map
-     * @param <K> The type of the key
-     * @param <V> The type of the value
-     */
-    public static <K, V> void logMapRemove(
-            @NonNull final String label, @NonNull final K key, @Nullable final InMemoryValue<K, V> value) {
-        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            logger.debug(
-                    "      REMOVE from map {} key {} removed value {}",
                     label,
                     formatKey(key),
                     value == null ? "null" : value.toString());

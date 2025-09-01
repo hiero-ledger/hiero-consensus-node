@@ -32,6 +32,7 @@ import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {
+
     @Test
     void testHash() {
         final Hash hash = RosterUtils.hash(Roster.DEFAULT);
@@ -198,7 +199,7 @@ public class RosterUtilsTest {
     @Test
     void testCreateRosterHistoryNoActiveRosters() {
         final MerkleNodeState state = mock(MerkleNodeState.class);
-        when(state.getReadableStates(RosterStateId.NAME)).thenReturn(null);
+        when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> RosterUtils.createRosterHistory(state));
     }

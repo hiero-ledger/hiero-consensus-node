@@ -28,7 +28,7 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
 
     private final WritableStatesStack writableStatesStack;
     private final String serviceName;
-    private final String stateKey;
+    private final int stateId;
 
     /**
      * Constructs a {@link WritableKVStateStack} that delegates to the current {@link WritableKVState} in
@@ -38,21 +38,21 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
      *
      * @param writableStatesStack the {@link WritableStatesStack}
      * @param serviceName         the service name
-     * @param stateKey            the state key
+     * @param stateId             the state ID
      * @throws NullPointerException if any of the arguments is {@code null}
      */
     public WritableKVStateStack(
             @NonNull final WritableStatesStack writableStatesStack,
             @NonNull final String serviceName,
-            @NonNull final String stateKey) {
+            final int stateId) {
         this.writableStatesStack = requireNonNull(writableStatesStack, "writableStatesStack must not be null");
         this.serviceName = requireNonNull(serviceName, "serviceName must not be null");
-        this.stateKey = requireNonNull(stateKey, "stateKey must not be null");
+        this.stateId = stateId;
     }
 
     @NonNull
     private WritableKVState<K, V> getCurrent() {
-        return writableStatesStack.getCurrent().get(stateKey);
+        return writableStatesStack.getCurrent().get(stateId);
     }
 
     /**
@@ -68,9 +68,8 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public String getStateKey() {
-        return stateKey;
+    public int getStateId() {
+        return stateId;
     }
 
     /**
@@ -89,7 +88,7 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
     @Nullable
     @Override
     public V getOriginalValue(@NonNull K key) {
-        return (V) writableStatesStack.getRoot().get(stateKey).get(key);
+        return (V) writableStatesStack.getRoot().get(stateId).get(key);
     }
 
     /**

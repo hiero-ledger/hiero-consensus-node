@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
+
     private static final long TOKEN_10 = 10L;
     private static final TokenID TOKEN_10_ID =
             TokenID.newBuilder().tokenNum(TOKEN_10).build();
@@ -44,7 +45,7 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
 
     @BeforeEach
     void setup() {
-        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
+        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_STATE_ID))
                 .willReturn(tokenRelState);
 
         subject = new WritableTokenRelationStore(states, writableEntityCounters);

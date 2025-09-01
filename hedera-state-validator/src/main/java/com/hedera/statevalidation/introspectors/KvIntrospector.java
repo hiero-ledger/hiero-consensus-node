@@ -29,14 +29,14 @@ public class KvIntrospector {
 
     private final State state;
     private final String serviceName;
-    private final String stateName;
+    private final int stateId;
     private final String keyType;
     private final String keyJson;
 
-    public KvIntrospector(State state, String serviceName, String stateName, String keyInfo) {
+    public KvIntrospector(State state, String serviceName, int stateId, String keyInfo) {
         this.state = state;
         this.serviceName = serviceName;
-        this.stateName = stateName;
+        this.stateId = stateId;
         String[] typeAndJson = keyInfo.split(":", 2);
         keyType = typeAndJson[0];
         keyJson = typeAndJson[1];
@@ -44,7 +44,7 @@ public class KvIntrospector {
 
     public void introspect() {
         ReadableKVState<Object, Object> kvState =
-                state.getReadableStates(serviceName).get(stateName);
+                state.getReadableStates(serviceName).get(stateId);
         final JsonCodec jsonCodec;
         switch (keyType) {
             case "EntityNumber" -> jsonCodec = EntityNumber.JSON;

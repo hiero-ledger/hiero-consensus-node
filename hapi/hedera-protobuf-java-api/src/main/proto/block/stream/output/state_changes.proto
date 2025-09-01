@@ -476,7 +476,7 @@ enum StateIdentifier {
     /**
      * A state identifier for the round receipts queue. Queue state.
      */
-    STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
+    STATE_ID_TRANSACTION_RECEIPTS = 126;
 
     /**
      * A state for the `150` upgrade file data. Queue state.

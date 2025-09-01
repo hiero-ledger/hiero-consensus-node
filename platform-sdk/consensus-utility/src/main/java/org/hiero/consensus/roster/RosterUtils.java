@@ -294,7 +294,7 @@ public final class RosterUtils {
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final State state) {
         final ReadableRosterStore rosterStore =
-                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.NAME));
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
         final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
         for (final RoundRosterPair pair : roundRosterPairs) {
@@ -311,7 +311,7 @@ public final class RosterUtils {
      * @param round a round number since which the roster is considered active
      */
     public static void setActiveRoster(@NonNull final State state, @NonNull final Roster roster, final long round) {
-        final WritableStates writableStates = state.getWritableStates(RosterStateId.NAME);
+        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
         final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
         writableRosterStore.putActiveRoster(roster, round);
         ((CommittableWritableStates) writableStates).commit();

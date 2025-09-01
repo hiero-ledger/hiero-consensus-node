@@ -33,10 +33,9 @@ public class ReadonlyQueueStateWrapper<E> implements ReadableQueueState<E> {
         return delegate.getServiceName();
     }
 
-    @NonNull
     @Override
-    public String getStateKey() {
-        return delegate.getStateKey();
+    public int getStateId() {
+        return delegate.getStateId();
     }
 
     @Nullable

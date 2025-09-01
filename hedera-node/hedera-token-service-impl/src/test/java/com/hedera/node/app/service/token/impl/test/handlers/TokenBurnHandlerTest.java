@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithAccounts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithNfts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithTokenRels;
@@ -497,8 +497,8 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .build());
             writableNftStore = new WritableNftStore(
                     new MapWritableStates(Map.of(
-                            NFTS_KEY,
-                            MapWritableKVState.builder(TokenService.NAME, NFTS_KEY)
+                            NFTS_STATE_ID,
+                            MapWritableKVState.builder(TokenService.NAME, NFTS_STATE_ID)
                                     .build())),
                     mock(WritableEntityCounters.class));
 

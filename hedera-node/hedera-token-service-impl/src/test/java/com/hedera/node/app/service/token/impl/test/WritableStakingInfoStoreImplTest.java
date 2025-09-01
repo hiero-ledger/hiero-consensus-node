@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -38,7 +38,7 @@ public class WritableStakingInfoStoreImplTest {
     @BeforeEach
     void setUp() {
         final var wrappedState = MapWritableKVState.<EntityNumber, StakingNodeInfo>builder(
-                        TokenService.NAME, V0490TokenSchema.STAKING_INFO_KEY)
+                        TokenService.NAME, V0490TokenSchema.STAKING_INFOS_STATE_ID)
                 .value(
                         NODE_ID_1,
                         StakingNodeInfo.newBuilder()
@@ -49,12 +49,13 @@ public class WritableStakingInfoStoreImplTest {
                                 .build())
                 .build();
         entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
-                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> null, c -> {}),
-                ENTITY_COUNTS_KEY,
-                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                ENTITY_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> null, c -> {}),
+                ENTITY_COUNTS_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> null, c -> {}))));
         subject = new WritableStakingInfoStore(
-                new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFO_KEY, wrappedState)), entityIdStore);
+                new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFOS_STATE_ID, wrappedState)), entityIdStore);
     }
 
     @SuppressWarnings("DataFlowIssue")

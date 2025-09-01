@@ -26,7 +26,7 @@ public class WritableSingletonStateStack<T> implements WritableSingletonState<T>
 
     private final WritableStatesStack writableStatesStack;
     private final String serviceName;
-    private final String stateKey;
+    private final int stateId;
 
     /**
      * Constructs a {@link WritableSingletonStateStack} that delegates to the current {@link WritableSingletonState} in
@@ -36,21 +36,21 @@ public class WritableSingletonStateStack<T> implements WritableSingletonState<T>
      *
      * @param writableStatesStack the {@link WritableStatesStack}
      * @param serviceName the service name
-     * @param stateKey the state key
+     * @param stateId the state ID
      * @throws NullPointerException if any of the arguments is {@code null}
      */
     public WritableSingletonStateStack(
             @NonNull final WritableStatesStack writableStatesStack,
             @NonNull final String serviceName,
-            @NonNull final String stateKey) {
+            final int stateId) {
         this.writableStatesStack = requireNonNull(writableStatesStack, "writableStatesStack must not be null");
         this.serviceName = requireNonNull(serviceName, "serviceName must not be null");
-        this.stateKey = requireNonNull(stateKey, "stateKey must not be null");
+        this.stateId = stateId;
     }
 
     @NonNull
     private WritableSingletonState<T> getCurrent() {
-        return writableStatesStack.getCurrent().getSingleton(stateKey);
+        return writableStatesStack.getCurrent().getSingleton(stateId);
     }
 
     @Override
@@ -60,9 +60,8 @@ public class WritableSingletonStateStack<T> implements WritableSingletonState<T>
     }
 
     @Override
-    @NonNull
-    public String getStateKey() {
-        return stateKey;
+    public int getStateId() {
+        return stateId;
     }
 
     @Override
