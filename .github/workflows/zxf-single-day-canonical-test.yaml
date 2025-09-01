@@ -147,7 +147,7 @@ jobs:
           git clone --recurse-submodules https://github.com/mgarbs/big-apps-testing.git
           cd big-apps-testing
 
-          . ${curdir}/accounts.sh
+          . ${GITHUB_WORKSPACE}/accounts.sh
           sed "s/ENV_PRIVATE_KEY/$ACCOUNT_PRIVATE_KEY/g" tools/template-env > .env
           cat .env
 
