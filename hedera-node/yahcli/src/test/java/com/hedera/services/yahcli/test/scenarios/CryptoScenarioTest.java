@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestInstance;
 
 /**
- * Validates that {@code yahcli ivy --crypto} creates a sender and receiver account when there is no config
+ * Validates that {@code yahcli ivy scenarios --crypto} creates a sender and receiver account when there is no config
  * specifying well-known accounts; and then reuses those accounts (but creates a novel account) when run again with
  * the {@code --new-entities} flag.
  */
@@ -55,7 +55,7 @@ public class CryptoScenarioTest {
     @Order(0)
     final Stream<DynamicTest> cryptoScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
-                yahcliIvy("vs", "--crypto"),
+                yahcliIvy("scenarios", "--crypto"),
                 assertYahcliScenariosConfig(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);
@@ -73,7 +73,7 @@ public class CryptoScenarioTest {
     @Order(1)
     final Stream<DynamicTest> cryptoScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
-                yahcliIvy("vs", "--crypto", "--new-entities"),
+                yahcliIvy("scenarios", "--crypto", "--new-entities"),
                 assertYahcliScenariosConfig(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);

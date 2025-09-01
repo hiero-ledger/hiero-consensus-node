@@ -15,7 +15,7 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
 import com.hedera.services.bdd.suites.meta.VersionInfoSpec;
 import com.hedera.services.yahcli.Yahcli;
-import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoScenarioSuite;
 import com.hedera.services.yahcli.suites.BalanceSuite;
 import com.hedera.services.yahcli.suites.CostOfEveryThingSuite;
 import com.hedera.services.yahcli.suites.CreateNodeSuite;
@@ -110,5 +110,5 @@ public class ConfigUtils {
             CreateNodeSuite.class,
             UpdateNodeSuite.class,
             DeleteNodeSuite.class,
-            IvyCryptoSuite.class);
+            IvyCryptoScenarioSuite.class);
 }

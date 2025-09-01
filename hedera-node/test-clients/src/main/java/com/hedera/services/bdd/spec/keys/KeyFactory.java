@@ -182,6 +182,29 @@ public class KeyFactory {
     }
 
     /**
+     * Exports the Ed25519 private key associated with the given name to the given PEM location, using
+     * the given passphrase and the given function to extract the target public key bytes.
+     * @param loc the location to which the key should be exported
+     * @param name the name of the key to export
+     * @param targetKeyExtractor a function that extracts the target public key bytes from the named key
+     * @param passphrase the passphrase to use for the PEM file
+     */
+    public void exportEd25519Key(
+            @NonNull final String loc,
+            @NonNull final String name,
+            @NonNull final Function<Key, byte[]> targetKeyExtractor,
+            @NonNull final String passphrase) {
+        requireNonNull(loc);
+        requireNonNull(name);
+        requireNonNull(targetKeyExtractor);
+        requireNonNull(passphrase);
+        final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
+        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
+        final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
+        KeyUtils.writeKeyTo(key, loc, passphrase);
+    }
+
+    /**
      * Exports the ECDSA private key associated with the given name to the given location in a plaintext format.
      *
      * @param name the name of the key to export
@@ -373,20 +396,22 @@ public class KeyFactory {
      */
     public Key generate(@NonNull final HapiSpec spec, @NonNull final KeyType type, @NonNull final KeyGenerator keyGen) {
         return switch (type) {
-            case THRESHOLD -> generateSubjectTo(
-                    spec,
-                    KeyShape.threshSigs(
-                            setup.defaultThresholdM(),
-                            IntStream.range(0, setup.defaultThresholdN())
-                                    .mapToObj(ignore -> ON)
-                                    .toArray(SigControl[]::new)),
-                    keyGen);
-            case LIST -> generateSubjectTo(
-                    spec,
-                    KeyShape.listSigs(IntStream.range(0, setup.defaultListN())
-                            .mapToObj(ignore -> ON)
-                            .toArray(SigControl[]::new)),
-                    keyGen);
+            case THRESHOLD ->
+                generateSubjectTo(
+                        spec,
+                        KeyShape.threshSigs(
+                                setup.defaultThresholdM(),
+                                IntStream.range(0, setup.defaultThresholdN())
+                                        .mapToObj(ignore -> ON)
+                                        .toArray(SigControl[]::new)),
+                        keyGen);
+            case LIST ->
+                generateSubjectTo(
+                        spec,
+                        KeyShape.listSigs(IntStream.range(0, setup.defaultListN())
+                                .mapToObj(ignore -> ON)
+                                .toArray(SigControl[]::new)),
+                        keyGen);
             default -> generateSubjectTo(spec, ON, keyGen);
         };
     }
@@ -477,9 +502,10 @@ public class KeyFactory {
                                     .setDelegatableContractId(dcid)
                                     .build();
                         }
-                        case LIST -> Key.newBuilder()
-                                .setKeyList(composing(label.getConstituents(), sc.getChildControls()))
-                                .build();
+                        case LIST ->
+                            Key.newBuilder()
+                                    .setKeyList(composing(label.getConstituents(), sc.getChildControls()))
+                                    .build();
                         case THRESHOLD -> {
                             final var tKey = ThresholdKey.newBuilder()
                                     .setThreshold(sc.getThreshold())
@@ -551,10 +577,8 @@ public class KeyFactory {
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
             case KEY_LIST -> key.keyListOrThrow().keys().forEach(k -> addPrivateKeys(k, keyMap));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> addPrivateKeys(k, keyMap));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().forEach(k -> addPrivateKeys(k, keyMap));
             default -> {
                 // No-op
             }
@@ -566,17 +590,6 @@ public class KeyFactory {
             @NonNull final String name,
             @NonNull final Function<Key, byte[]> targetKeyExtractor) {
         exportEd25519Key(loc, name, targetKeyExtractor, PEM_PASSPHRASE);
-    }
-
-    private void exportEd25519Key(
-            @NonNull final String loc,
-            @NonNull final String name,
-            @NonNull final Function<Key, byte[]> targetKeyExtractor,
-            @NonNull final String passphrase) {
-        final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
-        final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
-        KeyUtils.writeKeyTo(key, loc, passphrase);
     }
 
     private void exportEcdsaKey(

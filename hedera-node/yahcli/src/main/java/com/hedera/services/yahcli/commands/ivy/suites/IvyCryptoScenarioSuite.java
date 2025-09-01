@@ -38,12 +38,12 @@ import org.junit.jupiter.api.DynamicTest;
 /**
  * Implements the old {@code ValidationScenarios} crypto scenario.
  */
-public class IvyCryptoSuite extends AbstractIvySuite {
-    private static final Logger log = LogManager.getLogger(IvyCryptoSuite.class);
+public class IvyCryptoScenarioSuite extends AbstractIvySuite {
+    private static final Logger log = LogManager.getLogger(IvyCryptoScenarioSuite.class);
 
     private final boolean novel;
 
-    public IvyCryptoSuite(
+    public IvyCryptoScenarioSuite(
             @NonNull final Map<String, String> specConfig,
             @NonNull final ScenariosConfig scenariosConfig,
             @NonNull final Supplier<Supplier<String>> nodeAccounts,
