@@ -288,7 +288,7 @@ jobs:
             cp BNsources_init.txt "${{ github.workspace }}"/report/
 
             cp `find block-node-app-* -type f -name '*.ser' -print` ../../
-            find find block-node-app-* -type f -name '*.ser' -exec rm {} \;
+            find block-node-app-* -type f -name '*.ser' -exec rm {} \;
             cd ..
             rm $tarfile 
             tar cvf $tarfile block-node-app-*
