@@ -17,14 +17,20 @@ import java.util.Objects;
 
 public class StateKey {
 
+    // StateKey.key OneOf field number for singletons
+    private static final int FIELD_NUM_SINGLETON = 1;
+
     private StateKey() {}
 
+    // Singleton key: OneOf field number is FIELD_NUM_SINGLETON (1), field value is varint,
+    // the value is singleton state ID
     public static Bytes singletonKey(final int stateId) {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
             final WritableSequentialData out = new WritableStreamingData(bout);
-            // Write tag: field number == 1, wire type == VARINT
+            // Write tag: field number == FIELD_NUM_SINGLETON (1), wire type == VARINT
             out.writeVarInt(
-                    (1 << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal(),
+                    (FIELD_NUM_SINGLETON << ProtoParserTools.TAG_FIELD_OFFSET)
+                            | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal(),
                     false);
             // Write varint value, singleton state ID
             out.writeVarInt(stateId, false);
@@ -34,6 +40,8 @@ public class StateKey {
         }
     }
 
+    // Queue key: OneOf field number is queue state ID, field value is varint, the value
+    // is a long index in the queue
     public static Bytes queueKey(final int stateId, final long index) {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
             final WritableSequentialData out = new WritableStreamingData(bout);
@@ -50,10 +58,12 @@ public class StateKey {
         }
     }
 
+    // Queue state key: same as a singleton with the corresponding state ID
     public static Bytes queueStateKey(final int stateId) {
         return singletonKey(stateId);
     }
 
+    // K/V key: OneOf field number is K/V state ID, field value is the key
     public static <K> Bytes kvKey(final int stateId, final K key, final Codec<K> keyCodec) {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
             final WritableSequentialData out = new WritableStreamingData(bout);
@@ -83,7 +93,7 @@ public class StateKey {
         final ReadableSequentialData in = stateKey.toReadableSequentialData();
         final int tag = in.readVarInt(false);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET == extractStateIdFromStateKey(stateKey);
-        assert tag >> ProtoParserTools.TAG_FIELD_OFFSET != 1; // must not be a singleton key
+        assert tag >> ProtoParserTools.TAG_FIELD_OFFSET != FIELD_NUM_SINGLETON; // must not be a singleton key
         final int size = in.readVarInt(false);
         assert in.position() + size == stateKey.length();
         return keyCodec.parse(in);

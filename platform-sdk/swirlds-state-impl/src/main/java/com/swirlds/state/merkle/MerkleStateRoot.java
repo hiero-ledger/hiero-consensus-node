@@ -121,8 +121,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private MerkleRootSnapshotMetrics snapshotMetrics = new MerkleRootSnapshotMetrics();
 
     /**
-     * Maintains information about each service, and each state of each service, known by this
-     * instance. The key is the "service-name.state-key".
+     * Maintains information about all services known by this instance. Map keys are
+     * service names, values are service states by service ID.
      */
     private final Map<String, Map<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
 
@@ -504,7 +504,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
             final var md = stateMetadata.get(stateId);
             if (md == null || md.stateDefinition().singleton()) {
-                throw new IllegalArgumentException("Unknown k/v state key '" + stateId + ";");
+                throw new IllegalArgumentException("Unknown k/v state ID '%d'".formatted(stateId));
             }
 
             final var node = findNode(md);
@@ -514,7 +514,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 return ret;
             } else {
                 // This exception should never be thrown. Only if "findNode" found the wrong node!
-                throw new IllegalStateException("Unexpected type for k/v state " + stateId);
+                throw new IllegalStateException("Unexpected type for k/v state %d".formatted(stateId));
             }
         }
 
@@ -528,7 +528,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
             final var md = stateMetadata.get(stateId);
             if (md == null || !md.stateDefinition().singleton()) {
-                throw new IllegalArgumentException("Unknown singleton state key '" + stateId + "'");
+                throw new IllegalArgumentException("Unknown singleton state ID '%d'".formatted(stateId));
             }
 
             final var node = findNode(md);
@@ -538,7 +538,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 return ret;
             } else {
                 // This exception should never be thrown. Only if "findNode" found the wrong node!
-                throw new IllegalStateException("Unexpected type for singleton state " + stateId);
+                throw new IllegalStateException("Unexpected type for singleton state %d".formatted(stateId));
             }
         }
 
@@ -552,7 +552,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
             final var md = stateMetadata.get(stateId);
             if (md == null || !md.stateDefinition().queue()) {
-                throw new IllegalArgumentException("Unknown queue state key '" + stateId + "'");
+                throw new IllegalArgumentException("Unknown queue state ID '%d'".formatted(stateId));
             }
 
             final var node = findNode(md);
@@ -562,7 +562,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 return ret;
             } else {
                 // This exception should never be thrown. Only if "findNode" found the wrong node!
-                throw new IllegalStateException("Unexpected type for queue state " + stateId);
+                throw new IllegalStateException("Unexpected type for queue state %d".formatted(stateId));
             }
         }
 

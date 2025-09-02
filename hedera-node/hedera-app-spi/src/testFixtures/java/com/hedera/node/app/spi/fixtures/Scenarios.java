@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -338,11 +339,11 @@ public interface Scenarios extends TransactionFactory {
     }
 
     default MapReadableKVState<AccountID, Account> defaultAccountKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, 2 /* ACCOUNTS_STATE_ID */, defaultAccounts());
+        return new MapReadableKVState<>(TokenService.NAME, V0490TokenSchema.ACCOUNTS_STATE_ID, defaultAccounts());
     }
 
     default MapReadableKVState<ProtoBytes, AccountID> defaultAliasesKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, 3 /* ALIASES_STATE_ID */, defaultAliases());
+        return new MapReadableKVState<>(TokenService.NAME, V0490TokenSchema.ALIASES_STATE_ID, defaultAliases());
     }
 
     default ReadableStates defaultTokenReadableStates() {

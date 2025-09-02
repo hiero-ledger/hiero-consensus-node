@@ -134,7 +134,6 @@ public class V0490FileSchema extends Schema {
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            // final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
             final var stateKey =
                     UPGRADE_DATA_STATE_KEY_PATTERN.formatted(updateNum).toUpperCase();
             final int stateId = SingletonType.valueOf(stateKey).protoOrdinal();

@@ -18,10 +18,10 @@ public class FilteredWritableStates extends FilteredReadableStates implements Wr
      * Create a new instance.
      *
      * @param delegate The instance to delegate to
-     * @param stateKeys The set of keys in {@code delegate} to expose
+     * @param stateIds The set of state IDs in {@code delegate} to expose
      */
-    public FilteredWritableStates(@NonNull final WritableStates delegate, @NonNull final Set<Integer> stateKeys) {
-        super(delegate, stateKeys);
+    public FilteredWritableStates(@NonNull final WritableStates delegate, @NonNull final Set<Integer> stateIds) {
+        super(delegate, stateIds);
         this.delegate = Objects.requireNonNull(delegate);
     }
 

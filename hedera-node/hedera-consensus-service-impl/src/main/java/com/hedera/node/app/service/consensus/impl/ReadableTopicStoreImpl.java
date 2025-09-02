@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TopicID;

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl;
 
-import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.spi.RpcService;
@@ -12,20 +11,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Standard implementation of the {@link ConsensusService} {@link RpcService}.
  */
 public final class ConsensusServiceImpl implements ConsensusService {
+
     /**
      * Topic running hash
      */
     public static final int RUNNING_HASH_BYTE_ARRAY_SIZE = 48;
-
-    /**
-     * Topics state key
-     */
-    public static final String TOPICS_KEY = "TOPICS";
-
-    /**
-     * Topics state ID
-     */
-    public static final int TOPICS_STATE_ID = StateKey.KeyOneOfType.CONSENSUSSERVICE_I_TOPICS.protoOrdinal();
 
     @Override
     public void registerSchemas(@NonNull SchemaRegistry registry) {

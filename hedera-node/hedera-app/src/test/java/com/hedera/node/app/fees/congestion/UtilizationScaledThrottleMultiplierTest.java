@@ -41,7 +41,7 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.consensus.ConsensusService;
-import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.file.FileService;
@@ -437,7 +437,7 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         ConsensusService.NAME,
                         Map.of(
-                                ConsensusServiceImpl.TOPICS_STATE_ID,
+                                V0490ConsensusSchema.TOPICS_STATE_ID,
                                 Map.of(
                                         TopicID.newBuilder().topicNum(1L), Topic.DEFAULT,
                                         TopicID.newBuilder().topicNum(2L), Topic.DEFAULT)))

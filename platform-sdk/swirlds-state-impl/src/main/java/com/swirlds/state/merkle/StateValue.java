@@ -48,7 +48,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             final int valueSize = valueCodec.measureRecord(value.value());
             size += ProtoWriterTools.sizeOfVarInt32(valueSize);
             if (valueSize > 0) {
-                size += valueCodec.measureRecord(value.value());
+                size += valueSize;
             }
             return size;
         }

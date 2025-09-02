@@ -92,8 +92,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     private MerkleRootSnapshotMetrics snapshotMetrics = new MerkleRootSnapshotMetrics();
 
     /**
-     * Maintains information about each service, and each state of each service, known by this
-     * instance. The key is the "service-name.state-key".
+     * Maintains information about all services known by this instance. Map keys are
+     * service names, values are service states by service ID.
      */
     private final Map<String, Map<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
 

@@ -187,11 +187,8 @@ public final class StateMetadata<K, V> {
     }
 
     /**
-     * Computes the label for a Merkle node given the service name and state key.
-     * <p>
-     * The label is computed as "serviceName.stateKey". The result is cached so that repeated calls
-     * with the same parameters return the same string without redoing the concatenation.
-     * </p>
+     * Computes the label for a Merkle node given the service name and state key. The label is computed
+     * as "serviceName.stateKey"
      *
      * @param serviceName the service name
      * @param stateKey    the state key
@@ -203,11 +200,8 @@ public final class StateMetadata<K, V> {
     }
 
     /**
-     * Computes the label for a Merkle node given the service name and state ID.
-     * <p>
-     * The label is computed as "serviceName.stateId". The result is cached so that repeated calls
-     * with the same parameters return the same string without redoing the concatenation.
-     * </p>
+     * Computes the label for a Merkle node given the service name and state ID. The label is computed
+     * as "serviceName.stateId".
      *
      * @param serviceName the service name
      * @param stateId     the state ID
