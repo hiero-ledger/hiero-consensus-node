@@ -107,12 +107,12 @@ public class BlockNodeVerbs {
         }
 
         /**
-         * Unpauses the block node container.
+         * Resumes the block node container.
          *
          * @return the operation
          */
-        public BlockNodeOp unpause() {
-            return BlockNodeOp.unpause(nodeIndex).build();
+        public BlockNodeOp resume() {
+            return BlockNodeOp.resume(nodeIndex).build();
         }
 
         /**

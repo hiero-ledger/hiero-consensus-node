@@ -296,7 +296,6 @@ public class BlockNodeSuite {
             })
     @Order(5)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
-        // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 doingContextual(
@@ -356,7 +355,7 @@ public class BlockNodeSuite {
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNode(0).unpause(),
+                blockNode(0).resume(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
@@ -503,7 +502,7 @@ public class BlockNodeSuite {
                 waitUntilNextBlocks(maxBufferSize + halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // after restart and adding more blocks, saturation should be at 0% because the block node has
-                // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
+                // acknowledged all old blocks and the new blocks
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
     }

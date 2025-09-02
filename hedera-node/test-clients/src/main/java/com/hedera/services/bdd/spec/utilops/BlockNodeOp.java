@@ -197,12 +197,12 @@ public class BlockNodeOp extends UtilOp {
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex);
                 break;
-            case UNPAUSE:
+            case RESUME:
                 if (!controller.isBlockNodePaused(nodeIndex)) {
-                    log.error("Cannot unpause container {} because it has not been paused", nodeIndex);
+                    log.error("Cannot resume container {} because it has not been paused", nodeIndex);
                     return false;
                 }
-                controller.unpauseContainer(nodeIndex);
+                controller.resumeContainer(nodeIndex);
                 break;
             case PAUSE:
                 controller.pauseContainer(nodeIndex);
@@ -227,8 +227,8 @@ public class BlockNodeOp extends UtilOp {
         SHUTDOWN_ALL,
         /** Pause block node */
         PAUSE,
-        /** Unpause block node */
-        UNPAUSE,
+        /** Resume block node */
+        RESUME,
 
         /* Next actions are only applicable to simulated block nodes */
 
@@ -305,13 +305,13 @@ public class BlockNodeOp extends UtilOp {
     }
 
     /**
-     * Creates a builder for unpausing a specific block node container.
+     * Creates a builder for resuming a specific block node container.
      *
      * @param nodeIndex the index of the block node (0-based)
      * @return a builder for the operation
      */
-    public static UnpauseBuilder unpause(final long nodeIndex) {
-        return new UnpauseBuilder(nodeIndex);
+    public static ResumeBuilder resume(final long nodeIndex) {
+        return new ResumeBuilder(nodeIndex);
     }
 
     /**
@@ -548,10 +548,10 @@ public class BlockNodeOp extends UtilOp {
         }
     }
 
-    public static class UnpauseBuilder extends UtilOp {
+    public static class ResumeBuilder extends UtilOp {
         private final long nodeIndex;
 
-        private UnpauseBuilder(final long nodeIndex) {
+        private ResumeBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -561,7 +561,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.UNPAUSE, null, 0, null, null, true);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.RESUME, null, 0, null, null, true);
         }
 
         @Override
