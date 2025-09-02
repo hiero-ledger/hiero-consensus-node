@@ -119,7 +119,7 @@ jobs:
           set -euo pipefail
           
           log_info "Installing Hashgraph Solo..."
-          npm install -g "@hashgraph/solo@0.42.0"
+          npm install -g "@hashgraph/solo@0.43.0"
 
           # verify the installation
           SOLO_VERSION=$(solo --version)
