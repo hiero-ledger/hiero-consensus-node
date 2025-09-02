@@ -287,9 +287,8 @@ jobs:
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
             mv BNsources_init.txt "${{ github.workspace }}"/report/
-
-            cp `find . -type f -name '*.ser' -print` ../../
-            find . -type f -name '*.ser' -exec rm {} \;
+            ls -l *.ser
+            mv *.ser ../../
             cd ..
 
             rm $tarfile 
