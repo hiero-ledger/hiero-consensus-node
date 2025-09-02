@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.ivy.suites;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -17,6 +21,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.suites.HapiSuite;
@@ -118,6 +123,51 @@ public abstract class AbstractIvySuite extends HapiSuite {
                 spec.registry().saveKey(name, expectedKey);
                 spec.registry().saveFileId(name, fileId);
                 spec.keys().incorporateEd25519SimpleWacl(name, key);
+            }
+        });
+    }
+
+    protected SpecOperation ensureEd25519Contract(
+            @NonNull final String name,
+            @Nullable final Long number,
+            @NonNull final String initcodeName,
+            @NonNull final LongConsumer onCreatedNumber) {
+        return doingContextual(spec -> {
+            if (number == null) {
+                final var creation = contractCreate(name)
+                        .adminKeyShape(ED25519)
+                        .setNodeFrom(nodeAccounts.get())
+                        .advertisingCreation()
+                        .bytecode(initcodeName);
+                allRunFor(spec, creation);
+                onCreatedNumber.accept(spec.registry().getContractId(name).getContractNum());
+                yahcliKeys.exportContractKey(spec, name);
+                persistUpdatedScenarios.run();
+            } else {
+                final var contractId = spec.contractIdFactory().apply(number);
+                final var idLiteral = asContractString(contractId);
+
+                var infoLookup = getContractInfo(idLiteral).setNodeFrom(nodeAccounts.get());
+                allRunFor(spec, infoLookup);
+                final var info = infoLookup.getResponse().getContractGetInfo().getContractInfo();
+                final var key = yahcliKeys.loadContractKey(number, EdDSAPrivateKey.class);
+                final var expectedKey = Key.newBuilder()
+                        .setEd25519(ByteString.copyFrom(key.getAbyte()))
+                        .build();
+                Assertions.assertEquals(
+                        expectedKey,
+                        info.getAdminKey(),
+                        String.format("Contract %s had a different admin key than expected", idLiteral));
+
+                final var bytecodeCheck = getContractBytecode(idLiteral)
+                        .setNodeFrom(nodeAccounts.get())
+                        .isNonEmpty();
+                allRunFor(spec, bytecodeCheck);
+
+                spec.registry().saveKey(name, expectedKey);
+                spec.registry().saveContractId(name, contractId);
+                spec.registry().saveAccountId(name, HapiPropertySource.asAccount(idLiteral));
+                spec.keys().incorporate(name, key);
             }
         });
     }

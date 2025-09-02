@@ -116,12 +116,17 @@ public class ConfigManager {
             }
 
             @Override
-            public <T extends PrivateKey> T loadTopicAdminKey(long number, Class<T> type) {
+            public <T extends PrivateKey> T loadContractKey(final long number, @NonNull final Class<T> type) {
+                return loadTypedKeyOrThrow("account" + number, type);
+            }
+
+            @Override
+            public <T extends PrivateKey> T loadTopicAdminKey(final long number, @NonNull final Class<T> type) {
                 return loadTypedKeyOrThrow("topicAdmin" + number, type);
             }
 
             @Override
-            public <T extends PrivateKey> T loadFileKey(long number, Class<T> type) {
+            public <T extends PrivateKey> T loadFileKey(final long number, @NonNull final Class<T> type) {
                 return loadTypedKeyOrThrow("file" + number, type);
             }
 
@@ -130,6 +135,14 @@ public class ConfigManager {
                 final long accountNum = spec.registry().getAccountID(name).getAccountNum();
                 final var pemLoc = keysLoc() + File.separator + "account" + accountNum + ".pem";
                 final var passLoc = keysLoc() + File.separator + "account" + accountNum + ".pass";
+                exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
+            }
+
+            @Override
+            public void exportContractKey(@NonNull final HapiSpec spec, @NonNull final String name) {
+                final long contractNum = spec.registry().getContractId(name).getContractNum();
+                final var pemLoc = keysLoc() + File.separator + "contract" + contractNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "contract" + contractNum + ".pass";
                 exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
             }
 
@@ -188,6 +201,8 @@ public class ConfigManager {
 
             private <T extends PrivateKey> T loadTypedKeyOrThrow(
                     @NonNull final String typedNum, @NonNull final Class<T> type) {
+                requireNonNull(typedNum);
+                requireNonNull(type);
                 final var f = keyFileFor(keysLoc(), typedNum).orElseThrow();
                 final var k = loadKeyOrThrow(f, "YAHCLI_PASSPHRASE");
                 if (!type.isInstance(k)) {

@@ -19,6 +19,16 @@ public interface YahcliKeys {
     <T extends PrivateKey> T loadAccountKey(long number, Class<T> type);
 
     /**
+     * Loads the private key for the given contract number, if one is available.
+     * @param number the contract number
+     * @param type the expected type of the private key
+     * @return the private key
+     * @param <T> the type of the private key
+     * @throws IllegalArgumentException if no key of the expected type is found
+     */
+    <T extends PrivateKey> T loadContractKey(long number, Class<T> type);
+
+    /**
      * Loads the admin private key for the given topic number, if one is available.
      * @param number the topic number
      * @param type the expected type of the admin private key
@@ -44,6 +54,13 @@ public interface YahcliKeys {
      * @param name the name of the account whose key to export
      */
     void exportAccountKey(HapiSpec spec, String name);
+
+    /**
+     * Exports the private key for the given contract name to the appropriate yahcli location.
+     * @param spec the spec with the registered key
+     * @param name the name of the contract whose key to export
+     */
+    void exportContractKey(HapiSpec spec, String name);
 
     /**
      * Exports the private key for the given topic admin name to the appropriate yahcli location.
