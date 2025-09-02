@@ -371,8 +371,7 @@ jobs:
             log_error "PRIVATE_KEY_1 not set from accounts.sh"
             exit 1
           fi
-          
-          cat .env.sample | sed "s/0xEXAMPLEPRIVATEKEY0/${PRIVATE_KEY_0}/g" | sed "s/0xEXAMPLEPRIVATEKEY1/${PRIVATE_KEY_1}/g" > .env
+          cat ${GITHUB_WORKSPACE}/big-apps-testing/stablecoin-studio/template-env | sed "s/0xEXAMPLEPRIVATEKEY0/${PRIVATE_KEY_0}/g" | sed "s/0xEXAMPLEPRIVATEKEY1/${PRIVATE_KEY_1}/g" > .env
 
           log_info "Generated .env file:"
           cat .env
