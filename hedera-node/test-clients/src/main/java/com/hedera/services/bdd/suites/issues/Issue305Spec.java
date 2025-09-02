@@ -35,7 +35,12 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class Issue305Spec {
     @LeakyHapiTest(
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "contracts.maxGasPerSec"})
+            overrides = {
+                "fees.percentCongestionMultipliers",
+                "fees.minCongestionPeriod",
+                "contracts.maxGasPerSec",
+                "contracts.maxGasPerSecBackend"
+            })
     final Stream<DynamicTest> congestionMultipliersRefreshOnPropertyUpdate() {
         final var civilian = "civilian";
         final var preCongestionTxn = "preCongestionTxn";
@@ -57,6 +62,7 @@ public class Issue305Spec {
                 getTxnRecord(preCongestionTxn).providingFeeTo(normalPrice::set),
                 overridingAllOf(Map.of(
                         "contracts.maxGasPerSec", "3_000_000",
+                        "contracts.maxGasPerSecBackend", "3_000_000",
                         "fees.percentCongestionMultipliers", "1,5x",
                         "fees.minCongestionPeriod", "1")),
                 withOpContext((spec, opLog) -> {
