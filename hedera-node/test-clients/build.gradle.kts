@@ -76,6 +76,7 @@ val prCheckTags =
         put("hapiTestNDReconnect", "ND_RECONNECT")
         put("hapiTestTimeConsuming", "LONG_RUNNING")
         put("hapiTestIss", "ISS")
+        put("hapiTestBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
         put("hapiTestMisc", miscTags)
         put("hapiTestMiscRecords", miscTags)
 
@@ -110,6 +111,7 @@ val prCheckStartPorts =
         put("hapiTestTimeConsuming", "26200")
         put("hapiTestIss", "26400")
         put("hapiTestMisc", "26800")
+        put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
 
         // Create the MATS variants
@@ -192,8 +194,12 @@ tasks.register<Test>("testSubprocess") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for an ISS case
-            else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE_SIMULATOR
+            // cases
+            else if (
+                ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE_SIMULATOR")
+            )
+                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }

@@ -5,6 +5,7 @@ import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
@@ -29,9 +30,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.AbstractGrpcNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
@@ -104,6 +107,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
     private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
+    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
+    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
@@ -396,6 +401,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         configTxt = configTxtForLocal(
                 networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt);
+        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
+            executePostInitWorkingDirActions(node);
+        }
+
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -695,6 +704,84 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     @Override
     public PrometheusClient prometheusClient() {
         return PROMETHEUS_CLIENT;
+    }
+
+    /**
+     * Configures the log level for the block node communication package in the node's log4j2.xml file.
+     * This allows for more detailed logging of block streaming operations during tests.
+     *
+     * @param node the node whose logging configuration should be updated
+     * @param logLevel the log level to set (e.g., "DEBUG", "INFO", "WARN")
+     */
+    public void configureBlockNodeCommunicationLogLevel(
+            @NonNull final HederaNode node, @NonNull final String logLevel) {
+        requireNonNull(node, "Node cannot be null");
+        requireNonNull(logLevel, "Log level cannot be null");
+        final Path loggerConfigPath = node.getExternalPath(LOG4J2_XML);
+        try {
+            // Read the existing XML file
+            String xmlContent = Files.readString(loggerConfigPath);
+
+            // Check if the logger configuration for streaming package exists
+            if (xmlContent.contains("<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=")) {
+                // Update the existing logger configuration
+                final String updatedXmlContent = xmlContent.replaceAll(
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"[^\"]*\"",
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"" + logLevel + "\"");
+
+                // Write the updated XML back to the file
+                Files.writeString(loggerConfigPath, updatedXmlContent);
+
+                log.info("Updated existing com.hedera.node.app.blocks.impl.streaming logger to level {}", logLevel);
+            } else {
+                // If the logger configuration doesn't exist, add it
+                final int insertPosition = xmlContent.lastIndexOf("</Loggers>");
+                if (insertPosition != -1) {
+                    // Create the new logger configuration
+                    final StringBuilder newLogger = new StringBuilder();
+                    newLogger
+                            .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming\" ")
+                            .append("level=\"" + logLevel + "\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n\n");
+
+                    // Insert the new logger configuration
+                    final String updatedXmlContent =
+                            xmlContent.substring(0, insertPosition) + newLogger + xmlContent.substring(insertPosition);
+
+                    // Write the updated XML back to the file
+                    Files.writeString(loggerConfigPath, updatedXmlContent);
+
+                    log.info(
+                            "Successfully added com.hedera.node.app.blocks.impl.streaming logger at level {}",
+                            logLevel);
+                } else {
+                    log.info("Could not find </Loggers> tag in log4j2.xml");
+                }
+            }
+        } catch (IOException e) {
+            log.error("Error updating log4j2.xml: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Gets the current block node mode for this network.
+     *
+     * @return the current block node mode
+     */
+    public @NonNull BlockNodeMode getBlockNodeMode() {
+        return blockNodeMode;
+    }
+
+    /**
+     * Configure the block node mode for this network.
+     * @param mode the block node mode to use
+     */
+    public void setBlockNodeMode(@NonNull final BlockNodeMode mode) {
+        requireNonNull(mode, "Block node mode cannot be null");
+        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
+        this.blockNodeMode = mode;
     }
 
     public Map<Long, List<String>> getApplicationPropertyOverrides() {

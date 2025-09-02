@@ -126,6 +126,7 @@ jobs:
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
+      kubernetes-cluster: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
       add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
