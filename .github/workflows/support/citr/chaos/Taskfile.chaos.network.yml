@@ -1,0 +1,46 @@
+version: '3'
+
+# Taskfile.chaos.yml contains the chaos-related common tasks and env variables
+
+tasks:
+  consensus-network-bandwidth:
+    desc: Run Network Chaos experiments (limited bandwidth)
+    vars:
+      NAMESPACE: "{{.SOLO_NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+      RATE: '{{.RATE | default "1gbps"}}'
+      LIMIT: '{{.LIMIT | default 20971520}}'   # LIMIT in bytes (20MB)
+      BUFFER: '{{.BUFFER | default 102400}}'   # BUFFER in bytes (100KB)
+    cmds:
+      - echo "🔄 Running Network Bandwidth Chaos experiments..."
+      - echo "NAMESPACE=${NAMESPACE}, NODE_NAMES=${NODE_NAMES}, UUID=${UUID}"
+      - envsubst < {{.TASKFILE_DIR}}/network/consensus-node-bandwidth.yml | kubectl apply -f -
+      - echo "✅ Network Bandwidth Chaos experiments applied."
+      - task show-experiment-status NAME="solo-chaos-network-bandwidth-{{.UUID}}" TYPE="NetworkChaos"
+    env:
+      NAMESPACE: "{{.NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+      RATE: "{{.RATE}}"
+      LIMIT: "{{.LIMIT}}"
+      BUFFER: "{{.BUFFER}}"
+      UUID: "{{.UUID}}"
+
+  consensus-network-netem:
+    desc: Run Network Chaos experiments (network emulation)
+    vars:
+      NAMESPACE: "{{.NAMESPACE | default .SOLO_NAMESPACE}}"
+    cmds:
+      - echo "🔄 Running Network Bandwidth Chaos experiments..."
+      - echo "NAMESPACE=${NAMESPACE}, UUID=${UUID}"
+      - envsubst < {{.TASKFILE_DIR}}/network/netem-800ms.yml | kubectl apply -f -
+      - envsubst < {{.TASKFILE_DIR}}/network/netem-ap-melbourne.yml | kubectl apply -f -
+      - envsubst < {{.TASKFILE_DIR}}/network/netem-eu-london.yml | kubectl apply -f -
+      - envsubst < {{.TASKFILE_DIR}}/network/netem-us-ohio.yml | kubectl apply -f -
+      - echo "✅ Netem Bandwidth Chaos experiments applied."
+      - task show-experiment-status NAME="solo-chaos-network-netem-800ms-{{.UUID}}" TYPE="NetworkChaos"
+      - task show-experiment-status NAME="solo-chaos-network-netem-ap-melbourne-{{.UUID}}" TYPE="NetworkChaos"
+      - task show-experiment-status NAME="solo-chaos-network-netem-eu-london-{{.UUID}}" TYPE="NetworkChaos"
+      - task show-experiment-status NAME="solo-chaos-network-netem-us-ohio-{{.UUID}}" TYPE="NetworkChaos"
+    env:
+      NAMESPACE: "{{.NAMESPACE}}"
+      UUID: "{{.UUID}}"

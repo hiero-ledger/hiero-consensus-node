@@ -1,0 +1,39 @@
+version: '3'
+
+# Taskfile.chaos.yml contains the chaos-related common tasks and env variables
+
+tasks:
+  consensus-pod-failure:
+    desc: Run Pod Chaos experiments (failure)
+    vars:
+      NAMESPACE: "{{.SOLO_NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+      DURATION: '{{.DURATION | default "30s"}}'
+    cmds:
+      - echo "🔄 Running Pod Failure Chaos experiments..."
+      - echo "NAMESPACE=${NAMESPACE}, NODE_NAMES=${NODE_NAMES}, UUID=${UUID}"
+      - envsubst < {{.TASKFILE_DIR}}/pod/consensus-node-failure.yml | kubectl apply -f -
+      - echo "✅ Pod Failure Chaos experiments applied."
+      - task show-experiment-status NAME="solo-chaos-pod-failure-{{.UUID}}" TYPE="PodChaos"
+    env:
+      NAMESPACE: "{{.NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+      DURATION: "{{.DURATION}}"
+      UUID: "{{.UUID}}"
+
+  consensus-pod-kill:
+    desc: Run Pod Chaos experiments (kill)
+    vars:
+      NAMESPACE: "{{.SOLO_NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+    cmds:
+      - echo "🔄 Running Pod Kill Chaos experiments..."
+      - echo "NAMESPACE=${NAMESPACE}, NODE_NAMES=${NODE_NAMES}, UUID=${UUID}"
+      - envsubst < {{.TASKFILE_DIR}}/pod/consensus-node-kill.yml | kubectl apply -f -
+      - echo "✅ Pod Kill Chaos experiments applied."
+      - task show-experiment-status NAME="solo-chaos-pod-kill-{{.UUID}}" TYPE="PodChaos"
+    env:
+      NAMESPACE: "{{.NAMESPACE}}"
+      NODE_NAMES: "{{.NODE_NAMES}}"
+      UUID: "{{.UUID}}"
+      
