@@ -27,7 +27,7 @@ env:
   SOLO_DEPLOYMENT: %SOLO_NAMESPACE%-test
   CLUSTER_REF: %SOLO_NAMESPACE%-ref
   SOLO_CLUSTER_RELEASE_NAME: cluster_name
-  CONTEXT: hashgraph.teleport.sh-k8s.pft.dal.lat.ope.eng.hashgraph.io
+  CONTEXT: hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_NAME: solo-cluster-name
   MIRROR_RELEASE_NAME: release_name

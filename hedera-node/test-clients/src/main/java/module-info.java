@@ -89,13 +89,14 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.grpc.helidon.config;
+    requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
-    requires com.swirlds.metrics.impl;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
@@ -117,6 +118,8 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common;
+    requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;
