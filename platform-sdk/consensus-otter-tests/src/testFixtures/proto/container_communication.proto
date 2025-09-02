@@ -4,9 +4,10 @@ package org.hiero.otter.fixtures.container.proto;
 
 // SPDX-License-Identifier: Apache-2.0
 import "platform/state/platform_state.proto";
-import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
+
+message Empty {}
 
 // Request to initialize the container.
 message InitRequest {
@@ -16,14 +17,14 @@ message InitRequest {
 
 // Request to kill the application immediately.
 message KillImmediatelyRequest {
-  google.protobuf.Empty ignore = 1;
+  Empty ignore = 1;
 }
 
 // Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
-  rpc Init(InitRequest) returns (google.protobuf.Empty);
+  rpc Init(InitRequest) returns (Empty);
 
   // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
-  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+  rpc KillImmediately(KillImmediatelyRequest) returns (Empty);
 }

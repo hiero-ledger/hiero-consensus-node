@@ -1,5 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.4.9" }
+
+// For testing:
+// - clone 'pbj' next to 'hiero-consensus-node'
+// - switch 'pbj' to branch '494-import-from-classpath'
+pluginManagement { includeBuild("../pbj/pbj-core") }
+
+buildscript {
+    dependencies.constraints { classpath("org.antlr:antlr4-runtime:4.13.2") }
+}
+
+plugins {
+    id("org.hiero.gradle.build") version "0.4.9"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.0" apply false
+}
 
 javaModules {
     // This "intermediate parent project" should be removed

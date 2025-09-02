@@ -16,7 +16,7 @@ plugins {
     id("org.hiero.gradle.feature.test")
     id("org.hiero.gradle.report.test-logger")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("org.hiero.gradle.feature.protobuf")
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Consensus Otter Test Framework"
