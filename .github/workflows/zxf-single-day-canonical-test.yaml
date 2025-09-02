@@ -182,6 +182,22 @@ jobs:
           account_id=$(echo "$line" | sed -n 's/.*Account ID: \([0-9.]*\).*/\1/p')
           private_key=$(echo "$line" | sed -n 's/.*Private Key: \(0x[a-fA-F0-9]*\).*/\1/p')
           balance=$(echo "$line" | sed -n 's/.*Balance: \([0-9]*\) ℏ/\1/p')
+
+          line=$(grep "0.0.1012" solo.out) || {
+            log_error "Failed to find account information in solo output"
+            log_info "Solo output contents:"
+            cat solo.out
+            exit 1
+          }
+          private_key0=$(echo "$line" | sed -n 's/.*Private Key: \(0x[a-fA-F0-9]*\).*/\1/p')
+
+          line=$(grep "0.0.1013" solo.out) || {
+            log_error "Failed to find account information in solo output"
+            log_info "Solo output contents:"
+            cat solo.out
+            exit 1
+          }
+          private_key1=$(echo "$line" | sed -n 's/.*Private Key: \(0x[a-fA-F0-9]*\).*/\1/p')
           
           # Validate extracted values
           if [[ -z "${account_id}" || -z "${private_key}" || -z "${balance}" ]]; then
@@ -196,12 +212,17 @@ jobs:
           ACCOUNT_ID="$account_id"
           ACCOUNT_PRIVATE_KEY="$private_key"
           ACCOUNT_BALANCE="$balance"
+
+          PRIVATE_KEY_0="$private_key0"
+          PRIVATE_KEY_1="$private_key1"
           EOF
 
           log_pass "Successfully generated accounts.sh with:"
           log_info "ACCOUNT_ID=\"$account_id\""
           log_info "ACCOUNT_PRIVATE_KEY=\"$private_key\""
           log_info "ACCOUNT_BALANCE=\"$balance\""
+          log_info "PRIVATE_KEY_0=\"$private_key0\""
+          log_info "PRIVATE_KEY_1=\"$private_key1\""
           
           # Update Summary
           {
@@ -332,6 +353,31 @@ jobs:
           git clone https://github.com/hashgraph/stablecoin-studio.git
           cd stablecoin-studio/contracts
           
+          log_info "Setup .env..."
+          if [[ ! -f "${GITHUB_WORKSPACE}/accounts.sh" ]]; then
+            log_error "accounts.sh not found - Solo deployment may have failed"
+            exit 1
+          fi
+          
+          # Source account information
+          . "${GITHUB_WORKSPACE}/accounts.sh"
+          
+          # Validate required environment variables
+          if [[ -z "${PRIVATE_KEY_0:-}" ]]; then
+            log_error "PRIVATE_KEY_0 not set from accounts.sh"
+            exit 1
+          fi
+          if [[ -z "${PRIVATE_KEY_1:-}" ]]; then
+            log_error "PRIVATE_KEY_1 not set from accounts.sh"
+            exit 1
+          fi
+          
+          sed "s/0xEXAMPLEPRIVATEKEY0/$PRIVATE_KEY_0/g" .env.sample > .env
+          sed "s/0xEXAMPLEPRIVATEKEY1/$PRIVATE_KEY_1/g" .env.sample > .env
+
+          log_info "Generated .env file:"
+          cat .env
+
           log_info "Installing StableCoin Studio dependencies..."
           npm install
           npm ci
