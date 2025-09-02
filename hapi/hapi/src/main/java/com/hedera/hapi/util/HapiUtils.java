@@ -303,8 +303,6 @@ public class HapiUtils {
         return baseVersion.toString();
     }
 
-
-
     /**
      * Parses a semantic version string and converts it into a {@link SemanticVersion} object.
      * The input string must adhere to the semantic versioning format as defined by semver.org.
