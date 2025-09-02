@@ -12,6 +12,8 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - MDLT4
+
       ref:
         required: true
         default: "main"
