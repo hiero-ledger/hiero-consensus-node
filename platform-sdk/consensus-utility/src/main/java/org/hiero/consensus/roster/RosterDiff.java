@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
-import static java.util.Objects.requireNonNull;
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -177,16 +176,5 @@ public class RosterDiff {
 
             return report.toString();
         }
-    }
-
-    /**
-     * Converts the given {@link Bytes} instance to a readable IPv4 address string.
-     * @param ipV4Addr the {@link Bytes} instance to convert
-     * @return the readable IPv4 address string
-     */
-    static String asReadableIp(@NonNull final Bytes ipV4Addr) {
-        requireNonNull(ipV4Addr);
-        final var bytes = ipV4Addr.toByteArray();
-        return (0xff & bytes[0]) + "." + (0xff & bytes[1]) + "." + (0xff & bytes[2]) + "." + (0xff & bytes[3]);
     }
 }

@@ -10,7 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classi
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asReadableIp;
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;

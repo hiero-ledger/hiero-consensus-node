@@ -20,7 +20,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.cli.utils.AppUtils;
+import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -145,7 +145,7 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
         final SwirldMain<? extends MerkleNodeState> hederaApp =
-                AppUtils.createHederaAppMain(platformContext, platformStateFacade);
+                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
                 signedStateFile,
@@ -153,7 +153,7 @@ public final class EventRecoveryWorkflow {
                 platformStateFacade,
                 platformContext);
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-            AppUtils.updateStateHash(hederaApp, deserializedSignedState);
+            HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
                     STARTUP.getMarker(),

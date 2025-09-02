@@ -426,17 +426,6 @@ public interface HapiPropertySource {
         }
     }
 
-    /**
-     * Converts the given {@link Bytes} instance to a readable IPv4 address string.
-     * @param ipV4Addr the {@link Bytes} instance to convert
-     * @return the readable IPv4 address string
-     */
-    static String asReadableIp(@NonNull final Bytes ipV4Addr) {
-        requireNonNull(ipV4Addr);
-        final var bytes = ipV4Addr.toByteArray();
-        return (0xff & bytes[0]) + "." + (0xff & bytes[1]) + "." + (0xff & bytes[2]) + "." + (0xff & bytes[3]);
-    }
-
     static ServiceEndpoint asServiceEndpoint(String v) {
         String[] parts = v.split(":");
         return ServiceEndpoint.newBuilder()

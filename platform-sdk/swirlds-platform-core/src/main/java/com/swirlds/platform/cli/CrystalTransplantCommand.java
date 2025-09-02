@@ -31,7 +31,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
-import com.swirlds.platform.cli.utils.AppUtils;
+import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -262,7 +262,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                     try {
                         return appMain.stateRootFromVirtualMap().apply(v);
                     } catch (UnsupportedOperationException e) {
-                        // TODO while test apps don't support virtualmap
+                        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                         return appMain.newStateRoot();
                     }
                 },
@@ -279,8 +279,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private SwirldMain<? extends MerkleNodeState> appMain(
             final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
         try {
-            if (AppUtils.HDERA_MAIN.equals(appDefinition.getMainClassName())) {
-                return AppUtils.createHederaAppMain(platformContext, platformStateFacade);
+            if (HederaUtils.HDERA_MAIN.equals(appDefinition.getMainClassName())) {
+                return HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
             } else {
                 return loadAppMain(appDefinition.getMainClassName());
             }

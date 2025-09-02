@@ -15,9 +15,9 @@ import java.lang.reflect.Method;
 import org.hiero.base.crypto.Hash;
 
 /**
- * A set of utility methods to work with application's specifics dependencies
+ * A set of utility methods to work with Hedera application specifics dependencies
  */
-public class AppUtils {
+public class HederaUtils {
 
     public static final String HDERA_MAIN = "com.hedera.node.app.ServicesMain";
 
@@ -46,6 +46,10 @@ public class AppUtils {
         }
     }
 
+    /**
+     * Calls the method that sets the state hash.
+     * See: {@code  Hedera#setInitialStateHash}
+     */
     public static void updateStateHash(
             @NonNull final SwirldMain<? extends MerkleNodeState> hederaApp,
             @NonNull final DeserializedSignedState deserializedSignedState) {
