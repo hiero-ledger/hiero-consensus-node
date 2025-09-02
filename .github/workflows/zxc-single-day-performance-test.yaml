@@ -194,7 +194,7 @@ jobs:
           set +e
           # trim the input ref
           echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc||AdHocSD|SDPT)(\d+)$/')"
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc|AdHocSD|SDPT|SDLT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -1238,7 +1238,7 @@ jobs:
         id: check-test-asset
         run: |
           ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]$ ]]; then
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             ADHOC="true"
           fi
           echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
