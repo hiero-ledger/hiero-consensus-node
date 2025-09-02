@@ -18,6 +18,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
     private static final int HEALTH_PORT = 16007;
+    private String containerId;
 
     /**
      * Creates a new block node container with the default image.
@@ -52,6 +53,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             super.start();
         }
         waitForHealthy(Duration.ofMinutes(2));
+        containerId = getContainerId();
     }
 
     @Override
@@ -88,22 +90,22 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             throw new IllegalStateException("Cannot pause container that is not running");
         }
 
-        try (PauseContainerCmd pauseContainerCmd = getDockerClient().pauseContainerCmd(getContainerId())) {
+        try (PauseContainerCmd pauseContainerCmd = getDockerClient().pauseContainerCmd(containerId)) {
             pauseContainerCmd.exec();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to pause container: " + getContainerId(), e);
+            throw new RuntimeException("Failed to pause container: " + containerId, e);
         }
     }
 
     /**
-     * Unpauses the container, resuming all processes inside it.
+     * Resumes the container, resuming all processes inside it.
      */
-    public void unpause() {
+    public void resume() {
         if (!isRunning()) {
-            throw new IllegalStateException("Cannot unpause container that is not running");
+            throw new IllegalStateException("Cannot resume container that is not running");
         }
 
-        try (UnpauseContainerCmd unpauseContainerCmd = getDockerClient().unpauseContainerCmd(getContainerId())) {
+        try (UnpauseContainerCmd unpauseContainerCmd = getDockerClient().unpauseContainerCmd(containerId)) {
             unpauseContainerCmd.exec();
 
             // Wait a moment for the container to fully resume
@@ -113,7 +115,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 Thread.currentThread().interrupt();
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to unpause container: " + getContainerId(), e);
+            throw new RuntimeException("Failed to resume container: " + containerId, e);
         }
     }
 
@@ -126,9 +128,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             return false;
         }
 
-        try (InspectContainerCmd inspectContainerCmd = getDockerClient().inspectContainerCmd(getContainerId())) {
-            var containerInfo = inspectContainerCmd.exec();
-            var state = containerInfo.getState();
+        try (InspectContainerCmd inspectContainerCmd = getDockerClient().inspectContainerCmd(containerId)) {
+            final var containerInfo = inspectContainerCmd.exec();
+            final var state = containerInfo.getState();
             return state != null && Boolean.TRUE.equals(state.getPaused());
         } catch (Exception e) {
             return false;

@@ -388,6 +388,12 @@ public class BlockNodeController {
         return !shutdownBlockNodePorts.isEmpty();
     }
 
+    /**
+     * Start a previous shutdown block node container.
+     * This will recreate the container on the same port it was running on before shutdown.
+     * *
+     * @param nodeIndex the index of the block node to be started
+     */
     public void startContainer(long nodeIndex) {
         if (!shutdownBlockNodePorts.containsKey(nodeIndex)) {
             log.error("Block Node container {} was not previously shutdown or has already been restarted", nodeIndex);
@@ -408,6 +414,11 @@ public class BlockNodeController {
         }
     }
 
+    /**
+     * Shutdown a specific block node container to simulate a connection drop.
+     *
+     * @param nodeIndex the index of the block node to be shutdown
+     */
     public void shutdownContainer(long nodeIndex) {
         if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
             final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeIndex);
@@ -423,32 +434,12 @@ public class BlockNodeController {
         }
     }
 
-    public void unpauseContainer(long nodeIndex) {
-        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
-            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
-
-            if (container == null) {
-                log.error("Block Node container {} does not exist", nodeIndex);
-                return;
-            }
-
-            if (!container.isPaused()) {
-                log.warn("Block Node container {} is not paused", nodeIndex);
-                return;
-            }
-
-            try {
-                container.unpause();
-                log.info("Unpaused container {} @ {} and waited for readiness", nodeIndex, container);
-                pausedBlockNodePorts.remove(nodeIndex);
-            } catch (Exception e) {
-                log.error("Failed to unpause container {}: {}", nodeIndex, e.getMessage(), e);
-            }
-        } else {
-            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
-        }
-    }
-
+    /**
+     * Pause a specific block node container to simulate a connection drop.
+     * The block node state will be saved and can be resumed using {@link #resumeContainer}.
+     *
+     * @param nodeIndex the index of the block node to be paused
+     */
     public void pauseContainer(long nodeIndex) {
         if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
             final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
@@ -472,6 +463,36 @@ public class BlockNodeController {
             } catch (Exception e) {
                 log.error("Failed to pause container {}: {}", nodeIndex, e.getMessage(), e);
                 pausedBlockNodePorts.remove(nodeIndex);
+            }
+        } else {
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+        }
+    }
+
+    /** Resume a previously paused block node container.
+     *
+     * @param nodeIndex the index of the block node to be resumed
+     */
+    public void resumeContainer(long nodeIndex) {
+        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
+            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
+
+            if (container == null) {
+                log.error("Block Node container {} does not exist", nodeIndex);
+                return;
+            }
+
+            if (!container.isPaused()) {
+                log.warn("Block Node container {} is not paused", nodeIndex);
+                return;
+            }
+
+            try {
+                container.resume();
+                log.info("Resumed container {} @ {} and waited for readiness", nodeIndex, container);
+                pausedBlockNodePorts.remove(nodeIndex);
+            } catch (Exception e) {
+                log.error("Failed to resume container {}: {}", nodeIndex, e.getMessage(), e);
             }
         } else {
             log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
