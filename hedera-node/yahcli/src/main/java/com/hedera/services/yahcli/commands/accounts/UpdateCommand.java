@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.collect.Lists;
@@ -73,23 +72,25 @@ public class UpdateCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - "
-                    + "Scheduled update account "
-                    + effectiveTargetAccount
-                    + " keys "
-                    + effectivePublicKeys
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("SUCCESS - "
+                            + "Scheduled update account "
+                            + effectiveTargetAccount
+                            + " keys "
+                            + effectivePublicKeys
+                            + " with memo: '"
+                            + memo
+                            + "'");
         } else {
-            COMMON_MESSAGES.warn("FAILED - "
-                    + "Schedule update account "
-                    + effectiveTargetAccount
-                    + " keys "
-                    + effectivePublicKeys
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .warn("FAILED - "
+                            + "Schedule update account "
+                            + effectiveTargetAccount
+                            + " keys "
+                            + effectivePublicKeys
+                            + " with memo: '"
+                            + memo
+                            + "'");
             return 1;
         }
 

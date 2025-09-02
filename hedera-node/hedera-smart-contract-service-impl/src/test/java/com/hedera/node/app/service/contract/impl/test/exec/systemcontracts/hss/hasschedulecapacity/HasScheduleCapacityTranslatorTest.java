@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.hasschedulecapacity;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.hasschedulecapacity.HasScheduleCapacityCallStub;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.hasschedulecapacity.HasScheduleCapacityCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.hasschedulecapacity.HasScheduleCapacityTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulecall.ScheduleCallTranslatorTest.TestSelector;
@@ -70,12 +74,27 @@ class HasScheduleCapacityTranslatorTest extends CallAttemptTestBase {
     @Test
     void testAttempt() {
         // when:
+        final long consensusSecond = 1000L;
+        final long gasLimit = 1000_000L;
         Bytes input = Bytes.wrapByteBuffer(HasScheduleCapacityTranslator.HAS_SCHEDULE_CAPACITY.encodeCall(
-                Tuple.of(BigInteger.valueOf(1000), BigInteger.valueOf(1000_000))));
+                Tuple.of(BigInteger.valueOf(consensusSecond), BigInteger.valueOf(gasLimit))));
+        given(addressIdConverter.convertSender(any())).willReturn(AccountID.DEFAULT);
         attempt = createHssCallAttempt(input, false, configuration, List.of(subject));
         // then:
         final var call = subject.callFrom(attempt);
-        assertThat(call).isInstanceOf(HasScheduleCapacityCallStub.class);
+        assertThat(call).isInstanceOf(HasScheduleCapacityCall.class);
+
+        given(nativeOperations.canScheduleContractCall(consensusSecond, gasLimit, AccountID.DEFAULT))
+                .willReturn(true);
+        final var pricedResult = call.execute(frame);
+        assertThat(pricedResult).isNotNull();
+        assertFalse(pricedResult.isViewCall());
+        assertThat(pricedResult.responseCode()).isEqualTo(SUCCESS);
+        assertThat(pricedResult.fullResult().output())
+                .isEqualTo(Bytes.wrap(HasScheduleCapacityTranslator.HAS_SCHEDULE_CAPACITY
+                        .getOutputs()
+                        .encode(Tuple.singleton(true))
+                        .array()));
     }
 
     @Test
