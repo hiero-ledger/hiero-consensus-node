@@ -389,16 +389,17 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(7)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
-        final AtomicReference<Instant> connectionDropTime = new AtomicReference<>(Instant.now());
+        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));
                     portNumbers.add(spec.getBlockNodePortById(1));
+                    connectionResetTime.set(Instant.now());
                 }),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
-                        connectionDropTime::get,
+                        connectionResetTime::get,
                         Duration.of(30, SECONDS),
                         Duration.of(15, SECONDS),
                         String.format(
@@ -407,7 +408,7 @@ public class BlockNodeSimulatorSuite {
                 waitUntilNextBlocks(6).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
-                        connectionDropTime::get,
+                        connectionResetTime::get,
                         Duration.of(60, SECONDS),
                         Duration.of(15, SECONDS),
                         // Verify that the periodic reset is performed after the period and the connection is closed

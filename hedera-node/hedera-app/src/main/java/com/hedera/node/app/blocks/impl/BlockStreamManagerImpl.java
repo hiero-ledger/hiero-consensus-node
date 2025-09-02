@@ -327,20 +327,33 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Recovers the contents and proof context of any pending blocks from disk.
      */
     private void recoverPendingBlocks() {
-        final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
+        final var blockDirPath = blockDirFor(configProvider.getConfiguration());
         log.info(
                 "Attempting to recover any pending blocks contiguous to #{} still on disk @ {}",
                 blockNumber,
-                path.toAbsolutePath());
+                blockDirPath.toAbsolutePath());
         try {
-            final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
-            onDiskPendingBlocks.forEach(block -> {
+            final var onDiskPendingBlocks = loadContiguousPendingBlocks(blockDirPath, blockNumber);
+            if (onDiskPendingBlocks.isEmpty()) {
+                log.info("No contiguous pending blocks found for block #{}", blockNumber);
+                final var pendingWriter = writerSupplier.get();
+                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
+                return;
+            }
+
+            for (int i = 0; i < onDiskPendingBlocks.size(); i++) {
+                var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
+                    if (i == 0) { // jump to the first pending block
+                        pendingWriter.jumpToBlockAfterFreeze(
+                                onDiskPendingBlocks.getFirst().number());
+                    }
+
                     pendingWriter.openBlock(block.number());
                     block.items()
-                            .forEach(item -> pendingWriter.writeItem(
-                                    BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                            .forEach(
+                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
@@ -353,7 +366,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 } catch (Exception e) {
                     log.warn("Failed to recover pending block #{}", block.number(), e);
                 }
-            });
+            }
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
