@@ -3,6 +3,7 @@ package com.swirlds.platform.builder;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -46,4 +47,12 @@ public interface ExecutionLayer extends EventTransactionSupplier, SignatureTrans
     default @NonNull TransactionLimits getTransactionLimits() {
         return DEFAULT_TRANSACTION_LIMITS;
     }
+
+    /**
+     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
+     * {@link Duration#ZERO} when the system enters a healthy state.
+     *
+     * @param duration the amount of time that the system has been in an unhealthy state
+     */
+    void reportUnhealthyDuration(@NonNull final Duration duration);
 }

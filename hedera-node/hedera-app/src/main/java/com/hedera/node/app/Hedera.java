@@ -604,6 +604,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
+    public void reportUnhealthyDuration(@NonNull final java.time.Duration duration) {
+        transactionPool.reportUnhealthyDuration(duration);
+    }
+
+    @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);

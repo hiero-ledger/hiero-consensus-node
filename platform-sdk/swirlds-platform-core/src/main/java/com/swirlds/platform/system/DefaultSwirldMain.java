@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -54,5 +55,10 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
     @NonNull
     public TransactionPoolNexus getTransactionPool() {
         return transactionPool;
+    }
+
+    @Override
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
+        transactionPool.reportUnhealthyDuration(duration);
     }
 }

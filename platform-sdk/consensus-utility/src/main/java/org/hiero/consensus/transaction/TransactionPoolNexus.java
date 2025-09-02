@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction;
 
+import static org.hiero.base.CompareTo.isLessThan;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,6 +21,11 @@ import org.hiero.consensus.model.transaction.EventTransactionSupplier;
  * created.
  */
 public class TransactionPoolNexus implements EventTransactionSupplier {
+    /**
+     * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
+     */
+    private static final Duration maximumPermissibleUnhealthyDuration = Duration.ofSeconds(1);
+
     /**
      * A list of transactions created by this node waiting to be put into a self-event.
      */
@@ -61,6 +69,11 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
 
     /**
+     * Whether the platform is currently in a healthy state.
+     */
+    private boolean healthy = true;
+
+    /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
      * @param transactionLimits            the configuration to use
@@ -93,7 +106,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
     public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
-        if (platformStatus != PlatformStatus.ACTIVE) {
+        if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
             return false;
         }
 
@@ -252,6 +265,16 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     private synchronized int getPriorityBufferedTransactionCount() {
         return priorityBufferedTransactions.size();
+    }
+
+    /**
+     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
+     * {@link Duration#ZERO} when the system enters a healthy state.
+     *
+     * @param duration the amount of time that the system has been in an unhealthy state
+     */
+    public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
+        healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
     }
 
     /**
