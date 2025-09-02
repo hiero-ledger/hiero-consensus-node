@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +27,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -48,6 +50,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,7 +147,8 @@ class ChildDispatchFactoryTest {
                 dispatchProcessor,
                 serviceScopeLookup,
                 exchangeRateManager,
-                transactionChecker);
+                transactionChecker,
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
     }
 
     @Test

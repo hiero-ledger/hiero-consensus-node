@@ -15,9 +15,9 @@ class OpsDurationScheduleTest {
         assertEquals(123, opsDurationSchedule.opsDurationByOpCode()[1]);
         assertEquals(105, opsDurationSchedule.opsDurationByOpCode()[2]);
         assertEquals(2091, opsDurationSchedule.opsDurationByOpCode()[250]);
-        assertEquals(566, opsDurationSchedule.opsGasBasedDurationMultiplier());
+        assertEquals(1575, opsDurationSchedule.opsGasBasedDurationMultiplier());
         assertEquals(1575, opsDurationSchedule.precompileGasBasedDurationMultiplier());
-        assertEquals(566, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
+        assertEquals(1575, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
         assertEquals(100, opsDurationSchedule.multipliersDenominator());
     }
 }

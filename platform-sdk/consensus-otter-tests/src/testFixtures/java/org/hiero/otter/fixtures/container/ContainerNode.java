@@ -64,7 +64,6 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -319,7 +318,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     @NonNull
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    public SingleNodeReconnectResult newReconnectResult() {
         return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
     }
 

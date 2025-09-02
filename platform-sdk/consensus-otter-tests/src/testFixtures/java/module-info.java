@@ -33,7 +33,9 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.dataformat.yaml;
     requires com.fasterxml.jackson.datatype.jsr310;
+    requires com.github.dockerjava.api;
     requires io.grpc.protobuf;
     requires java.net.http;
     requires org.junit.jupiter.params;
@@ -44,6 +46,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
+    exports org.hiero.otter.fixtures.network;
     exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.container.proto;
     exports org.hiero.otter.fixtures.app;
