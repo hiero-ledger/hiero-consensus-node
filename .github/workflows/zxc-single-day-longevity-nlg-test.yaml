@@ -615,14 +615,14 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug -Dbenchmark.maxtps=1000" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
           NLG_c=32
 
           if [ "${{ inputs.perf_analysis }}" = "true" ]
           then
-            NLG_c=10
+            NLG_c=4
           fi
 
           test=LongevityLoadTest
@@ -775,7 +775,10 @@ jobs:
           #CN
           cd "${{ github.workspace }}"/target_consensus_node/hedera-node
           sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}"
-          
+          echo "Debug"
+          pwd
+          ls -l *.ser
+
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
           `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
@@ -790,6 +793,7 @@ jobs:
           cp "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/sorttable.js sources/
           mkdir -p "${{ github.workspace }}"/report/algorithms/CN
           cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/CN
+          cp reportsXML/coverage.xml reportsXML/coverage2.xml "${{ github.workspace }}"/report/algorithms/CN/
           cd "${{ github.workspace }}"
           
           #BN
@@ -798,7 +802,6 @@ jobs:
           echo "Debug"
           pwd
           ls -l *.ser
-          
 
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
@@ -814,6 +817,8 @@ jobs:
           cp "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/sorttable.js sources/
           mkdir -p "${{ github.workspace }}"/report/algorithms/BN
           cp -r sources sources_* "${{ github.workspace }}"/report/algorithms/BN
+          cp reportsXML/coverage.xml reportsXML/coverage2.xml "${{ github.workspace }}"/report/algorithms/BN/
+
           cd "${{ github.workspace }}"
           fi
 
