@@ -372,8 +372,7 @@ jobs:
             exit 1
           fi
           
-          sed "s/0xEXAMPLEPRIVATEKEY0/$PRIVATE_KEY_0/g" .env.sample > .env
-          sed "s/0xEXAMPLEPRIVATEKEY1/$PRIVATE_KEY_1/g" .env.sample > .env
+          cat .env.sample | sed "s/0xEXAMPLEPRIVATEKEY0/${PRIVATE_KEY_0}/g" | sed "s/0xEXAMPLEPRIVATEKEY1/${PRIVATE_KEY_1}/g" > .env
 
           log_info "Generated .env file:"
           cat .env
