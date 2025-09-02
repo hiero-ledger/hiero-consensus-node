@@ -878,11 +878,8 @@ public class BlockNodeConnectionManager {
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
                     // we were able to elevate this connection to the new active one
                     connection.updateConnectionState(ConnectionState.ACTIVE);
-                    final long blockToJumpTo = blockNumber != null
-                            ? blockNumber
-                            : (blockBufferService.getLowestUnackedBlockNumber() == -1
-                                    ? 0
-                                    : blockBufferService.getLowestUnackedBlockNumber());
+                    final long blockToJumpTo =
+                            blockNumber != null ? blockNumber : blockBufferService.getLastBlockNumberProduced();
 
                     jumpTargetBlock.set(blockToJumpTo);
                 } else {
