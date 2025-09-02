@@ -40,9 +40,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
                 // Use HTTP health check on the health port to verify the service is ready
-                .waitingFor(Wait.forHttp("/-/healthy")
-                        .forPort(HEALTH_PORT)
-                        .withStartupTimeout(Duration.ofMinutes(2)));
+                .waitingFor(Wait.forHttp("/-/healthy").forPort(HEALTH_PORT).withStartupTimeout(Duration.ofMinutes(2)));
     }
 
     @Override
