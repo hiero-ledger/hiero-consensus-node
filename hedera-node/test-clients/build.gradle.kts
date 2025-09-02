@@ -417,32 +417,3 @@ val rcdiffJar =
 
         manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
     }
-
-val validationJar =
-    tasks.register<ShadowJar>("validationJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-        from(sourceSets["main"].output)
-        archiveFileName.set("ValidationScenarios.jar")
-
-        manifest {
-            attributes(
-                "Main-Class" to
-                    "com.hedera.services.bdd.suites.utils.validation.ValidationScenarios"
-            )
-        }
-    }
-
-val copyValidation =
-    tasks.register<Copy>("copyValidation") {
-        group = "copy"
-        from(validationJar)
-        into(project.file("validation-scenarios"))
-    }
-
-val cleanValidation =
-    tasks.register<Delete>("cleanValidation") {
-        group = "copy"
-        delete(File(project.file("validation-scenarios"), "ValidationScenarios.jar"))
-    }
-
-tasks.clean { dependsOn(cleanValidation) }
