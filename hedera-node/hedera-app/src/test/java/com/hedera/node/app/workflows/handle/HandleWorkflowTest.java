@@ -62,6 +62,7 @@ import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -515,7 +516,8 @@ class HandleWorkflowTest {
                 null,
                 nodeRewardManager,
                 platformStateFacade,
-                blockBufferService);
+                blockBufferService,
+                Map.of());
     }
 
     @Test

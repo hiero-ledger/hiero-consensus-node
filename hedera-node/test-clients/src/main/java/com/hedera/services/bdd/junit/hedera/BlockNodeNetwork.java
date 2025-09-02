@@ -19,8 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -90,7 +92,7 @@ public class BlockNodeNetwork {
 
         List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         for (Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodeById.entrySet()) {
-            SimulatedBlockNodeServer server = entry.getValue();
+            final SimulatedBlockNodeServer server = entry.getValue();
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 try {
                     server.stop();
@@ -118,18 +120,22 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                // Find an available port
-                int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                try {
-                    server.start();
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to start simulated block node on port " + port, e);
-                }
-                logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                addSimulatorNode(entry.getKey(), null);
             }
         }
+    }
+
+    public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        // Find an available port
+        int port = findAvailablePort();
+        final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+        }
+        logger.info("Started shared simulated block node @ localhost:{}", port);
+        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
@@ -145,7 +151,7 @@ public class BlockNodeNetwork {
             if (mode == BlockNodeMode.REAL) {
                 throw new UnsupportedOperationException("Real block nodes are not supported yet");
             } else if (mode == BlockNodeMode.SIMULATOR) {
-                SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
+                final SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
                 blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), priority));
             } else if (mode == BlockNodeMode.LOCAL_NODE) {
@@ -167,6 +173,10 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    public Set<Long> nodeIds() {
+        return getBlockNodeModeById().keySet();
     }
 
     public Map<Long, SimulatedBlockNodeServer> getSimulatedBlockNodeById() {

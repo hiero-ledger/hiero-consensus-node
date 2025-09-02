@@ -55,6 +55,7 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -94,6 +95,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -146,6 +148,7 @@ public class HandleWorkflow {
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
+    private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -191,7 +194,8 @@ public class HandleWorkflow {
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -225,6 +229,7 @@ public class HandleWorkflow {
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
+        this.apiProviders = requireNonNull(apiProviders);
     }
 
     /**
@@ -629,7 +634,7 @@ public class HandleWorkflow {
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     consensusNow,
-                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore));
+                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction

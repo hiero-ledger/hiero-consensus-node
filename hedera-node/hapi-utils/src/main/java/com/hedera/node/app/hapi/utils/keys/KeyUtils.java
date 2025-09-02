@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.file.Path;
@@ -44,7 +45,7 @@ public final class KeyUtils {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     public static final String TEST_CLIENTS_PREFIX = "hedera-node" + File.separator + "test-clients" + File.separator;
 
-    static final Provider BC_PROVIDER = new BouncyCastleProvider();
+    public static final Provider BC_PROVIDER = new BouncyCastleProvider();
 
     private static final int ENCRYPTOR_ITERATION_COUNT = 10_000;
     private static final String RESOURCE_PATH_SEGMENT = "src/main/resource";
@@ -83,6 +84,23 @@ public final class KeyUtils {
             final File pem, final String passphrase, final Provider pemKeyProvider) {
         final var relocatedPem = KeyUtils.relocatedIfNotPresentInWorkingDir(pem);
         try (final var in = new FileInputStream(relocatedPem)) {
+            return readKeyFrom(in, passphrase, pemKeyProvider);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    /**
+     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 encrypted private key.
+     * @param in the input stream containing the PEM-encoded private key
+     * @param passphrase the passphrase used to decrypt the private key
+     * @param pemKeyProvider the provider to use for PEM key conversion
+     * @return the decrypted private key
+     * @param <T> the type of the private key, extending {@link PrivateKey}
+     */
+    public static <T extends PrivateKey> T readKeyFrom(
+            @NonNull final InputStream in, @NonNull final String passphrase, @NonNull final Provider pemKeyProvider) {
+        try {
             final var decryptProvider = new JceOpenSSLPKCS8DecryptorProviderBuilder()
                     .setProvider(BC_PROVIDER)
                     .build(passphrase.toCharArray());

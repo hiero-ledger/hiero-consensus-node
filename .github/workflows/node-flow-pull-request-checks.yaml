@@ -12,6 +12,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -80,6 +88,22 @@ jobs:
       custom-job-label: Standard
       enable-unit-tests: false
       enable-hapi-tests-misc: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-misc-records:
+    name: HAPI Tests (Misc Records)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-hapi-tests-misc-records: true
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}

@@ -32,6 +32,7 @@ import java.math.BigInteger;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -172,39 +173,49 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /**
      * Get the expected block directory for the given node.
      * @param config the configuration
-     * @param selfNodeInfo the node info
      * @return the expected block directory
      */
-    public static Path blockDirFor(@NonNull final Configuration config, @NonNull final NodeInfo selfNodeInfo) {
+    public static Path blockDirFor(@NonNull final Configuration config) {
         requireNonNull(config);
-        requireNonNull(selfNodeInfo);
-        final var basePath =
-                getAbsolutePath(config.getConfigData(BlockStreamConfig.class).blockFileDir());
-        return basePath.resolve("block-" + asAccountString(selfNodeInfo.accountId()));
+        return getAbsolutePath(config.getConfigData(BlockStreamConfig.class).blockFileDir());
     }
 
     /**
      * Loads pending blocks from the given directory, identifying them by the presence of {@code .pnd.json} files
      * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.gz} or
      * {@code .pnd} files.
-     * @param pendingBlocksPath the directory to load pending blocks from
+     * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
      * @return the list of pending blocks
      */
     public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(
-            @NonNull final Path pendingBlocksPath, final long followingBlockNumber) {
-        requireNonNull(pendingBlocksPath);
+            @NonNull final Path blockDirPath, final long followingBlockNumber) {
+        requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
-        final var proofJsons = pendingBlocksPath.toFile().listFiles((dir, name) -> name.endsWith(".pnd.json"));
-        if (proofJsons == null) {
-            logger.warn("No pending blocks found in {}", pendingBlocksPath);
+        final File[] pendingBlocksPaths = blockDirPath.toFile().listFiles();
+        if (pendingBlocksPaths == null) {
+            logger.warn("No subdirectories found in {}", blockDirPath);
             return pendingBlocks;
         }
-        Arrays.sort(proofJsons, PROOF_JSON_FILE_COMPARATOR.reversed());
-        logger.info("Evaluating {} pending blocks on disk", proofJsons.length);
+
+        final var proofJsons = new ArrayList<File>();
+        for (final var pendingBlocksPath : pendingBlocksPaths) {
+            final File[] pendingJsons =
+                    requireNonNull(pendingBlocksPath.listFiles((dir, name) -> name.endsWith(".pnd.json")));
+            proofJsons.addAll(Arrays.asList(pendingJsons));
+        }
+
+        if (proofJsons.isEmpty()) {
+            logger.warn("No pending blocks found in any subdirectories of {}", blockDirPath);
+            return pendingBlocks;
+        }
+
+        proofJsons.sort(PROOF_JSON_FILE_COMPARATOR.reversed());
+
+        logger.info("Evaluating {} pending blocks on disk", proofJsons.size());
         long nextContiguousBlock = followingBlockNumber - 1;
-        for (int i = 0; i < proofJsons.length; i++) {
-            final var proofJson = proofJsons[i];
+        for (int i = 0; i < proofJsons.size(); i++) {
+            final var proofJson = proofJsons.get(i);
             final long nextNumber = PROOF_JSON_BLOCK_NUMBER_FN.applyAsLong(proofJson);
             if (nextNumber != nextContiguousBlock) {
                 logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
@@ -221,7 +232,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 logger.warn(
                         "Error reading pending proof metadata from {} (not considering remaining - {})",
                         proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
             Block partialBlock = null;
@@ -247,7 +258,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 logger.warn(
                         "No pending block contents found for {} (not considering remaining - {})",
                         proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             } else {
                 pendingBlocks.addFirst(
@@ -318,8 +329,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void writeItem(@NonNull final byte[] bytes) {
+    /**
+     * Writes a serialized item to the destination stream.
+     *
+     * @param bytes the serialized item to write
+     */
+    void writeItem(@NonNull final byte[] bytes) {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
@@ -332,6 +347,19 @@ public class FileBlockItemWriter implements BlockItemWriter {
         writableStreamingData.writeVarInt(bytes.length, false);
         // Write the item bytes themselves.
         writableStreamingData.writeBytes(bytes);
+    }
+
+    /**
+     * Writes a block item and its serialized bytes to the destination stream.
+     * Only the serialized bytes are used, the block item is ignored.
+     *
+     * @param item the item to write (ignored in this implementation)
+     * @param bytes the serialized item to write
+     */
+    @Override
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(bytes, "bytes must not be null");
+        writeItem(bytes.toByteArray());
     }
 
     @Override
@@ -396,6 +424,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        // no-op
     }
 
     /**

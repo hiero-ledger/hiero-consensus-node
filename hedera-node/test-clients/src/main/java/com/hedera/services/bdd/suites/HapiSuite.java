@@ -40,6 +40,8 @@ public abstract class HapiSuite {
     public static String CIVILIAN_PAYER = "CIVILIAN_PAYER";
     private static final String STARTING_SUITE = "-------------- STARTING {} SUITE --------------";
 
+    public static boolean DEFAULT_TEARDOWN = true;
+
     public enum FinalOutcome {
         SUITE_PASSED,
         SUITE_FAILED
@@ -150,7 +152,7 @@ public abstract class HapiSuite {
 
     private boolean deferResultsSummary = false;
     private boolean onlyLogHeader = false;
-    private boolean tearDownClientsAfter = true;
+    private boolean tearDownClientsAfter = DEFAULT_TEARDOWN;
     private List<HapiSpec> finalSpecs = Collections.emptyList();
 
     private Map<String, String> overrides = Collections.emptyMap();

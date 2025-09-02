@@ -215,7 +215,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
                     && isWithInRetryLimit(retryCount)) {
                 retryCount++;
-                log.info(spec.logPrefix() + "retry count: " + retryCount);
+                log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
                 sleep(10);
             } else {
                 break;

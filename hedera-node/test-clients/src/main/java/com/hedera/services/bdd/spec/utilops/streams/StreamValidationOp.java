@@ -41,8 +41,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -227,9 +229,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     Assertions.fail(String.format("No marker files found for node %d", nodeId));
                 }
 
-                // Get verified block numbers from simulator
-                final var verifiedBlockNumbers =
-                        spec.getSimulatedBlockNodeById(nodeId).getReceivedBlockNumbers();
+                // Get verified block numbers from the simulator
+                final var verifiedBlockNumbers = getVerifiedBlockNumbers(spec, nodeId);
 
                 if (verifiedBlockNumbers.isEmpty()) {
                     Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
@@ -248,5 +249,24 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         });
         log.info("Block proofs validation completed successfully");
+    }
+
+    private static Set<Long> getVerifiedBlockNumbers(@NonNull final HapiSpec spec, final long nodeId) {
+        final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
+
+        if (simulatedBlockNode.hasEverBeenShutdown()) {
+            // Check whether other simulated block nodes have verified this block
+            return spec.getBlockNodeNetworkIds().stream()
+                    .filter(blockNodeId -> blockNodeId != nodeId)
+                    .map(blockNodeId ->
+                            spec.getSimulatedBlockNodeById(blockNodeId).getReceivedBlockNumbers())
+                    .reduce(new HashSet<>(), (acc, blockNumbers) -> {
+                        acc.addAll(blockNumbers);
+                        acc.addAll(simulatedBlockNode.getReceivedBlockNumbers());
+                        return acc;
+                    });
+        } else {
+            return simulatedBlockNode.getReceivedBlockNumbers();
+        }
     }
 }

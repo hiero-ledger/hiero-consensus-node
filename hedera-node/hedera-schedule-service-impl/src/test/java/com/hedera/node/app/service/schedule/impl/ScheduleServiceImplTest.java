@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.schedule.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -9,9 +10,13 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.throttle.Throttle;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.StateDefinition;
+import java.time.InstantSource;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.BDDAssertions;
@@ -29,8 +34,24 @@ class ScheduleServiceImplTest {
     @Mock
     private AppContext appContext;
 
+    @Mock
+    private InstantSource instantSource;
+
+    @Mock
+    private Throttle.Factory throttleFactory;
+
+    @Mock
+    private EntityIdFactory idFactory;
+
+    @Mock
+    private FeeCharging feeCharging;
+
     @Test
     void testsSpi() {
+        given(appContext.idFactory()).willReturn(idFactory);
+        given(appContext.instantSource()).willReturn(instantSource);
+        given(appContext.throttleFactory()).willReturn(throttleFactory);
+        given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
         final ScheduleService service = new ScheduleServiceImpl(appContext);
         BDDAssertions.assertThat(service).isNotNull();
         BDDAssertions.assertThat(service.getClass()).isEqualTo(ScheduleServiceImpl.class);
@@ -40,6 +61,10 @@ class ScheduleServiceImplTest {
     @Test
     @SuppressWarnings("rawtypes")
     void registersExpectedSchema() {
+        given(appContext.idFactory()).willReturn(idFactory);
+        given(appContext.instantSource()).willReturn(instantSource);
+        given(appContext.throttleFactory()).willReturn(throttleFactory);
+        given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
         final ScheduleServiceImpl subject = new ScheduleServiceImpl(appContext);
         ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
         subject.registerSchemas(registry);

@@ -17,6 +17,10 @@ import org.hiero.otter.fixtures.Node;
 @SuppressWarnings("unused")
 public interface Topology {
 
+    /** Default connection data for a disconnected state. */
+    ConnectionData DISCONNECTED =
+            new ConnectionData(false, Duration.ZERO, Percentage.withPercentage(0), BandwidthLimit.UNLIMITED);
+
     /**
      * Adds a single node to the topology.
      *

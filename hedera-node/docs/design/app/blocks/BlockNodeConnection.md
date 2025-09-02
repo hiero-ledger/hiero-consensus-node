@@ -43,7 +43,51 @@ It manages connection state, handles communication, and reports errors to the `B
 - Tracks connection lifecycle state.
 - Handles status transitions.
 
-## Sequence Diagrams
+## State Machine Diagrams
+
+```mermaid
+stateDiagram-v2
+    [*] --> UNINITIALIZED : New Connection Created
+    UNINITIALIZED --> PENDING : createRequestPipeline()<br/>establishes gRPC pipeline
+    PENDING --> ACTIVE : Manager promotes to active<br/>via BlockNodeConnectionTask
+    PENDING --> CLOSED : Higher priority connection selected<br/>or connection error
+    ACTIVE --> CLOSED : EndOfStream ERROR
+    ACTIVE --> CLOSED : EndOfStream PERSISTENCE_FAILED
+    ACTIVE --> CLOSED : EndOfStream SUCCESS
+    ACTIVE --> CLOSED : EndOfStream UNKNOWN
+    ACTIVE --> CLOSED : EndOfStream rate limit exceeded
+    ACTIVE --> CLOSED : Block not found in buffer
+    ACTIVE --> CLOSED : ResendBlock unavailable
+    ACTIVE --> CLOSED : gRPC onError
+    ACTIVE --> CLOSED : Stream failure
+    ACTIVE --> CLOSED : Manual close
+    ACTIVE --> ACTIVE : BlockAcknowledgement
+    ACTIVE --> ACTIVE : SkipBlock
+    ACTIVE --> ACTIVE : ResendBlock available
+    ACTIVE --> ACTIVE : Normal streaming
+    ACTIVE --> NEW_CONNECTION : EndOfStream BEHIND<br/>closeAndRestart
+    ACTIVE --> NEW_CONNECTION : EndOfStream TIMEOUT<br/>closeAndRestart
+    ACTIVE --> NEW_CONNECTION : EndOfStream DUPLICATE_BLOCK<br/>closeAndRestart
+    ACTIVE --> NEW_CONNECTION : EndOfStream BAD_BLOCK_PROOF<br/>closeAndRestart
+    ACTIVE --> NEW_CONNECTION : EndOfStream INVALID_REQUEST<br/>closeAndRestart
+    ACTIVE --> RESET_STREAM : Periodic stream reset<br/>endTheStreamWith RESET
+    RESET_STREAM --> NEW_CONNECTION : Manager handles reset<br/>connectionResetsTheStream
+    CLOSED --> NEW_CONNECTION : closeConnectionAndReschedule<br/>schedules new attempt
+    NEW_CONNECTION --> UNINITIALIZED : New BlockNodeConnection<br/>instance created
+    CLOSED --> [*] : Instance destroyed
+    note right of ACTIVE
+        Only one connection can be
+        ACTIVE at any time
+    end note
+    note right of NEW_CONNECTION
+        Represents creation of a
+        new connection instance
+    end note
+    note left of PENDING
+        Multiple connections can
+        be PENDING simultaneously
+    end note
+```
 
 ### Connection Initialization
 

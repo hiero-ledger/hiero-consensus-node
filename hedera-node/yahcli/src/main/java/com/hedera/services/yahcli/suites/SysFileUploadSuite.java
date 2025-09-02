@@ -17,7 +17,6 @@ import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.yahcli.commands.files.SysFileUploadCommand;
 import com.hedera.services.yahcli.config.ConfigManager;
-import com.hedera.services.yahcli.output.CommonMessages;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
 import java.io.File;
 import java.io.IOException;
@@ -116,12 +115,12 @@ public class SysFileUploadSuite extends HapiSuite {
                                     uploadData,
                                     true,
                                     OptionalLong.of(10_000_000_000L),
-                                    updateOp -> updateOp.alertingPre(CommonMessages.COMMON_MESSAGES::uploadBeginning)
-                                            .alertingPost(CommonMessages.COMMON_MESSAGES::uploadEnding),
+                                    updateOp -> updateOp.alertingPre(configManager.output()::uploadBeginning)
+                                            .alertingPost(configManager.output()::uploadEnding),
                                     (appendOp, appendsLeft) -> appendOp.alertingPre(
-                                                    CommonMessages.COMMON_MESSAGES::appendBeginning)
+                                                    configManager.output()::appendBeginning)
                                             .alertingPost(code ->
-                                                    CommonMessages.COMMON_MESSAGES.appendEnding(code, appendsLeft))))
+                                                    configManager.output().appendEnding(code, appendsLeft))))
                 });
         return HapiSpecUtils.targeted(sysFileSpec, configManager);
     }

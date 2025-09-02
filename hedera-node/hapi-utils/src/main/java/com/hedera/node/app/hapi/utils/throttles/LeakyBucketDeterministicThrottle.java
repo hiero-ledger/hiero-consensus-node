@@ -11,14 +11,13 @@ import java.time.Instant;
 
 /**
  * Main class responsible for throttling transactions by gasLimit. Keeps track of the instance the
- * last decision was made and calculates the time elapsed since then. Uses a {@link
- * LeakyBucketThrottle} under the hood.
+ * last decision was made and calculates the time elapsed since then.
+ * Uses a {@link LeakyBucketThrottle} under the hood.
  */
 public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;
     private final LeakyBucketThrottle delegate;
-    private Timestamp lastDecisionTime;
-    private final long capacity;
+    private Instant lastDecisionTime;
 
     /**
      * Creates a new instance of the throttle with capacity - the total amount of gas allowed per
@@ -28,7 +27,6 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      */
     public LeakyBucketDeterministicThrottle(final long capacity, final String name, final int burstSeconds) {
         this.throttleName = name;
-        this.capacity = capacity;
         this.delegate = new LeakyBucketThrottle(capacity, burstSeconds);
     }
 
@@ -44,13 +42,13 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     public boolean allow(@NonNull final Instant now, final long throttleLimit) {
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
         if (elapsedNanos < 0L) {
-            throw new IllegalArgumentException("Throttle timeline must advance, but " + now + " is not after "
-                    + Instant.ofEpochSecond(lastDecisionTime.seconds(), lastDecisionTime.nanos()));
+            throw new IllegalArgumentException(
+                    "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
         }
         if (throttleLimit < 0) {
             throw new IllegalArgumentException("Throttle limit must be non-negative, but was " + throttleLimit);
         }
-        lastDecisionTime = new Timestamp(now.getEpochSecond(), now.getNano());
+        lastDecisionTime = now;
         return delegate.allow(throttleLimit, elapsedNanos);
     }
 
@@ -114,14 +112,14 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      */
     @Override
     public long capacity() {
-        return capacity;
+        return delegate.bucket().nominalCapacity();
     }
 
     @Override
     @SuppressWarnings("java:S125")
     public long mtps() {
         // We treat the "milli-TPS" of the throttle bucket as 1000x its gas/sec;
-        return capacity * 1_000;
+        return capacity() * 1_000;
     }
 
     @Override
@@ -160,21 +158,26 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     }
 
     public ThrottleUsageSnapshot usageSnapshot() {
-        final var bucket = delegate.bucket();
-        return new ThrottleUsageSnapshot(bucket.capacityUsed(), lastDecisionTime);
+        return new ThrottleUsageSnapshot(
+                delegate.bucket().capacityUsed(),
+                lastDecisionTime == null
+                        ? null
+                        : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano()));
     }
 
     public void resetUsageTo(@NonNull final ThrottleUsageSnapshot usageSnapshot) {
         requireNonNull(usageSnapshot);
-        final var bucket = delegate.bucket();
-        lastDecisionTime = usageSnapshot.lastDecisionTime();
-        bucket.resetUsed(usageSnapshot.used());
+        lastDecisionTime = usageSnapshot.lastDecisionTime() == null
+                ? null
+                : Instant.ofEpochSecond(
+                        usageSnapshot.lastDecisionTime().seconds(),
+                        usageSnapshot.lastDecisionTime().nanos());
+        delegate.bucket().resetUsed(usageSnapshot.used());
     }
 
     public void resetUsage() {
         resetLastAllowedUse();
-        final var bucket = delegate.bucket();
-        bucket.resetUsed(0);
+        delegate.bucket().resetUsed(0);
     }
 
     public void reclaimLastAllowedUse() {

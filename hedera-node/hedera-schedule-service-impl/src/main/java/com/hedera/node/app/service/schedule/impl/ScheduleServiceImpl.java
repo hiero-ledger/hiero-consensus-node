@@ -10,14 +10,16 @@ import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
+import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,17 +27,26 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
-import java.util.function.Supplier;
 
 /**
  * Standard implementation of the {@link ScheduleService} {@link RpcService}.
  */
 public final class ScheduleServiceImpl implements ScheduleService {
-    private final Supplier<FeeCharging> appFeeCharging;
+    private final ScheduleServiceComponent component;
 
     public ScheduleServiceImpl(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
-        this.appFeeCharging = appContext.feeChargingSupplier();
+        component = DaggerScheduleServiceComponent.factory()
+                .create(
+                        appContext.instantSource(),
+                        appContext.throttleFactory(),
+                        appContext.idFactory(),
+                        appContext.feeChargingSupplier());
+    }
+
+    @Override
+    public ServiceApiProvider<ScheduleServiceApi> apiProvider() {
+        return component.scheduleServiceApiProvider();
     }
 
     @Override
@@ -44,9 +55,11 @@ public final class ScheduleServiceImpl implements ScheduleService {
         registry.register(new V0570ScheduleSchema());
     }
 
-    @Override
-    public FeeCharging baseFeeCharging() {
-        return appFeeCharging.get();
+    /**
+     * @return all schedule transaction handlers
+     */
+    public ScheduleHandlers handlers() {
+        return component.handlers();
     }
 
     @Override

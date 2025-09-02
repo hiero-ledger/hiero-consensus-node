@@ -9,6 +9,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.gossip.config.GossipConfig_;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -29,6 +31,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -48,6 +51,7 @@ public class ContainerNetwork extends AbstractNetwork {
     public static final String NODE_IDENTIFIER_FORMAT = "node-%d";
 
     private static final int GOSSIP_PORT = 5777;
+
     private static final Logger log = LogManager.getLogger();
 
     private static final Duration DEFAULT_START_TIMEOUT = Duration.ofMinutes(2);
@@ -60,6 +64,9 @@ public class ContainerNetwork extends AbstractNetwork {
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
     private final Topology topology = new MeshTopologyImpl(this::createContainerNodes);
+
+    private ToxiproxyContainer toxiproxyContainer;
+    private NetworkBehavior networkBehavior;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -113,8 +120,7 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
-        // No-op for container network, it will be implemented next
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/20258
+        networkBehavior.onConnectionsChanged(topology.nodes(), connections);
     }
 
     @NonNull
@@ -147,9 +153,26 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        return sortedNodeIds.stream()
+        final List<ContainerNode> newNodes = sortedNodeIds.stream()
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
+
+        // set up the toxiproxy container and network behavior
+        toxiproxyContainer = new ToxiproxyContainer(network);
+        toxiproxyContainer.start();
+        final String toxiproxyHost = toxiproxyContainer.getHost();
+        final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
+        final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
+        networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
+        for (final ContainerNode sender : newNodes) {
+            final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
+                    .filter(receiver -> !receiver.equals(sender))
+                    .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
+                    .toList();
+            sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+        }
+
+        return newNodes;
     }
 
     private ContainerNode createContainerNode(
@@ -205,5 +228,8 @@ public class ContainerNetwork extends AbstractNetwork {
         log.info("Destroying network...");
         transactionGenerator.stop();
         topology.nodes().forEach(node -> ((ContainerNode) node).destroy());
+        if (toxiproxyContainer != null) {
+            toxiproxyContainer.stop();
+        }
     }
 }

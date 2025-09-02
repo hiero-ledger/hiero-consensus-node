@@ -4,12 +4,12 @@ package com.hedera.services.yahcli.commands.keys;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0039.randomMnemonic;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.setLogLevels;
 import static com.hedera.services.yahcli.config.ConfigUtils.YAHCLI_LOGGING_CLASSES;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import java.io.File;
 import java.nio.file.Files;
@@ -51,14 +51,15 @@ public class NewPemCommand implements Callable<Integer> {
         final var curvePoint = Bip0032.privateKeyFrom(seed);
         final EdDSAPrivateKey privateKey = Ed25519Utils.keyFrom(curvePoint);
         final var pubKey = privateKey.getAbyte();
-        COMMON_MESSAGES.info("Generating a new key @ " + loc);
+        final var yahcliOutput = ConfigManager.outputFrom(keysCommand.getYahcli());
+        yahcliOutput.info("Generating a new key @ " + loc);
         final var hexedPubKey = CommonUtils.hex(pubKey);
         final var pubKeyLoc = loc.replace(".pem", ".pubkey");
         Files.writeString(Paths.get(pubKeyLoc), hexedPubKey + "\n");
         final var privKeyLoc = loc.replace(".pem", ".privkey");
         final var hexedPrivKey = CommonUtils.hex(privateKey.getSeed());
         Files.writeString(Paths.get(privKeyLoc), ExtractDetailsCommand.DER_EDDSA_PREFIX + hexedPrivKey + "\n");
-        COMMON_MESSAGES.info(" - The public key is: " + hexedPubKey);
+        yahcliOutput.info(" - The public key is: " + hexedPubKey);
         if (passphrase == null) {
             passphrase = TxnUtils.randomAlphaNumeric(12);
         }
@@ -67,10 +68,10 @@ public class NewPemCommand implements Callable<Integer> {
         Files.writeString(Paths.get(passLoc), passphrase + "\n");
         final var wordsLoc = loc.replace(".pem", ".words");
         Files.writeString(Paths.get(wordsLoc), mnemonic + "\n");
-        COMMON_MESSAGES.info(" - Passphrase @ " + passLoc);
-        COMMON_MESSAGES.info(" - Mnemonic form @ " + wordsLoc);
-        COMMON_MESSAGES.info(" - Hexed public key @ " + pubKeyLoc);
-        COMMON_MESSAGES.info(" - DER-encoded private key @ " + privKeyLoc);
+        yahcliOutput.info(" - Passphrase @ " + passLoc);
+        yahcliOutput.info(" - Mnemonic form @ " + wordsLoc);
+        yahcliOutput.info(" - Hexed public key @ " + pubKeyLoc);
+        yahcliOutput.info(" - DER-encoded private key @ " + privKeyLoc);
 
         return 0;
     }

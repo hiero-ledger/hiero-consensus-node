@@ -46,12 +46,16 @@ public class ExportCommand implements Runnable {
         }
 
         MerkleNodeState state;
+        System.out.println("Initializing the state");
+        long start = System.currentTimeMillis();
         try {
             DeserializedSignedState deserializedSignedState = StateResolver.initState();
             state = deserializedSignedState.reservedSignedState().get().getState();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        System.out.printf("State has been initialized in %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
 
         ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
@@ -70,6 +74,8 @@ public class ExportCommand implements Runnable {
             final JsonExporter exporter = new JsonExporter(resultDir, state, serviceName, stateName);
             exporter.export();
         }
+
+        System.out.printf("Total time is  %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
     }
 
     private List<Pair<String, String>> prepareServiceNameAndStateKeys() {

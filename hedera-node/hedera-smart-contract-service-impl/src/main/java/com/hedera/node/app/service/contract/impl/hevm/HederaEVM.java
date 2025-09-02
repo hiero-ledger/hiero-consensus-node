@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -217,11 +216,7 @@ public class HederaEVM extends EVM {
                 final var opsDurationUnitsCost = opsDurationByOpCode[opcode] == 0
                         ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                         : opsDurationByOpCode[opcode];
-
-                if (!opsDurationCounter.tryConsumeOpsDurationUnits(opsDurationUnitsCost)) {
-                    frame.setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.OPS_DURATION_LIMIT_REACHED));
-                    frame.setState(State.EXCEPTIONAL_HALT);
-                }
+                opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

@@ -11,7 +11,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.jetbrains.annotations.NotNull;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private final long consensusOrder;
@@ -33,13 +32,13 @@ public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
         return Collections.singleton((ConsensusTransaction) transaction).iterator();
     }
 
-    @NotNull
+    @NonNull
     @Override
     public Hash getHash() {
         return hash;
     }
 
-    @NotNull
+    @NonNull
     @Override
     public Iterator<EventDescriptorWrapper> allParentsIterator() {
         return Collections.emptyIterator();

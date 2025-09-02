@@ -23,6 +23,7 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -83,7 +84,7 @@ class AppThrottleFactoryTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;

@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.system;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -45,9 +44,9 @@ public class PrepareUpgradeCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - NMT upgrade staged from " + upgradeFile + " artifacts ZIP");
+            config.output().info("SUCCESS - NMT upgrade staged from " + upgradeFile + " artifacts ZIP");
         } else {
-            COMMON_MESSAGES.warn("FAILED - NMT software upgrade is not in staged ");
+            config.output().warn("FAILED - NMT software upgrade is not in staged ");
             return 1;
         }
 

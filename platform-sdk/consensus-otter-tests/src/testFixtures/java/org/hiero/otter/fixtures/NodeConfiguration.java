@@ -2,8 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * This class contains the current configuration of the node at the time it was requested via
@@ -39,6 +41,7 @@ public interface NodeConfiguration {
      * @param value the integer value to set
      * @return this {@code NodeConfiguration} instance for method chaining
      */
+    @NonNull
     NodeConfiguration set(@NonNull String key, int value);
 
     /**
@@ -49,6 +52,7 @@ public interface NodeConfiguration {
      * @param value the long value to set
      * @return this {@code NodeConfiguration} instance for method chaining
      */
+    @NonNull
     NodeConfiguration set(@NonNull String key, long value);
 
     /**
@@ -58,7 +62,18 @@ public interface NodeConfiguration {
      * @param path the file path to set
      * @return this {@code NodeConfiguration} instance for method chaining
      */
+    @NonNull
     NodeConfiguration set(@NonNull String key, @NonNull Path path);
+
+    /**
+     * Updates a single property of the configuration to a {@link List} of {@link NetworkEndpoint}. Can only be invoked when the node is not running.
+     *
+     * @param key the key of the property
+     * @param endpoints the list of network endpoints to set
+     * @return this {@code NodeConfiguration} instance for method chaining
+     */
+    @NonNull
+    NodeConfiguration set(@NonNull String key, @NonNull List<NetworkEndpoint> endpoints);
 
     /**
      * Returns the current configuration of the node including all overridden properties.

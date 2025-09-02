@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.system;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -52,9 +51,9 @@ public class TelemetryUpgradeCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - NMT telemetry upgrade in motion from " + upgradeFile + " artifacts ZIP");
+            config.output().info("SUCCESS - NMT telemetry upgrade in motion from " + upgradeFile + " artifacts ZIP");
         } else {
-            COMMON_MESSAGES.warn("FAILED - NMT telemetry upgrade is not in motion ");
+            config.output().warn("FAILED - NMT telemetry upgrade is not in motion ");
             return 1;
         }
 

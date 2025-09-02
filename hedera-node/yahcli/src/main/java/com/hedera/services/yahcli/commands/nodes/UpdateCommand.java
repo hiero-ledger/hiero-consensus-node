@@ -9,7 +9,6 @@ import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -129,12 +128,13 @@ public class UpdateCommand implements Callable<Integer> {
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {
-                COMMON_MESSAGES.warn("No key on disk for account " + newAccountId.getAccountNum()
-                        + ", payer and admin key signatures must meet its signing requirements");
+                config.output()
+                        .warn("No key on disk for account " + newAccountId.getAccountNum()
+                                + ", payer and admin key signatures must meet its signing requirements");
             }
         }
         if (adminKeyPath == null) {
-            COMMON_MESSAGES.warn("No --adminKey option, payer signature alone must meet signing requirements");
+            config.output().warn("No --adminKey option, payer signature alone must meet signing requirements");
         } else {
             validateKeyAt(adminKeyPath, yahcli);
         }
@@ -194,9 +194,9 @@ public class UpdateCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - node" + targetNodeId + " has been updated");
+            config.output().info("SUCCESS - node" + targetNodeId + " has been updated");
         } else {
-            COMMON_MESSAGES.warn("FAILED to update node" + targetNodeId);
+            config.output().warn("FAILED to update node" + targetNodeId);
             return 1;
         }
 
