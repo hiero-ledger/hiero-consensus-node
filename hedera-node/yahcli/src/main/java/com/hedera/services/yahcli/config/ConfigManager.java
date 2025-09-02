@@ -214,6 +214,14 @@ public class ConfigManager {
         };
     }
 
+    /**
+     * Returns the number of nodes in the target network.
+     */
+    public int networkSize() {
+        requireNonNull(targetNet);
+        return targetNet.getNodes().size();
+    }
+
     public Map<String, String> asSpecConfig() {
         assertNoMissingDefaults();
 

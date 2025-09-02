@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenariosConfig;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenarios;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.deleteYahcliScenariosConfig;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static java.util.Objects.requireNonNull;
@@ -52,7 +52,7 @@ public class ContractScenarioTest {
     final Stream<DynamicTest> contractScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
                 yahcliIvy("scenarios", "--contract"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var contract = s.getContract();
                     assertNotNull(contract);
                     final var persistentContract = contract.getPersistent();
@@ -69,7 +69,7 @@ public class ContractScenarioTest {
     final Stream<DynamicTest> contractScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
                 yahcliIvy("scenarios", "--contract", "--new-entities"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var contract = s.getContract();
                     assertNotNull(contract);
                     final var persistentContract = contract.getPersistent();

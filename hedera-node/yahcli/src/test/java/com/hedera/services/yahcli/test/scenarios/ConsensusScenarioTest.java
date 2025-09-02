@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenariosConfig;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenarios;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.deleteYahcliScenariosConfig;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -53,7 +53,7 @@ public class ConsensusScenarioTest {
     final Stream<DynamicTest> consensusScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
                 yahcliIvy("scenarios", "--consensus"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var consensus = s.getConsensus();
                     assertNotNull(consensus);
                     persistentTopicNum = consensus.getPersistent();
@@ -68,7 +68,7 @@ public class ConsensusScenarioTest {
     final Stream<DynamicTest> consensusScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
                 yahcliIvy("scenarios", "--consensus", "--new-entities"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var consensus = s.getConsensus();
                     assertNotNull(consensus);
                     assertEquals(persistentTopicNum, consensus.getPersistent(), "Persistent topic should be reused");

@@ -19,6 +19,8 @@ import com.hedera.services.yahcli.commands.ivy.suites.IvyConsensusScenarioSuite;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyContractScenarioSuite;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoScenarioSuite;
 import com.hedera.services.yahcli.commands.ivy.suites.IvyFileScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyStakingScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyXfersScenarioSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.config.YahcliKeys;
@@ -125,7 +127,8 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                                 specConfig,
                                 nodeAccounts,
                                 persistUpdatedScenarios,
-                                yahcliKeys)));
+                                yahcliKeys,
+                                config.networkSize())));
         return results.values().stream().allMatch(PASSED::equals) ? 0 : 1;
     }
 
@@ -135,7 +138,8 @@ public class ValidationScenariosCommand implements Callable<Integer> {
             @NonNull final Map<String, String> specConfig,
             @NonNull final Supplier<Supplier<String>> nodeAccounts,
             @NonNull final Runnable persistUpdatedScenarios,
-            @NonNull final YahcliKeys yahcliKeys) {
+            @NonNull final YahcliKeys yahcliKeys,
+            final int networkSize) {
         requireNonNull(scenariosConfig);
         final HapiSuite delegate =
                 switch (scenario) {
@@ -163,8 +167,17 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                     case CONSENSUS ->
                         new IvyConsensusScenarioSuite(
                                 specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys, novel);
-                    case XFERS -> throw new AssertionError("Not implemented");
-                    case STAKING -> throw new AssertionError("Not implemented");
+                    case XFERS ->
+                        new IvyXfersScenarioSuite(
+                                specConfig,
+                                scenariosConfig,
+                                nodeAccounts,
+                                persistUpdatedScenarios,
+                                yahcliKeys,
+                                networkSize);
+                    case STAKING ->
+                        new IvyStakingScenarioSuite(
+                                specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys);
                 };
         delegate.runSuiteSync();
         return delegate.getFinalSpecs().getFirst().getStatus();

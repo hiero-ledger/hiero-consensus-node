@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenariosConfig;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenarios;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.deleteYahcliScenariosConfig;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -56,7 +56,7 @@ public class CryptoScenarioTest {
     final Stream<DynamicTest> cryptoScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
                 yahcliIvy("scenarios", "--crypto"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);
                     senderNum = crypto.getSender();
@@ -74,7 +74,7 @@ public class CryptoScenarioTest {
     final Stream<DynamicTest> cryptoScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
                 yahcliIvy("scenarios", "--crypto", "--new-entities"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);
                     assertEquals(senderNum, crypto.getSender(), "Sender should be reused");

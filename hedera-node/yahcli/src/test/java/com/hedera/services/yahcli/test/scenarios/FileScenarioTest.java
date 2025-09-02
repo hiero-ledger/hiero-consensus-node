@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenariosConfig;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenarios;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.deleteYahcliScenariosConfig;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static java.util.Objects.requireNonNull;
@@ -51,7 +51,7 @@ public class FileScenarioTest {
     final Stream<DynamicTest> fileScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
                 yahcliIvy("scenarios", "--file"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var file = s.getFile();
                     assertNotNull(file);
                     final var persistentFile = file.getPersistent();
@@ -68,7 +68,7 @@ public class FileScenarioTest {
     final Stream<DynamicTest> fileScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
                 yahcliIvy("scenarios", "--file", "--new-entities"),
-                assertYahcliScenariosConfig(s -> {
+                assertYahcliScenarios(s -> {
                     final var file = s.getFile();
                     assertNotNull(file);
                     final var persistentFile = file.getPersistent();
