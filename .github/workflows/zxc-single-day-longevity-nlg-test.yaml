@@ -283,13 +283,15 @@ jobs:
             tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
             tar xf $tarfile
             cd block-node-app-*
+            pwd
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
-            cp BNsources_init.txt "${{ github.workspace }}"/report/
+            mv BNsources_init.txt "${{ github.workspace }}"/report/
 
-            cp `find block-node-app-* -type f -name '*.ser' -print` ../../
+            cp `find . -type f -name '*.ser' -print` ../../
+            find . -type f -name '*.ser' -exec rm {} \;
             cd ..
-            find block-node-app-* -type f -name '*.ser' -exec rm {} \;
+
             rm $tarfile 
             tar cvf $tarfile block-node-app-*
 
