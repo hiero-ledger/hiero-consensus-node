@@ -31,6 +31,8 @@ public class HapiUtils {
     public static final Key EMPTY_KEY_LIST =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     public static final long FUNDING_ACCOUNT_EXPIRY = 33197904000L;
+    /** Arbitrary limit to prevent stack overflow when parsing unrealistically long versions. */
+    private static final int MAX_VERSION_LENGTH = 100;
 
     /** From <a href="https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string"></a> */
     // suppress the warning that the regular expression is too complicated
@@ -301,6 +303,8 @@ public class HapiUtils {
         return baseVersion.toString();
     }
 
+
+
     /**
      * Parses a semantic version string and converts it into a {@link SemanticVersion} object.
      * The input string must adhere to the semantic versioning format as defined by semver.org.
@@ -311,6 +315,9 @@ public class HapiUtils {
      */
     public static SemanticVersion fromString(@NonNull final String value) {
         Objects.requireNonNull(value, "value must not be null");
+        if (value.length() > MAX_VERSION_LENGTH) {
+            throw new IllegalArgumentException("Semantic version '" + value + "' is too long");
+        }
         final var matcher = SEMVER_SPEC_REGEX.matcher(value);
         if (matcher.matches()) {
             final var builder = SemanticVersion.newBuilder()

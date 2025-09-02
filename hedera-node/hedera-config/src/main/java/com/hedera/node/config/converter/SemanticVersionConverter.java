@@ -11,16 +11,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * formatted according to the <a href="https://semver.org/">Semantic Versioning 2.0.0</a> specification.
  */
 public final class SemanticVersionConverter implements ConfigConverter<SemanticVersion> {
-    /** Arbitrary limit to prevent stack overflow when parsing unrealistically long versions. */
-    private static final int MAX_VERSION_LENGTH = 100;
 
     @NonNull
     @Override
     public SemanticVersion convert(@NonNull String value) throws IllegalArgumentException, NullPointerException {
-        if (value.length() > MAX_VERSION_LENGTH) {
-            throw new IllegalArgumentException("Semantic version '" + value + "' is too long");
-        }
-
         return HapiUtils.fromString(value);
     }
 }
