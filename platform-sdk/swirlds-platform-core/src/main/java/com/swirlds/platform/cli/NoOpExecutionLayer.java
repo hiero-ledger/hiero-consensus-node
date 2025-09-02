@@ -32,6 +32,5 @@ public class NoOpExecutionLayer implements ExecutionLayer {
     }
 
     @Override
-    public void reportUnhealthyDuration(@NonNull final Duration duration) {
-    }
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {}
 }
