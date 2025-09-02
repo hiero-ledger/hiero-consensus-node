@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -92,10 +91,11 @@ public class StakeCommand implements Callable<Integer> {
             if (declineReward != null) {
                 msgSb.append(" with declineReward=").append(declineReward);
             }
-            COMMON_MESSAGES.info(msgSb.toString());
+            config.output().info(msgSb.toString());
         } else {
-            COMMON_MESSAGES.warn("FAILED to change staking election for account "
-                    + Utils.extractAccount(normalizedStakedAccountNum));
+            config.output()
+                    .warn("FAILED to change staking election for account "
+                            + Utils.extractAccount(normalizedStakedAccountNum));
             return 1;
         }
 
