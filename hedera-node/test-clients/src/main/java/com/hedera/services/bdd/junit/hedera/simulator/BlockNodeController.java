@@ -23,6 +23,7 @@ public class BlockNodeController {
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
     private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
+    private static final Map<Long, Integer> pausedBlockNodePorts = new HashMap<>();
     private static final Map<Long, Long> lastVerifiedBlockNumbers = new HashMap<>();
 
     /**
@@ -369,6 +370,16 @@ public class BlockNodeController {
     }
 
     /**
+     * Check if a specific block node container has been paused.
+     *
+     * @param index the index of the block node (0-based)
+     * @return true if the block node has been paused, false otherwise
+     */
+    public boolean isBlockNodePaused(final long index) {
+        return pausedBlockNodePorts.containsKey(index);
+    }
+
+    /**
      * Check if any simulators have been shut down.
      *
      * @return true if any simulators have been shut down, false otherwise
@@ -407,6 +418,61 @@ public class BlockNodeController {
 
             log.info("Container {} shutdown complete", nodeIndex);
             // blockNodeContainers.remove(nodeIndex, shutdownContainer);
+        } else {
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+        }
+    }
+
+    public void unpauseContainer(long nodeIndex) {
+        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
+            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
+
+            if (container == null) {
+                log.error("Block Node container {} does not exist", nodeIndex);
+                return;
+            }
+
+            if (!container.isPaused()) {
+                log.warn("Block Node container {} is not paused", nodeIndex);
+                return;
+            }
+
+            try {
+                container.unpause();
+                log.info("Unpaused container {} @ {} and waited for readiness", nodeIndex, container);
+                pausedBlockNodePorts.remove(nodeIndex);
+            } catch (Exception e) {
+                log.error("Failed to unpause container {}: {}", nodeIndex, e.getMessage(), e);
+            }
+        } else {
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+        }
+    }
+
+    public void pauseContainer(long nodeIndex) {
+        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
+            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
+
+            if (container == null) {
+                log.error("Block Node container {} does not exist", nodeIndex);
+                return;
+            }
+
+            if (container.isPaused()) {
+                log.warn("Block Node container {} is already paused", nodeIndex);
+                return;
+            }
+
+            log.info("Pausing container {} @ {}", nodeIndex, container);
+
+            try {
+                pausedBlockNodePorts.put(nodeIndex, container.getPort());
+                container.pause();
+                log.info("Container {} pause complete", nodeIndex);
+            } catch (Exception e) {
+                log.error("Failed to pause container {}: {}", nodeIndex, e.getMessage(), e);
+                pausedBlockNodePorts.remove(nodeIndex);
+            }
         } else {
             log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
         }

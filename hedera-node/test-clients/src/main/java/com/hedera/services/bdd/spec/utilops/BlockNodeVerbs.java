@@ -98,6 +98,24 @@ public class BlockNodeVerbs {
         }
 
         /**
+         * Pauses the block node container.
+         *
+         * @return the operation
+         */
+        public BlockNodeOp pause() {
+            return BlockNodeOp.pause(nodeIndex).build();
+        }
+
+        /**
+         * Unpauses the block node container.
+         *
+         * @return the operation
+         */
+        public BlockNodeOp unpause() {
+            return BlockNodeOp.unpause(nodeIndex).build();
+        }
+
+        /**
          * Asserts that a specific block has been received by the block node simulator.
          *
          * @param blockNumber the block number to check
