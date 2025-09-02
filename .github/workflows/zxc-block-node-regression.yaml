@@ -206,23 +206,27 @@ jobs:
               registry: docker.io
               repository: xinatswirlds/importer
               tag: e741ea2b2
-          hiero:
-            mirror:
-              importer:
-                block:
-                  enabled: true
-                  nodes:
-                    - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
-                      port: 40840
-                  sourceType: BLOCK_NODE
-              downloader:
-                record:
-                  enabled: false
-              startDate: 1970-01-01T00:00:00Z
-              stream:
-                maxSubscribeAttempts: 10
-                responseTimeout: 10s
+            config:
+              hiero:
+                mirror:
+                  importer:
+                    block:
+                      enabled: true
+                      nodes:
+                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                      sourceType: BLOCK_NODE
+                  downloader:
+                    record:
+                      enabled: false
+                  startDate: 1970-01-01T00:00:00Z
+                  stream:
+                    maxSubscribeAttempts: 10
+                    responseTimeout: 10s
           EOF
+
+      - name: Print MN Override Values
+        run: cat mirror-bn-values.yaml
 
       # ---- Solo with BN Section ----
 
@@ -287,6 +291,7 @@ jobs:
 
       # Verify the BN is getting blocks
       - name: Get ServerStatus from Block Node
+        working-directory: block-node
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
