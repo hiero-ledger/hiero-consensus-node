@@ -197,6 +197,16 @@ public class BlockNodeOp extends UtilOp {
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex);
                 break;
+            case UNPAUSE:
+                if (!controller.isBlockNodePaused(nodeIndex)) {
+                    log.error("Cannot unpause container {} because it has not been paused", nodeIndex);
+                    return false;
+                }
+                controller.unpauseContainer(nodeIndex);
+                break;
+            case PAUSE:
+                controller.pauseContainer(nodeIndex);
+                break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
         }
@@ -215,6 +225,10 @@ public class BlockNodeOp extends UtilOp {
         SHUTDOWN,
         /** Shutdown all block nodes */
         SHUTDOWN_ALL,
+        /** Pause block node */
+        PAUSE,
+        /** Unpause block node */
+        UNPAUSE,
 
         /* Next actions are only applicable to simulated block nodes */
 
@@ -278,6 +292,26 @@ public class BlockNodeOp extends UtilOp {
      */
     public static ShutdownBuilder shutdownImmediately(final long nodeIndex) {
         return new ShutdownBuilder(nodeIndex);
+    }
+
+    /**
+     * Creates a builder for pausing a specific block node container.
+     *
+     * @param nodeIndex the index of the block node (0-based)
+     * @return a builder for the operation
+     */
+    public static PauseBuilder pause(final long nodeIndex) {
+        return new PauseBuilder(nodeIndex);
+    }
+
+    /**
+     * Creates a builder for unpausing a specific block node container.
+     *
+     * @param nodeIndex the index of the block node (0-based)
+     * @return a builder for the operation
+     */
+    public static UnpauseBuilder unpause(final long nodeIndex) {
+        return new UnpauseBuilder(nodeIndex);
     }
 
     /**
@@ -484,6 +518,50 @@ public class BlockNodeOp extends UtilOp {
          */
         public BlockNodeOp build() {
             return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    public static class PauseBuilder extends UtilOp {
+        private final long nodeIndex;
+
+        private PauseBuilder(final long nodeIndex) {
+            this.nodeIndex = nodeIndex;
+        }
+
+        /**
+         * Builds the operation.
+         *
+         * @return the operation
+         */
+        public BlockNodeOp build() {
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.PAUSE, null, 0, null, null, true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    public static class UnpauseBuilder extends UtilOp {
+        private final long nodeIndex;
+
+        private UnpauseBuilder(final long nodeIndex) {
+            this.nodeIndex = nodeIndex;
+        }
+
+        /**
+         * Builds the operation.
+         *
+         * @return the operation
+         */
+        public BlockNodeOp build() {
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.UNPAUSE, null, 0, null, null, true);
         }
 
         @Override

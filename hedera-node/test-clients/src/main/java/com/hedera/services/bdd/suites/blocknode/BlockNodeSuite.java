@@ -347,7 +347,7 @@ public class BlockNodeSuite {
         return hapiTest(
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNode(0).shutDownImmediately(),
+                blockNode(0).pause(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -356,7 +356,7 @@ public class BlockNodeSuite {
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNode(0).startImmediately(),
+                blockNode(0).unpause(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
