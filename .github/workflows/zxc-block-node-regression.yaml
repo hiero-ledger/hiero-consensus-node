@@ -365,17 +365,25 @@ jobs:
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
+          ls -lR "${{ env.CN_LOG_FOLDER }}"
 
-      - name: Upload Logs
+      - name: Upload BN and MN Logs
         if: always()
-        id: upload_logs
+        id: update_bn_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: run-logs
+          name: bn-mn-log
           path: |
             bn0-logs.log
             mn0-logs.log
-            ${{ env.CN_LOG_FOLDER }}
+
+      - name: Upload CN Logs
+        id: upload_cn_logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cn-log
+          path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
         if: always()
@@ -384,7 +392,8 @@ jobs:
             echo "### 📜 Logs"
             echo ""
             echo "You can download the logs from this run here:"
-            echo "- [Download run-logs](${{ steps.upload_logs.outputs.artifact-url }})"
+            echo "- [Download bn-mn-logs](${{ steps.update_bn_mn_logs.outputs.artifact-url }})"
+            echo "- [Download cn-logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Stop the TCK Tests server
