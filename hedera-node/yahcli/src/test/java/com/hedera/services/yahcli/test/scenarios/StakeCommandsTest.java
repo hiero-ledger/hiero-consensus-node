@@ -21,7 +21,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
-public class StakeCommandTest {
+public class StakeCommandsTest {
 
     @HapiTest
     final Stream<DynamicTest> stakeCommandsWorks() {

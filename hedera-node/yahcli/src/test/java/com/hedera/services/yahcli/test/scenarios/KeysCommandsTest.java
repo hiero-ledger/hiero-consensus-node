@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
 @HapiTestLifecycle
-public class KeysCommandTest {
+public class KeysCommandsTest {
     private static final String KEY_NAME = "newKey";
     private static final String[] FILES_TO_DELETE = {
         KEY_NAME + ".pass", KEY_NAME + ".pem", KEY_NAME + ".privkey", KEY_NAME + ".pubkey", KEY_NAME + ".words"
