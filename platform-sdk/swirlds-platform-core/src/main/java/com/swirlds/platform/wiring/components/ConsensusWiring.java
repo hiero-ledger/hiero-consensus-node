@@ -32,7 +32,8 @@ public record ConsensusWiring(
      * @return the new instance
      */
     @NonNull
-    public static ConsensusWiring create(@NonNull final  WiringModel model, @NonNull final TaskSchedulerConfiguration consensusEngineConfig) {
+    public static ConsensusWiring create(
+            @NonNull final WiringModel model, @NonNull final TaskSchedulerConfiguration consensusEngineConfig) {
         final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring =
                 new ComponentWiring<>(model, ConsensusEngine.class, consensusEngineConfig);
         final OutputWire<List<ConsensusRound>> consensusRoundsOutputWire = consensusEngineWiring
