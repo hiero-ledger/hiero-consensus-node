@@ -93,7 +93,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration bootstrapConfig,
             @NonNull final SchemaApplications schemaApplications) {
         this.constructableRegistry = requireNonNull(constructableRegistry);
-        this.serviceName = StateMetadata.validateStateKey(requireNonNull(serviceName));
+        this.serviceName = StateMetadata.validateServiceName(requireNonNull(serviceName));
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
