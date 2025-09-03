@@ -615,7 +615,7 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug -Dbenchmark.maxtps=1000" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug -Dbenchmark.maxtps=250" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
           NLG_c=32
