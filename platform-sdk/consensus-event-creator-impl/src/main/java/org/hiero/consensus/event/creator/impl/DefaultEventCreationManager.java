@@ -94,7 +94,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
         rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
 
-
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
                 new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND, "eventCreator");
