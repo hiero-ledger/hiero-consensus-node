@@ -512,7 +512,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     /**
      * Returns a function mapping an entity number to an {@link FileID} for the target network.
-     * @return the account ID factory function
+     * @return the file ID factory function
      */
     public LongFunction<FileID> fileIdFactory() {
         return num -> FileID.newBuilder()
@@ -523,8 +523,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     /**
-     * Returns a function mapping an entity number to an {@link FileID} for the target network.
-     * @return the account ID factory function
+     * Returns a function mapping an entity number to an {@link TopicID} for the target network.
+     * @return the topic ID factory function
      */
     public LongFunction<TopicID> topicIdFactory() {
         return num -> TopicID.newBuilder()
