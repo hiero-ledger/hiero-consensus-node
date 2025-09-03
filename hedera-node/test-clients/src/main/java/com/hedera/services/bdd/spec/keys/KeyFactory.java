@@ -160,12 +160,12 @@ public class KeyFactory {
      * Exports the Ed25519 private key associated with the given name to the given PEM location
      * using the given passphrase.
      *
-     * @param loc the location to which the key should be exported
-     * @param name the name of the key to export
+     * @param name       the name of the key to export
+     * @param loc        the location to which the key should be exported
      * @param passphrase the passphrase to use for the PEM file
      */
     public void exportEd25519Key(
-            @NonNull final String loc, @NonNull final String name, @NonNull final String passphrase) {
+            @NonNull final String name, @NonNull final String loc, @NonNull final String passphrase) {
         exportEd25519Key(loc, name, key -> key.getEd25519().toByteArray(), passphrase);
     }
 
@@ -373,20 +373,22 @@ public class KeyFactory {
      */
     public Key generate(@NonNull final HapiSpec spec, @NonNull final KeyType type, @NonNull final KeyGenerator keyGen) {
         return switch (type) {
-            case THRESHOLD -> generateSubjectTo(
-                    spec,
-                    KeyShape.threshSigs(
-                            setup.defaultThresholdM(),
-                            IntStream.range(0, setup.defaultThresholdN())
-                                    .mapToObj(ignore -> ON)
-                                    .toArray(SigControl[]::new)),
-                    keyGen);
-            case LIST -> generateSubjectTo(
-                    spec,
-                    KeyShape.listSigs(IntStream.range(0, setup.defaultListN())
-                            .mapToObj(ignore -> ON)
-                            .toArray(SigControl[]::new)),
-                    keyGen);
+            case THRESHOLD ->
+                generateSubjectTo(
+                        spec,
+                        KeyShape.threshSigs(
+                                setup.defaultThresholdM(),
+                                IntStream.range(0, setup.defaultThresholdN())
+                                        .mapToObj(ignore -> ON)
+                                        .toArray(SigControl[]::new)),
+                        keyGen);
+            case LIST ->
+                generateSubjectTo(
+                        spec,
+                        KeyShape.listSigs(IntStream.range(0, setup.defaultListN())
+                                .mapToObj(ignore -> ON)
+                                .toArray(SigControl[]::new)),
+                        keyGen);
             default -> generateSubjectTo(spec, ON, keyGen);
         };
     }
@@ -477,9 +479,10 @@ public class KeyFactory {
                                     .setDelegatableContractId(dcid)
                                     .build();
                         }
-                        case LIST -> Key.newBuilder()
-                                .setKeyList(composing(label.getConstituents(), sc.getChildControls()))
-                                .build();
+                        case LIST ->
+                            Key.newBuilder()
+                                    .setKeyList(composing(label.getConstituents(), sc.getChildControls()))
+                                    .build();
                         case THRESHOLD -> {
                             final var tKey = ThresholdKey.newBuilder()
                                     .setThreshold(sc.getThreshold())
@@ -551,10 +554,8 @@ public class KeyFactory {
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
             case KEY_LIST -> key.keyListOrThrow().keys().forEach(k -> addPrivateKeys(k, keyMap));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> addPrivateKeys(k, keyMap));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().forEach(k -> addPrivateKeys(k, keyMap));
             default -> {
                 // No-op
             }

@@ -259,6 +259,18 @@ jobs:
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "JSON-RPC Relay Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
