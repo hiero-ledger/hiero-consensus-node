@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
@@ -110,7 +111,12 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRound(firstRound)
                 .setSignatures(signatures)
                 .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
+                .setState(new TestMerkleStateRoot(
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 

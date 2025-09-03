@@ -3,6 +3,7 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -19,6 +20,9 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.signed.SigSet;
@@ -367,7 +371,12 @@ class StateSigningTests {
                 .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
+                .setState(new TestMerkleStateRoot(
+                        CONFIGURATION,
+                        new NoOpMetrics(),
+                        Time.getCurrent(),
+                        MerkleCryptographyFactory.create(CONFIGURATION)))
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();

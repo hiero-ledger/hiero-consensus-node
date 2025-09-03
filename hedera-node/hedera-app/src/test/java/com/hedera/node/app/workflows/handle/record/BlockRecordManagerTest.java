@@ -14,6 +14,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_I
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -38,6 +39,8 @@ import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
@@ -433,7 +436,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var virtualMapLabel =
                 "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestHederaVirtualMapState(virtualMap) {
+        return new TestHederaVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {

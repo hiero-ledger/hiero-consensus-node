@@ -188,7 +188,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
         final Hash hash = platformContext
@@ -362,7 +361,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         return signedState.reserve("initial reservation on genesis state");
     }
 
@@ -447,7 +445,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
             return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);

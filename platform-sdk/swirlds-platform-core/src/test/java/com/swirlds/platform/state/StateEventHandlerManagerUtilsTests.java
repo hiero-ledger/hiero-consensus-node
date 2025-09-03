@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
@@ -21,7 +24,8 @@ public class StateEventHandlerManagerUtilsTests {
     void testFastCopyIsMutable() {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(
+                virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);

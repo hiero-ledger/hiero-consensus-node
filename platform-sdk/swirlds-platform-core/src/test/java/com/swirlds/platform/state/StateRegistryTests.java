@@ -7,6 +7,9 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -68,7 +71,11 @@ class StateRegistryTests {
         final List<TestMerkleStateRoot> states = new LinkedList<>();
         // Create a bunch of states
         for (int i = 0; i < 100; i++) {
-            states.add(new TestMerkleStateRoot());
+            states.add(new TestMerkleStateRoot(
+                    CONFIGURATION,
+                    new NoOpMetrics(),
+                    Time.getCurrent(),
+                    MerkleCryptographyFactory.create(CONFIGURATION)));
             assertEquals(
                     states.size(),
                     RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
@@ -76,7 +83,8 @@ class StateRegistryTests {
         }
 
         // Fast copy a state
-        final TestMerkleStateRoot stateToCopy = new TestMerkleStateRoot();
+        final TestMerkleStateRoot stateToCopy = new TestMerkleStateRoot(
+                CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         states.add(stateToCopy);
         final TestMerkleStateRoot copyOfStateToCopy = stateToCopy.copy();
         states.add(copyOfStateToCopy);
@@ -88,7 +96,8 @@ class StateRegistryTests {
         final Path dir = testDirectory;
 
         // Deserialize a state
-        final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
+        final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot(
+                CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         TestingAppStateInitializer.DEFAULT.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,6 +59,7 @@ public class BlockingState extends TestMerkleStateRoot {
      * Constructs a new instance of {@link BlockingState}.
      */
     public BlockingState(TestPlatformStateFacade platformStateFacade) {
+        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         this.platformStateFacade = platformStateFacade;
         value = new BlockingStringLeaf();
         setChild(1, value);

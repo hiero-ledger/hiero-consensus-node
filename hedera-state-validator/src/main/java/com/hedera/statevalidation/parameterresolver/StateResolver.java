@@ -7,6 +7,7 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initService
 import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceRegistry;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
+import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.services.ServicesRegistryImpl;
@@ -35,6 +36,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
@@ -81,7 +83,11 @@ public class StateResolver implements ParameterResolver {
         final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
-                HederaVirtualMapState::new,
+                virtualMap -> new HederaVirtualMapState(
+                        virtualMap,
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime()),
                 platformStateFacade,
                 platformContext);
 
@@ -104,6 +110,14 @@ public class StateResolver implements ParameterResolver {
 
             ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
             BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
+            ConstructableRegistry.getInstance()
+                    .registerConstructable(new ClassConstructorPair(
+                            HederaStateRoot.class,
+                            () -> new HederaStateRoot(
+                                    getConfiguration(),
+                                    new NoOpMetrics(),
+                                    Time.getCurrent(),
+                                    MerkleCryptographyFactory.create(getConfiguration()))));
 
         } catch (ConstructableRegistryException e) {
             throw new RuntimeException(e);

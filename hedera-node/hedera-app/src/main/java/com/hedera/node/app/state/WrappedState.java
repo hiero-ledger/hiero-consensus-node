@@ -3,17 +3,12 @@ package com.hedera.node.app.state;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -34,19 +29,6 @@ public class WrappedState implements State, Hashable {
      */
     public WrappedState(@NonNull final State delegate) {
         this.delegate = requireNonNull(delegate, "delegate must not be null");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
-        delegate.init(time, configuration, metrics, merkleCryptography, roundSupplier);
     }
 
     /**

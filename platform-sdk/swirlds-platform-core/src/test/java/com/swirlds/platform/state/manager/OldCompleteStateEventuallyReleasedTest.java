@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
@@ -99,7 +100,12 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(0)
                 .setSignatures(signatures)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
+                .setState(new TestMerkleStateRoot(
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 

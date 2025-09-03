@@ -2,11 +2,17 @@
 package com.swirlds.demo.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -22,6 +28,7 @@ import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,6 +99,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     private NodeId selfId;
 
     public PlatformTestingToolState() {
+        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -134,6 +142,12 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     // count invalid signature ratio
     static AtomicLong totalTransactionSignatureCount = new AtomicLong(0);
     static AtomicLong expectedInvalidSignatureCount = new AtomicLong(0);
+
+    @Override
+    protected long getRound() {
+        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
+        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+    }
 
     /**
      * {@inheritDoc}

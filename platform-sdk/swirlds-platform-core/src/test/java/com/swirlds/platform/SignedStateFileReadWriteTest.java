@@ -141,13 +141,17 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
         MerkleDb.resetDefaultInstancePath();
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readStateFile(
                 stateFile,
-                TestHederaVirtualMapState::new,
+                virtualMap -> new TestHederaVirtualMapState(
+                        virtualMap,
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime()),
                 TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
+                platformContext);
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
