@@ -263,9 +263,10 @@ jobs:
       - name: Get Commit Information
         id: fetch-commit-info
         run: |
-          echo "commit-hash=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' HEAD)" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git log -1 --pretty=format:'%ae' HEAD)" >> "${GITHUB_OUTPUT}"
+          COMMIT_SHA="${{ github.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
