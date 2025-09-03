@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -81,6 +82,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("transferring owner's tokens using transferFrom function given allowance")
+        @Tag(MATS)
         public Stream<DynamicTest> transferUsingTransferFromWithAllowance() {
             return hapiTest(
                     // Approve the transfer contract to spend 2 tokens
@@ -121,6 +123,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("transferring owner's tokens using transferToken function from receiver contract")
+        @Tag(MATS)
         public Stream<DynamicTest> transferUsingTransferFromReceiver() {
             return hapiTest(
                     // Transfer using receiver contract transfer function should fail
