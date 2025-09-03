@@ -245,9 +245,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         final SwirldMain<? extends MerkleNodeState> appMain = BootstrapUtils.getSwirldMain(appDefinition);
-        if (appMain == null) {
-            return null;
-        }
 
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
@@ -380,13 +377,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
     /**
      * Updates the application properties file by increasing the patch version of the configuration key's semantic
      * version, if it exists. If the key is not found, it adds a new configuration entry with a default version. <br/>
-     * The method performs the following steps: 
-     <ol>
-     <li>Locates and reads the properties file</li>
-     <li>Loops through each line to find the version configuration key. If the key exists and is not commented out, it identifies the version, increments the patch number, and updates that line</li>
-     <li>If the configuration key is missing from the file, it adds a new entry with a predefined version</li>
-     <li>Saves the updated properties file</li>
-     </ol>
+     * The method performs the following steps:
+     * <ol>
+     * <li>Locates and reads the properties file</li>
+     * <li>Loops through each line to find the version configuration key. If the key exists and is not commented out, it identifies the version, increments the patch number, and updates that line</li>
+     * <li>If the configuration key is missing from the file, it adds a new entry with a predefined version</li>
+     * <li>Saves the updated properties file</li>
+     * </ol>
      * @throws IOException If the application properties file is missing or cannot be read or written.
      */
     private void performConfigBump() throws IOException {
