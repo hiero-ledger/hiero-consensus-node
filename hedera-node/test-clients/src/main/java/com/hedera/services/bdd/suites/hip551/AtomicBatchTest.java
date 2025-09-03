@@ -75,6 +75,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -96,6 +98,7 @@ import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1225,5 +1228,35 @@ public class AtomicBatchTest {
                         .payingWith("batchOperator")
                         .via("batch")
                         .hasPrecheck(PAYER_ACCOUNT_DELETED));
+    }
+
+    @HapiTest
+    Stream<DynamicTest> innerTxnIdTooFarInFutureFailsBatch() {
+        final var civilian = "civilian";
+        final var batchOperator = "batchOperator";
+        final var now = Instant.now();
+
+        return hapiTest(
+                cryptoCreate(civilian).balance(ONE_HBAR),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                usableTxnIdNamed("batchTxn")
+                        .modifyValidStart(now.getEpochSecond())
+                        .payerId(batchOperator),
+                usableTxnIdNamed("validInner").payerId(civilian).modifyValidStart(now.getEpochSecond() + 60L),
+                usableTxnIdNamed("invalidInner").payerId(civilian).modifyValidStart(now.getEpochSecond() + 300L),
+                atomicBatch(
+                                // The valid inner transaction, only 60 seconds after batch valid start, is fine
+                                cryptoTransfer(movingHbar(1).between(civilian, batchOperator))
+                                        .batchKey(batchOperator)
+                                        .txnId("validInner")
+                                        .payingWith(civilian)
+                                        .hasPrecheck(OK),
+                                // But the invalid inner transaction, 5 minutes after batch valid start, is too late
+                                cryptoTransfer(movingHbar(1).between(civilian, batchOperator))
+                                        .batchKey(batchOperator)
+                                        .txnId("invalidInner")
+                                        .payingWith(civilian))
+                        .txnId("batchTxn")
+                        .hasPrecheck(INVALID_TRANSACTION_START));
     }
 }
