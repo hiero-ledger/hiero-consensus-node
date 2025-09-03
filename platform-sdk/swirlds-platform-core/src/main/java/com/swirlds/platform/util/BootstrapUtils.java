@@ -437,7 +437,7 @@ public final class BootstrapUtils {
             final var appLoader =
                     SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
             ConstructableRegistry.getInstance().registerConstructables("", appLoader.getClassLoader());
-            return buildAppMain(appDefinition, appLoader);
+            return appLoader.instantiateSwirldMain();
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }

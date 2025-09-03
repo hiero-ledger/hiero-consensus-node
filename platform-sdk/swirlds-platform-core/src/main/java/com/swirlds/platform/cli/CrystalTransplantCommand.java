@@ -28,8 +28,10 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
+import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -168,8 +170,11 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 sourceStatePath.toAbsolutePath(),
                 targetNodePath.toAbsolutePath(),
                 bumpVersion));
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new PropertyFileConfigSource(targetNodePath.resolve(DEFAULT_CONFIG_FILE_NAME)))
+                .withSource(new PropertyFileConfigSource(targetNodePath.resolve("settings.txt")))
+                .autoDiscoverExtensions()
+                .build();
 
         this.platformContext = PlatformContext.create(
                 configuration,
@@ -184,13 +189,21 @@ public class CrystalTransplantCommand extends AbstractCommand {
         final PathsConfig defaultPathsConfig = configuration.getConfigData(PathsConfig.class);
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final PathsConfig pathsToUse = new PathsConfig(
+                targetNodePath.resolve(defaultPathsConfig.settingsUsedDir()).toString(),
+                targetNodePath.resolve(defaultPathsConfig.keysDirPath()).toString(),
+                targetNodePath.resolve(defaultPathsConfig.appsDirPath()).toString(),
+                targetNodePath.resolve(defaultPathsConfig.logPath()).toString(),
+                targetNodePath.resolve(defaultPathsConfig.markerFilesDir()).toString(),
+                defaultPathsConfig.writePlatformMarkerFiles());
 
-        final ApplicationDefinition appDefinition =
-                ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
+        final ApplicationDefinition appDefinition = ApplicationDefinitionLoader.loadDefault(
+                pathsToUse, getAbsolutePath(targetNodePath.resolve(DEFAULT_CONFIG_FILE_NAME)));
 
         final StateInformation sourceStateInfo = loadSourceState(appDefinition, version);
 
-        this.targetStateDir = new SignedStateFilePath(stateConfig)
+        this.targetStateDir = new SignedStateFilePath(
+                        new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
                 .getSignedStateDirectory(
                         appDefinition.getMainClassName(), selfId, appDefinition.getSwirldName(), sourceStateInfo.round);
 
@@ -244,8 +257,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        final SwirldMain<? extends MerkleNodeState> appMain = BootstrapUtils.getSwirldMain(appDefinition);
-
+        final SwirldMain<? extends MerkleNodeState> appMain = appMain(appDefinition, new PlatformStateFacade());
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -366,7 +378,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private void copyPCESFilesToCorrectDirectory(final Path sourcePcesDir, final Path targetPcesDir) {
         requestConfirmation("Copy PCES files to correct directory");
         try {
-            FileUtils.deleteDirectory(targetPcesDir);
             FileUtils.copyDirectory(sourcePcesDir, targetPcesDir);
         } catch (final IOException e) {
             System.err.printf("Unable to move PCES files from:%s to:%s. %s %n", sourcePcesDir, targetPcesDir, e);
@@ -498,4 +509,22 @@ public class CrystalTransplantCommand extends AbstractCommand {
     }
 
     record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {}
+
+    // When running Hedera, ServicesMain lazy loads hedera field in the main method, which is the one that loads all the
+    // deserialization logic.
+    // without actually running the state dependencies are not loaded, and thus fails in this command but not in
+    // browser.
+    // We force loading hedera in case we are told to do so
+    private SwirldMain<? extends MerkleNodeState> appMain(
+            final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
+        try {
+            if (HederaUtils.HEDERA_MAIN.equals(appDefinition.getMainClassName())) {
+                return HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
+            } else {
+                return BootstrapUtils.getSwirldMain(appDefinition);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
