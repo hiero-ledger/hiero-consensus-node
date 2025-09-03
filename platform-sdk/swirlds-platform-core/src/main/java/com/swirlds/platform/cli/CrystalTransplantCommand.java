@@ -525,6 +525,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 return BootstrapUtils.getSwirldMain(appDefinition);
             }
         } catch (Exception e) {
+            System.err.println("Error loading main application: " + e.getMessage());
             return null;
         }
     }
