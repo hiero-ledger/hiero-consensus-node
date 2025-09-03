@@ -213,16 +213,16 @@ jobs:
                     block:
                       enabled: true
                       nodes:
-                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                        - host: block-node-0.solo-block-node-e2e.svc.cluster.local
                           port: 40840
                       sourceType: BLOCK_NODE
-                  downloader:
-                    record:
-                      enabled: false
-                  startDate: 1970-01-01T00:00:00Z
-                  stream:
-                    maxSubscribeAttempts: 10
-                    responseTimeout: 10s
+                    downloader:
+                      record:
+                        enabled: false
+                    startDate: 1970-01-01T00:00:00Z
+                    stream:
+                      maxSubscribeAttempts: 10
+                      responseTimeout: 10s
           EOF
 
       - name: Print MN Override Values
