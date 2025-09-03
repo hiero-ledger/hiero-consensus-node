@@ -34,6 +34,11 @@ on:
         type: boolean
         default: true
         description: "Run Mirror Node Regression Panel"
+      enable-rpc-relay-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run JSON-RPC Relay Regression Panel"
 
 permissions:
   id-token: write
@@ -133,6 +138,17 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "Mirror Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    if: ${{ inputs.enable-rpc-relay-regression-panel == true }}
+    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
+      custom-job-name: "JSON-RPC Relay Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}

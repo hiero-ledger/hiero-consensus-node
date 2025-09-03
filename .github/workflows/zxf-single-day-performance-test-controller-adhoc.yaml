@@ -5,13 +5,15 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "AdHoc7"
-        description: "Performance test on machine: AdHoc5, 6, 7"
+        default: "AdHocSD8"
+        description: "Performance test on machine: AdHoc5, 6, 7, AdHocSD8, 9"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
       ref:
         required: true
         default: "main"

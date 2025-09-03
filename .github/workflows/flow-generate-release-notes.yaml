@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "Generate Release Notes"
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release Version Number (ex: 0.59.2):"
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  validate-input-version:
+    name: Validate Input Version
+    runs-on: hiero-network-node-linux-medium
+    outputs:
+      release-identifier: ${{ steps.validate.outputs.release-identifier }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Extract the Input Version
+        id: extract-version
+        run: |
+          echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate and Correct Release Identifier
+        id: validate
+        run: |
+          release_identifier="${{ steps.extract-version.outputs.version }}"
+
+          echo "Input release identifier: '${release_identifier}'"
+
+          is_valid=$(semver validate "${release_identifier}")
+
+          if [[ "$is_valid" != "valid" ]]; then
+            echo "Invalid semantic version: ${release_identifier}"
+            exit 1
+          fi
+
+          cleaned="${release_identifier#v}"
+
+          echo "Release identifier is valid: ${cleaned}"
+          echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
+          echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Skip Autogen Release Notes on Release Candidate Tag
+        run: |
+          tag="v${{ steps.validate.outputs.release-identifier }}"
+          if [[ "${{ github.event_name }}" == "push" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Skipping prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Validate Tag Exists
+        run: |
+          tag="v${{ steps.validate.outputs.release-identifier }}"
+
+          echo "Checking if tag ${tag} exists..."
+
+          if git rev-parse "${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} found in repo." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "Error: Tag ${tag} does not exist in repo." >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+  fixes-and-feats-release-notes:
+    name: Create Fixes and Feats Release Notes
+    needs: validate-input-version
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Create Release Notes - Feats and Fixes Only Markdown Format
+        run: |
+          echo "Release Notes - Feats and Fixes Only Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "## Release Notes" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+          git-semver log --markdown "${{ needs.validate-input-version.outputs.release-identifier }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+  full-release-notes:
+    name: Create Full Release Notes
+    needs: validate-input-version
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Get All Changes in JSON Format
+        run: |
+          echo "Create Release Notes of Conventional Commits"
+          git-semver log --conventional-commits "${{ needs.validate-input-version.outputs.release-identifier }}" | tee changes.json
+
+      - name: Process All Changes to Markdown File
+        id: generate-md
+        run: python3 .github/workflows/support/scripts/process_json_release_notes.py ./changes.json ./RELEASE_NOTES.md
+
+      - name: Create Release Notes - Full Markdown Format
+        run: |
+          echo "Release Notes - Full Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "## Release Notes" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          cat RELEASE_NOTES.md | tee -a "${GITHUB_STEP_SUMMARY}"
+
+  full-commit-history:
+    name: Full Commit History
+    needs: validate-input-version
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Create Full List of Git History Commits
+        run: |
+          echo "Create Full List of Git History Commits:"
+          git-semver log "${{ needs.validate-input-version.outputs.release-identifier }}"

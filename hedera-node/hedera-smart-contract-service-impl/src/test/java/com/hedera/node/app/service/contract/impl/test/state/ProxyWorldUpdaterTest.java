@@ -34,6 +34,8 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
@@ -41,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
@@ -433,6 +436,8 @@ class ProxyWorldUpdaterTest {
         final var pretendCost = 1_234L;
         given(hederaOperations.lazyCreationCostInGas(SOME_EVM_ADDRESS)).willReturn(pretendCost);
         given(frame.getRemainingGas()).willReturn(pretendCost * 2);
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(frame.getContextVariable(FrameUtils.OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(evmFrameState.tryLazyCreation(SOME_EVM_ADDRESS)).willReturn(Optional.empty());
         final var maybeHaltReason = subject.tryLazyCreation(SOME_EVM_ADDRESS, frame);
         assertTrue(maybeHaltReason.isEmpty());

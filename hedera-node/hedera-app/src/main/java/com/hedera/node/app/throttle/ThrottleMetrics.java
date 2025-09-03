@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.hapi.utils.throttles.CongestibleThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.config.data.StatsConfig;
 import com.swirlds.config.api.Configuration;
@@ -113,7 +114,7 @@ public class ThrottleMetrics {
     }
 
     public void setupOpsDurationMetric(
-            @NonNull final LeakyBucketDeterministicThrottle opsDurationThrottle,
+            @NonNull final OpsDurationDeterministicThrottle opsDurationThrottle,
             @NonNull final Configuration configuration) {
         final var statsConfig = configuration.getConfigData(StatsConfig.class);
         final var throttlesToSample = throttlesToSampleSupplier.apply(statsConfig);

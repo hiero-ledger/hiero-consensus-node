@@ -103,6 +103,7 @@ import static com.hedera.services.bdd.suites.contract.precompile.ApproveAllowanc
 import static com.hedera.services.bdd.suites.contract.precompile.ApproveAllowanceSuite.PRETEND_PAIR;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.TOKEN_NAME;
 import static com.hedera.services.bdd.suites.contract.precompile.ERCPrecompileSuite.NAME_TXN;
+import static com.hedera.services.bdd.suites.contract.precompile.token.GasCalculationIntegrityTest.constantGasAssertion;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
@@ -143,6 +144,8 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -172,6 +175,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 
@@ -1445,5 +1449,32 @@ public class LeakyContractTestsSuite {
                     expectedCreate2Address.set(hexedAddress);
                 })
                 .payingWith(GENESIS);
+    }
+
+    @Order(39)
+    @LeakyHapiTest(overrides = "contracts.maxRefundPercentOfGasLimit")
+    @DisplayName("Check that gas refund can be changed")
+    public Stream<DynamicTest> checkGasRefundChange(
+            @Contract(contract = "CallingContract") final SpecContract contract) {
+        record RefundPair(String refundPercentage, Long expectedGasUsed) {}
+        final var gasRefund = Stream.of(
+                new RefundPair("0", 400_000L),
+                new RefundPair("10", 360_000L),
+                new RefundPair("20", 320_000L),
+                new RefundPair("30", 280_000L),
+                new RefundPair("40", 240_000L),
+                new RefundPair("50", 200_000L),
+                new RefundPair("60", 160_000L),
+                new RefundPair("70", 120_000L),
+                new RefundPair("80", 80_000L),
+                new RefundPair("90", 40_000L),
+                new RefundPair("100", 23_653L));
+
+        return gasRefund.flatMap(refundPair -> hapiTest(
+                overriding("contracts.maxRefundPercentOfGasLimit", refundPair.refundPercentage),
+                contract.call("setVar1", BigInteger.ONE)
+                        .gas(400_000L)
+                        .andAssert(txn ->
+                                txn.exposingGasTo(constantGasAssertion(new AtomicLong(refundPair.expectedGasUsed))))));
     }
 }
