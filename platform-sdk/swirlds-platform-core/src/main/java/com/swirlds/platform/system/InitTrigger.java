@@ -18,7 +18,7 @@ public enum InitTrigger {
      */
     RECONNECT,
     /**
-     * The state was created to be used in a recovery workflow ( event stream or block stream).
+     * The state was created to be used in a recovery workflow (event stream or block stream).
      */
     RECOVERY
 }
