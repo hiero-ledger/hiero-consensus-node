@@ -3,6 +3,8 @@ package com.hedera.services.yahcli.commands.ivy;
 
 import com.hedera.services.yahcli.Yahcli;
 import java.util.concurrent.Callable;
+
+import com.hedera.services.yahcli.commands.ivy.suites.SysAccountsCheckSuite;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -10,6 +12,7 @@ import picocli.CommandLine;
         subcommands = {
             CommandLine.HelpCommand.class,
             ValidationScenariosCommand.class,
+            SysAccountsCheckSuite.class,
         },
         description = "Execution acceptance tests")
 public class IvyCommand implements Callable<Integer> {

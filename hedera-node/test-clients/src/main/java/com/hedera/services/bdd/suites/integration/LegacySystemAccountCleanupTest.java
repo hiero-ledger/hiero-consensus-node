@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.orderedRecordFilesFrom;
+import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -10,23 +11,32 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
 import static com.hedera.services.bdd.junit.restart.RestartType.UPGRADE_BOUNDARY;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileDelete;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.ids.EntityIdService;
@@ -37,6 +47,7 @@ import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,6 +56,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.SplittableRandom;
@@ -59,8 +71,20 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * A test that "picks up" after a simulated restart with legacy system accounts in state, and verifies that they
- * are cleaned up as expected.
+ * A test that "picks up" after a simulated restart with legacy system accounts in the system file range
+ * {@code [101, 199]}; and verifies that they are cleaned up as expected.
+ * <p>
+ * This means,
+ * <ol>
+ *   <li>Each legacy account with an HBAR balance has that balance swept to fee collection account via a
+ *   synthetic {@link CryptoTransferTransactionBody}; and,</li>
+ *   <li>All such accounts are removed from state; and,</li>
+ *   <li>The {@link EntityCounts} singleton is updated to reflect their removal; and,</li>
+ *   <li>The total HBAR balance still sums to 50B.</li>
+ * </ol>
+ * The test also checks the record stream to ensure the synthetic transfers appear as expected, and that
+ * the timestamps are all unique and in strictly increasing order. (There have been edge cases in the
+ * past where large numbers of synthetic dispatches could lead to duplicate timestamps.)
  * <p>
  * <i>(FUTURE)</i> Remove this after release 0.66; it is a one-time only validation.
  */
@@ -75,10 +99,24 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
     @RestartHapiTest(restartType = UPGRADE_BOUNDARY, savedStateSpec = LegacySystemAccountCleanupTest.class)
     final Stream<DynamicTest> legacyAccountsCleanedUpPostUpgrade() {
         return hapiTest(
-                // Send a burst of rounds through
+                // Before the migration, confirm that HAPI getAccountInfo queries return the legacy accounts
+                sourcingContextual(
+                        spec -> blockingOrder(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
+                                .mapToObj(n -> getAccountInfo(asAccountString(
+                                        spec.accountIdFactory().apply(n))).hasAnswerOnlyPrecheck(OK))
+                                .toArray(SpecOperation[]::new))),
+                // Now send a burst of rounds through
                 blockingOrder(IntStream.range(0, 10)
                         .mapToObj(i -> cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)))
                         .toArray(SpecOperation[]::new)),
+                // And verify that HAPI now returns INVALID_ACCOUNT_ID in the whole range
+                sourcingContextual(
+                        spec -> blockingOrder(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
+                                .mapToObj(n -> getAccountInfo(asAccountString(
+                                        spec.accountIdFactory().apply(n)))
+                                        .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID))
+                                .toArray(SpecOperation[]::new))),
+                // Finally, verify the embedded state and record stream
                 withOpContext((spec, opLog) -> {
                     spec.embeddedHederaOrThrow().stop();
                     // Ensure the legacy accounts are gone
@@ -105,7 +143,8 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
 
                     // And validate the resulting record stream
                     assertRecordStreamsAsExpected(spec.recordStreamsLoc(NodeSelector.byNodeId(0L)));
-                }));
+                })
+        );
     }
 
     private void assertRecordStreamsAsExpected(@NonNull final Path path) {
@@ -121,6 +160,11 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                     .flatMap(r -> r.recordFile().getRecordStreamItemsList().stream())
                     .map(RecordStreamEntry::from)
                     .toList();
+            // Assert no FileDelete or CryptoDelete ops were used in the cleanup
+            final var histograms = statusHistograms(entries);
+            assertFalse(histograms.containsKey(FileDelete));
+            assertFalse(histograms.containsKey(CryptoDelete));
+            // Check timestamps are sane
             Instant now = null;
             final Set<Instant> timestamps = new HashSet<>();
             final Set<Long> accountNumbersToSweep =
@@ -163,6 +207,15 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
         }
     }
 
+    /**
+     * Modifies the {@link FakeState} to include legacy system accounts prior to executing the restart
+     * test that will verify these accounts are cleaned up as expected post-upgrade.
+     * <p>
+     * Some of the accounts have zero HBAR balance (so they will be removed without any corresponding
+     * {@link CryptoTransferTransactionBody} in the record stream); and some have a small random amount
+     * of HBAR that will need to be swept into the treasury via a synthetic transfer.
+     * @param fakeState the fake state to modify prior to executing the {@link RestartHapiTest}
+     */
     @Override
     public void accept(@NonNull final FakeState fakeState) {
         final var tokenStates = (MapWritableStates) fakeState.getWritableStates(TokenService.NAME);
