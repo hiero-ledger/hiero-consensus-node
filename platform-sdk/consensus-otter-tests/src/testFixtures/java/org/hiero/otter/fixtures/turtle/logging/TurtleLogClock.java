@@ -24,7 +24,6 @@ public class TurtleLogClock implements org.apache.logging.log4j.core.util.Clock 
      */
     public TurtleLogClock() {
         // Log4j2 will instantiate this
-        System.out.println("TurtleClock instantiated");
     }
 
     /**

@@ -38,7 +38,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     static {
         // Set custom clock property BEFORE any Log4j2 initialization
         // This ensures the TurtleClock is used for all log timestamps
-        System.setProperty("log4j.Clock", "org.hiero.otter.fixtures.turtle.logging.TurtleClock");
+        System.setProperty("log4j.Clock", TurtleLogClock.class.getName());
     }
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
