@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicUtilPrngSuite {
 
     public static final String BOB = "bob";

@@ -46,6 +46,7 @@ import org.junit.jupiter.api.Tag;
  * </ul>
  */
 @Tag(TOKEN)
+//@Tag(MATS)
 public class TokenMetadataSpecs {
     private static final String PRIMARY = "primary";
     private static final String NON_FUNGIBLE_UNIQUE_FINITE = "non-fungible-unique-finite";

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Tag;
  * </ol>
  */
 @Tag(TOKEN)
+//@Tag(MATS)
 public class ThrottleOnDispatchTest {
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},

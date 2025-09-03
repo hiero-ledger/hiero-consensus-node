@@ -109,6 +109,7 @@ public class TokenManagementSpecs {
     public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
         final var CIVILIAN = "civilian";
         final var PAUSE_KEY = "pauseKey";
@@ -286,6 +287,7 @@ public class TokenManagementSpecs {
     // FULLY_NONDETERMINISTIC because in mono-service zero amount token transfers will create a tokenTransferLists
     // with a just tokenNum, in mono-service the tokenTransferLists will be empty
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> zeroUnitTokenOperationsWorkAsExpected() {
         final var civilian = "civilian";
         final var adminKey = "adminKey";
@@ -341,6 +343,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> frozenTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -360,6 +363,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> revokedKYCTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -379,6 +383,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnTokenFailsDueToInsufficientTreasuryBalance() {
         final String BURN_TOKEN = "burn";
         final int TOTAL_SUPPLY = 100;
@@ -409,6 +414,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeAccountSuccessCasesWork() {
         var wipeableToken = "with";
 
@@ -440,6 +446,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeAccountWithAliasesWork() {
         final var initialTokenSupply = 1000;
         return defaultHapiSpec("wipeAccountWithAliasesWork")
@@ -486,6 +493,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeAccountFailureCasesWork() {
         var unwipeableToken = "without";
         var wipeableToken = "with";
@@ -541,6 +549,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> kycMgmtFailureCasesWork() {
         var withoutKycKey = "withoutKycKey";
         var withKycKey = "withKycKey";
@@ -634,6 +643,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> freezeMgmtSuccessCasesWork() {
         var withPlusDefaultFalse = "withPlusDefaultFalse";
 
@@ -660,6 +670,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> kycMgmtSuccessCasesWork() {
         var withKycKey = "withKycKey";
         var withoutKycKey = "withoutKycKey";
@@ -687,6 +698,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> supplyMgmtSuccessCasesWork() {
         return defaultHapiSpec("SupplyMgmtSuccessCasesWork")
                 .given(
@@ -710,6 +722,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> fungibleCommonMaxSupplyReachWork() {
         return defaultHapiSpec("FungibleCommonMaxSupplyReachWork")
                 .given(
@@ -737,6 +750,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintingMaxLongValueWorks() {
         return defaultHapiSpec("MintingMaxLongValueWorks")
                 .given(
@@ -753,6 +767,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> nftMintProvidesMintedNftsAndNewTotalSupply() {
         final var multiKey = "multi";
         final var token = "non-fungible";
@@ -780,6 +795,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> supplyMgmtFailureCasesWork() {
         return defaultHapiSpec("SupplyMgmtFailureCasesWork")
                 .given(newKeyNamed(SUPPLY_KEY))
@@ -798,6 +814,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> requireCorrectSupplyKeys() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

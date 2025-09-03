@@ -85,6 +85,7 @@ import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicBatchTokenServiceEndToEndTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;

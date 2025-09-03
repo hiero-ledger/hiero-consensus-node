@@ -172,6 +172,7 @@ public class AtomicTokenCreateSpecs {
      * automatic associations limit defined by https://hips.hedera.com/hip/hip-23.
      */
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> validateNewTokenAssociations() {
         final String notToBeToken = "notToBeToken";
         final String hbarCollector = "hbarCollector";
@@ -303,6 +304,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationYieldsExpectedToken() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -319,6 +321,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationHappyPath() {
         String memo = "JUMP";
         String saltedName = salted(PRIMARY);
@@ -422,6 +425,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> missingTreasurySignatureFails() {
         String memo = "JUMP";
         String saltedName = salted(PRIMARY);
@@ -516,6 +520,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationSetsCorrectExpiry() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -540,6 +545,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationValidatesExpiry() {
         return hapiTest(atomicBatch(tokenCreate(PRIMARY)
                         .expiry(1000)
@@ -550,6 +556,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationValidatesFreezeDefaultWithNoFreezeKey() {
         return hapiTest(atomicBatch(tokenCreate(PRIMARY)
                         .freezeDefault(true)
@@ -648,6 +655,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeesDividesByZero() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -666,6 +674,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> invalidCustomFeeCollector() {
         final String invalidEntityId = "1.2.786";
         return hapiTest(flattened(
@@ -680,6 +689,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> invalidTokenIdInCustomFees() {
         final String invalidEntityId = "1.2.786";
         return hapiTest(flattened(
@@ -694,6 +704,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenNotAssociatedToFeeCollector() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -707,6 +718,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeNotFullySpecified() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -721,6 +733,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeMustBePositive() {
         final long negativeHtsFee = -100L;
         return hapiTest(flattened(
@@ -735,6 +748,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeDenominatorMustBePositive() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -753,6 +767,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeMinToCollectMustBePositive() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -771,6 +786,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeMinToCollectFractionalMustBePositive() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -789,6 +805,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customFeeNumeratorAndDenominatorMustBePositive() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -807,6 +824,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> fractionalFeeMaxAmountLessThenMinAmount() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -825,6 +843,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customRoyaltyFeeOnlyAllowedForNFT() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -838,6 +857,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customRoyaltyNegativeNumerator() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -854,6 +874,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> customRoyaltyNegativeDenominator() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -870,6 +891,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> royaltyFeeFractionDividesByZero() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -886,6 +908,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> royaltyFractionCannotExceedOne() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -902,6 +925,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> royaltyFeeWithFallbackNegativeFallbackFee() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -919,6 +943,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> royaltyCustomFeesInvalidTokenId() {
         return hapiTest(flattened(
                 onlyValidCustomFeeScheduleBase(),
@@ -936,6 +961,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> feeCollectorSigningReqsWorkForTokenCreate() {
         return hapiTest(
                 newKeyNamed(customFeesKey),
@@ -978,6 +1004,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationValidatesName() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -1002,6 +1029,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationValidatesSymbol() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -1030,6 +1058,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> creationRequiresAppropriateSigs() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -1071,6 +1100,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> initialSupplyMustBeSane() {
         return hapiTest(
                 atomicBatch(tokenCreate("sinking")
@@ -1183,6 +1213,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> deletedAccountCannotBeFeeCollector() {
         final var account = "account";
         return hapiTest(
@@ -1200,6 +1231,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> autoRenewLessThenAMonth() {
         return hapiTest(
                 cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
@@ -1213,6 +1245,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeWithFallback() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
@@ -1239,6 +1272,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeWithFallback() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
@@ -1299,6 +1333,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> withLongMinAutoRenewPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1315,6 +1350,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> withNegativeMinAutoRenewPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1333,6 +1369,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> withNegativeExpiry() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1350,6 +1387,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenCreateWithAutoRenewAccountAndNoPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
@@ -1365,6 +1403,7 @@ public class AtomicTokenCreateSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenCreateWithAutoRenewPeriodAndNoAccount() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),

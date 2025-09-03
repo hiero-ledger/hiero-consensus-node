@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Tag;
  */
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicTokenMetadataSpecs {
 
     private static final String PRIMARY = "primary";

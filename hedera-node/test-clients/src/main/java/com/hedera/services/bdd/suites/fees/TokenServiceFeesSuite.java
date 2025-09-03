@@ -130,6 +130,7 @@ public class TokenServiceFeesSuite {
     private static final String OWNER = "owner";
 
     @HapiTest
+    //@Tag(MATS)
     @DisplayName("charge association fee for FT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForFT() {
         var receiver = "receiver";
@@ -153,6 +154,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     @DisplayName("charge association fee for NFT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForNFT() {
         var receiver = "receiver";
@@ -183,6 +185,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> claimFungibleTokenAirdropBaseFee() {
         var nftSupplyKey = "nftSupplyKey";
         return hapiTest(flattened(
@@ -229,6 +232,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     @DisplayName("cancel airdrop FT happy path")
     final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
         final var account = "account";
@@ -268,6 +272,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     @DisplayName("cancel airdrop NFT happy path")
     final Stream<DynamicTest> cancelAirdropNftHappyPath() {
         var nftSupplyKey = "nftSupplyKey";
@@ -315,6 +320,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenRejectChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -352,6 +358,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseCreationsHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
 
@@ -435,6 +442,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseTokenOperationIsChargedExpectedFee() {
         final var htsAmount = 2_345L;
         final var targetToken = "immutableToken";
@@ -461,6 +469,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseFungibleMintOperationIsChargedExpectedFee() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -478,6 +487,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseNftMintOperationIsChargedExpectedFee() {
         final var standard100ByteMetadata = ByteString.copyFromUtf8(
                 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
@@ -500,6 +510,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> nftMintsScaleLinearlyBasedOnNumberOfSerialNumbers() {
         final var expectedFee = 10 * EXPECTED_NFT_MINT_PRICE_USD;
         final var standard100ByteMetadata = ByteString.copyFromUtf8(
@@ -535,6 +546,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseNftBurnOperationIsChargedExpectedFee() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -555,6 +567,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseGrantRevokeKycChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -581,6 +594,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseNftFreezeUnfreezeChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(TREASURE_KEY),
@@ -616,6 +630,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseCommonFreezeUnfreezeChargedAsExpected() {
         return hapiTest(
                 newKeyNamed(TREASURE_KEY),
@@ -649,6 +664,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> basePauseAndUnpauseHaveExpectedPrices() {
         final var expectedBaseFee = 0.001;
         final var token = "token";
@@ -670,6 +686,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> baseNftWipeOperationIsChargedExpectedFee() {
         return defaultHapiSpec("BaseUniqueWipeOperationIsChargedExpectedFee")
                 .given(
@@ -696,6 +713,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> updateTokenChargedAsExpected() {
         final var expectedUpdatePriceUsd = 0.001;
 
@@ -712,6 +730,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
         final var expectedNftUpdatePriceUsd = 0.001;
         final var nftUpdateTxn = "nftUpdateTxn";
@@ -747,6 +766,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> deleteTokenChargedAsExpected() {
         final var expectedDeletePriceUsd = 0.001;
 
@@ -759,6 +779,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     @DisplayName("FT happy path")
     final Stream<DynamicTest> tokenAssociateDissociateChargedAsExpected() {
         final var account = "account";
@@ -779,6 +800,7 @@ public class TokenServiceFeesSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
         final var expectedNftUpdatePriceUsd = 0.005;
         final var nftUpdateTxn = "nftUpdateTxn";

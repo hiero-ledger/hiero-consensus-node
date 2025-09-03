@@ -145,6 +145,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> finiteNftReachesMaxSupplyProperly() {
         return defaultHapiSpec("FiniteNftReachesMaxSupplyProperly")
                 .given(
@@ -234,6 +235,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("BurnWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -254,6 +256,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnFailsOnInvalidSerialNumber() {
         return defaultHapiSpec("BurnFailsOnInvalidSerialNumber")
                 .given(
@@ -273,6 +276,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnRespectsBurnBatchConstraints() {
         return defaultHapiSpec("BurnRespectsBurnBatchConstraints")
                 .given(
@@ -293,6 +297,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnHappyPath() {
         return defaultHapiSpec("BurnHappyPath")
                 .given(
@@ -316,6 +321,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintFailsOnInvalidSupplyKey() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -338,6 +344,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> burnFailsOnInvalidSupplyKey() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -357,6 +364,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> canOnlyBurnFromTreasury() {
         final var nonTreasury = "anybodyElse";
 
@@ -386,6 +394,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> treasuryBalanceCorrectAfterBurn() {
         return defaultHapiSpec("TreasuryBalanceCorrectAfterBurn")
                 .given(
@@ -415,6 +424,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintDistinguishesFeeSubTypes() {
         return defaultHapiSpec("MintDistinguishesFeeSubTypes")
                 .given(
@@ -454,6 +464,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintFailsWithTooLongMetadata() {
         return defaultHapiSpec("MintFailsWithTooLongMetadata")
                 .given(
@@ -470,6 +481,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintFailsWithInvalidMetadataFromBatch() {
         return defaultHapiSpec("MintFailsWithInvalidMetadataFromBatch")
                 .given(
@@ -487,6 +499,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintFailsWithLargeBatchSize() {
         return defaultHapiSpec("MintFailsWithLargeBatchSize")
                 .given(
@@ -503,6 +516,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenHappyPath() {
         return defaultHapiSpec("MintUniqueTokenHappyPath")
                 .given(
@@ -540,6 +554,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintTokenWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("MintTokenWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -564,6 +579,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintFailsWithDeletedToken() {
         return defaultHapiSpec("MintFailsWithDeletedToken")
                 .given(
@@ -582,6 +598,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoFailsWithNoNft() {
         return defaultHapiSpec("GetTokenNftInfoFailsWithNoNft")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -600,6 +617,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoWorks() {
         return defaultHapiSpec("GetTokenNftInfoWorks")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -624,6 +642,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenWorksWithRepeatedMetadata() {
         return defaultHapiSpec("MintUniqueTokenWorksWithRepeatedMetadata")
                 .given(
@@ -654,6 +673,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeHappyPath() {
         return defaultHapiSpec("WipeHappyPath")
                 .given(
@@ -686,6 +706,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeRespectsConstraints() {
         return defaultHapiSpec("WipeRespectsConstraints")
                 .given(
@@ -712,6 +733,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest // here
+    //@Tag(MATS)
     final Stream<DynamicTest> commonWipeFailsWhenInvokedOnUniqueToken() {
         return defaultHapiSpec("CommonWipeFailsWhenInvokedOnUniqueToken")
                 .given(
@@ -744,6 +766,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest // here
+    //@Tag(MATS)
     final Stream<DynamicTest> uniqueWipeFailsWhenInvokedOnFungibleToken() { // invokes unique wipe on fungible tokens
         return defaultHapiSpec("UniqueWipeFailsWhenInvokedOnFungibleToken")
                 .given(
@@ -769,6 +792,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> wipeFailsWithInvalidSerialNumber() {
         return defaultHapiSpec("WipeFailsWithInvalidSerialNumber")
                 .given(
@@ -850,6 +874,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenDissociateFailsIfAccountOwnsUniqueTokens() {
         return defaultHapiSpec("tokenDissociateFailsIfAccountOwnsUniqueTokens")
                 .given(

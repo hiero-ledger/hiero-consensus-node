@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicTokenUpdateNftsSuite {
 
     private static String TOKEN_TREASURY = "treasury";

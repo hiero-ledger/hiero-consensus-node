@@ -39,6 +39,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+//@Tag(MATS)
 public class TokenDeleteSpecs {
     private static final String FIRST_TBD = "firstTbd";
     private static final String SECOND_TBD = "secondTbd";

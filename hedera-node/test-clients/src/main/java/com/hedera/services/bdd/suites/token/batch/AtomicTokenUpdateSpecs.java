@@ -69,6 +69,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicTokenUpdateSpecs {
 
     private static final int MAX_NAME_LENGTH = 100;

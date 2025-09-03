@@ -67,6 +67,7 @@ import org.junit.jupiter.api.Tag;
  */
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicBatchOverwriteSameStateKeyTest {
 
     private static final String OPERATOR = "operator";

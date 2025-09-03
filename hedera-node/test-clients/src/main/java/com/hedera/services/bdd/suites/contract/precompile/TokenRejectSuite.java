@@ -72,6 +72,7 @@ public class TokenRejectSuite {
     private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenRejectWorksAndAvoidsCustomFees() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -177,6 +178,7 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenRejectCasesWhileFreezeOrPausedOrSigRequired() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -293,6 +295,7 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenRejectInvalidSignaturesAndInvalidAccountOrTokensFailingScenarios() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -392,6 +395,7 @@ public class TokenRejectSuite {
     }
 
     @HapiTest
+    //@Tag(MATS)
     final Stream<DynamicTest> tokenRejectFailsWithInvalidBodyInputsScenarios() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),

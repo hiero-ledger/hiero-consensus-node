@@ -54,6 +54,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+//@Tag(MATS)
 public class AtomicHip17UnhappyTokensSuite {
 
     private static final String ANOTHER_USER = "AnotherUser";
