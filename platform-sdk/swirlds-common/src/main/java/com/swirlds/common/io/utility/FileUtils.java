@@ -433,7 +433,7 @@ public final class FileUtils {
      * @throws IOException if the source does not exist or an I/O error occurs during the operation
      */
     public static void rename(@NonNull final Path source, @NonNull final String newName) throws IOException {
-        Path target = requireNonNull(source).resolveSibling(requireNonNull(newName));
+        final Path target = requireNonNull(source).resolveSibling(requireNonNull(newName));
 
         if (Files.exists(target)) {
             throw new FileAlreadyExistsException(target.toString());
@@ -441,7 +441,7 @@ public final class FileUtils {
 
         try {
             Files.move(source, target, ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
+        } catch (final AtomicMoveNotSupportedException e) {
             Files.move(source, target);
         }
     }
