@@ -8,7 +8,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.network.communication.handshake;
-    exports com.swirlds.platform.cli;
     exports com.swirlds.platform.components;
     exports com.swirlds.platform.components.appcomm;
     exports com.swirlds.platform.components.common.output;
@@ -16,7 +15,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.event.report;
     exports com.swirlds.platform.gui.hashgraph;
     exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
@@ -35,12 +33,10 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.communication;
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
-    exports com.swirlds.platform.recovery;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.stats;
     exports com.swirlds.platform.stats.atomic;
     exports com.swirlds.platform.stats.cycle;
-    exports com.swirlds.platform.state.editor;
     exports com.swirlds.platform.stats.simple;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
@@ -65,7 +61,7 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app,
-            org.hiero.otter.fixtures;
+            org.hiero.otter.fixtures, com.swirlds.cli;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -87,9 +83,6 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             org.hiero.base.utility;
 
-    opens com.swirlds.platform.cli to
-            info.picocli;
-
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
@@ -109,11 +102,11 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
+    exports com.swirlds.platform.event.stream;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.cli;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
@@ -129,7 +122,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.annotation;
     requires transitive com.fasterxml.jackson.databind;
-    requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;

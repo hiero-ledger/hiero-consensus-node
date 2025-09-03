@@ -6,6 +6,7 @@ mainModuleInfo {
     runtimeOnly("com.swirlds.platform.core.test.fixtures")
     runtimeOnly("com.swirlds.merkle")
     runtimeOnly("com.swirlds.merkle.test.fixtures")
+    runtimeOnly("com.swirlds.cli")
 }
 
 application.mainClass.set("com.swirlds.platform.Browser")

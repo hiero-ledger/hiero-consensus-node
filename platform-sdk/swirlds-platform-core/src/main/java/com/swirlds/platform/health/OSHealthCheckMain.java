@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.health;
 
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSClockSpeedReport;
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSEntropyReport;
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSFileSystemReport;
+import static com.swirlds.platform.health.HealthReportUtils.printOSClockSpeedReport;
+import static com.swirlds.platform.health.HealthReportUtils.printOSEntropyReport;
+import static com.swirlds.platform.health.HealthReportUtils.printOSFileSystemReport;
 
 import java.nio.file.Path;
 

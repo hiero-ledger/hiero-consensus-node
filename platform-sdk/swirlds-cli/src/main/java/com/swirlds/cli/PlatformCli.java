@@ -167,6 +167,7 @@ public class PlatformCli extends AbstractCommand {
 
         preParser.runBootstrapFunction();
 
+        whitelistCliPackage("com.swirlds.cli");
         whitelistCliPackage("com.swirlds.platform.cli");
         whitelistCliPackage("com.swirlds.platform.state.editor");
         if (preParser.getCliPackagePrefixes() != null) {

@@ -34,6 +34,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.google.common;
     requires java.desktop;
     requires org.mockito;
+    requires com.swirlds.base.test.fixtures;
 
     exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;

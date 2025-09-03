@@ -14,7 +14,7 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.recovery.RecoveryTestUtils;
+import com.swirlds.platform.test.fixtures.event.ConsensusEventStreamUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
@@ -102,6 +102,6 @@ class ConsensusEventStreamTest {
      * @return a random CesEvent
      */
     private static CesEvent createRandomEvent() {
-        return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
+        return ConsensusEventStreamUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }
