@@ -243,9 +243,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
                 SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
+                subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
+                subProcessNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
             }
         }
     }

@@ -177,6 +177,7 @@ jobs:
       enable-time-consuming-tests: true
       enable-hammer-tests: true
       enable-hapi-tests-time-consuming: true
+      enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
     secrets:
@@ -258,6 +259,18 @@ jobs:
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "JSON-RPC Relay Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
@@ -268,7 +281,7 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-    #  - sdk-tck-regression-panel # currently we are not gating XTS-PASS on TCK Regression Panel success
+      - sdk-tck-regression-panel
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
@@ -323,11 +336,13 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.extended-test-suite.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
+      needs.sdk-tck-regression-panel.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
@@ -471,6 +486,7 @@ jobs:
       needs.abbreviated-panel.result != 'success' ||
       needs.extended-test-suite.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
+      needs.sdk-tck-regression-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 

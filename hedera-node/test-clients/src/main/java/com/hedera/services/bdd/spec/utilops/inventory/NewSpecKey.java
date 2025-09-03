@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,8 +40,10 @@ public class NewSpecKey extends UtilOp {
     @Nullable
     private Consumer<Key> keyObserver;
 
+    // Immediate and lazy export locs should be mutually exclusive; immediate takes precedence
     private Optional<String> immediateExportLoc = Optional.empty();
-    private Optional<String> immediateExportPass = Optional.empty();
+    private Optional<Supplier<String>> lazyExportLoc = Optional.empty();
+    private Optional<String> exportPass = Optional.empty();
     private Optional<KeyType> type = Optional.empty();
     private Optional<SigControl> shape = Optional.empty();
     private Optional<KeyLabels> labels = Optional.empty();
@@ -51,8 +54,16 @@ public class NewSpecKey extends UtilOp {
     }
 
     public NewSpecKey exportingTo(String loc, String pass) {
+        lazyExportLoc = Optional.empty();
         immediateExportLoc = Optional.of(loc);
-        immediateExportPass = Optional.of(pass);
+        exportPass = Optional.of(pass);
+        return this;
+    }
+
+    public NewSpecKey exportingTo(Supplier<String> loc, String pass) {
+        immediateExportLoc = Optional.empty();
+        lazyExportLoc = Optional.of(loc);
+        exportPass = Optional.of(pass);
         return this;
     }
 
@@ -100,7 +111,9 @@ public class NewSpecKey extends UtilOp {
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         if (exportEd25519Mnemonic) {
-            if (!immediateExportLoc.isPresent() || !immediateExportPass.isPresent()) {
+            // Immediate export loc takes precedence over lazy export loc
+            final var exportLoc = immediateExportLoc.orElseGet(lazyExportLoc.orElse(() -> ""));
+            if (exportLoc.isBlank() || exportPass.isEmpty()) {
                 throw new IllegalStateException("Must have an export location for the key info");
             }
 
@@ -116,10 +129,8 @@ public class NewSpecKey extends UtilOp {
             spec.registry().saveKey(name, key);
             spec.keys().incorporate(name, privateKey);
 
-            final var exportLoc = immediateExportLoc.get();
-            final var exportPass = immediateExportPass.get();
             // Note: we should never try to export any ECDSA key here, because ECDSA doesn't use mnemonics
-            exportEd25519WithPass(spec, name, exportLoc, exportPass);
+            exportEd25519WithPass(spec, name, exportLoc, exportPass.get());
             final var wordsLoc = exportLoc.replace(".pem", ".words");
             Files.writeString(Paths.get(wordsLoc), mnemonic);
             return false;
@@ -127,30 +138,31 @@ public class NewSpecKey extends UtilOp {
 
         final var keyGen = generator.orElse(spec.keyGenerator());
         Key key;
+        SigControl finalShape;
         if (shape.isPresent()) {
+            finalShape = shape.get();
             if (labels.isPresent()) {
-                key = spec.keys().generateSubjectTo(spec, shape.get(), keyGen, labels.get());
+                key = spec.keys().generateSubjectTo(spec, finalShape, keyGen, labels.get());
             } else {
-                key = spec.keys().generateSubjectTo(spec, shape.get(), keyGen);
+                key = spec.keys().generateSubjectTo(spec, finalShape, keyGen);
             }
         } else {
+            // If no shape is present, assume ED25519
+            finalShape = SigControl.ED25519_ON;
             key = spec.keys().generate(spec, type.orElse(KeyType.SIMPLE), keyGen);
         }
         spec.registry().saveKey(name, key);
         if (keyObserver != null) {
             keyObserver.accept(key);
         }
-        if (immediateExportLoc.isPresent() && immediateExportPass.isPresent()) {
-            final var exportLoc = immediateExportLoc.get();
-            final var exportPass = immediateExportPass.get();
-            if (shape.get() == SigControl.SECP256K1_ON) {
-                exportEcdsaWithPass(spec, name, exportLoc, exportPass);
-            } else {
-                exportEd25519WithPass(spec, name, exportLoc, exportPass);
-            }
-            if (verboseLoggingOn && yahcliLogger) {
-                System.out.println(".i. Exported a newly generated key in PEM format to " + exportLoc);
-            }
+        // Immediate export loc takes precedence over lazy export loc
+        final var exportLoc = (immediateExportLoc.isPresent() && exportPass.isPresent())
+                ? immediateExportLoc.get()
+                : (lazyExportLoc.isPresent() && exportPass.isPresent()
+                        ? lazyExportLoc.get().get()
+                        : null);
+        if (exportLoc != null) {
+            exportKeyWithPass(spec, finalShape, exportPass.get(), exportLoc);
         }
         if (verboseLoggingOn && !yahcliLogger) {
             if (type.orElse(KeyType.SIMPLE) == KeyType.SIMPLE) {
@@ -165,6 +177,19 @@ public class NewSpecKey extends UtilOp {
         return false;
     }
 
+    private void exportKeyWithPass(
+            final HapiSpec spec, final SigControl shape, final String exportPass, final String exportLoc)
+            throws IOException {
+        if (shape == SigControl.SECP256K1_ON) {
+            exportEcdsaWithPass(spec, name, exportLoc, exportPass);
+        } else {
+            exportEd25519WithPass(spec, name, exportLoc, exportPass);
+        }
+        if (verboseLoggingOn && yahcliLogger) {
+            System.out.println(".i. Exported a newly generated key in PEM format to " + exportLoc);
+        }
+    }
+
     static void exportEcdsaWithPass(HapiSpec spec, String name, String exportLoc, String exportPass)
             throws IOException {
         exportWithPass(spec, name, exportLoc, exportPass, kf -> kf.exportEcdsaKey(name, exportLoc, exportPass));
@@ -172,10 +197,10 @@ public class NewSpecKey extends UtilOp {
 
     static void exportEd25519WithPass(HapiSpec spec, String name, String exportLoc, String exportPass)
             throws IOException {
-        exportWithPass(spec, name, exportLoc, exportPass, kf -> kf.exportEd25519Key(exportLoc, name, exportPass));
+        exportWithPass(spec, name, exportLoc, exportPass, kf -> kf.exportEd25519Key(name, exportLoc, exportPass));
     }
 
-    static void exportWithPass(
+    private static void exportWithPass(
             HapiSpec spec, String name, String exportLoc, String exportPass, Consumer<KeyFactory> export)
             throws IOException {
         export.accept(spec.keys());

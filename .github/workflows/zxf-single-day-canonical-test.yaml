@@ -18,24 +18,38 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   canonical-test:
     name: Canonical
     runs-on: hiero-citr-linux-medium
 
-    permissions:
-      contents: read
-      id-token: write
-
     timeout-minutes: 90 # max one hour timeout
+
+    outputs:
+      harden-runner: ${{ steps.harden-runner.outcome }}
+      checkout-code: ${{ steps.checkout-code.outcome }}
+      gcloud-auth: ${{ steps.gcloud-auth.outcome }}
+      setup-gcloud: ${{ steps.setup-gcloud.outcome }}
+      install-tools: ${{ steps.install-tools.outcome }}
+      parameters: ${{ steps.parameters.outcome }}
+      check-if-exist: ${{ steps.check-if-exist.outcome }}
+      start-canonical-test: ${{ steps.start-canonical-test.outcome }}
+      summary: ${{ steps.summary.outcome }}
+      commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
 
     steps:
       - name: Harden Runner
+        id: harden-runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
+        id: checkout-code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
@@ -44,6 +58,7 @@ jobs:
           persist-credentials: false
 
       - name: Authenticate to Google Cloud
+        id: gcloud-auth
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
@@ -52,12 +67,14 @@ jobs:
           create_credentials_file: true
 
       - name: Setup Google Cloud SDK
+        id: setup-gcloud
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         with:
           version: "latest"
           install_components: "gsutil"
 
       - name: Install Utility Tools
+        id: install-tools
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -102,6 +119,7 @@ jobs:
             TAG_COMMIT_SHORT="${TAG_COMMIT_SHA:0:8}"
             BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
             log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
+            echo "sha=${TAG_COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
           fi
           log_pass "Parameter verification completed"
           echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
@@ -220,6 +238,7 @@ jobs:
           fi
 
       - name: Summary
+        id: summary
         if: always()
         run: |-
           # log functions
@@ -264,3 +283,104 @@ jobs:
               echo "2. Review the test script for any issues"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  report-failures:
+    name: Report Failures to Rootly
+    needs: canonical-test
+    if: ${{ needs.canonical-test.result != 'success' }}
+    runs-on: hiero-citr-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Rootly Service
+        id: set-rootly-service
+        run: |
+          ROOTLY_SERVICE="CITR SDCT"
+          if [[ "${{ needs.canonical-test.outputs.harden-runner }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.canonical-test.outputs.checkout-code }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.canonical-test.outputs.gcloud-auth }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.canonical-test.outputs.setup-gcloud }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.canonical-test.outputs.install-tools }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.canonical-test.outputs.summary }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Incident Creation Flag
+        id: set-create-incident
+        run: |
+          CREATE_INCIDENT="false"
+          if [[ "${{ needs.canonical-test.outputs.start-canonical-test }}" == "failure" ]] \
+            || [[ "${{ needs.canonical-test.outputs.check-if-exist }}" == "failure" ]] \
+            || [[ "${{ needs.canonical-test.outputs.parameters }}" == "failure" ]]; then
+            CREATE_INCIDENT="true"
+          fi
+          echo "create=${CREATE_INCIDENT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The SDCT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "- Harden Runner: ${{ needs.canonical-test.outputs.harden-runner }}"
+            echo "- Checkout Code: ${{ needs.canonical-test.outputs.checkout-code }}"
+            echo "- GCloud Auth: ${{ needs.canonical-test.outputs.gcloud-auth }}"
+            echo "- Setup GCloud: ${{ needs.canonical-test.outputs.setup-gcloud }}"
+            echo "- Install Tools: ${{ needs.canonical-test.outputs.install-tools }}"
+            echo "- Parameters: ${{ needs.canonical-test.outputs.parameters }}"
+            echo "- Check Artifact: ${{ needs.canonical-test.outputs.check-if-exist }}"
+            echo "- Start Canonical Test: ${{ needs.canonical-test.outputs.start-canonical-test }}"
+            echo "- Summary: ${{ needs.canonical-test.outputs.summary }}"
+            echo "------------------------------------"
+            echo "Commit Information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}
+            echo "- Tag: ${{ inputs.build-tag }}"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create Rootly Incident
+        if: ${{ steps.set-create-incident.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          title: "${{ steps.rootly-summary.outputs.title }}"
+          kind: "normal"
+          create_public_incident: "false"
+          summary: "${{ steps.rootly-summary.outputs.summary }}"
+          severity: "Triage Event"
+          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
+          environments: "CITR"
+          incident_types: "Platform CI,Performance Engineering"
+          services: ${{ steps.set-rootly-service.outputs.service }}
+          teams: "Platform CI,Performance Engineering"
