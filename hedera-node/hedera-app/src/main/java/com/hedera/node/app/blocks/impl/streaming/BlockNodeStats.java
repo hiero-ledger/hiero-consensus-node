@@ -22,6 +22,15 @@ public class BlockNodeStats {
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
 
     /**
+     * Returns the current count of EndOfStream events tracked.
+     *
+     * @return the number of EndOfStream events currently tracked
+     */
+    public int getEndOfStreamCount() {
+        return endOfStreamTimestamps.size();
+    }
+
+    /**
      * Adds a new EndOfStream event timestamp, prunes any old timestamps that are outside the time window,
      * and then checks if the number of EndOfStream events exceeds the configured maximum.
      *

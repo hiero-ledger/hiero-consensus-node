@@ -5,6 +5,7 @@ import com.hedera.services.yahcli.commands.accounts.AccountsCommand;
 import com.hedera.services.yahcli.commands.accounts.SetupStakeCommand;
 import com.hedera.services.yahcli.commands.fees.FeesCommand;
 import com.hedera.services.yahcli.commands.files.SysFilesCommand;
+import com.hedera.services.yahcli.commands.ivy.IvyCommand;
 import com.hedera.services.yahcli.commands.keys.KeysCommand;
 import com.hedera.services.yahcli.commands.nodes.NodesCommand;
 import com.hedera.services.yahcli.commands.schedules.ScheduleCommand;
@@ -41,7 +42,8 @@ import picocli.CommandLine.Spec;
             TelemetryUpgradeCommand.class,
             VersionInfoCommand.class,
             SetupStakeCommand.class,
-            NodesCommand.class
+            NodesCommand.class,
+            IvyCommand.class,
         },
         description = "Performs DevOps-type actions against a Hedera Services network")
 public class Yahcli implements Callable<Integer> {

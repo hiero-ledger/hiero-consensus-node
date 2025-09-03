@@ -203,15 +203,6 @@ public class BlockNodeSimulatorController {
     }
 
     /**
-     * Get the number of simulated block nodes being controlled.
-     *
-     * @return the number of simulated block nodes
-     */
-    public int getSimulatorCount() {
-        return simulatedBlockNodes.size();
-    }
-
-    /**
      * Shutdown all simulated block nodes to simulate connection drops.
      * The servers can be restarted using {@link #startAllSimulators()}.
      */
@@ -276,7 +267,8 @@ public class BlockNodeSimulatorController {
 
             // Create a new server on the same port
             final long lastVerifiedBlockNumber = lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L);
-            final SimulatedBlockNodeServer newServer = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumber);
+            final SimulatedBlockNodeServer newServer =
+                    new SimulatedBlockNodeServer(port, () -> lastVerifiedBlockNumber);
             newServer.start();
 
             // Replace the old server in the list

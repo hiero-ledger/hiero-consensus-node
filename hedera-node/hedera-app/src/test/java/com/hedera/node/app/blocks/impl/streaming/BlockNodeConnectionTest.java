@@ -43,7 +43,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
-
     private static final VarHandle isStreamingEnabledHandle;
 
     static {
@@ -284,6 +283,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).incrementEndOfStreamCount(responseCode);
         verify(requestPipeline).onComplete();
         verify(connectionManager).recordEndOfStreamAndCheckLimit(nodeConfig);
+        verify(connectionManager).currentStreamingBlockNumber();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
         verify(connectionManager).restartConnection(connection, 11L);
@@ -321,6 +321,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
         verify(requestPipeline).onComplete();
         verify(connectionManager).recordEndOfStreamAndCheckLimit(nodeConfig);
+        verify(connectionManager).currentStreamingBlockNumber();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).restartConnection(connection, 11L);
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
@@ -457,7 +458,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testSendRequest() {
         openConnectionAndResetMocks();
-
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -511,7 +511,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(ONCE_PER_DAY_MILLIS), // period
                         eq(TimeUnit.MILLISECONDS));
 
-        connection.close();
+        connection.close(true);
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
 
@@ -536,7 +536,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(ONCE_PER_DAY_MILLIS), // period
                         eq(TimeUnit.MILLISECONDS));
 
-        connection.close();
+        connection.close(true);
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
 
@@ -571,7 +571,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnCompleted_streamClosingInProgress() {
         openConnectionAndResetMocks();
-        connection.close(); // call this so we mark the connection as closing
+        connection.close(true); // call this so we mark the connection as closing
         resetMocks();
 
         connection.onComplete();

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.readUnknownTypeKeyFrom;
+import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSources;
 import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
@@ -19,6 +21,7 @@ import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -27,16 +30,19 @@ import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.function.Function;
@@ -116,8 +122,55 @@ public class HapiSpecSetup {
     }
 
     /**
+     * Tries to load a private key from a file, which may either be a PEM file or a BIP-0032 mnemonic file; or, as
+     * a last resort, a hexed ECDSA key.
+     * @param f the file to load the key from
+     * @param passphraseEnvVar if available the environment variable that may contain the passphrase for a PEM file
+     * @return the loaded private key
+     */
+    public static PrivateKey loadKeyOrThrow(@NonNull final File f, @Nullable final String passphraseEnvVar) {
+        final var path = f.getAbsolutePath();
+        if (path.endsWith("pem")) {
+            final var passphrase = getPassphrase(f, passphraseEnvVar).orElseThrow();
+            return readUnknownTypeKeyFrom(f, passphrase);
+        } else if (path.endsWith("words")) {
+            final var mnemonic = Bip0032.mnemonicFromFile(path);
+            return mnemonicToEd25519Key(mnemonic);
+        } else {
+            try {
+                final var hexed = Files.readString(f.toPath()).trim();
+                readECKeyFrom(CommonUtils.unhex(hexed));
+            } catch (Exception ignore) {
+            }
+            throw new IllegalArgumentException("Unable to load a key from " + path);
+        }
+    }
+
+    /**
+     * If there is a passphrase environment variable, and it is set, return that.  Otherwise, if there is a
+     * a passphrase file next to the given PEM file, return that. Otherwise, return empty.
+     * @param pemFile the PEM file to look next to for a passphrase file
+     * @param passphraseEnvVar if available the environment variable that may contain the passphrase for a PEM file
+     * @return the passphrase, if available
+     */
+    private static Optional<String> getPassphrase(
+            @NonNull final File pemFile, @Nullable final String passphraseEnvVar) {
+        String fromEnv;
+        if (passphraseEnvVar != null && (fromEnv = System.getenv(passphraseEnvVar)) != null) {
+            return Optional.of(fromEnv);
+        }
+        final var optPassFile = AccessoryUtils.passFileFor(pemFile);
+        if (optPassFile.isPresent()) {
+            try {
+                return Optional.of(Files.readString(optPassFile.get().toPath()).trim());
+            } catch (IOException ignore) {
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Returns the Ed25519 private key for the default payer in this spec setup.  This method will only return an Ed25519 key if the default payer key does point to an Ed25519 key
-     *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
     private EdDSAPrivateKey payerKeyAsEd25519() {

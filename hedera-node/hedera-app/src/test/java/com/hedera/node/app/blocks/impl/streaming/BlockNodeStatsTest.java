@@ -29,5 +29,6 @@ class BlockNodeStatsTest {
                 .isFalse();
         assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
                 .isTrue();
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(3);
     }
 }
