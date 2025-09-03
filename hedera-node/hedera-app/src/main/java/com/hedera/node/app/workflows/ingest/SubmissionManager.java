@@ -2,9 +2,11 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
@@ -13,6 +15,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StatsConfig;
 import com.hedera.node.config.types.Profile;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -20,6 +23,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The {@code SubmissionManager} submits transactions to the platform. As this is an honest node, it makes a strong
@@ -61,8 +65,8 @@ public class SubmissionManager {
 
     // FUTURE Consider adding a metric to keep track of the number of duplicate transactions submitted by users.
 
-    /** The {@link Platform} to which transactions will be submitted */
-    private final Platform platform;
+    /** The transaction pool to which transactions will be submitted */
+    private final TransactionPoolNexus transactionPool;
 
     /** Metrics related to submissions */
     private final SpeedometerMetric platformTxnRejections;
@@ -74,18 +78,18 @@ public class SubmissionManager {
     /**
      * Create a new {@code SubmissionManager} instance.
      *
-     * @param platform the {@link Platform} to which transactions will be submitted
+     * @param transactionPool transaction pool which transactions will be submitted
      * @param deduplicationCache used to prevent submission of duplicate transactions
      * @param configProvider the {@link ConfigProvider}
      * @param metrics             metrics related to submissions
      */
     @Inject
     public SubmissionManager(
-            @NonNull final Platform platform,
+            @NonNull final TransactionPoolNexus transactionPool,
             @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
-        this.platform = requireNonNull(platform);
+        this.transactionPool = requireNonNull(transactionPool);
         this.submittedTxns = requireNonNull(deduplicationCache);
         this.configProvider = requireNonNull(configProvider);
 
@@ -149,9 +153,29 @@ public class SubmissionManager {
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
             // or while the system is being shut down. In any event, the user will receive an error code indicating
             // that the transaction was not submitted and they can retry.
-            final var success = platform.createTransaction(payload.toByteArray());
+
+            final var success = transactionPool.submitApplicationTransaction(payload);
             if (success) {
                 submittedTxns.add(txId);
+
+                if (txBody.hasAtomicBatch()
+                        && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
+                    final var transactions = txBody.atomicBatchOrThrow().transactions();
+                    for (final Bytes buffer : transactions) {
+                        try {
+                            final var signedTransaction =
+                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
+                            final var body = TransactionBody.PROTOBUF.parseStrict(
+                                    signedTransaction.bodyBytes().toReadableSequentialData());
+                            final var innerTxnId = body.transactionIDOrThrow();
+                            submittedTxns.add(innerTxnId);
+                        } catch (ParseException e) {
+                            // This should never happen. All inner batch transactions should be validated by the
+                            // IngestChecker before they get submitted here.
+                            throw new PreCheckException(INVALID_TRANSACTION);
+                        }
+                    }
+                }
             } else {
                 platformTxnRejections.cycle();
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);

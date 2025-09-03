@@ -15,13 +15,15 @@ public record OpsDurationSchedule(
         long precompileGasBasedDurationMultiplier,
         /* Gas multiplier for system contracts */
         long systemContractGasBasedDurationMultiplier,
+        /* Gas multiplier for account lazy creation (see `ProxyWorldUpdater.tryLazyCreation`) */
+        long accountLazyCreationOpsDurationMultiplier,
         /* Denominator for all above multipliers (to be able to configure fractional multipliers) */
         long multipliersDenominator) {
 
     private static final long DEFAULT_MULTIPLIERS_DENOMINATOR = 100;
 
     public static OpsDurationSchedule empty() {
-        return new OpsDurationSchedule(new long[256], 1, 1, 1, 1);
+        return new OpsDurationSchedule(new long[256], 0, 0, 0, 0, 1);
     }
 
     public static OpsDurationSchedule fromConfig(@NonNull final OpsDurationConfig opsDurationConfig) {
@@ -47,6 +49,7 @@ public record OpsDurationSchedule(
                 opsDurationConfig.opsGasBasedDurationMultiplier(),
                 opsDurationConfig.precompileGasBasedDurationMultiplier(),
                 opsDurationConfig.systemContractGasBasedDurationMultiplier(),
+                opsDurationConfig.accountLazyCreationOpsDurationMultiplier(),
                 DEFAULT_MULTIPLIERS_DENOMINATOR);
     }
 
@@ -57,6 +60,7 @@ public record OpsDurationSchedule(
                 && opsGasBasedDurationMultiplier == that.opsGasBasedDurationMultiplier
                 && precompileGasBasedDurationMultiplier == that.precompileGasBasedDurationMultiplier
                 && systemContractGasBasedDurationMultiplier == that.systemContractGasBasedDurationMultiplier
+                && accountLazyCreationOpsDurationMultiplier == that.accountLazyCreationOpsDurationMultiplier
                 && Arrays.equals(opsDurationByOpCode, that.opsDurationByOpCode);
     }
 
@@ -67,6 +71,7 @@ public record OpsDurationSchedule(
                 opsGasBasedDurationMultiplier,
                 precompileGasBasedDurationMultiplier,
                 systemContractGasBasedDurationMultiplier,
+                accountLazyCreationOpsDurationMultiplier,
                 multipliersDenominator);
     }
 }

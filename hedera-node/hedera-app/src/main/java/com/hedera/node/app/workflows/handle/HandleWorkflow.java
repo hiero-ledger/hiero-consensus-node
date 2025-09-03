@@ -55,6 +55,9 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
@@ -84,8 +87,6 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -94,6 +95,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -146,6 +148,7 @@ public class HandleWorkflow {
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
+    private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -158,6 +161,8 @@ public class HandleWorkflow {
     private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag whether the 0.65 system account cleanup has been done; can be removed after that release
+    private boolean systemAccountCleanupDone;
 
     @Inject
     public HandleWorkflow(
@@ -189,7 +194,8 @@ public class HandleWorkflow {
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -223,6 +229,7 @@ public class HandleWorkflow {
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
+        this.apiProviders = requireNonNull(apiProviders);
     }
 
     /**
@@ -258,13 +265,15 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
-        // Dispatch transplant updates for the nodes in override network (non-prod environments)
-        if (!checkedForTransplant) {
+        // Dispatch transplant updates for the nodes in override network (non-prod environments);
+        // ensure we don't do this in the same round as externalizing migration state changes to
+        // avoid complicated edge cases in setting consensus times for block items
+        if (migrationStateChanges.isEmpty() && !checkedForTransplant) {
             boolean dispatchedTransplantUpdates = false;
             try {
                 final var now = streamMode == RECORDS
                         ? round.getConsensusTimestamp()
-                        : blockStreamManager.lastUsedConsensusTime().plusNanos(1);
+                        : round.iterator().next().getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
@@ -522,6 +531,11 @@ public class HandleWorkflow {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
             }
+        } else {
+            if (!systemAccountCleanupDone) {
+                // Ensure the system account cleanup is finished post-upgrade
+                systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
+            }
         }
         final var userTxn =
                 parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
@@ -620,7 +634,7 @@ public class HandleWorkflow {
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     consensusNow,
-                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore));
+                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction

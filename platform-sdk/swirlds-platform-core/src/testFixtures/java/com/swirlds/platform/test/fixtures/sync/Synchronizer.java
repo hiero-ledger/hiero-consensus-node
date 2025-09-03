@@ -74,8 +74,6 @@ public class Synchronizer {
                         listener.getConnection().disconnect();
                         throw e;
                     }
-                    // ignored
-                    return null;
                 });
     }
 }

@@ -2,15 +2,15 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerNode.GOSSIP_PORT;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.gossip.config.GossipConfig_;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -18,7 +18,6 @@ import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -29,23 +28,29 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.otter.fixtures.InstrumentedNode;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
+import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
  * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment. This class provides a
- * basic structure for a container network, but does not implement all functionalities yet.
+ * basic structure for a container network but does not implement all functionalities yet.
  */
 public class ContainerNetwork extends AbstractNetwork {
 
+    /** The format for node identifiers in the network. */
     public static final String NODE_IDENTIFIER_FORMAT = "node-%d";
+
+    private static final int GOSSIP_PORT = 5777;
 
     private static final Logger log = LogManager.getLogger();
 
@@ -57,9 +62,11 @@ public class ContainerNetwork extends AbstractNetwork {
     private final RegularTimeManager timeManager;
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
-    private final List<ContainerNode> nodes = new ArrayList<>();
-    private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
     private final ImageFromDockerfile dockerImage;
+    private final Topology topology = new MeshTopologyImpl(this::createContainerNodes);
+
+    private ToxiproxyContainer toxiproxyContainer;
+    private NetworkBehavior networkBehavior;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -78,6 +85,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+        transactionGenerator.setNodesSupplier(topology::nodes);
     }
 
     /**
@@ -111,8 +119,12 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+        networkBehavior.onConnectionsChanged(topology.nodes(), connections);
+    }
+
     @NonNull
-    public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
+    private List<ContainerNode> createContainerNodes(final int count) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
         final List<RosterEntry> rosterEntries = new ArrayList<>();
@@ -144,11 +156,23 @@ public class ContainerNetwork extends AbstractNetwork {
         final List<ContainerNode> newNodes = sortedNodeIds.stream()
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
-        nodes.addAll(newNodes);
 
-        transactionGenerator.setNodesSupplier(() -> publicNodes);
+        // set up the toxiproxy container and network behavior
+        toxiproxyContainer = new ToxiproxyContainer(network);
+        toxiproxyContainer.start();
+        final String toxiproxyHost = toxiproxyContainer.getHost();
+        final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
+        final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
+        networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
+        for (final ContainerNode sender : newNodes) {
+            final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
+                    .filter(receiver -> !receiver.equals(sender))
+                    .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
+                    .toList();
+            sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+        }
 
-        return newNodes.stream().map(Node.class::cast).toList();
+        return newNodes;
     }
 
     private ContainerNode createContainerNode(
@@ -157,6 +181,15 @@ public class ContainerNetwork extends AbstractNetwork {
         final ContainerNode node = new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Topology topology() {
+        return topology;
     }
 
     @NonNull
@@ -188,32 +221,15 @@ public class ContainerNetwork extends AbstractNetwork {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InstrumentedNode addInstrumentedNode() {
-        throw new UnsupportedOperationException("InstrumentedNode is not implemented yet!");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public List<Node> nodes() {
-        return publicNodes;
-    }
-
-    /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */
     void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        for (final ContainerNode node : nodes) {
-            node.destroy();
+        topology.nodes().forEach(node -> ((ContainerNode) node).destroy());
+        if (toxiproxyContainer != null) {
+            toxiproxyContainer.stop();
         }
     }
 }

@@ -65,6 +65,7 @@ import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -146,7 +147,7 @@ class ThrottleAccumulatorTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private ThrottleMetrics throttleMetrics;

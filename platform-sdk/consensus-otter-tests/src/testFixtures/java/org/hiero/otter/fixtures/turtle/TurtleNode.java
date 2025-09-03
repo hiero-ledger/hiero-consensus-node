@@ -14,12 +14,9 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -55,9 +52,9 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -72,7 +69,6 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -81,6 +77,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    /** The thread context key for the node ID. */
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
     private final Randotron randotron;
@@ -101,6 +98,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     @Nullable
     private Platform platform;
+
+    @Nullable
+    private OtterExecutionLayer executionLayer;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -167,7 +167,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
         throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
@@ -220,8 +220,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
+            assert executionLayer != null; // executionLayer must be initialized
 
-            platform.createTransaction(transaction);
+            executionLayer.submitApplicationTransaction(transaction);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -279,7 +280,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    @NonNull
+    public SingleNodeReconnectResult newReconnectResult() {
         throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 
@@ -313,10 +315,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
@@ -386,8 +386,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
-                APP_NAME,
-                SWIRLD_NAME,
+                OtterApp.APP_NAME,
+                OtterApp.SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
@@ -398,9 +398,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
+        this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                        APP_NAME,
-                        SWIRLD_NAME,
+                        OtterApp.APP_NAME,
+                        OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
                         OtterApp.INSTANCE,
@@ -412,8 +414,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
-                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()))
+                .withExecutionLayer(executionLayer)
                 .withModel(model)
                 .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
 

@@ -55,7 +55,7 @@ public class HappyPathTest {
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
 
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
