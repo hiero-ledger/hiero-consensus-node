@@ -144,6 +144,7 @@ public final class EventRecoveryWorkflow {
         }
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
+        // FUTURE-WORK: Follow Browser approach
         final SwirldMain<? extends MerkleNodeState> hederaApp =
                 HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 

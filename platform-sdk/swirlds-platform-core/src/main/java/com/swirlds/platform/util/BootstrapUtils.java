@@ -283,7 +283,7 @@ public final class BootstrapUtils {
      * @param appLoader     an object capable of loading the app
      * @return the new app main
      */
-    public static @NonNull SwirldMain buildAppMain(
+    public static @NonNull SwirldMain<? extends MerkleNodeState> buildAppMain(
             @NonNull final ApplicationDefinition appDefinition, @NonNull final SwirldAppLoader appLoader) {
         requireNonNull(appDefinition);
         requireNonNull(appLoader);
@@ -390,6 +390,7 @@ public final class BootstrapUtils {
      * @return a map from nodeIds to {@link SwirldMain} instances
      */
     @NonNull
+    @SuppressWarnings("rawtypes")
     public static Map<NodeId, SwirldMain> loadSwirldMains(
             @NonNull final ApplicationDefinition appDefinition, @NonNull final Collection<NodeId> nodesToRun) {
         requireNonNull(appDefinition, "appDefinition must not be null");
@@ -422,6 +423,23 @@ public final class BootstrapUtils {
             return appMains;
         } catch (final Exception ex) {
             throw new RuntimeException("Error loading SwirldMains", ex);
+        }
+    }
+
+    /**
+     * Build the app main.
+     *
+     * @param appDefinition the app definition
+     * @return the new app main
+     */
+    public static SwirldMain<? extends MerkleNodeState> getSwirldMain(final ApplicationDefinition appDefinition) {
+        try {
+            final var appLoader =
+                    SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
+            ConstructableRegistry.getInstance().registerConstructables("", appLoader.getClassLoader());
+            return buildAppMain(appDefinition, appLoader);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

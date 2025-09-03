@@ -5,7 +5,6 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
-import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -31,7 +30,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
-import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -41,6 +39,7 @@ import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -244,11 +243,10 @@ public class CrystalTransplantCommand extends AbstractCommand {
         }
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        final SwirldMain<? extends MerkleNodeState> appMain = appMain(appDefinition, platformStateFacade);
 
+        final SwirldMain<? extends MerkleNodeState> appMain = BootstrapUtils.getSwirldMain(appDefinition);
         if (appMain == null) {
-            System.out.printf("Could not load application main %s %n", appDefinition);
-            System.exit(RETURN_CODE_ERROR);
+            return null;
         }
 
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
@@ -276,20 +274,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                     state.get().getState().getRoot());
             return new StateInformation(
                     state.get().getRound(), state.get().getRoster(), newHash, savedStateFiles.getFirst());
-        }
-    }
-
-    private SwirldMain<? extends MerkleNodeState> appMain(
-            final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
-        try {
-            if (HederaUtils.HEDERA_MAIN.equals(appDefinition.getMainClassName())) {
-                return HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
-            } else {
-                return loadAppMain(appDefinition.getMainClassName());
-            }
-        } catch (final Exception e) {
-            System.err.println("Error loading app main " + e.getMessage());
-            return null;
         }
     }
 
