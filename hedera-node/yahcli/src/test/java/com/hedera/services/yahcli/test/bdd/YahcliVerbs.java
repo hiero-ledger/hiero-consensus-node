@@ -25,11 +25,8 @@ public class YahcliVerbs {
             Pattern.compile("SUCCESS - account \\d+\\.\\d+\\.\\d+ updated, now staked to NODE (\\d+)");
     private static final Pattern NEW_ACCOUNT_STAKE_PATTERN =
             Pattern.compile("SUCCESS - account \\d+\\.\\d+\\.\\d+ updated, now staked to ACCOUNT \\d+\\.\\d+\\.(\\d+)");
-
     private static final Pattern NEW_KEY_PATTERN = Pattern.compile("The public key is:\\s*([a-fA-F0-9]+)");
-
     private static final Pattern KEY_PRINT_PATTERN = Pattern.compile("The public key @ [^ ]+ is *:\\s*([a-fA-F0-9]+)");
-
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();

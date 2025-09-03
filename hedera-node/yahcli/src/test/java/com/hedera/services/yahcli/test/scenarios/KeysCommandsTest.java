@@ -36,6 +36,7 @@ public class KeysCommandsTest {
         final var publicKey = new AtomicReference<String>();
         return hapiTest(
                 yahcliKeys("gen-new", "-p", KEY_NAME + ".pem").exposingOutputTo(newKeyCapturer(publicKey::set)),
+                // FUTURE: add some validation of the key files themselves
                 sourcingContextual(spec -> yahcliKeys("print-keys", "-p", "newKey.pem")
                         .exposingOutputTo(keyPrintCapturer(printedKey ->
                                 assertEquals(publicKey.get(), printedKey, "should print the same key")))));
