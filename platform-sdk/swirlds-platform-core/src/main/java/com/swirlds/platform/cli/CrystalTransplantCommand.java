@@ -327,7 +327,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 list.forEach(f -> {
                     try {
                         FileUtils.deleteDirectory(f);
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         System.exit(RETURN_CODE_ERROR);
                     }
                 });
@@ -337,7 +337,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 }
             }
 
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.err.printf("Unable to move state files from:%s to:%s. %s %n", sourceDir, targetStateDir, e);
             System.exit(RETURN_CODE_ERROR);
         }
@@ -371,7 +371,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         try {
             FileUtils.deleteDirectory(targetPcesDir);
             FileUtils.copyDirectory(sourcePcesDir, targetPcesDir);
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.err.printf("Unable to move PCES files from:%s to:%s. %s %n", sourcePcesDir, targetPcesDir, e);
             System.exit(RETURN_CODE_PROMPT_NO);
         }
@@ -491,7 +491,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             try (final var fin = Files.newInputStream(path)) {
                 final var network = Network.JSON.parse(new ReadableStreamingData(fin));
                 return RosterUtils.rosterFrom(network);
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 System.err.printf("Failed to load %s network info from %s%n", path.toAbsolutePath(), e);
             }
         }
