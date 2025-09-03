@@ -28,10 +28,10 @@ public class SignCommand implements Callable<Integer> {
     String scheduleId;
 
     @CommandLine.Option(
-            names = {"-k", "--signer-keys"},
-            paramLabel = "path to the keys file",
+            names = {"-k", "--key"},
+            paramLabel = "path to the key file",
             defaultValue = "<N/A>")
-    String keysLoc;
+    String keyLoc;
 
     @Override
     public Integer call() throws Exception {
@@ -39,7 +39,7 @@ public class SignCommand implements Callable<Integer> {
 
         final var normalizedScheduleId = normalizePossibleIdLiteral(config, scheduleId);
         final var effectiveScheduleId = normalizedScheduleId != null ? normalizedScheduleId : "";
-        var delegate = new ScheduleSuite(config, effectiveScheduleId, keysLoc);
+        var delegate = new ScheduleSuite(config, effectiveScheduleId, keyLoc);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

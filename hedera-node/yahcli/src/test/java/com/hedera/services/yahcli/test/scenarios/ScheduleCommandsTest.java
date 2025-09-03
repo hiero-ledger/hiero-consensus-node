@@ -21,15 +21,14 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliScheduleSign
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.KeyList;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -151,7 +150,6 @@ public class ScheduleCommandsTest {
                                 String.valueOf(scheduleNum.get()),
                                 "-k",
                                 accountKeyPath(String.valueOf(accountNumS.get()))))),
-
                 doingContextual(spec -> allRunFor(
                         spec,
                         getAccountInfo(String.valueOf(accountNumR.get())).exposingKeyTo(keyR::set),
@@ -159,14 +157,17 @@ public class ScheduleCommandsTest {
                         getAccountInfo(String.valueOf(accountNumS.get())).exposingKeyTo(actualKeyS::set),
                         // print account info S
                         yahcliAccounts("info", String.valueOf(accountNumS.get())))),
-
                 doingContextual(spec -> {
                     // compose expected key form R and T account keys
-                    final var expectedKey = Key.newBuilder().setKeyList(KeyList.newBuilder().addKeys(keyR.get()).addKeys(keyT.get()).build()).build();
+                    final var expectedKey = Key.newBuilder()
+                            .setKeyList(KeyList.newBuilder()
+                                    .addKeys(keyR.get())
+                                    .addKeys(keyT.get())
+                                    .build())
+                            .build();
                     // validate actual key
                     assertEquals(actualKeyS.get(), expectedKey, "Wrong key!");
-                })
-        );
+                }));
     }
 
     // Helpers

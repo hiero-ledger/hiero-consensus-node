@@ -168,10 +168,24 @@ public class Yahcli implements Callable<Integer> {
         return nodeIpv4Addr;
     }
 
+    /**
+     * Sets a callback function that will be invoked with the HapiSpecRegistry after command execution.
+     * The sub command and corresponding suite should accept the callback and set it to corresponding spec.
+     * This allows for extracting registry data after operations complete.
+     *
+     * @param registryCb the callback function to invoke with the registry after operation completion
+     */
     public void setRegistryCb(Consumer<HapiSpecRegistry> registryCb) {
         this.registryCallback = registryCb;
     }
 
+    /**
+     * Returns the callback function that will be invoked with the HapiSpecRegistry after command execution.
+     * This callback can be used by subcommands to extract registry information by setting the callback
+     * to the corresponding spec.
+     *
+     * @return the registry callback function, may be null if not set
+     */
     public Consumer<HapiSpecRegistry> getRegistryCallback() {
         return registryCallback;
     }

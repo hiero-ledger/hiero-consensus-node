@@ -286,9 +286,9 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private SpecStateObserver specStateObserver;
-
     /**
-     *
+     * If non-null, a callback function that will be invoked with this spec's registry after test execution.
+     * Used to extract or process registry information after the spec has completed.
      */
     @Nullable
     private Consumer<HapiSpecRegistry> registryCb;
@@ -397,7 +397,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         this.specStateObserver = specStateObserver;
     }
 
-    public void setRegistryCb(final Consumer<HapiSpecRegistry> registryCb) {
+    /**
+     * Sets a callback function that will be invoked with this spec's registry after test execution.
+     * The callback can be used to extract or process test information stored in the registry.
+     *
+     * @param registryCb the callback function
+     */
+    public void setRegistryCb(@Nullable final Consumer<HapiSpecRegistry> registryCb) {
         this.registryCb = registryCb;
     }
 
@@ -509,6 +515,12 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .build();
     }
 
+    /**
+     * Returns a function mapping an entity number to a {@link ScheduleID} for the target network.
+     * The function uses this spec's shard and realm numbers when constructing the schedule IDs.
+     *
+     * @return the schedule ID factory function
+     */
     public LongFunction<ScheduleID> scheduleIdFactory() {
         return num -> ScheduleID.newBuilder()
                 .setShardNum(shard())
