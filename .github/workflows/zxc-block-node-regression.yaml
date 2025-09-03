@@ -213,7 +213,7 @@ jobs:
                     block:
                       enabled: true
                       nodes:
-                        - host: block-node-0.solo-block-node-e2e.svc.cluster.local
+                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                           port: 40840
                       sourceType: BLOCK_NODE
                     downloader:
