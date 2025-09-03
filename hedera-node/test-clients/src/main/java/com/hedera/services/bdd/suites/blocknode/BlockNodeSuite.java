@@ -346,7 +346,7 @@ public class BlockNodeSuite {
         return hapiTest(
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNode(0).pause(),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -355,7 +355,7 @@ public class BlockNodeSuite {
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNode(0).resume(),
+                blockNode(0).startImmediately(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
@@ -439,14 +439,11 @@ public class BlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.buffer.blockTtl",
-                            BLOCK_TTL_MINUTES + "m",
-                            "blockStream.blockPeriod",
-                            BLOCK_PERIOD_SECONDS + "s"
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockNode.streamResetPeriod", "20s",
                         })
             })
     @Order(7)

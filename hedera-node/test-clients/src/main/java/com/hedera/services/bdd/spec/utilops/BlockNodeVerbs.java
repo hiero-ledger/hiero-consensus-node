@@ -98,24 +98,6 @@ public class BlockNodeVerbs {
         }
 
         /**
-         * Pauses the block node container.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp pause() {
-            return BlockNodeOp.pause(nodeIndex).build();
-        }
-
-        /**
-         * Resumes the block node container.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp resume() {
-            return BlockNodeOp.resume(nodeIndex).build();
-        }
-
-        /**
          * Asserts that a specific block has been received by the block node simulator.
          *
          * @param blockNumber the block number to check
@@ -197,6 +179,16 @@ public class BlockNodeVerbs {
         public BlockNodeOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
             return BlockNodeOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
                     .build();
+        }
+
+        /**
+         * Updates whether last acknowledged block should be persistent upon block node restart.
+         *
+         * @param keepState true if last acknowledged block should be persistent, else it will not be
+         * @return the operation
+         */
+        public BlockNodeOp keepState(final boolean keepState) {
+            return BlockNodeOp.updateStatePersistence(nodeIndex, keepState).build();
         }
     }
 

@@ -6,6 +6,7 @@ import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -23,7 +24,7 @@ public class BlockNodeController {
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
     private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
-    private static final Map<Long, Integer> pausedBlockNodePorts = new HashMap<>();
+    private static final Set<Long> persistentStateBlockNodes = new HashSet<>();
     private static final Map<Long, Long> lastVerifiedBlockNumbers = new HashMap<>();
 
     /**
@@ -236,7 +237,8 @@ public class BlockNodeController {
             final SimulatedBlockNodeServer server = simulatedBlockNodes.get(nodeId);
             final int port = server.getPort();
             shutdownBlockNodePorts.put(nodeId, port);
-            lastVerifiedBlockNumbers.put(nodeId, server.getLastVerifiedBlockNumber());
+            lastVerifiedBlockNumbers.put(
+                    nodeId, persistentStateBlockNodes.contains(nodeId) ? server.getLastVerifiedBlockNumber() : -1L);
             server.stop();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", nodeId, port);
         } else {
@@ -277,7 +279,9 @@ public class BlockNodeController {
             final int port = shutdownBlockNodePorts.get(nodeId);
 
             // Create a new server on the same port
-            final long lastVerifiedBlockNumber = lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L);
+            final long lastVerifiedBlockNumber = persistentStateBlockNodes.contains(nodeId)
+                    ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L)
+                    : -1L;
             final SimulatedBlockNodeServer newServer =
                     new SimulatedBlockNodeServer(port, () -> lastVerifiedBlockNumber);
             newServer.start();
@@ -370,16 +374,6 @@ public class BlockNodeController {
     }
 
     /**
-     * Check if a specific block node container has been paused.
-     *
-     * @param index the index of the block node (0-based)
-     * @return true if the block node has been paused, false otherwise
-     */
-    public boolean isBlockNodePaused(final long index) {
-        return pausedBlockNodePorts.containsKey(index);
-    }
-
-    /**
      * Check if any simulators have been shut down.
      *
      * @return true if any simulators have been shut down, false otherwise
@@ -402,9 +396,15 @@ public class BlockNodeController {
 
         if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
             final int port = shutdownBlockNodePorts.get(nodeIndex);
-            final BlockNodeContainer blockNodeContainer = new BlockNodeContainer(nodeIndex, port);
+            final BlockNodeContainer blockNodeContainer;
 
-            blockNodeContainer.start();
+            if (persistentStateBlockNodes.contains(nodeIndex)) {
+                blockNodeContainer = blockNodeContainers.get(nodeIndex);
+                blockNodeContainer.resume();
+            } else {
+                blockNodeContainer = new BlockNodeContainer(nodeIndex, port);
+                blockNodeContainer.start();
+            }
 
             log.info("Started container {} @ {} and waited for readiness", nodeIndex, blockNodeContainer);
             blockNodeContainers.put(nodeIndex, blockNodeContainer);
@@ -425,75 +425,14 @@ public class BlockNodeController {
             log.info("Shutting down container {} @ {}", nodeIndex, shutdownContainer);
 
             shutdownBlockNodePorts.put(nodeIndex, shutdownContainer.getPort());
-            shutdownContainer.stop();
+
+            if (persistentStateBlockNodes.contains(nodeIndex)) {
+                shutdownContainer.pause();
+            } else {
+                shutdownContainer.stop();
+            }
 
             log.info("Container {} shutdown complete", nodeIndex);
-            // blockNodeContainers.remove(nodeIndex, shutdownContainer);
-        } else {
-            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
-        }
-    }
-
-    /**
-     * Pause a specific block node container to simulate a connection drop.
-     * The block node state will be saved and can be resumed using {@link #resumeContainer}.
-     *
-     * @param nodeIndex the index of the block node to be paused
-     */
-    public void pauseContainer(long nodeIndex) {
-        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
-            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
-
-            if (container == null) {
-                log.error("Block Node container {} does not exist", nodeIndex);
-                return;
-            }
-
-            if (container.isPaused()) {
-                log.warn("Block Node container {} is already paused", nodeIndex);
-                return;
-            }
-
-            log.info("Pausing container {} @ {}", nodeIndex, container);
-
-            try {
-                pausedBlockNodePorts.put(nodeIndex, container.getPort());
-                container.pause();
-                log.info("Container {} pause complete", nodeIndex);
-            } catch (Exception e) {
-                log.error("Failed to pause container {}: {}", nodeIndex, e.getMessage(), e);
-                pausedBlockNodePorts.remove(nodeIndex);
-            }
-        } else {
-            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
-        }
-    }
-
-    /** Resume a previously paused block node container.
-     *
-     * @param nodeIndex the index of the block node to be resumed
-     */
-    public void resumeContainer(long nodeIndex) {
-        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
-            final BlockNodeContainer container = blockNodeContainers.get(nodeIndex);
-
-            if (container == null) {
-                log.error("Block Node container {} does not exist", nodeIndex);
-                return;
-            }
-
-            if (!container.isPaused()) {
-                log.warn("Block Node container {} is not paused", nodeIndex);
-                return;
-            }
-
-            try {
-                container.resume();
-                log.info("Resumed container {} @ {} and waited for readiness", nodeIndex, container);
-                pausedBlockNodePorts.remove(nodeIndex);
-            } catch (Exception e) {
-                log.error("Failed to resume container {}: {}", nodeIndex, e.getMessage(), e);
-            }
         } else {
             log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
         }
@@ -508,5 +447,19 @@ public class BlockNodeController {
     public void setSendBlockAcknowledgementsEnabled(
             final long nodeIdx, final boolean sendBlockAcknowledgementsEnabled) {
         simulatedBlockNodes.get(nodeIdx).setSendingBlockAcknowledgementsEnabled(sendBlockAcknowledgementsEnabled);
+    }
+
+    /**
+     * Updates whether the last acknowledged block should be available after restart of the specified block node.
+     *
+     * @param nodeIdx the index of the block node to update (0-based)
+     * @param isPersistent true if last acknowledged block should be available after restart of the block node, otherwise it will not be
+     */
+    public void setStatePersistence(final long nodeIdx, final boolean isPersistent) {
+        if (isPersistent) {
+            persistentStateBlockNodes.add(nodeIdx);
+        } else {
+            persistentStateBlockNodes.remove(nodeIdx);
+        }
     }
 }

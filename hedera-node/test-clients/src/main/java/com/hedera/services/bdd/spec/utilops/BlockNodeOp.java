@@ -27,6 +27,7 @@ public class BlockNodeOp extends UtilOp {
     private final AtomicLong lastVerifiedBlockNumber;
     private final Consumer<Long> lastVerifiedBlockConsumer;
     private final boolean sendBlockAcknowledgementsEnabled;
+    private final boolean keepPersistentState;
 
     private BlockNodeOp(
             final long nodeIndex,
@@ -35,7 +36,8 @@ public class BlockNodeOp extends UtilOp {
             final long blockNumber,
             final AtomicLong lastVerifiedBlockNumber,
             final Consumer<Long> lastVerifiedBlockConsumer,
-            final boolean sendBlockAcknowledgementsEnabled) {
+            final boolean sendBlockAcknowledgementsEnabled,
+            final boolean keepPersistentState) {
         this.nodeIndex = nodeIndex;
         this.action = action;
         this.responseCode = responseCode;
@@ -43,6 +45,7 @@ public class BlockNodeOp extends UtilOp {
         this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
         this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
         this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
+        this.keepPersistentState = keepPersistentState;
     }
 
     @Override
@@ -168,6 +171,10 @@ public class BlockNodeOp extends UtilOp {
                         sendBlockAcknowledgementsEnabled);
                 controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
+            case UPDATE_STATE_PERSISTENCE:
+                log.info("[node {}] Update state persistence to: {}", nodeIndex, keepPersistentState);
+                controller.setStatePersistence(nodeIndex, keepPersistentState);
+                break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node simulators");
         }
@@ -187,6 +194,10 @@ public class BlockNodeOp extends UtilOp {
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
 
         switch (action) {
+            case UPDATE_STATE_PERSISTENCE:
+                log.info("[node {}] Update state persistence to: {}", nodeIndex, keepPersistentState);
+                controller.setStatePersistence(nodeIndex, keepPersistentState);
+                break;
             case START:
                 if (!controller.isBlockNodeShutdown(nodeIndex)) {
                     log.error("Cannot start container {} because it has not been shut down", nodeIndex);
@@ -196,16 +207,6 @@ public class BlockNodeOp extends UtilOp {
                 break;
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex);
-                break;
-            case RESUME:
-                if (!controller.isBlockNodePaused(nodeIndex)) {
-                    log.error("Cannot resume container {} because it has not been paused", nodeIndex);
-                    return false;
-                }
-                controller.resumeContainer(nodeIndex);
-                break;
-            case PAUSE:
-                controller.pauseContainer(nodeIndex);
                 break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
@@ -225,10 +226,6 @@ public class BlockNodeOp extends UtilOp {
         SHUTDOWN,
         /** Shutdown all block nodes */
         SHUTDOWN_ALL,
-        /** Pause block node */
-        PAUSE,
-        /** Resume block node */
-        RESUME,
 
         /* Next actions are only applicable to simulated block nodes */
 
@@ -247,7 +244,9 @@ public class BlockNodeOp extends UtilOp {
         /** Get the last verified block number */
         GET_LAST_VERIFIED_BLOCK,
         /** Whether or not to send block acknowledgements */
-        UPDATE_SENDING_BLOCK_ACKS
+        UPDATE_SENDING_BLOCK_ACKS,
+        /** Whether or not to keep state on shutdown */
+        UPDATE_STATE_PERSISTENCE
     }
 
     /**
@@ -292,26 +291,6 @@ public class BlockNodeOp extends UtilOp {
      */
     public static ShutdownBuilder shutdownImmediately(final long nodeIndex) {
         return new ShutdownBuilder(nodeIndex);
-    }
-
-    /**
-     * Creates a builder for pausing a specific block node container.
-     *
-     * @param nodeIndex the index of the block node (0-based)
-     * @return a builder for the operation
-     */
-    public static PauseBuilder pause(final long nodeIndex) {
-        return new PauseBuilder(nodeIndex);
-    }
-
-    /**
-     * Creates a builder for resuming a specific block node container.
-     *
-     * @param nodeIndex the index of the block node (0-based)
-     * @return a builder for the operation
-     */
-    public static ResumeBuilder resume(final long nodeIndex) {
-        return new ResumeBuilder(nodeIndex);
     }
 
     /**
@@ -376,6 +355,17 @@ public class BlockNodeOp extends UtilOp {
     }
 
     /**
+     * Creates a builder that allows for updating whether the last acknowledged block should be available after restart of the specified block node.
+     *
+     * @param nodeIndex the index of the block node to update (0-based)
+     * @param keepState true if last acknowledged block should be available after restart of the block node, otherwise it will not be
+     * @return the builder
+     */
+    public static UpdateStatePersistenceBuilder updateStatePersistence(final long nodeIndex, final boolean keepState) {
+        return new UpdateStatePersistenceBuilder(nodeIndex, keepState);
+    }
+
+    /**
      * Builder for sending an immediate EndOfStream response to a block node simulator.
      * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
      */
@@ -437,6 +427,7 @@ public class BlockNodeOp extends UtilOp {
                     blockNumber,
                     lastVerifiedBlockNumber,
                     lastVerifiedBlockConsumer,
+                    true,
                     true);
         }
 
@@ -466,7 +457,7 @@ public class BlockNodeOp extends UtilOp {
          */
         public BlockNodeOp build() {
             return new BlockNodeOp(
-                    nodeIndex, BlockNodeAction.SEND_SKIP_BLOCK_IMMEDIATELY, null, blockNumber, null, null, true);
+                    nodeIndex, BlockNodeAction.SEND_SKIP_BLOCK_IMMEDIATELY, null, blockNumber, null, null, true, true);
         }
 
         @Override
@@ -495,7 +486,38 @@ public class BlockNodeOp extends UtilOp {
          */
         public BlockNodeOp build() {
             return new BlockNodeOp(
-                    nodeIndex, BlockNodeAction.SEND_RESEND_BLOCK_IMMEDIATELY, null, blockNumber, null, null, true);
+                    nodeIndex,
+                    BlockNodeAction.SEND_RESEND_BLOCK_IMMEDIATELY,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true,
+                    true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for setting persistence of the last acknowledged block upon block node restart.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class UpdateStatePersistenceBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final boolean keepState;
+
+        private UpdateStatePersistenceBuilder(final long nodeIndex, final boolean keepState) {
+            this.nodeIndex = nodeIndex;
+            this.keepState = keepState;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex, BlockNodeAction.UPDATE_STATE_PERSISTENCE, null, 0, null, null, false, keepState);
         }
 
         @Override
@@ -517,51 +539,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true);
-        }
-
-        @Override
-        protected boolean submitOp(final HapiSpec spec) throws Throwable {
-            return build().submitOp(spec);
-        }
-    }
-
-    public static class PauseBuilder extends UtilOp {
-        private final long nodeIndex;
-
-        private PauseBuilder(final long nodeIndex) {
-            this.nodeIndex = nodeIndex;
-        }
-
-        /**
-         * Builds the operation.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.PAUSE, null, 0, null, null, true);
-        }
-
-        @Override
-        protected boolean submitOp(final HapiSpec spec) throws Throwable {
-            return build().submitOp(spec);
-        }
-    }
-
-    public static class ResumeBuilder extends UtilOp {
-        private final long nodeIndex;
-
-        private ResumeBuilder(final long nodeIndex) {
-            this.nodeIndex = nodeIndex;
-        }
-
-        /**
-         * Builds the operation.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.RESUME, null, 0, null, null, true);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, true);
         }
 
         @Override
@@ -577,7 +555,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true);
+            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, true);
         }
 
         @Override
@@ -599,7 +577,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.START, null, 0, null, null, true);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.START, null, 0, null, null, true, true);
         }
 
         @Override
@@ -615,7 +593,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(0, BlockNodeAction.START_ALL, null, 0, null, null, true);
+            return new BlockNodeOp(0, BlockNodeAction.START_ALL, null, 0, null, null, true, true);
         }
 
         @Override
@@ -640,7 +618,7 @@ public class BlockNodeOp extends UtilOp {
          */
         public BlockNodeOp build() {
             return new BlockNodeOp(
-                    nodeIndex, BlockNodeAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null, true);
+                    nodeIndex, BlockNodeAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null, true, true);
         }
 
         @Override
@@ -661,13 +639,7 @@ public class BlockNodeOp extends UtilOp {
 
         public BlockNodeOp build() {
             return new BlockNodeOp(
-                    nodeIndex,
-                    BlockNodeAction.UPDATE_SENDING_BLOCK_ACKS,
-                    null,
-                    0,
-                    null,
-                    null,
-                    sendBlockAcknowledgementsEnabled);
+                    nodeIndex, BlockNodeAction.UPDATE_SENDING_BLOCK_ACKS, null, 0, null, null, true, true);
         }
 
         @Override
@@ -721,6 +693,7 @@ public class BlockNodeOp extends UtilOp {
                     0,
                     lastVerifiedBlockNumber,
                     lastVerifiedBlockConsumer,
+                    true,
                     true);
         }
 

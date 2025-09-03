@@ -140,6 +140,7 @@ public class BlockNodeNetwork {
             container.waitForHealthy(Duration.ofMinutes(2));
 
             blockNodeContainerById.put(blockNodeId, container);
+            blockNodeController.setStatePersistence(blockNodeId, true);
 
             logger.info("Started real block node container {} @ {}", blockNodeId, container);
         } catch (Exception e) {
@@ -158,6 +159,7 @@ public class BlockNodeNetwork {
         }
         logger.info("Started shared simulated block node @ localhost:{}", port);
         simulatedBlockNodeById.put(id, server);
+        blockNodeController.setStatePersistence(id, true);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {

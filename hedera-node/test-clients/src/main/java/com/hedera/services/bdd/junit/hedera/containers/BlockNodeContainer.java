@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.containers;
 
-import com.github.dockerjava.api.command.InspectContainerCmd;
-import com.github.dockerjava.api.command.PauseContainerCmd;
-import com.github.dockerjava.api.command.UnpauseContainerCmd;
+import com.github.dockerjava.api.command.StartContainerCmd;
+import com.github.dockerjava.api.command.StopContainerCmd;
 import java.time.Duration;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -90,8 +89,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             throw new IllegalStateException("Cannot pause container that is not running");
         }
 
-        try (PauseContainerCmd pauseContainerCmd = getDockerClient().pauseContainerCmd(containerId)) {
-            pauseContainerCmd.exec();
+        try (StopContainerCmd stopContainerCmd = getDockerClient().stopContainerCmd(containerId)) {
+            stopContainerCmd.exec();
         } catch (Exception e) {
             throw new RuntimeException("Failed to pause container: " + containerId, e);
         }
@@ -101,12 +100,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * Resumes the container, resuming all processes inside it.
      */
     public void resume() {
-        if (!isRunning()) {
-            throw new IllegalStateException("Cannot resume container that is not running");
-        }
-
-        try (UnpauseContainerCmd unpauseContainerCmd = getDockerClient().unpauseContainerCmd(containerId)) {
-            unpauseContainerCmd.exec();
+        try (StartContainerCmd startContainerCmd = getDockerClient().startContainerCmd(containerId)) {
+            startContainerCmd.exec();
 
             // Wait a moment for the container to fully resume
             try {
@@ -116,24 +111,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to resume container: " + containerId, e);
-        }
-    }
-
-    /**
-     * Checks if the container is currently paused.
-     * @return true if the container is paused, false otherwise
-     */
-    public boolean isPaused() {
-        if (!isRunning()) {
-            return false;
-        }
-
-        try (InspectContainerCmd inspectContainerCmd = getDockerClient().inspectContainerCmd(containerId)) {
-            final var containerInfo = inspectContainerCmd.exec();
-            final var state = containerInfo.getState();
-            return state != null && Boolean.TRUE.equals(state.getPaused());
-        } catch (Exception e) {
-            return false;
         }
     }
 
