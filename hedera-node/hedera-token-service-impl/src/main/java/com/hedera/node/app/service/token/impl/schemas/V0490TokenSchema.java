@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -16,6 +18,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.token.TokenService;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -42,19 +45,33 @@ public class V0490TokenSchema extends Schema {
 
     public static final int NFTS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_NFTS.protoOrdinal();
     public static final String NFTS_KEY = "NFTS";
+    public static final String NFTS_STATE_LABEL = computeLabel(TokenService.NAME, NFTS_KEY);
+
     public static final int TOKENS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_TOKENS.protoOrdinal();
     public static final String TOKENS_KEY = "TOKENS";
+    public static final String TOKENS_STATE_LABEL = computeLabel(TokenService.NAME, TOKENS_KEY);
+
     public static final int ALIASES_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_ALIASES.protoOrdinal();
     public static final String ALIASES_KEY = "ALIASES";
+    public static final String ALIASES_STATE_LABEL = computeLabel(TokenService.NAME, ALIASES_KEY);
+
     public static final int ACCOUNTS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_ACCOUNTS.protoOrdinal();
     public static final String ACCOUNTS_KEY = "ACCOUNTS";
+    public static final String ACCOUNTS_STATE_LABEL = computeLabel(TokenService.NAME, ACCOUNTS_KEY);
+
     public static final int TOKEN_RELS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_TOKEN_RELS.protoOrdinal();
     public static final String TOKEN_RELS_KEY = "TOKEN_RELS";
+    public static final String TOKEN_RELS_STATE_LABEL = computeLabel(TokenService.NAME, TOKEN_RELS_KEY);
+
     public static final int STAKING_INFOS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_STAKING_INFOS.protoOrdinal();
     public static final String STAKING_INFOS_KEY = "STAKING_INFOS";
+    public static final String STAKING_INFOS_STATE_LABEL = computeLabel(TokenService.NAME, STAKING_INFOS_KEY);
+
     public static final int STAKING_NETWORK_REWARDS_STATE_ID =
             SingletonType.TOKENSERVICE_I_STAKING_NETWORK_REWARDS.protoOrdinal();
     public static final String STAKING_NETWORK_REWARDS_KEY = "STAKING_NETWORK_REWARDS";
+    public static final String STAKING_NETWORK_REWARDS_STATE_LABEL =
+            computeLabel(TokenService.NAME, STAKING_NETWORK_REWARDS_KEY);
 
     public V0490TokenSchema() {
         super(VERSION);

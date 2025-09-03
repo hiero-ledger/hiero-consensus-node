@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
-import static java.util.Objects.requireNonNull;
-
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 /**
  * A convenient implementation of {@link ReadableSingletonStateBase}.
  *
@@ -14,29 +10,23 @@ public abstract class ReadableSingletonStateBase<T> implements ReadableSingleton
 
     private boolean read = false;
 
-    protected final String serviceName;
-
     protected final int stateId;
+
+    /** State label used in logs, typically serviceName.stateKey */
+    protected final String label;
 
     /**
      * Creates a new instance.
      *
-     * @param serviceName The name of the service that owns the state.
      * @param stateId The state ID for this instance.
+     * @param label The state label
      */
-    public ReadableSingletonStateBase(@NonNull final String serviceName, final int stateId) {
-        this.serviceName = requireNonNull(serviceName);
+    public ReadableSingletonStateBase(final int stateId, final String label) {
         this.stateId = stateId;
+        this.label = label;
     }
 
     @Override
-    @NonNull
-    public final String getServiceName() {
-        return serviceName;
-    }
-
-    @Override
-    @NonNull
     public final int getStateId() {
         return stateId;
     }

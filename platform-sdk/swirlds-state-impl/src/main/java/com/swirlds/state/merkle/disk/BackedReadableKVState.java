@@ -7,7 +7,6 @@ import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
@@ -37,19 +36,19 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     /**
      * Create a new instance
      *
-     * @param serviceName  the service name
      * @param stateId      the state ID
+     * @param label        the service label
      * @param keyCodec     the codec for the key
      * @param valueCodec   the codec for the value
      * @param virtualMap   the backing merkle data structure to use
      */
     public BackedReadableKVState(
-            @NonNull final String serviceName,
             final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<K> keyCodec,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateId);
+        super(stateId, label);
         this.keyCodec = requireNonNull(keyCodec);
         this.valueCodec = requireNonNull(valueCodec);
         this.virtualMap = requireNonNull(virtualMap);
@@ -61,7 +60,7 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
         final var kb = keyCodec.toBytes(key);
         final var value = virtualMap.get(kb, valueCodec);
         // Log to transaction state log, what was read
-        logMapGet(StateMetadata.computeLabel(serviceName, getStateId()), key, value);
+        logMapGet(label, key, value);
         return value;
     }
 
@@ -70,7 +69,7 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(StateMetadata.computeLabel(serviceName, getStateId()), virtualMap, keyCodec);
+        logMapIterate(label, virtualMap, keyCodec);
         return new BackedOnDiskIterator<>(virtualMap, keyCodec);
     }
 
@@ -80,7 +79,7 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     public long size() {
         final var size = virtualMap.size();
         // Log to transaction state log, size of map
-        logMapGetSize(StateMetadata.computeLabel(serviceName, getStateId()), size);
+        logMapGetSize(label, size);
         return size;
     }
 

@@ -2,11 +2,16 @@
 package com.hedera.node.app.service.token.impl.test.schemas;
 
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.schemas.SyntheticAccountsData.DEFAULT_NUM_SYSTEM_ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.schemas.SyntheticAccountsData.buildConfig;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,9 +21,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -59,17 +62,17 @@ final class V0490TokenSchemaTest {
 
     @BeforeEach
     void setUp() {
-        accounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_STATE_ID)
+        accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .build();
 
         newStates = newStatesInstance(
                 accounts,
-                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_STATE_ID)
+                MapWritableKVState.<Bytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
                         .build(),
                 newWritableEntityIdState(),
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().build(),
                         c -> {}));
 
@@ -92,8 +95,8 @@ final class V0490TokenSchemaTest {
 
     private WritableSingletonState<EntityNumber> newWritableEntityIdState() {
         return new FunctionWritableSingletonState<>(
-                TokenService.NAME,
                 V0490EntityIdSchema.ENTITY_ID_STATE_ID,
+                V0490EntityIdSchema.ENTITY_ID_STATE_LABEL,
                 () -> new EntityNumber(BEGINNING_ENTITY_ID),
                 c -> {});
     }
@@ -107,10 +110,10 @@ final class V0490TokenSchemaTest {
         return MapWritableStates.builder()
                 .state(accts)
                 .state(aliases)
-                .state(MapWritableKVState.builder(TokenService.NAME, STAKING_INFOS_STATE_ID)
+                .state(MapWritableKVState.builder(STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                         .build())
                 .state(new FunctionWritableSingletonState<>(
-                        TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, () -> null, c -> {}))
+                        STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_STATE_LABEL, () -> null, c -> {}))
                 .state(entityIdState)
                 .state(entityCountsState)
                 .build();

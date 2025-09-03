@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.test;
 
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,7 +13,6 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.ReadableUpgradeFileStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
@@ -48,7 +48,7 @@ class ReadableUpgradeFileStoreImplTest extends FileTestBase {
 
     @Test
     void missingUpgradeFileIsNull() {
-        final var stateFile = MapWritableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        final var stateFile = MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .build();
 
         given(filteredReadableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(stateFile);

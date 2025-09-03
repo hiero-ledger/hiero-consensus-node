@@ -17,6 +17,20 @@ class StateDefinitionTest {
     private Codec<String> mockCodec;
 
     @Test
+    void stateKeyRequired() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new StateDefinition<>(1, null, mockCodec, mockCodec, 123, true, false, false));
+    }
+
+    @Test
+    void valueCodecRequired() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new StateDefinition<>(1, "KEY", mockCodec, null, 123, true, false, false));
+    }
+
+    @Test
     void singletonsCannotBeOnDisk() {
         assertThrows(
                 IllegalArgumentException.class,

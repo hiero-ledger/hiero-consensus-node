@@ -24,23 +24,23 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
     /**
      * Create a new StateBase.
      *
-     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateId The state ID
+     * @param label The state label
      */
-    protected WritableKVStateBase(@NonNull final String serviceName, final int stateId) {
-        this(serviceName, stateId, new LinkedHashMap<>());
+    protected WritableKVStateBase(final int stateId, final String label) {
+        this(stateId, label, new LinkedHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
-     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateId The state ID
+     * @param label The state label
      * @param modifications A map that is used to init the cache.
      */
     protected WritableKVStateBase(
-            @NonNull final String serviceName, final int stateId, @NonNull final Map<K, V> modifications) {
-        super(serviceName, stateId);
+            final int stateId, @NonNull final String label, @NonNull final Map<K, V> modifications) {
+        super(stateId, label);
         this.modifications = Objects.requireNonNull(modifications);
     }
 

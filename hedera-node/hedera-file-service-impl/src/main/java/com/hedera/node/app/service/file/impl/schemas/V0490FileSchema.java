@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
@@ -36,6 +37,7 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -87,6 +89,7 @@ public class V0490FileSchema extends Schema {
 
     public static final String FILES_KEY = "FILES";
     public static final int FILES_STATE_ID = StateKey.KeyOneOfType.FILESERVICE_I_FILES.protoOrdinal();
+    public static final String FILES_STATE_LABEL = computeLabel(FileService.NAME, FILES_KEY);
 
     public static final String UPGRADE_DATA_STATE_KEY_PATTERN = "FileService_I_UPGRADE_DATA_%d";
 

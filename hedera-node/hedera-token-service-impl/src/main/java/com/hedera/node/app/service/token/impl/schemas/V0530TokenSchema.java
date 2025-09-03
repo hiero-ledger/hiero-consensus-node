@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.token.TokenService;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,8 +17,9 @@ public class V0530TokenSchema extends Schema {
 
     private static final long MAX_PENDING_AIRDROPS = 1_000_000L;
 
-    public static final String AIRDROPS_KEY = "PENDING_AIRDROPS";
     public static final int AIRDROPS_STATE_ID = StateKey.KeyOneOfType.TOKENSERVICE_I_PENDING_AIRDROPS.protoOrdinal();
+    public static final String AIRDROPS_KEY = "PENDING_AIRDROPS";
+    public static final String AIRDROPS_STATE_LABEL = computeLabel(TokenService.NAME, AIRDROPS_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(53).patch(0).build();

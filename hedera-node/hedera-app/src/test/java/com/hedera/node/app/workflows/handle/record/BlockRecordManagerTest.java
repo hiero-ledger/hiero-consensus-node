@@ -11,7 +11,9 @@ import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.USER_PUBLIC_KEY;
 import static com.hedera.node.app.records.impl.producers.formats.v6.RecordStreamV6Verifier.validateRecordStreamFiles;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
@@ -439,10 +441,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             public ReadableStates getReadableStates(@NonNull final String serviceName) {
                 return new MapReadableStates(Map.of(
                         BLOCKS_STATE_ID,
-                        new FunctionReadableSingletonState<>(BlockRecordService.NAME, BLOCKS_STATE_ID, () -> blockInfo),
+                        new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo),
                         RUNNING_HASHES_STATE_ID,
                         new FunctionReadableSingletonState<>(
-                                BlockRecordService.NAME, RUNNING_HASHES_STATE_ID, () -> RunningHashes.DEFAULT)));
+                                RUNNING_HASHES_STATE_ID, RUNNING_HASHES_STATE_LABEL, () -> RunningHashes.DEFAULT)));
             }
         };
     }

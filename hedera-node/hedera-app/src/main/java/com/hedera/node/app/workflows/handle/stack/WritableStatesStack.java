@@ -61,19 +61,19 @@ public class WritableStatesStack implements WritableStates {
     @Override
     @NonNull
     public <K, V> WritableKVState<K, V> get(final int stateId) {
-        return new WritableKVStateStack<>(this, statesName, stateId);
+        return new WritableKVStateStack<>(this, stateId);
     }
 
     @Override
     @NonNull
     public <T> WritableSingletonState<T> getSingleton(final int stateId) {
-        return new WritableSingletonStateStack<>(this, statesName, stateId);
+        return new WritableSingletonStateStack<>(this, stateId);
     }
 
     @NonNull
     @Override
     public <E> WritableQueueState<E> getQueue(final int stateId) {
-        return new WritableQueueStateStack<>(this, statesName, stateId);
+        return new WritableQueueStateStack<>(this, stateId);
     }
 
     @Override

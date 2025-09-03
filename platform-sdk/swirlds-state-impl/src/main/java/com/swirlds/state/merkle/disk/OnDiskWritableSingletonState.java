@@ -10,7 +10,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -36,17 +35,17 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
     /**
      * Create a new instance
      *
-     * @param serviceName  the service name
      * @param stateId      the state ID
+     * @param label        the service label
      * @param valueCodec   the protobuf value codec
      * @param virtualMap   the backing merkle data structure to use
      */
     public OnDiskWritableSingletonState(
-            @NonNull final String serviceName,
             final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateId);
+        super(stateId, requireNonNull(label));
         this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
     }
@@ -58,7 +57,7 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
         final V value = stateValue != null ? stateValue.value() : null;
         // Log to transaction state log, what was read
-        logSingletonRead(StateMetadata.computeLabel(serviceName, stateId), value);
+        logSingletonRead(label, value);
         return value;
     }
 
@@ -70,7 +69,7 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
 
         virtualMap.put(stateKey, stateValue, stateValueCodec);
         // Log to transaction state log, what was put
-        logSingletonWrite(StateMetadata.computeLabel(serviceName, stateId), value);
+        logSingletonWrite(label, value);
     }
 
     /** {@inheritDoc} */
@@ -80,6 +79,6 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
         final StateValue<V> stateValue = virtualMap.remove(stateKey, stateValueCodec);
         final var removedValue = stateValue != null ? stateValue.value() : null;
         // Log to transaction state log, what was removed
-        logSingletonRemove(StateMetadata.computeLabel(serviceName, stateId), removedValue);
+        logSingletonRemove(label, removedValue);
     }
 }

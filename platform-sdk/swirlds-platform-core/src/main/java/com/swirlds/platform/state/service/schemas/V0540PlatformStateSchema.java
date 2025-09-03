@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -10,6 +11,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -32,6 +34,7 @@ public class V0540PlatformStateSchema extends Schema {
     public static final String PLATFORM_STATE_KEY = "PLATFORM_STATE";
     // State ID must match virtual_map_state.proto
     public static final int PLATFORM_STATE_STATE_ID = 26;
+    public static final String PLATFORM_STATE_STATE_LABEL = computeLabel(PlatformStateService.NAME, PLATFORM_STATE_KEY);
 
     /**
      * A platform state to be used as the non-null platform state under any circumstance a genesis state

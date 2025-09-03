@@ -4,7 +4,6 @@ package com.swirlds.state.merkle.queue;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
@@ -23,9 +22,8 @@ public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
     private final QueueNode<E> dataSource;
 
     /** Create a new instance */
-    public BackedReadableQueueState(
-            @NonNull final String serviceName, final int stateId, @NonNull final QueueNode<E> node) {
-        super(serviceName, stateId);
+    public BackedReadableQueueState(final int stateId, @NonNull final String label, @NonNull final QueueNode<E> node) {
+        super(stateId, label);
         this.dataSource = requireNonNull(node);
     }
 
@@ -33,7 +31,7 @@ public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
     @Override
     protected E peekOnDataSource() {
         final var value = dataSource.peek();
-        logQueuePeek(StateMetadata.computeLabel(serviceName, stateId), value);
+        logQueuePeek(label, value);
         return value;
     }
 

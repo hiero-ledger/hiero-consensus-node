@@ -194,7 +194,6 @@ public final class StateMetadata<K, V> {
      * @param stateKey    the state key
      * @return the computed label
      */
-    @Deprecated
     public static String computeLabel(@NonNull final String serviceName, @NonNull final String stateKey) {
         return Objects.requireNonNull(serviceName) + "." + Objects.requireNonNull(stateKey);
     }

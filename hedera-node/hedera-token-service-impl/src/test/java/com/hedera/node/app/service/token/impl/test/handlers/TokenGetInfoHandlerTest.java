@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSED;
 import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSE_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenPauseStatus.UNPAUSED;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +36,6 @@ import com.hedera.hapi.node.token.TokenInfo;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetInfoHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
@@ -95,7 +95,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidToken() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
@@ -111,7 +111,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidTokenInTrans() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
@@ -147,7 +147,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void getsResponseIfInvalidToken() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
@@ -200,7 +200,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         final var expectedInfo = getExpectInfoDefaultKeys();
 
         fungibleToken = setFungibleTokenKeys();
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .value(fungibleTokenId, fungibleToken)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(state);
@@ -217,7 +217,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         final var expectedInfo = getExpectInfoDefaultStatus();
 
         fungibleToken = setFungibleTokenDefaultStatus();
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .value(fungibleTokenId, fungibleToken)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(state);

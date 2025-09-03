@@ -43,14 +43,7 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     }
 
     protected ReadableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(Map<ProtoBytes, ProtoBytes> backingMap) {
-        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, backingMap);
-    }
-
-    /** Make sure the constructor is holding onto the service name properly */
-    @Test
-    @DisplayName("The service name must match what was provided in the constructor")
-    void testServiceName() {
-        assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
+        return new MapReadableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, backingMap);
     }
 
     /** Make sure the constructor is holding onto the state key properly */
@@ -58,6 +51,13 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     @DisplayName("The state key must match what was provided in the constructor")
     void testStateKey() {
         assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
+    }
+
+    /** Make sure the constructor is holding onto the state label properly */
+    @Test
+    @DisplayName("The state label must match what was provided in the constructor")
+    void testStateLabel() {
+        assertThat(state.label).isEqualTo(FRUIT_STATE_LABEL);
     }
 
     /**

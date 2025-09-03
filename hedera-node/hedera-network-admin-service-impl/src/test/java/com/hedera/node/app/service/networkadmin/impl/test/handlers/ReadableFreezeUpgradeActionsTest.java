@@ -4,6 +4,7 @@ package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.loadResourceFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.EXEC_IMMEDIATE_MARKER;
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.EXEC_TELEMETRY_MARKER;
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.NOW_FROZEN_MARKER;
@@ -30,7 +31,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
@@ -169,8 +169,7 @@ class ReadableFreezeUpgradeActionsTest {
         noiseFileLoc = zipOutputDir.toPath().resolve("forgotten.cfg");
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
 
-        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(
-                        AddressBookService.NAME, NODES_STATE_ID)
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
@@ -490,8 +489,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY,
                 false,
                 null);
-        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(
-                        AddressBookService.NAME, NODES_STATE_ID)
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .value(new EntityNumber(4), node4)
                 .value(new EntityNumber(2), node2)
                 .value(new EntityNumber(3), node3)
@@ -630,8 +628,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY,
                 false,
                 null);
-        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(
-                        AddressBookService.NAME, NODES_STATE_ID)
+        final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .value(new EntityNumber(3), node4)
                 .value(new EntityNumber(1), node2)
                 .value(new EntityNumber(2), node3)

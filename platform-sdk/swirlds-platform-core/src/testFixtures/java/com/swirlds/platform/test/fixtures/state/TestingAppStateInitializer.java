@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 import static org.mockito.BDDMockito.given;
@@ -141,8 +142,9 @@ public class TestingAppStateInitializer {
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateId(),
+                                        computeLabel(
+                                                md.serviceName(),
+                                                md.stateDefinition().stateKey()),
                                         md.singletonClassId(),
                                         md.stateDefinition().valueCodec(),
                                         null));
@@ -179,8 +181,9 @@ public class TestingAppStateInitializer {
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateId(),
+                                        computeLabel(
+                                                md.serviceName(),
+                                                md.stateDefinition().stateKey()),
                                         md.singletonClassId(),
                                         md.stateDefinition().valueCodec(),
                                         null));
@@ -188,7 +191,7 @@ public class TestingAppStateInitializer {
                         initializeServiceState(state, md, () -> {
                             final var tableConfig =
                                     new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
-                            final var label = StateMetadata.computeLabel(RosterStateId.SERVICE_NAME, def.stateId());
+                            final var label = computeLabel(RosterStateId.SERVICE_NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
                             final var virtualMap = new VirtualMap(label, dsBuilder, CONFIGURATION);
                             return virtualMap;

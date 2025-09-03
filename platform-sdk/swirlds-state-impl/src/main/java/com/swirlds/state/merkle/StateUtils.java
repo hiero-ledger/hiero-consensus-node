@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -140,16 +142,14 @@ public final class StateUtils {
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     SingletonNode.class,
                     () -> new SingletonNode<>(
-                            md.serviceName(),
-                            md.stateDefinition().stateId(),
+                            computeLabel(md.serviceName(), md.stateDefinition().stateKey()),
                             md.singletonClassId(),
                             md.stateDefinition().valueCodec(),
                             null)));
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     QueueNode.class,
                     () -> new QueueNode<>(
-                            md.serviceName(),
-                            md.stateDefinition().stateId(),
+                            computeLabel(md.serviceName(), md.stateDefinition().stateKey()),
                             md.queueNodeClassId(),
                             md.singletonClassId(),
                             md.stateDefinition().valueCodec())));

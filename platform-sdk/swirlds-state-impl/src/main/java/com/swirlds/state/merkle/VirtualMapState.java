@@ -4,6 +4,7 @@ package com.swirlds.state.merkle;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.QueueState;
@@ -580,6 +581,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         }
 
         @NonNull
+        static String extractStateKey(@NonNull final StateMetadata<?, ?> md) {
+            return md.stateDefinition().stateKey();
+        }
+
+        @NonNull
         static <K> Codec<K> extractKeyCodec(@NonNull final StateMetadata<K, ?> md) {
             return Objects.requireNonNull(md.stateDefinition().keyCodec(), "Key codec is null");
         }
@@ -609,21 +615,31 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
             return new OnDiskReadableKVState<>(
-                    md.serviceName(), extractStateId(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractKeyCodec(md),
+                    extractValueCodec(md),
+                    virtualMap);
         }
 
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
             return new OnDiskReadableSingletonState<>(
-                    md.serviceName(), extractStateId(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractValueCodec(md),
+                    virtualMap);
         }
 
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md) {
             return new OnDiskReadableQueueState(
-                    md.serviceName(), extractStateId(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractValueCodec(md),
+                    virtualMap);
         }
     }
 
@@ -687,7 +703,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableKVState<>(
-                    md.serviceName(), extractStateId(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractKeyCodec(md),
+                    extractValueCodec(md),
+                    virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(MAP)) {
                     registerKVListener(state, listener);
@@ -700,7 +720,10 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableSingletonState<>(
-                    md.serviceName(), extractStateId(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractValueCodec(md),
+                    virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(state, listener);
@@ -713,7 +736,10 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @Override
         protected WritableQueueState<?> createReadableQueueState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableQueueState<>(
-                    md.serviceName(), extractStateId(md), extractValueCodec(md), virtualMap);
+                    extractStateId(md),
+                    computeLabel(md.serviceName(), extractStateKey(md)),
+                    extractValueCodec(md),
+                    virtualMap);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(state, listener);
@@ -846,7 +872,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                         final JSONObject singletonJson = new JSONObject();
                         singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
                         singletonJson.put("path", leafBytes.path());
-                        singletons.put(StateMetadata.computeLabel(serviceName, stateId), singletonJson);
+                        singletons.put(computeLabel(serviceName, stateKey), singletonJson);
                     }
                 } else if (stateDefinition.queue()) {
                     final Bytes queueStateKey = StateKey.queueStateKey(stateId);
@@ -859,7 +885,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                             queueJson.put("head", queueState.head());
                             queueJson.put("tail", queueState.tail());
                             queueJson.put("path", leafBytes.path());
-                            queues.put(StateMetadata.computeLabel(serviceName, stateId), queueJson);
+                            queues.put(computeLabel(serviceName, stateKey), queueJson);
                         } catch (ParseException e) {
                             throw new RuntimeException(e);
                         }

@@ -121,11 +121,13 @@ public class FakeState implements MerkleNodeState {
                 final var stateId = entry.getKey();
                 final var state = entry.getValue();
                 if (state instanceof Queue queue) {
-                    states.put(stateId, new ListReadableQueueState(serviceName, stateId, queue));
+                    states.put(stateId, new ListReadableQueueState(stateId, serviceName + "." + stateId, queue));
                 } else if (state instanceof Map map) {
-                    states.put(stateId, new MapReadableKVState(serviceName, stateId, map));
+                    states.put(stateId, new MapReadableKVState(stateId, serviceName + "." + stateId, map));
                 } else if (state instanceof AtomicReference ref) {
-                    states.put(stateId, new FunctionReadableSingletonState(serviceName, stateId, ref::get));
+                    states.put(
+                            stateId,
+                            new FunctionReadableSingletonState(stateId, serviceName + "." + stateId, ref::get));
                 }
             }
             return new MapReadableStates(states);
@@ -149,12 +151,13 @@ public class FakeState implements MerkleNodeState {
                     data.put(
                             stateId,
                             withAnyRegisteredListeners(
-                                    serviceName, new ListWritableQueueState<>(serviceName, stateId, queue)));
+                                    serviceName,
+                                    new ListWritableQueueState<>(stateId, serviceName + "." + stateId, queue)));
                 } else if (state instanceof Map<?, ?> map) {
                     data.put(
                             stateId,
                             withAnyRegisteredListeners(
-                                    serviceName, new MapWritableKVState<>(serviceName, stateId, map)));
+                                    serviceName, new MapWritableKVState<>(stateId, serviceName + "." + stateId, map)));
                 } else if (state instanceof AtomicReference<?> ref) {
                     data.put(stateId, withAnyRegisteredListeners(serviceName, stateId, ref));
                 }
@@ -188,7 +191,8 @@ public class FakeState implements MerkleNodeState {
 
     private <V> WritableSingletonStateBase<V> withAnyRegisteredListeners(
             @NonNull final String serviceName, final int stateId, @NonNull final AtomicReference<V> ref) {
-        final var state = new FunctionWritableSingletonState<>(serviceName, stateId, ref::get, ref::set);
+        final var state =
+                new FunctionWritableSingletonState<>(stateId, serviceName + "." + stateId, ref::get, ref::set);
         listeners.forEach(listener -> {
             if (listener.stateTypes().contains(SINGLETON)) {
                 registerSingletonListener(state, listener);

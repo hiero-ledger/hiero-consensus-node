@@ -2,9 +2,12 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -57,14 +60,15 @@ class ServiceApiFactoryTest {
     @Test
     void canCreateTokenServiceApi() {
         given(stack.getWritableStates(TokenService.NAME)).willReturn(writableStates);
-        given(writableStates.get(anyInt())).willReturn(new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID));
+        given(writableStates.get(anyInt()))
+                .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
         given(entityIdStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> null, (a) -> {}));
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {}));
         given(entityIdStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_COUNTS_STATE_ID, () -> null, (a) -> {}));
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, (a) -> {}));
         assertNotNull(subject.getApi(TokenServiceApi.class));
     }
 

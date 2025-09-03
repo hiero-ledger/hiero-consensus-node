@@ -4,9 +4,12 @@ package com.hedera.node.app.service.token.impl.test.util;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockStates;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockWritableStates;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.wellKnownAliasState;
@@ -82,7 +85,6 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -90,10 +92,8 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.util.HashMap;
@@ -108,9 +108,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class SigReqAdapterUtils {
-    private static final String TOKENS_KEY = "TOKENS";
-    private static final String ACCOUNTS_KEY = "ACCOUNTS";
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
 
     protected final Bytes metadata = Bytes.wrap(new byte[] {1, 2, 3, 4});
     /**
@@ -302,7 +299,7 @@ public class SigReqAdapterUtils {
                         .deleted(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
-        return new MapWritableKVState<>(TokenService.NAME, TOKENS_STATE_ID, destination);
+        return new MapWritableKVState<>(TOKENS_STATE_ID, TOKENS_STATE_LABEL, destination);
     }
 
     /**
@@ -343,7 +340,7 @@ public class SigReqAdapterUtils {
                         .balance(30)
                         .build());
 
-        final var wrappedState = new MapWritableKVState<>(TokenService.NAME, TOKEN_RELS_STATE_ID, destination);
+        final var wrappedState = new MapWritableKVState<>(TOKEN_RELS_STATE_ID, TOKEN_RELS_STATE_LABEL, destination);
         return new WritableTokenRelationStore(
                 mockWritableStates(Map.of(TOKEN_RELS_STATE_ID, wrappedState)), mock(WritableEntityCounters.class));
     }
@@ -442,7 +439,7 @@ public class SigReqAdapterUtils {
         destination.put(
                 toPbj(FROM_OVERLAP_PAYER),
                 toPbjAccount(FROM_OVERLAP_PAYER.getAccountNum(), FROM_OVERLAP_PAYER_KT.asPbjKey(), DEFAULT_BALANCE));
-        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID, destination);
+        return new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, destination);
     }
 
     private static Account toPbjAccount(final long number, final Key key, long balance) {

@@ -247,7 +247,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         for (final var svc : services.values()) {
             for (final var md : svc.values()) {
                 final var index =
-                        findNodeIndex(md.serviceName(), md.stateDefinition().stateId());
+                        findNodeIndex(md.serviceName(), md.stateDefinition().stateKey());
                 if (index >= 0) {
                     final var node = getChild(index);
                     if (node instanceof VirtualMap virtualMap) {
@@ -364,7 +364,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         // because it may have been loaded from state on disk, and the node provided here in this
         // call is always for genesis. So we may just ignore it.
         final T node;
-        final var nodeIndex = findNodeIndex(serviceName, def.stateId());
+        final var nodeIndex = findNodeIndex(serviceName, def.stateKey());
         if (nodeIndex == -1) {
             node = requireNonNull(nodeSupplier.get());
             final var label = node instanceof Labeled labeled ? labeled.getLabel() : null;
@@ -383,7 +383,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 throw new IllegalArgumentException("A label must be specified on the node");
             }
 
-            if (!label.equals(StateMetadata.computeLabel(serviceName, def.stateId()))) {
+            if (!label.equals(StateMetadata.computeLabel(serviceName, def.stateKey()))) {
                 throw new IllegalArgumentException(
                         "A label must be computed based on the same " + "service name and state key in the metadata!");
             }
@@ -441,12 +441,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      * Simple utility method that finds the state node index.
      *
      * @param serviceName the service name
-     * @param stateId the state ID
+     * @param stateKey the state key
      * @return -1 if not found, otherwise the index into the children
      */
-    public int findNodeIndex(@NonNull final String serviceName, final int stateId) {
+    public int findNodeIndex(@NonNull final String serviceName, @NonNull final String stateKey) {
         Objects.requireNonNull(serviceName, "Service name may not be null");
-        final var label = StateMetadata.computeLabel(serviceName, stateId);
+        final var label = StateMetadata.computeLabel(serviceName, stateKey);
 
         final Integer index = INDEX_LOOKUP.get(label);
         if (index != null && checkNodeIndex(index, label)) {
@@ -598,11 +598,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         MerkleNode findNode(@NonNull final StateMetadata<?, ?> md) {
             final var index =
-                    findNodeIndex(md.serviceName(), md.stateDefinition().stateId());
+                    findNodeIndex(md.serviceName(), md.stateDefinition().stateKey());
             if (index == -1) {
                 // This can only happen if there WAS a node here, and it was removed!
                 throw new IllegalStateException("State '"
-                        + md.stateDefinition().stateId()
+                        + md.stateDefinition().stateKey()
                         + "' for service '"
                         + md.serviceName()
                         + "' is missing from the merkle tree!");
@@ -632,8 +632,9 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected ReadableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
             return new BackedReadableKVState<>(
-                    md.serviceName(),
                     md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
                     Objects.requireNonNull(md.stateDefinition().keyCodec()),
                     md.stateDefinition().valueCodec(),
                     v);
@@ -644,14 +645,20 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected ReadableSingletonState<?> createReadableSingletonState(
                 @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
             return new BackedReadableSingletonState<>(
-                    md.serviceName(), md.stateDefinition().stateId(), s);
+                    md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
+                    s);
         }
 
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md, @NonNull QueueNode<?> q) {
             return new BackedReadableQueueState<>(
-                    md.serviceName(), md.stateDefinition().stateId(), q);
+                    md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
+                    q);
         }
     }
 
@@ -697,8 +704,9 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected WritableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
             final var state = new BackedWritableKVState<>(
-                    serviceName,
                     md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
                     Objects.requireNonNull(md.stateDefinition().keyCodec()),
                     md.stateDefinition().valueCodec(),
                     v);
@@ -715,7 +723,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected WritableSingletonState<?> createReadableSingletonState(
                 @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
             final var state = new BackedWritableSingletonState<>(
-                    md.serviceName(), md.stateDefinition().stateId(), s);
+                    md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
+                    s);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(state, listener);
@@ -729,7 +740,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected WritableQueueState<?> createReadableQueueState(
                 @NonNull final StateMetadata md, @NonNull final QueueNode<?> q) {
             final var state = new BackedWritableQueueState<>(
-                    md.serviceName(), md.stateDefinition().stateId(), q);
+                    md.stateDefinition().stateId(),
+                    StateMetadata.computeLabel(
+                            md.serviceName(), md.stateDefinition().stateKey()),
+                    q);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(state, listener);

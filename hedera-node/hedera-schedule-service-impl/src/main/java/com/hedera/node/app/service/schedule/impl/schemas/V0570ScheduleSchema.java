@@ -3,6 +3,7 @@ package com.hedera.node.app.service.schedule.impl.schemas;
 
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EQUALITY_STATE_ID;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EXPIRY_SEC_STATE_ID;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -12,6 +13,7 @@ import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.schedule.ScheduleService;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +41,8 @@ public final class V0570ScheduleSchema extends Schema {
     public static final int SCHEDULED_COUNTS_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULED_COUNTS.protoOrdinal();
 
+    public static final String SCHEDULED_COUNTS_STATE_LABEL = computeLabel(ScheduleService.NAME, SCHEDULED_COUNTS_KEY);
+
     /**
      * The state key of a map from an order position within a consensus second to the id of
      * the transaction scheduled to executed in that order within that second.
@@ -47,6 +51,8 @@ public final class V0570ScheduleSchema extends Schema {
 
     public static final int SCHEDULED_ORDERS_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULED_ORDERS.protoOrdinal();
+
+    public static final String SCHEDULED_ORDERS_STATE_LABEL = computeLabel(ScheduleService.NAME, SCHEDULED_ORDERS_KEY);
 
     /**
      * The state key of a map from consensus second to the throttle utilization of transactions
@@ -57,6 +63,8 @@ public final class V0570ScheduleSchema extends Schema {
     public static final int SCHEDULED_USAGES_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULED_USAGES.protoOrdinal();
 
+    public static final String SCHEDULED_USAGES_STATE_LABEL = computeLabel(ScheduleService.NAME, SCHEDULED_USAGES_KEY);
+
     /**
      * The state key of a map from a hash of the schedule's equality values to its schedule id.
      */
@@ -64,6 +72,9 @@ public final class V0570ScheduleSchema extends Schema {
 
     public static final int SCHEDULE_ID_BY_EQUALITY_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULE_ID_BY_EQUALITY.protoOrdinal();
+
+    public static final String SCHEDULE_ID_BY_EQUALITY_STATE_LABEL =
+            computeLabel(ScheduleService.NAME, SCHEDULE_ID_BY_EQUALITY_KEY);
 
     /**
      * Instantiates a new V0570 (version 0.57.0) schedule schema.

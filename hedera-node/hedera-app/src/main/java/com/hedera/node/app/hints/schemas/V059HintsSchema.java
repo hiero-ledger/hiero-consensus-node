@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -43,18 +45,25 @@ public class V059HintsSchema extends Schema {
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
     public static final int HINTS_KEY_SETS_STATE_ID =
             StateKey.KeyOneOfType.HINTSSERVICE_I_HINTS_KEY_SETS.protoOrdinal();
+    public static final String HINTS_KEY_SETS_STATE_LABEL = computeLabel(HintsService.NAME, HINTS_KEY_SETS_KEY);
 
     public static final String ACTIVE_HINTS_CONSTRUCTION_KEY = "ACTIVE_HINTS_CONSTRUCTION";
     public static final int ACTIVE_HINTS_CONSTRUCTION_STATE_ID =
             SingletonType.HINTSSERVICE_I_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal();
+    public static final String ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL =
+            computeLabel(HintsService.NAME, ACTIVE_HINTS_CONSTRUCTION_KEY);
 
     public static final String NEXT_HINTS_CONSTRUCTION_KEY = "NEXT_HINTS_CONSTRUCTION";
     public static final int NEXT_HINTS_CONSTRUCTION_STATE_ID =
             SingletonType.HINTSSERVICE_I_NEXT_HINTS_CONSTRUCTION.protoOrdinal();
+    public static final String NEXT_HINTS_CONSTRUCTION_STATE_LABEL =
+            computeLabel(HintsService.NAME, NEXT_HINTS_CONSTRUCTION_KEY);
 
     public static final String PREPROCESSING_VOTES_KEY = "PREPROCESSING_VOTES";
     public static final int PREPROCESSING_VOTES_STATE_ID =
             StateKey.KeyOneOfType.HINTSSERVICE_I_PREPROCESSING_VOTES.protoOrdinal();
+    public static final String PREPROCESSING_VOTES_STATE_LABEL =
+            computeLabel(HintsService.NAME, PREPROCESSING_VOTES_KEY);
 
     public V059HintsSchema() {
         super(VERSION);

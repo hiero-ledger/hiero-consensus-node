@@ -3,13 +3,21 @@ package com.hedera.node.app.hints;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -27,7 +35,6 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -60,14 +67,14 @@ class ReadableHintsStoreTest {
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}),
                 ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
     }
@@ -103,14 +110,18 @@ class ReadableHintsStoreTest {
                 .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
                 .build();
         given(readableStates.getSingleton(CRS_STATE_STATE_ID))
-                .willReturn(
-                        new FunctionReadableSingletonState<>(HintsService.NAME, CRS_STATE_STATE_ID, () -> crsState));
+                .willReturn(new FunctionReadableSingletonState<>(
+                        CRS_STATE_STATE_ID, CRS_STATE_STATE_LABEL, () -> crsState));
         given(readableStates.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        HintsService.NAME, NEXT_HINTS_CONSTRUCTION_STATE_ID, () -> HintsConstruction.DEFAULT));
+                        NEXT_HINTS_CONSTRUCTION_STATE_ID,
+                        NEXT_HINTS_CONSTRUCTION_STATE_LABEL,
+                        () -> HintsConstruction.DEFAULT));
         given(readableStates.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        HintsService.NAME, ACTIVE_HINTS_CONSTRUCTION_STATE_ID, () -> HintsConstruction.DEFAULT));
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL,
+                        () -> HintsConstruction.DEFAULT));
         subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
 
         assertEquals(crsState, subject.getCrsState());
@@ -123,7 +134,7 @@ class ReadableHintsStoreTest {
                 .proof(Bytes.wrap("proof"))
                 .build();
         final var state = MapReadableKVState.<NodeId, CrsPublicationTransactionBody>builder(
-                        HintsService.NAME, CRS_PUBLICATIONS_STATE_ID)
+                        CRS_PUBLICATIONS_STATE_ID, CRS_PUBLICATIONS_STATE_LABEL)
                 .value(NodeId.DEFAULT, publication)
                 .value(NodeId.DEFAULT, publication)
                 .build();
@@ -131,11 +142,11 @@ class ReadableHintsStoreTest {
                 .willReturn(state);
         given(readableStates.<HintsPartyId, HintsKeySet>get(HINTS_KEY_SETS_STATE_ID))
                 .willReturn(MapReadableKVState.<HintsPartyId, HintsKeySet>builder(
-                                HintsService.NAME, HINTS_KEY_SETS_STATE_ID)
+                                HINTS_KEY_SETS_STATE_ID, HINTS_KEY_SETS_STATE_LABEL)
                         .build());
         given(readableStates.<PreprocessingVoteId, PreprocessingVote>get(PREPROCESSING_VOTES_STATE_ID))
                 .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(
-                                HintsService.NAME, PREPROCESSING_VOTES_STATE_ID)
+                                PREPROCESSING_VOTES_STATE_ID, PREPROCESSING_VOTES_STATE_LABEL)
                         .build());
 
         subject = new ReadableHintsStoreImpl(readableStates, entityCounters);

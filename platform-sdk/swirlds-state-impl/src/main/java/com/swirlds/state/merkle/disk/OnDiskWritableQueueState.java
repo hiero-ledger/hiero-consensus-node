@@ -7,7 +7,6 @@ import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,16 +26,16 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
     /**
      * Create a new instance
      *
-     * @param serviceName the service name
      * @param stateId     the state ID
+     * @param label       the service label
      * @param virtualMap  the backing merkle data structure to use
      */
     public OnDiskWritableQueueState(
-            @NonNull final String serviceName,
             final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateId);
+        super(stateId, requireNonNull(label));
         this.onDiskQueueHelper = new OnDiskQueueHelper<>(stateId, valueCodec, virtualMap);
     }
 
@@ -52,7 +51,7 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
         // increment tail and update state
         onDiskQueueHelper.updateState(state.elementAdded());
         // Log to transaction state log, what was added
-        logQueueAdd(StateMetadata.computeLabel(serviceName, stateId), value);
+        logQueueAdd(label, value);
     }
 
     /** {@inheritDoc} */
@@ -64,11 +63,11 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
             // increment head and update state
             onDiskQueueHelper.updateState(state.elementRemoved());
             // Log to transaction state log, what was removed
-            logQueueRemove(StateMetadata.computeLabel(serviceName, stateId), removedValue);
+            logQueueRemove(label, removedValue);
         } else {
             // Should it be considered an error?
             // Log to transaction state log, what was removed
-            logQueueRemove(StateMetadata.computeLabel(serviceName, stateId), null);
+            logQueueRemove(label, null);
         }
     }
 
@@ -83,7 +82,7 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
         } else {
             final Iterator<V> it = onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
             // Log to transaction state log, what was iterated
-            logQueueIterate(StateMetadata.computeLabel(serviceName, stateId), state.tail() - state.head(), it);
+            logQueueIterate(label, state.tail() - state.head(), it);
             return it;
         }
     }

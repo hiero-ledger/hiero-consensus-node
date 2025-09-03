@@ -16,6 +16,7 @@ import org.mockito.Mock;
  * This test verifies behavior of a {@link WrappedReadableKVState}.
  */
 class WrappedReadableKVStateTest extends StateTestBase {
+
     @Mock
     private ReadableKVState<ProtoBytes, ProtoBytes> delegate;
 
@@ -27,7 +28,6 @@ class WrappedReadableKVStateTest extends StateTestBase {
     @BeforeEach
     void setUp() {
         openMocks(this);
-        when(delegate.getServiceName()).thenReturn(FRUIT_SERVICE_NAME);
         when(delegate.getStateId()).thenReturn(FRUIT_STATE_ID);
         state = new WrappedReadableKVState<>(delegate);
     }

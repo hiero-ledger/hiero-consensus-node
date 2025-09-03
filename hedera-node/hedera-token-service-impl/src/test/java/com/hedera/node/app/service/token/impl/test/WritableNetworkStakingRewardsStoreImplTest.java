@@ -2,12 +2,12 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -35,7 +35,10 @@ class WritableNetworkStakingRewardsStoreImplTest {
         final AtomicReference<NetworkStakingRewards> backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L, Timestamp.DEFAULT));
         stakingRewardsState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, backingValue::get, backingValue::set);
+                STAKING_NETWORK_REWARDS_STATE_ID,
+                STAKING_NETWORK_REWARDS_STATE_LABEL,
+                backingValue::get,
+                backingValue::set);
         given(states.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn((WritableSingletonState) stakingRewardsState);
 

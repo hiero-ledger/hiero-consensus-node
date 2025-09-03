@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.test.api;
 
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,7 +40,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
     @Test
     void instantiatesApiImpl() {
         given(writableStates.get(ACCOUNTS_STATE_ID))
-                .willReturn(new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID));
+                .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         assertInstanceOf(
                 TokenServiceApiImpl.class,
                 TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters));
@@ -48,7 +49,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
     @Test
     void testsCustomFeesByCreatingStep() {
         given(writableStates.get(ACCOUNTS_STATE_ID))
-                .willReturn(new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID));
+                .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));
     }
@@ -57,7 +58,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
     void returnsFalseOnAnyStepCreationFailure() {
         given(writableStates.get(anyInt())).willReturn(null);
         given(writableStates.get(ACCOUNTS_STATE_ID))
-                .willReturn(new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID));
+                .willReturn(new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL));
         given(writableStates.get(TOKEN_RELS_STATE_ID)).willThrow(IllegalStateException.class);
         final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));

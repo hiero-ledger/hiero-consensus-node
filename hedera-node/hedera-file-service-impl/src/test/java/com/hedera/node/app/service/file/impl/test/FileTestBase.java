@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test;
 
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_LABEL;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 
@@ -97,6 +103,7 @@ public class FileTestBase {
             .build();
 
     protected static final int UPGRADE_DATA_STATE_ID = 10101;
+    protected static final String UPGRADE_DATA_KEY = "FileService_I_UPGRADE_DATA_250";
 
     protected final Key key = A_COMPLEX_KEY;
     protected final AccountID payerId = AccountID.newBuilder().accountNum(3).build();
@@ -217,24 +224,24 @@ public class FileTestBase {
     protected void givenEntityCounters(int numFiles) {
         given(writableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_ID_STATE_ID,
+                        computeLabel(EntityIdService.NAME, ENTITY_ID_KEY),
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        computeLabel(EntityIdService.NAME, ENTITY_COUNTS_KEY),
                         () -> EntityCounts.newBuilder().numFiles(numFiles).build(),
                         c -> {}));
         given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_ID, () -> EntityNumber.newBuilder()
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numFiles(numFiles).build()));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
         writableEntityCounters = new WritableEntityIdStore(writableStates);
@@ -270,25 +277,26 @@ public class FileTestBase {
 
     @NonNull
     protected MapWritableKVState<FileID, File> emptyWritableFileState() {
-        return MapWritableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .build();
     }
 
     @NonNull
     protected ListWritableQueueState<ProtoBytes> emptyUpgradeDataState() {
-        return ListWritableQueueState.<ProtoBytes>builder(FileService.NAME, UPGRADE_DATA_STATE_ID)
+        return ListWritableQueueState.<ProtoBytes>builder(
+                        UPGRADE_DATA_STATE_ID, computeLabel(FileService.NAME, UPGRADE_DATA_KEY))
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<FileID, File> emptyUpgradeFileState() {
-        return MapWritableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<FileID, File> writableFileStateWithOneKey() {
-        return MapWritableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .value(fileId, file)
                 .value(fileSystemFileId, fileSystem)
                 .build();
@@ -296,35 +304,37 @@ public class FileTestBase {
 
     @NonNull
     protected MapReadableKVState<FileID, File> readableFileState() {
-        return MapReadableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapReadableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .value(fileId, file)
                 .build();
     }
 
     @NonNull
     protected ListReadableQueueState<ProtoBytes> readableUpgradeDataState() {
-        return ListReadableQueueState.<ProtoBytes>builder(FileService.NAME, UPGRADE_DATA_STATE_ID)
+        return ListReadableQueueState.<ProtoBytes>builder(
+                        UPGRADE_DATA_STATE_ID, computeLabel(FileService.NAME, UPGRADE_DATA_KEY))
                 .value(new ProtoBytes(fileSystem.contents()))
                 .build();
     }
 
     @NonNull
     protected ListWritableQueueState<ProtoBytes> writableUpgradeDataState() {
-        return ListWritableQueueState.<ProtoBytes>builder(FileService.NAME, UPGRADE_DATA_STATE_ID)
+        return ListWritableQueueState.<ProtoBytes>builder(
+                        UPGRADE_DATA_STATE_ID, computeLabel(FileService.NAME, UPGRADE_DATA_KEY))
                 .value(new ProtoBytes(fileSystem.contents()))
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<FileID, File> readableUpgradeFileState() {
-        return MapReadableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapReadableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .value(fileUpgradeFileId, upgradeFile)
                 .build();
     }
 
     @NonNull
     protected MapWritableKVState<FileID, File> writableUpgradeFileState() {
-        return MapWritableKVState.<FileID, File>builder(FileService.NAME, FILES_STATE_ID)
+        return MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, FILES_STATE_LABEL)
                 .value(fileUpgradeFileId, upgradeFile)
                 .build();
     }

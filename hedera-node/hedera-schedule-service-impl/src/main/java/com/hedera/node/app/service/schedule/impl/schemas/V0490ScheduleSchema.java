@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -8,6 +10,7 @@ import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.schedule.ScheduleService;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -31,14 +34,19 @@ public final class V0490ScheduleSchema extends Schema {
     public static final String SCHEDULES_BY_ID_KEY = "SCHEDULES_BY_ID";
     public static final int SCHEDULES_BY_ID_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULES_BY_ID.protoOrdinal();
+    public static final String SCHEDULES_BY_ID_STATE_LABEL = computeLabel(ScheduleService.NAME, SCHEDULES_BY_ID_KEY);
 
     public static final String SCHEDULES_BY_EXPIRY_SEC_KEY = "SCHEDULES_BY_EXPIRY_SEC";
     public static final int SCHEDULES_BY_EXPIRY_SEC_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULES_BY_EXPIRY_SEC.protoOrdinal();
+    public static final String SCHEDULES_BY_EXPIRY_SEC_STATE_LABEL =
+            computeLabel(ScheduleService.NAME, SCHEDULES_BY_EXPIRY_SEC_KEY);
 
     public static final String SCHEDULES_BY_EQUALITY_KEY = "SCHEDULES_BY_EQUALITY";
     public static final int SCHEDULES_BY_EQUALITY_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULES_BY_EQUALITY.protoOrdinal();
+    public static final String SCHEDULES_BY_EQUALITY_STATE_LABEL =
+            computeLabel(ScheduleService.NAME, SCHEDULES_BY_EQUALITY_KEY);
 
     /**
      * Instantiates a new V0490 (version 0.49.0) schedule schema.

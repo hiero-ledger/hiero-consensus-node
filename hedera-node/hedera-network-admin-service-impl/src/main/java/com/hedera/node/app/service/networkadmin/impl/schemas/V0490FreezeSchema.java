@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -19,9 +21,11 @@ public class V0490FreezeSchema extends Schema {
 
     public static final String UPGRADE_FILE_HASH_KEY = "UPGRADE_FILE_HASH";
     public static final int UPGRADE_FILE_HASH_STATE_ID = SingletonType.FREEZESERVICE_I_UPGRADE_FILE_HASH.protoOrdinal();
+    public static final String UPGRADE_FILE_HASH_STATE_LABEL = computeLabel(FreezeService.NAME, UPGRADE_FILE_HASH_KEY);
 
     public static final String FREEZE_TIME_KEY = "FREEZE_TIME";
     public static final int FREEZE_TIME_STATE_ID = SingletonType.FREEZESERVICE_I_FREEZE_TIME.protoOrdinal();
+    public static final String FREEZE_TIME_STATE_LABEL = computeLabel(FreezeService.NAME, FREEZE_TIME_KEY);
 
     /**
      * The version of the schema.

@@ -20,13 +20,12 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * pre-populate the queue, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param serviceName  The service name
-     * @param stateId      The state ID for this state
+     * @param stateId      The state ID
+     * @param label        The service label
      * @param backingStore The backing store to use
      */
-    public ListReadableQueueState(
-            @NonNull final String serviceName, final int stateId, @NonNull final Queue<E> backingStore) {
-        super(serviceName, stateId);
+    public ListReadableQueueState(final int stateId, final String label, @NonNull final Queue<E> backingStore) {
+        super(stateId, label);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
@@ -47,26 +46,27 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * convenience methods for pre-populating the queue.
      *
      * @param <E>      The value type
-     * @param serviceName The service name
      * @param stateId  The state ID
+     * @param label    The state label
      * @return A {@link ListReadableQueueState.Builder} to be used for creating a {@link ListReadableQueueState}.
      */
     @NonNull
-    public static <E> ListReadableQueueState.Builder<E> builder(@NonNull final String serviceName, final int stateId) {
-        return new ListReadableQueueState.Builder<>(serviceName, stateId);
+    public static <E> ListReadableQueueState.Builder<E> builder(final int stateId, @NonNull final String label) {
+        return new ListReadableQueueState.Builder<>(stateId, label);
     }
 
     /**
      * A convenient builder for creating instances of {@link ListReadableQueueState}.
      */
     public static final class Builder<E> {
-        private final Queue<E> backingStore = new LinkedList<>();
-        private final String serviceName;
-        private final int stateId;
 
-        Builder(@NonNull final String serviceName, final int stateId) {
-            this.serviceName = serviceName;
+        private final int stateId;
+        private final String label;
+        private final Queue<E> backingStore = new LinkedList<>();
+
+        Builder(final int stateId, @NonNull final String label) {
             this.stateId = stateId;
+            this.label = label;
         }
 
         /**
@@ -89,7 +89,7 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
          */
         @NonNull
         public ListReadableQueueState<E> build() {
-            return new ListReadableQueueState<>(serviceName, stateId, new LinkedList<>(backingStore));
+            return new ListReadableQueueState<>(stateId, label, new LinkedList<>(backingStore));
         }
     }
 }

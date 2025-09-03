@@ -3,6 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.test;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,7 +18,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
@@ -54,7 +54,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
     @Test
     void missingNodeIsNull() {
         readableNodeState.reset();
-        final var state = MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_STATE_ID)
+        final var state = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(state);
         subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);

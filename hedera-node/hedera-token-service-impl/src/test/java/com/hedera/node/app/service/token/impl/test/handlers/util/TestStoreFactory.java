@@ -2,11 +2,16 @@
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_LABEL;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,7 +28,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
@@ -86,7 +90,7 @@ public final class TestStoreFactory {
                 ACCOUNTS_STATE_ID,
                 wrappingState,
                 ALIASES_STATE_ID,
-                new MapWritableKVState<>(TokenService.NAME, ALIASES_STATE_ID, new HashMap<>()));
+                new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, new HashMap<>()));
     }
 
     private static MapWritableKVState<AccountID, Account> newAccountStateFromAccounts(Account... accounts) {
@@ -95,7 +99,7 @@ public final class TestStoreFactory {
             backingMap.put(account.accountId(), account);
         }
 
-        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID, backingMap);
+        return new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, backingMap);
     }
 
     /**
@@ -130,7 +134,7 @@ public final class TestStoreFactory {
                     tokenRel);
         }
 
-        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_STATE_ID, backingMap);
+        return new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, backingMap);
     }
 
     /**
@@ -170,7 +174,7 @@ public final class TestStoreFactory {
             backingMap.put(token.tokenId(), token);
         }
 
-        return new MapWritableKVState<>(TokenService.NAME, TOKENS_STATE_ID, backingMap);
+        return new MapWritableKVState<>(TOKENS_STATE_ID, TOKENS_STATE_LABEL, backingMap);
     }
 
     private static MapWritableKVState<NftID, Nft> newNftStateFromNfts(Nft... nfts) {
@@ -179,7 +183,7 @@ public final class TestStoreFactory {
             backingMap.put(nft.nftId(), nft);
         }
 
-        return new MapWritableKVState<>(TokenService.NAME, NFTS_STATE_ID, backingMap);
+        return new MapWritableKVState<>(NFTS_STATE_ID, NFTS_STATE_LABEL, backingMap);
     }
 
     public static WritableAirdropStore newWritableStoreWithAirdrops(PendingAirdropId... airdrops) {
@@ -195,6 +199,6 @@ public final class TestStoreFactory {
             backingMap.put(airdrop, AccountPendingAirdrop.newBuilder().build());
         }
 
-        return new MapWritableKVState<>(TokenService.NAME, AIRDROPS_STATE_ID, backingMap);
+        return new MapWritableKVState<>(AIRDROPS_STATE_ID, AIRDROPS_STATE_LABEL, backingMap);
     }
 }

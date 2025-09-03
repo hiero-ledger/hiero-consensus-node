@@ -27,12 +27,6 @@ public class ReadonlySingletonStateWrapper<T> implements ReadableSingletonState<
         this.delegate = requireNonNull(delegate, "delegate must not be null");
     }
 
-    @NonNull
-    @Override
-    public String getServiceName() {
-        return delegate.getServiceName();
-    }
-
     @Override
     public int getStateId() {
         return delegate.getStateId();

@@ -106,7 +106,7 @@ public class StateMetadataTest extends StateTestBase {
     @DisplayName("`computeLabel` with a null service name throws")
     void computeLabel_nullServiceNameThrows() {
         //noinspection DataFlowIssue
-        assertThatThrownBy(() -> StateMetadata.computeLabel(null, FRUIT_STATE_ID))
+        assertThatThrownBy(() -> StateMetadata.computeLabel(null, FRUIT_STATE_KEY))
                 .isInstanceOf(NullPointerException.class);
     }
 

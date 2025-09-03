@@ -10,7 +10,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_S
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -595,15 +597,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @BeforeEach
         void setup() {
             final var baseKVState =
-                    new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, new HashMap<>(BASE_DATA));
+                    new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA));
             final var writableStates =
                     MapWritableStates.builder().state(baseKVState).build();
             final var readableStates = MapReadableStates.builder()
-                    .state(new MapReadableKVState(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, new HashMap<>(BASE_DATA)))
+                    .state(new MapReadableKVState(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA)))
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, ACCOUNTS_STATE_ID);
+            final var accountsState =
+                    new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -854,9 +857,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder(TokenService.NAME, ACCOUNTS_STATE_ID)
+                        .state(MapWritableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                                 .build())
-                        .state(MapWritableKVState.builder(TokenService.NAME, ALIASES_STATE_ID)
+                        .state(MapWritableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
                                 .build())
                         .build());
         lenient().when(writableStates.<EntityNumber>getSingleton(anyInt())).thenReturn(entityNumberState);

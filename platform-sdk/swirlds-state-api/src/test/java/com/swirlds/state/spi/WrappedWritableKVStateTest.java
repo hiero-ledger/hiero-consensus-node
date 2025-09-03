@@ -25,7 +25,7 @@ class WrappedWritableKVStateTest extends StateTestBase {
         final var map = new HashMap<ProtoBytes, ProtoBytes>();
         map.put(A_KEY, APPLE);
         map.put(B_KEY, BANANA);
-        this.delegate = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, map);
+        this.delegate = new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, map);
         this.state = Mockito.spy(new WrappedWritableKVState<>(delegate));
     }
 

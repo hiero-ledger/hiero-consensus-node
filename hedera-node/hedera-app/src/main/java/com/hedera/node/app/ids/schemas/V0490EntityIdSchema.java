@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -26,6 +29,7 @@ public class V0490EntityIdSchema extends Schema {
 
     public static final String ENTITY_ID_KEY = "ENTITY_ID";
     public static final int ENTITY_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_ENTITY_ID.protoOrdinal();
+    public static final String ENTITY_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, ENTITY_ID_KEY);
 
     public V0490EntityIdSchema() {
         super(VERSION);

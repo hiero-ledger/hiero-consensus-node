@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -15,6 +16,7 @@ import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -32,9 +34,12 @@ public class V060HintsSchema extends Schema {
 
     public static final String CRS_STATE_KEY = "CRS_STATE";
     public static final int CRS_STATE_STATE_ID = SingletonType.HINTSSERVICE_I_CRS_STATE.protoOrdinal();
+    public static final String CRS_STATE_STATE_LABEL = computeLabel(HintsService.NAME, CRS_STATE_KEY);
+
     public static final String CRS_PUBLICATIONS_KEY = "CRS_PUBLICATIONS";
     public static final int CRS_PUBLICATIONS_STATE_ID =
             StateKey.KeyOneOfType.HINTSSERVICE_I_CRS_PUBLICATIONS.protoOrdinal();
+    public static final String CRS_PUBLICATIONS_STATE_LABEL = computeLabel(HintsService.NAME, CRS_PUBLICATIONS_KEY);
 
     private static final Logger log = LogManager.getLogger(V060HintsSchema.class);
 

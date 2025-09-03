@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.spi.ReadableKVState;
@@ -40,18 +39,18 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     /**
      * Create a new instance
      *
-     * @param serviceName the service name
      * @param stateId     the state ID
+     * @param label       the state label
      * @param keyCodec    the codec for the key
      * @param virtualMap  the backing merkle data structure to use
      */
     public OnDiskReadableKVState(
-            @NonNull final String serviceName,
             final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<K> keyCodec,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateId);
+        super(stateId, requireNonNull(label));
         this.keyCodec = requireNonNull(keyCodec);
         this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
@@ -66,7 +65,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
         final V value = stateValue != null ? stateValue.value() : null;
         // Log to transaction state log, what was read
-        logMapGet(StateMetadata.computeLabel(serviceName, stateId), key, value);
+        logMapGet(label, key, value);
         return value;
     }
 
@@ -75,7 +74,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(StateMetadata.computeLabel(serviceName, stateId), virtualMap, keyCodec);
+        logMapIterate(label, virtualMap, keyCodec);
         return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
@@ -87,7 +86,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     public long size() {
         final var size = virtualMap.size();
         // Log to transaction state log, size of map
-        logMapGetSize(StateMetadata.computeLabel(serviceName, stateId), size);
+        logMapGetSize(label, size);
         return size;
     }
 

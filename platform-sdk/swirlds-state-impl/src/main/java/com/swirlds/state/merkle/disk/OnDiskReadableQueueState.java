@@ -5,7 +5,6 @@ import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -28,16 +27,16 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
     /**
      * Create a new instance
      *
-     * @param serviceName the service name
      * @param stateId     the state ID
+     * @param label       the service label
      * @param virtualMap  the backing merkle data structure to use
      */
     public OnDiskReadableQueueState(
-            @NonNull final String serviceName,
             final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateId);
+        super(stateId, label);
         this.onDiskQueueHelper = new OnDiskQueueHelper<>(stateId, valueCodec, virtualMap);
     }
 
@@ -48,7 +47,7 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
         Objects.requireNonNull(state);
         final V value = OnDiskQueueHelper.isEmpty(state) ? null : onDiskQueueHelper.getFromStore(state.head());
         // Log to transaction state log, what was peeked
-        logQueuePeek(StateMetadata.computeLabel(serviceName, stateId), value);
+        logQueuePeek(label, value);
         return value;
     }
 
@@ -63,7 +62,7 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
         } else {
             final Iterator<V> it = onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
             // Log to transaction state log, what was iterated
-            logQueueIterate(StateMetadata.computeLabel(serviceName, stateId), state.tail() - state.head(), it);
+            logQueueIterate(label, state.tail() - state.head(), it);
             return it;
         }
     }

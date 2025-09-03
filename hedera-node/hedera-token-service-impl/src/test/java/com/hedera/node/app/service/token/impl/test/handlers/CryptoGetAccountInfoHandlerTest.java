@@ -7,10 +7,15 @@ import static com.hedera.hapi.node.base.TokenFreezeStatus.FREEZE_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenKycStatus.KYC_NOT_APPLICABLE;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,7 +51,6 @@ import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.AccountSummariesApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
@@ -147,7 +151,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     @Test
     @DisplayName("Empty account failed during validate")
     void validatesQueryIfEmptyAccount() {
-        final var state = MapReadableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_STATE_ID)
+        final var state = MapReadableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(state);
         final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
@@ -165,7 +169,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     @Test
     @DisplayName("Account Id is needed during validate")
     void validatesQueryIfInvalidAccount() {
-        final var state = MapReadableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_STATE_ID)
+        final var state = MapReadableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(state);
         final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
@@ -425,7 +429,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private void setupAccountStore() {
         final var readableAccounts = MapReadableKVState.<AccountID, Account>builder(
-                        TokenService.NAME, ACCOUNTS_STATE_ID)
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .value(id, account)
                 .build();
         given(readableStates1.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
@@ -435,7 +439,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     }
 
     private void setupTokenStore(Token... tokens) {
-        final var readableToken = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_STATE_ID);
+        final var readableToken = MapReadableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL);
         for (Token token : tokens) {
             readableToken.value(token.tokenId(), token);
         }
@@ -446,7 +450,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private void setupTokenRelationStore(TokenRelation... tokenRelations) {
         final var readableTokenRel =
-                MapReadableKVState.<EntityIDPair, TokenRelation>builder(TokenService.NAME, TOKEN_RELS_STATE_ID);
+                MapReadableKVState.<EntityIDPair, TokenRelation>builder(TOKEN_RELS_STATE_ID, TOKEN_RELS_STATE_LABEL);
         for (TokenRelation tokenRelation : tokenRelations) {
             readableTokenRel.value(
                     EntityIDPair.newBuilder()
@@ -463,7 +467,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private void setupStakingInfoStore() {
         final var readableStakingNodes = MapReadableKVState.<AccountID, StakingNodeInfo>builder(
-                        TokenService.NAME, STAKING_INFOS_STATE_ID)
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(id, stakingNodeInfo)
                 .build();
         given(readableStates4.<AccountID, StakingNodeInfo>get(STAKING_INFOS_STATE_ID))
@@ -476,7 +480,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
         final AtomicReference<NetworkStakingRewards> backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState = new FunctionReadableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_STATE_ID, backingValue::get);
+                STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_STATE_LABEL, backingValue::get);
         given(readableStates.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn((ReadableSingletonState) stakingRewardsState);
         final var readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);

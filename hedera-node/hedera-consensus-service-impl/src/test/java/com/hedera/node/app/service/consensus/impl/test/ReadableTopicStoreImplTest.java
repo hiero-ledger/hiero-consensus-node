@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.consensus.impl.test;
 
 import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,7 +16,6 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -76,7 +76,7 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
     @Test
     void missingTopicIsNull() {
         readableTopicState.reset();
-        final var state = MapReadableKVState.<Long, Topic>builder(ConsensusService.NAME, TOPICS_STATE_ID)
+        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
                 .build();
         given(readableStates.<Long, Topic>get(TOPICS_STATE_ID)).willReturn(state);
         subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);

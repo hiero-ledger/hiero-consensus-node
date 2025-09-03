@@ -441,10 +441,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final String infoJson = virtualMapState.getInfoJson();
             assertThat(infoJson)
                     .isEqualTo("{" + "\"Queues (Queue States)\":"
-                            + "{\"First-Service." + STEAM_STATE_ID + "\":{\"head\":1,\"path\":8,\"tail\":3}},"
+                            + "{\"First-Service." + STEAM_STATE_KEY + "\":{\"head\":1,\"path\":8,\"tail\":3}},"
                             + "\"VirtualMapMetadata\":{\"firstLeafPath\":5,\"lastLeafPath\":10},"
                             + "\"Singletons\":"
-                            + "{\"First-Service." + COUNTRY_STATE_ID
+                            + "{\"First-Service." + COUNTRY_STATE_KEY
                             + "\":{\"path\":9,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
         }
 

@@ -9,8 +9,10 @@ import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -100,15 +102,15 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
 
         when(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         entityCountsBackingStore::get,
                         entityCountsBackingStore::set));
 
         when(writableStates.getSingleton(FREEZE_TIME_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        FreezeService.NAME,
                         FREEZE_TIME_STATE_ID,
+                        FREEZE_TIME_STATE_LABEL,
                         freezeTimeBackingStore::get,
                         freezeTimeBackingStore::set));
 

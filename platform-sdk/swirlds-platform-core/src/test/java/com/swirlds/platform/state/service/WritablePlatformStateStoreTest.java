@@ -4,6 +4,7 @@ package com.swirlds.platform.state.service;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,7 +61,7 @@ class WritablePlatformStateStoreTest {
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .thenReturn(new OnDiskWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_STATE_ID, codec, virtualMap));
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 

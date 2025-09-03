@@ -62,7 +62,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
     protected WritableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(
             @NonNull final Map<ProtoBytes, ProtoBytes> map) {
-        this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, map));
+        this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, map));
         return state;
     }
 
@@ -673,7 +673,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             final var latch = new CountDownLatch(numThreads);
             final var mutationOrders = new ArrayList<List<Integer>>();
             for (int t = 0; t < numThreads; t++) {
-                final var state = new MapWritableKVState<Integer, String>(FRUIT_SERVICE_NAME, FRUIT_STATE_ID) {
+                final var state = new MapWritableKVState<Integer, String>(FRUIT_STATE_ID, FRUIT_STATE_LABEL) {
                     private final List<Integer> keys = new ArrayList<>();
 
                     @Override

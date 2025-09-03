@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,7 +26,6 @@ import com.hedera.hapi.node.consensus.ConsensusTopicInfo;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
@@ -112,7 +112,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
     @DisplayName("Topic Id is needed during validate")
     void validatesQueryIfInvalidTopic() {
         readableTopicState.reset();
-        final var state = MapReadableKVState.<Long, Topic>builder(ConsensusService.NAME, TOPICS_STATE_ID)
+        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
                 .build();
         given(readableStates.<Long, Topic>get(TOPICS_STATE_ID)).willReturn(state);
         final var store = new ReadableTopicStoreImpl(readableStates, entityCounters);
@@ -130,7 +130,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
     @DisplayName("Topic Id in transaction is needed during validate")
     void validatesQueryIfInvalidTopicInTrans() throws Throwable {
         readableTopicState.reset();
-        final var state = MapReadableKVState.<Long, Topic>builder(ConsensusService.NAME, TOPICS_STATE_ID)
+        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
                 .build();
         given(readableStates.<Long, Topic>get(TOPICS_STATE_ID)).willReturn(state);
         final var store = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);

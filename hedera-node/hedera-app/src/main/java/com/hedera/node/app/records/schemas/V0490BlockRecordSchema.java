@@ -2,11 +2,13 @@
 package com.hedera.node.app.records.schemas;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -20,11 +22,13 @@ public class V0490BlockRecordSchema extends Schema {
     public static final String RUNNING_HASHES_KEY = "RUNNING_HASHES";
 
     public static final int RUNNING_HASHES_STATE_ID = SingletonType.BLOCKRECORDSERVICE_I_RUNNING_HASHES.protoOrdinal();
+    public static final String RUNNING_HASHES_STATE_LABEL = computeLabel(BlockRecordService.NAME, RUNNING_HASHES_KEY);
 
     /** {@link BlockInfo} state */
     public static final String BLOCKS_KEY = "BLOCKS";
 
     public static final int BLOCKS_STATE_ID = SingletonType.BLOCKRECORDSERVICE_I_BLOCKS.protoOrdinal();
+    public static final String BLOCKS_STATE_LABEL = computeLabel(BlockRecordService.NAME, BLOCKS_KEY);
 
     /** The original hash, only used at genesis */
     private static final Bytes GENESIS_HASH = Bytes.wrap(new byte[48]);

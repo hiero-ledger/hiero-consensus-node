@@ -3,6 +3,7 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
@@ -29,7 +30,6 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
@@ -127,7 +127,7 @@ public class MerkleTestBase extends StateTestBase {
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
         MerkleDb.resetDefaultInstancePath();
-        fruitVirtualLabel = StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_ID);
+        fruitVirtualLabel = computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
         fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
     }
 
@@ -140,20 +140,18 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     protected void setupSingletonCountry() {
-        countryLabel = StateMetadata.computeLabel(FIRST_SERVICE, COUNTRY_STATE_ID);
+        countryLabel = computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY);
         countrySingleton = new SingletonNode<>(
-                FIRST_SERVICE,
-                COUNTRY_STATE_ID,
+                computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY),
                 computeClassId(FIRST_SERVICE, COUNTRY_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
                 ProtoBytes.PROTOBUF,
                 AUSTRALIA);
     }
 
     protected void setupSteamQueue() {
-        steamLabel = StateMetadata.computeLabel(FIRST_SERVICE, STEAM_STATE_ID);
+        steamLabel = computeLabel(FIRST_SERVICE, STEAM_STATE_KEY);
         steamQueue = new QueueNode<>(
-                FIRST_SERVICE,
-                STEAM_STATE_ID,
+                computeLabel(FIRST_SERVICE, STEAM_STATE_KEY),
                 computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX),
                 computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
                 ProtoBytes.PROTOBUF);

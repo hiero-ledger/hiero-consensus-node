@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -15,6 +16,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -45,6 +47,7 @@ public class V053AddressBookSchema extends Schema {
 
     public static final String NODES_KEY = "NODES";
     public static final int NODES_STATE_ID = StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_NODES.protoOrdinal();
+    public static final String NODES_STATE_LABEL = computeLabel(AddressBookService.NAME, NODES_KEY);
 
     public V053AddressBookSchema() {
         super(VERSION);

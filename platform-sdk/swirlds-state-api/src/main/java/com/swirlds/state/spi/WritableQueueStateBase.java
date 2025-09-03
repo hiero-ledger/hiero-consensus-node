@@ -41,16 +41,16 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     /** The cached most recent peeked element */
     private E peekedElement = null;
 
-    /** The service name. */
-    protected final String serviceName;
+    /** State label used in logs, typically serviceName.stateKey */
+    protected final String label;
 
     /** The state key. */
     protected final int stateId;
 
     /** Create a new instance */
-    protected WritableQueueStateBase(@NonNull final String serviceName, final int stateId) {
-        this.serviceName = requireNonNull(serviceName);
+    protected WritableQueueStateBase(final int stateId, final String label) {
         this.stateId = stateId;
+        this.label = label;
     }
 
     /**
@@ -114,12 +114,6 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     @Override
     public int getStateId() {
         return stateId;
-    }
-
-    @Override
-    @NonNull
-    public final String getServiceName() {
-        return serviceName;
     }
 
     @Nullable

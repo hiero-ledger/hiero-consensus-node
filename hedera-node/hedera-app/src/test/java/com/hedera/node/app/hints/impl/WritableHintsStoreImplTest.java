@@ -5,10 +5,15 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
@@ -123,14 +128,14 @@ class WritableHintsStoreImplTest {
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}),
                 ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
         subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
@@ -380,14 +385,17 @@ class WritableHintsStoreImplTest {
         final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
         given(writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME, CRS_STATE_STATE_ID, crsStateRef::get, crsStateRef::set));
+                        CRS_STATE_STATE_ID, CRS_STATE_STATE_LABEL, crsStateRef::get, crsStateRef::set));
         given(writableStates.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME, NEXT_HINTS_CONSTRUCTION_STATE_ID, () -> HintsConstruction.DEFAULT, c -> {}));
+                        NEXT_HINTS_CONSTRUCTION_STATE_ID,
+                        NEXT_HINTS_CONSTRUCTION_STATE_LABEL,
+                        () -> HintsConstruction.DEFAULT,
+                        c -> {}));
         given(writableStates.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        HintsService.NAME,
                         ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL,
                         () -> HintsConstruction.DEFAULT,
                         c -> {}));
 
