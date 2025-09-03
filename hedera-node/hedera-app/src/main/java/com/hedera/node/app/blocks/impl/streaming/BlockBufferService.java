@@ -608,7 +608,9 @@ public class BlockBufferService {
 
         // update the earliest block number after pruning
         earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);
-        blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
+        if (numPruned > 0) {
+            blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
+        }
 
         return new PruneResult(
                 idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
