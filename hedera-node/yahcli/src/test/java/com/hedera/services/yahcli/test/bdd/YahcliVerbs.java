@@ -8,6 +8,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -17,6 +20,11 @@ import org.junit.jupiter.api.Assertions;
 
 public class YahcliVerbs {
     private static final Pattern NEW_ACCOUNT_PATTERN = Pattern.compile("account num=(\\d+)");
+    private static final Pattern ACCOUNT_BALANCE_PATTERN = Pattern.compile("\\d+\\.\\d+\\.(\\d+)\\s*\\|\\s*(\\d+)");
+    private static final Pattern CURRENCY_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern TOKEN_TRANSFER_PATTERN =
+            Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
     private static final Pattern ACCOUNT_BALANCE_PATTERN = Pattern.compile("\\d+\\.\\d+\\.(\\d+)\\s*\\|\\s*(\\d+)");
     private static final Pattern CURRENCY_TRANSFER_PATTERN =
             Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
@@ -250,15 +258,5 @@ public class YahcliVerbs {
         } else {
             Assertions.fail("Expected '" + output + "' to contain '" + pattern.pattern() + "'");
         }
-    }
-
-    /**
-     * Get Path of a resources file.
-     * @param resourceFileName the file name
-     * @return the Path
-     */
-    public static Path loadResourceFile(String resourceFileName) {
-        return Path.of(Objects.requireNonNull(YahcliVerbs.class.getClassLoader().getResource(resourceFileName))
-                .getPath());
     }
 }

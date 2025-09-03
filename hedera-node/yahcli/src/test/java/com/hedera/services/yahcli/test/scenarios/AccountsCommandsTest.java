@@ -14,6 +14,10 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -26,9 +30,12 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newTokenTransferCa
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.yahcli.test.profile.Civilian;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.yahcli.test.profile.Civilian;
 import java.util.concurrent.atomic.AtomicLong;
@@ -83,6 +90,7 @@ public class AccountsCommandsTest {
                         .exposingOutputTo(
                                 output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))));
     }
+
 
     @HapiTest
     final Stream<DynamicTest> readmeAccountsBalanceExample() {
