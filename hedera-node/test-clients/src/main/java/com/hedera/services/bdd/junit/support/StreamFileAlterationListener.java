@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.nio.file.Files;
@@ -109,8 +110,7 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
         final var blockFilePath =
                 Files.exists(compressedBlockFilePath) ? compressedBlockFilePath : uncompressedBlockFilePath;
 
-        final var block =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockFilePath).getFirst();
+        final var block = BlockStreamUtils.readBlocks(blockFilePath).getFirst();
         listeners.forEach(l -> {
             try {
                 l.onNewBlock(block);

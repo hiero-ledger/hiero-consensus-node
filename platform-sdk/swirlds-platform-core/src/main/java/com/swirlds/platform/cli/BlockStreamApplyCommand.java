@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.platform.recovery.EventRecoveryWorkflow.recoverState;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.blockstream.BlockStreamRecoveryWorkflow.applyBlocks;
 
-import com.swirlds.cli.commands.EventStreamCommand;
+import com.swirlds.cli.commands.BlockStreamCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import java.nio.file.Path;
@@ -12,24 +11,27 @@ import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 
+/**
+ * A command applying a set of blocks to the state
+ */
 @CommandLine.Command(
-        name = "recover",
+        name = "apply",
         mixinStandardHelpOptions = true,
-        description = "Build a state file by replaying events from an event stream.")
-@SubcommandOf(EventStreamCommand.class)
-public final class EventStreamRecoverCommand extends AbstractCommand {
+        description = "Build a state file by applying blocks from a block stream.")
+@SubcommandOf(BlockStreamCommand.class)
+public final class BlockStreamApplyCommand extends AbstractCommand {
 
+    public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
     private Path outputPath = Path.of("./out");
     private String appMainName;
-    private Path initStateDir;
+    private Path pathToInitState;
     private NodeId selfId;
-    private boolean ignorePartialRounds;
-    private long finalRound = -1;
-    private Path eventStreamDirectory;
+    private long targetRound = DEFAULT_TARGET_ROUND;
+    private Path blockStreamDirectory;
     private List<Path> configurationPaths = List.of();
-    private boolean loadSigningKeys;
+    private String expectedHash = "";
 
-    private EventStreamRecoverCommand() {}
+    private BlockStreamApplyCommand() {}
 
     @CommandLine.Option(
             names = {"-c", "--config"},
@@ -48,8 +50,8 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     }
 
     @CommandLine.Parameters(index = "1", description = "The path to a directory tree containing event stream files.")
-    private void setEventStreamDirectory(final Path eventStreamDirectory) {
-        this.eventStreamDirectory = pathMustExist(eventStreamDirectory.toAbsolutePath());
+    private void setBlockStreamDirectory(final Path eventStreamDirectory) {
+        this.blockStreamDirectory = pathMustExist(eventStreamDirectory.toAbsolutePath());
     }
 
     @CommandLine.Option(
@@ -62,9 +64,10 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @CommandLine.Parameters(
             index = "0",
-            description = "The path to the initial state directory." + "Events will be replayed on top of this state.")
-    private void setInitStateDir(final Path initStateDir) {
-        this.initStateDir = pathMustExist(initStateDir.toAbsolutePath());
+            description = "The path to the bootstrap SignedState.swh file."
+                    + "Events will be replayed on top of this state file.")
+    private void setPathToInitState(final Path pathToInitState) {
+        this.pathToInitState = pathMustExist(pathToInitState.toAbsolutePath());
     }
 
     @CommandLine.Option(
@@ -77,42 +80,34 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     }
 
     @CommandLine.Option(
-            names = {"-p", "--ignore-partial"},
-            description = "if set then any partial rounds at the end of the event stream are ignored. Default = false")
-    private void setIgnorePartialRounds(final boolean ignorePartialRounds) {
-        this.ignorePartialRounds = ignorePartialRounds;
-    }
-
-    @CommandLine.Option(
-            names = {"-f", "--final-round"},
-            defaultValue = "-1",
+            names = {"-t", "--target-round"},
+            defaultValue = "9223372036854775807",
             description = "The last round that should be applied to the state, any higher rounds are ignored. "
                     + "Default = apply all available rounds")
-    private void setFinalRound(final long finalRound) {
-        this.finalRound = finalRound;
+    private void setTargetRound(final long targetRound) {
+        this.targetRound = targetRound;
     }
 
     @CommandLine.Option(
-            names = {"-s", "--load-signing-keys"},
-            defaultValue = "false",
-            description = "If present then load the signing keys. If not present, calling platform.sign() will throw.")
-    private void setLoadSigningKeys(final boolean loadSigningKeys) {
-        this.loadSigningKeys = loadSigningKeys;
+            names = {"-h", "--expected-hash"},
+            defaultValue = "",
+            description = "The last round that should be applied to the state, any higher rounds are ignored. "
+                    + "Default = apply all available rounds")
+    private void setExpectedHash(final String expectedHash) {
+        this.expectedHash = expectedHash;
     }
 
     @Override
     public Integer call() throws Exception {
-        recoverState(
-                initStateDir,
+        applyBlocks(
+                pathToInitState,
                 configurationPaths,
-                eventStreamDirectory,
+                blockStreamDirectory,
                 appMainName,
-                !ignorePartialRounds,
-                finalRound,
-                outputPath,
                 selfId,
-                loadSigningKeys,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                targetRound,
+                outputPath,
+                expectedHash);
         return 0;
     }
 }
