@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -14,7 +15,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
@@ -55,9 +56,9 @@ public class TokenRelationsIntegrity {
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
 
         assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);
@@ -100,11 +101,13 @@ public class TokenRelationsIntegrity {
                     assertEquals(accountId1, accountId2);
                     assertEquals(tokenId1, tokenId2);
 
-                    if (!tokenAccounts.contains(accountId1)) {
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(V0490TokenSchema.ACCOUNTS_STATE_ID, accountId1, AccountID.PROTOBUF))) {
                         accountFailCounter.incrementAndGet();
                     }
 
-                    if (!tokenTokens.contains(tokenId1)) {
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(V0490TokenSchema.TOKENS_STATE_ID, tokenId1, TokenID.PROTOBUF))) {
                         tokenFailCounter.incrementAndGet();
                     }
                     objectsProcessed.incrementAndGet();

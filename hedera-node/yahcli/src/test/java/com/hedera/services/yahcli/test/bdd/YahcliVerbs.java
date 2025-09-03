@@ -4,6 +4,8 @@ package com.hedera.services.yahcli.test.bdd;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.yahcli.commands.ivy.scenarios.Scenarios;
+import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
+import com.hedera.services.yahcli.config.domain.GlobalConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -51,12 +53,34 @@ public class YahcliVerbs {
     }
 
     /**
+     * Returns an operation that will load the yahcli global config and pass it to the given callback.
+     * @param cb the callback to accept the config
+     * @return the operation
+     */
+    public static YahcliConfigOperation withYahcliConfig(@NonNull final Consumer<GlobalConfig> cb) {
+        requireNonNull(cb);
+        return new YahcliConfigOperation(cb);
+    }
+
+    /**
      * Returns an operation that will load the yahcli scenarios config and pass it to the given
      * callback.
      * @param cb the callback to accept the config
      * @return the operation
      */
-    public static YahcliScenariosConfigOperation assertYahcliScenariosConfig(@NonNull final Consumer<Scenarios> cb) {
+    public static YahcliScenariosConfigOperation withYahcliScenariosConfig(
+            @NonNull final Consumer<ScenariosConfig> cb) {
+        requireNonNull(cb);
+        return new YahcliScenariosConfigOperation(false, null, cb);
+    }
+
+    /**
+     * Returns an operation that will load the yahcli scenarios config and pass it to the given
+     * callback.
+     * @param cb the callback to accept the config
+     * @return the operation
+     */
+    public static YahcliScenariosConfigOperation assertYahcliScenarios(@NonNull final Consumer<Scenarios> cb) {
         requireNonNull(cb);
         return new YahcliScenariosConfigOperation(false, cb, null);
     }
