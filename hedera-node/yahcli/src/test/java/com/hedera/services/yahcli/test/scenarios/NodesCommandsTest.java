@@ -11,6 +11,7 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetwork
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.loadResourceFile;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newNodeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliNodes;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -53,14 +54,20 @@ public class NodesCommandsTest {
                                         "a.b.com:50212")
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
                         // TODO: add state validation
+                        // Update the just created node
                         sourcingContextual(spec1 -> yahcliNodes(
-                                "update",
-                                "-n",
-                                Long.toString(newNodeNum.get()),
-                                "-k",
-                                asYcDefaultNetworkKey(adminKeyFileName),
-                                "-d",
-                                "Updated test node")),
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))))));
+                                        "update",
+                                        "-n",
+                                        Long.toString(newNodeNum.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "-d",
+                                        "Updated test node")
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
+                        // Finally delete the just created node
+                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("node" + newNodeNum.get() + " has been deleted")))))));
     }
 }

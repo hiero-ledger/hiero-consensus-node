@@ -14,10 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -30,12 +26,9 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newTokenTransferCa
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.yahcli.test.profile.Civilian;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.yahcli.test.profile.Civilian;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,35 +55,65 @@ public class AccountsCommandsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> reKeyAccount() {
+    final Stream<DynamicTest> reKeyWithNewlyGeneratedKey() {
         final var testAccountId = new AtomicReference<Long>();
         return hapiTest(
+                // Create account and attach an ED25519 key
                 cryptoCreate("testAccount")
                         .exposingCreatedIdTo(accountID -> testAccountId.set(accountID.getAccountNum())),
                 sourcing(() -> newKeyNamed("testKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey("account" + testAccountId + ".pem"), "keypass")),
                 cryptoUpdate("testAccount").key("testKey"),
-                // rekey using yahcli with a newly generated key
+                // re-key using newly generated key
                 sourcingContextual(spec -> yahcliAccounts("rekey", "-g", String.valueOf(testAccountId))
-                        .exposingOutputTo(output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))),
+                        .exposingOutputTo(
+                                output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rekeyWithExplicitED25519Key() {
+        final var testAccountId = new AtomicReference<Long>();
+        return hapiTest(
+                // Create account and attach an ED25519 key
+                cryptoCreate("testAccount")
+                        .exposingCreatedIdTo(accountID -> testAccountId.set(accountID.getAccountNum())),
+                sourcing(() -> newKeyNamed("testKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey("account" + testAccountId + ".pem"), "keypass")),
+                cryptoUpdate("testAccount").key("testKey"),
+                // Create new ED25519 key
                 sourcing(() -> newKeyNamed("newKey")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey("newKey.pem"), "keypass")),
-                // rekey using yahcli with an explicit key file
+                // rekey using yahcli with the newly created ED25519 key file
                 sourcingContextual(spec -> yahcliAccounts(
                                 "rekey", "-k", asYcDefaultNetworkKey("newKey.pem"), String.valueOf(testAccountId))
-                        .exposingOutputTo(output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))),
+                        .exposingOutputTo(
+                                output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rekeyWithExplicitSECPKey() {
+        final var testAccountId = new AtomicReference<Long>();
+        return hapiTest(
+                // Create account and attach an ED25519 key
+                cryptoCreate("testAccount")
+                        .exposingCreatedIdTo(accountID -> testAccountId.set(accountID.getAccountNum())),
+                sourcing(() -> newKeyNamed("testKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey("account" + testAccountId + ".pem"), "keypass")),
+                cryptoUpdate("testAccount").key("testKey"),
+                // Create new SECP256K1 key
                 sourcing(() -> newKeyNamed("newSecpKey")
                         .shape(SigControl.SECP256K1_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey("newSecpKey.pem"), "keypass")),
-                // rekey using yahcli with an explicit secp256k1 key file
+                // rekey using yahcli with the newly created SECP256K1 key file
                 sourcingContextual(spec -> yahcliAccounts(
                                 "rekey", "-k", asYcDefaultNetworkKey("newSecpKey.pem"), String.valueOf(testAccountId))
                         .exposingOutputTo(
                                 output -> assertTrue(output.contains(testAccountId + " has been re-keyed")))));
     }
-
 
     @HapiTest
     final Stream<DynamicTest> readmeAccountsBalanceExample() {

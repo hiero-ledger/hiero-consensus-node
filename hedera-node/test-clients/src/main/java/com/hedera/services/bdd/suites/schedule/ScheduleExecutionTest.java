@@ -1321,16 +1321,17 @@ public class ScheduleExecutionTest {
                 cryptoCreate(LUCKY_RECEIVER),
                 cryptoCreate(SENDER).balance(transferAmount),
                 cryptoCreate(RECEIVER).balance(noBalance),
-                scheduleCreate(BASIC_XFER, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, transferAmount)))
+                scheduleCreate(
+                                BASIC_XFER,
+                                cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, transferAmount))
+                                        .payingWith(DEFAULT_PAYER))
                         .payingWith(PAYING_ACCOUNT)
                         .via(CREATE_TXN),
                 recordFeeAmount(CREATE_TXN, SCHEDULE_CREATE_FEE),
                 cryptoDelete(PAYING_ACCOUNT),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
-                getTxnRecord(CREATE_TXN)
-                        .scheduled()
-                        .hasPriority(recordWith().statusFrom(INSUFFICIENT_PAYER_BALANCE, PAYER_ACCOUNT_DELETED)));
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().statusFrom(PAYER_ACCOUNT_DELETED)));
     }
 
     @HapiTest

@@ -3,6 +3,8 @@ package com.hedera.services.yahcli.test.scenarios;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newSetupStakeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliSetupStaking;
@@ -26,14 +28,14 @@ public class SetupStakeCommandsTest {
                         .exposingOutputTo(
                                 newSetupStakeCapturer(newRewardRate::set, newPerNodeRate::set, newAccountBalance::set)),
                 withOpContext((spec, opLog) -> {
-                    assertEquals(200_000_000L, newRewardRate.get(), "Expected reward rate to be 2 Hbars");
-                    assertEquals(100_000_000_000L, newPerNodeRate.get(), "Expected per-node stake to be 1 K Hbars");
+                    assertEquals(2 * ONE_HBAR, newRewardRate.get(), "Expected reward rate to be 2 Hbars");
+                    assertEquals(1000 * ONE_HBAR, newPerNodeRate.get(), "Expected per-node stake to be 1 K Hbars");
                     assertEquals(
-                            300_000_000_000_000L,
+                            3 * ONE_MILLION_HBARS,
                             newAccountBalance.get(),
                             "Expected staking account balance to be 3 M Hbars");
                 })
-                // TODO add state verification as well
+                // (FUTURE) add state verification as well
                 );
     }
 }
