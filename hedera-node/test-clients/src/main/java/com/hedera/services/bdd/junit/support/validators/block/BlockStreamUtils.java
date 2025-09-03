@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
-
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 
 public class BlockStreamUtils {
+
+    private static final String UPGRADE_DATA_FILE_NUM_FORMAT = "FileService.UPGRADE_DATA_%d";
 
     public static String stateNameOf(final int stateId) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
@@ -24,26 +24,16 @@ public class BlockStreamUtils {
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";
-            case STATE_ID_UPGRADE_DATA_150 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(150).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_151 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(151).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_152 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(152).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_153 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(153).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_154 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(154).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_155 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(155).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_156 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(156).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_157 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(157).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_158 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(158).toUpperCase();
-            case STATE_ID_UPGRADE_DATA_159 ->
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(159).toUpperCase();
+            case STATE_ID_UPGRADE_DATA_150 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(150);
+            case STATE_ID_UPGRADE_DATA_151 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(151);
+            case STATE_ID_UPGRADE_DATA_152 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(152);
+            case STATE_ID_UPGRADE_DATA_153 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(153);
+            case STATE_ID_UPGRADE_DATA_154 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(154);
+            case STATE_ID_UPGRADE_DATA_155 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(155);
+            case STATE_ID_UPGRADE_DATA_156 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(156);
+            case STATE_ID_UPGRADE_DATA_157 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(157);
+            case STATE_ID_UPGRADE_DATA_158 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(158);
+            case STATE_ID_UPGRADE_DATA_159 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(159);
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
