@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
-import static com.hedera.hapi.util.HapiUtils.asReadableIp;
-
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -167,49 +166,55 @@ public class RosterDiff {
 
         private static void reportDiffForCaCertificate(
                 final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
-            reportDiff(oldE, newE, report, RosterEntry::gossipCaCertificate, "gossipCaCertificate");
+            reportDiff(
+                    oldE, newE, report, RosterEntry::gossipCaCertificate, Object::toString, "  - gossipCaCertificate");
         }
 
         private static void reportDiffForWeight(
                 final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
-            reportDiff(oldE, newE, report, RosterEntry::weight, "weight");
+            reportDiff(oldE, newE, report, RosterEntry::weight, Object::toString, "  - weight");
         }
 
-        private static void reportDiff(
-                final RosterEntry oldE,
-                final RosterEntry newE,
+        private static <T, S> void reportDiff(
+                final T oldE,
+                final T newE,
                 final StringBuilder report,
-                Function<RosterEntry, ?> extract,
-                String name) {
-            final Object oldValue = extract.apply(oldE);
-            final Object neValue = extract.apply(newE);
+                final Function<T, S> extract,
+                final Function<S, String> toString,
+                final String name) {
+            final S oldValue = extract.apply(oldE);
+            final S neValue = extract.apply(newE);
             if (!oldValue.equals(neValue)) {
-                report.append(String.format("  - %s: %s -> %s\n", name, oldValue, neValue));
+                report.append(
+                        String.format("%s: '%s' -> '%s'%n", name, toString.apply(oldValue), toString.apply(neValue)));
             }
         }
 
         private static void reportDiffForDomainName(
                 final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
-            if (!oldEndpoint.domainName().equals(newEndpoint.domainName())) {
-                report.append(String.format(
-                        "    -- domainName: %s -> %s\n", oldEndpoint.domainName(), newEndpoint.domainName()));
-            }
+            reportDiff(
+                    oldEndpoint,
+                    newEndpoint,
+                    report,
+                    ServiceEndpoint::domainName,
+                    Object::toString,
+                    "    -- domainName");
         }
 
         private static void reportDiffForPort(
                 final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
-            if (oldEndpoint.port() != newEndpoint.port()) {
-                report.append(String.format("    -- port: %s -> %s\n", oldEndpoint.port(), newEndpoint.port()));
-            }
+            reportDiff(oldEndpoint, newEndpoint, report, ServiceEndpoint::port, Object::toString, "    -- port");
         }
 
         private static void reportDiffForIpAddress(
                 final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
-            if (!oldEndpoint.ipAddressV4().equals(newEndpoint.ipAddressV4())) {
-                report.append(String.format(
-                        "    -- ipAddressV4: %s -> %s\n",
-                        asReadableIp(oldEndpoint.ipAddressV4()), asReadableIp(newEndpoint.ipAddressV4())));
-            }
+            reportDiff(
+                    oldEndpoint,
+                    newEndpoint,
+                    report,
+                    ServiceEndpoint::ipAddressV4,
+                    HapiUtils::asReadableIp,
+                    "    -- ipAddressV4");
         }
     }
 }
