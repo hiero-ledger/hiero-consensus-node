@@ -4,7 +4,6 @@ package com.hedera.services.bdd.spec.utilops.streams;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -36,6 +35,7 @@ import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordP
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -178,7 +178,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         for (final var path : blockPaths) {
             try {
                 log.info("Trying to read blocks from {}", path);
-                blocks = BLOCK_STREAM_ACCESS.readBlocks(path);
+                blocks = BlockStreamUtils.readBlocks(path);
                 log.info("Read {} blocks from {}", blocks.size(), path);
             } catch (Exception ignore) {
                 // We will try to read the next node's streams

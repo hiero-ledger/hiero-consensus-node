@@ -1,29 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
+import static com.swirlds.platform.util.PlatformStateInitializer.initAndProcessState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.ApplicationDefinition;
-import com.swirlds.platform.ApplicationDefinitionLoader;
-import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
@@ -42,20 +30,14 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.State;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -66,7 +48,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.CesEvent;
@@ -90,7 +71,6 @@ public final class EventRecoveryWorkflow {
      * Read a signed state from disk and apply events from an event stream on disk. Write the resulting signed state to
      * disk.
      *
-     * @param platformContext         the platform context
      * @param signedStateFile         the bootstrap signed state file
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
@@ -105,7 +85,6 @@ public final class EventRecoveryWorkflow {
      * @param platformStateFacade     the facade to access the platform state
      */
     public static void recoverState(
-            @NonNull final PlatformContext platformContext,
             @NonNull final Path signedStateFile,
             @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
@@ -117,155 +96,81 @@ public final class EventRecoveryWorkflow {
             final boolean loadSigningKeys,
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
-        Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(signedStateFile, "signedStateFile must not be null");
-        Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
-        Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
-        Objects.requireNonNull(mainClassName, "mainClassName must not be null");
-        Objects.requireNonNull(allowPartialRounds, "allowPartialRounds must not be null");
-        Objects.requireNonNull(finalRound, "finalRound must not be null");
-        Objects.requireNonNull(resultingStateDirectory, "resultingStateDirectory must not be null");
-        Objects.requireNonNull(selfId, "selfId must not be null");
 
-        setupConstructableRegistry();
-        try {
-            setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
-            registerVirtualMapConstructables(platformContext.getConfiguration());
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-
-        final PathsConfig defaultPathsConfig = ConfigurationBuilder.create()
-                .withConfigDataType(PathsConfig.class)
-                .build()
-                .getConfigData(PathsConfig.class);
-
-        // parameters if the app needs them
-        final ApplicationDefinition appDefinition =
-                ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-        ParameterProvider.getInstance().setParameters(appDefinition.getAppParameters());
-
-        final SwirldMain appMain = loadAppMain(mainClassName);
-
-        if (!Files.exists(resultingStateDirectory)) {
-            Files.createDirectories(resultingStateDirectory);
-        }
-
-        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
-
-        final SwirldMain<?> hederaApp = createHederaApp(platformContext, platformStateFacade, appMain);
-
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+        initAndProcessState(
                 signedStateFile,
-                EventRecoveryWorkflow::createrNewMerkleNodeState,
-                platformStateFacade,
-                platformContext);
-        try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-            updateStateHash(hederaApp, deserializedSignedState);
+                configurationFiles,
+                mainClassName,
+                selfId,
+                (initialState, hederaApp, platformContext) -> {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "State from round {} loaded.",
+                            initialState.get().getRound());
+                    logger.info(STARTUP.getMarker(), "Loading event stream at {}", eventStreamDirectory);
 
-            logger.info(
-                    STARTUP.getMarker(),
-                    "State from round {} loaded.",
-                    initialState.get().getRound());
-            logger.info(STARTUP.getMarker(), "Loading event stream at {}", eventStreamDirectory);
+                    final IOIterator<StreamedRound> roundIterator = new EventStreamRoundIterator(
+                            initialState.get().getRoster(),
+                            eventStreamDirectory,
+                            initialState.get().getRound() + 1,
+                            allowPartialRounds);
 
-            final IOIterator<StreamedRound> roundIterator = new EventStreamRoundIterator(
-                    initialState.get().getRoster(),
-                    eventStreamDirectory,
-                    initialState.get().getRound() + 1,
-                    allowPartialRounds);
+                    logger.info(STARTUP.getMarker(), "Reapplying transactions");
 
-            logger.info(STARTUP.getMarker(), "Reapplying transactions");
+                    final RecoveredState recoveredState = reapplyTransactions(
+                            platformContext,
+                            initialState.getAndReserve("recoverState()"),
+                            hederaApp,
+                            roundIterator,
+                            finalRound,
+                            selfId,
+                            loadSigningKeys,
+                            platformStateFacade);
 
-            final RecoveredState recoveredState = reapplyTransactions(
-                    platformContext,
-                    initialState.getAndReserve("recoverState()"),
-                    hederaApp,
-                    roundIterator,
-                    finalRound,
-                    selfId,
-                    loadSigningKeys,
-                    platformStateFacade);
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Finished reapplying transactions, writing state to {}",
+                            resultingStateDirectory);
 
-            logger.info(
-                    STARTUP.getMarker(),
-                    "Finished reapplying transactions, writing state to {}",
-                    resultingStateDirectory);
+                    // Make one more copy to force the state in recoveredState to be immutable.
+                    final State mutableStateCopy =
+                            recoveredState.state().get().getState().copy();
 
-            // Make one more copy to force the state in recoveredState to be immutable.
-            final State mutableStateCopy =
-                    recoveredState.state().get().getState().copy();
+                    SignedStateFileWriter.writeSignedStateFilesToDirectory(
+                            platformContext,
+                            selfId,
+                            resultingStateDirectory,
+                            recoveredState.state().get(),
+                            platformStateFacade);
+                    final StateConfig stateConfig =
+                            platformContext.getConfiguration().getConfigData(StateConfig.class);
+                    updateEmergencyRecoveryFile(
+                            stateConfig,
+                            resultingStateDirectory,
+                            initialState.get().getConsensusTimestamp());
 
-            SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    resultingStateDirectory,
-                    recoveredState.state().get(),
-                    platformStateFacade);
-            final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-            updateEmergencyRecoveryFile(
-                    stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());
+                    logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
-            logger.info(STARTUP.getMarker(), "Signed state written to disk");
+                    final PcesFile preconsensusEventFile = PcesFile.of(
+                            Instant.now(),
+                            0,
+                            recoveredState.judge().getBirthRound(),
+                            recoveredState.judge().getBirthRound(),
+                            recoveredState.state().get().getRound(),
+                            resultingStateDirectory);
+                    final PcesFileWriterType type = platformContext
+                            .getConfiguration()
+                            .getConfigData(PcesConfig.class)
+                            .pcesFileWriterType();
+                    final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(type);
+                    mutableFile.writeEvent(recoveredState.judge());
+                    mutableFile.close();
 
-            final PcesFile preconsensusEventFile = PcesFile.of(
-                    Instant.now(),
-                    0,
-                    recoveredState.judge().getBirthRound(),
-                    recoveredState.judge().getBirthRound(),
-                    recoveredState.state().get().getRound(),
-                    resultingStateDirectory);
-            final PcesFileWriterType type = platformContext
-                    .getConfiguration()
-                    .getConfigData(PcesConfig.class)
-                    .pcesFileWriterType();
-            final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(type);
-            mutableFile.writeEvent(recoveredState.judge());
-            mutableFile.close();
+                    recoveredState.state().close();
+                    mutableStateCopy.release();
 
-            recoveredState.state().close();
-            mutableStateCopy.release();
-
-            logger.info(STARTUP.getMarker(), "Recovery process completed");
-        }
-    }
-
-    private static void updateStateHash(SwirldMain<?> hederaApp, DeserializedSignedState deserializedSignedState) {
-        try {
-            Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
-            setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static SwirldMain<?> createHederaApp(
-            PlatformContext platformContext, PlatformStateFacade platformStateFacade, SwirldMain<?> appMain) {
-        final SwirldMain<?> hederaApp;
-        Method newHederaMethod;
-        try {
-            newHederaMethod = appMain.getClass()
-                    .getDeclaredMethod("newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
-            hederaApp = (SwirldMain<?>) newHederaMethod.invoke(
-                    null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-        return hederaApp;
-    }
-
-    private static MerkleNodeState createrNewMerkleNodeState(VirtualMap virtualMap) {
-        try {
-            Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
-            Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
-            return (MerkleNodeState) constructor.newInstance(virtualMap);
-        } catch (ClassNotFoundException
-                | NoSuchMethodException
-                | InvocationTargetException
-                | InstantiationException
-                | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+                    logger.info(STARTUP.getMarker(), "Recovery process completed");
+                });
     }
 
     /**
@@ -365,8 +270,7 @@ public final class EventRecoveryWorkflow {
         notificationEngine.register(
                 NewRecoveredStateListener.class,
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
-        consensusStateEventHandler.onStateInitialized(
-                initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
+        consensusStateEventHandler.onStateInitialized(initialState, platform, InitTrigger.RECOVERY, softwareVersion);
         appMain.init(platform, platform.getSelfId());
 
         ReservedSignedState signedState = initialSignedState;

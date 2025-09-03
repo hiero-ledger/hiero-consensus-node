@@ -16,7 +16,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.consensus.ConsensusUtils.coin;
-import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
+import static com.swirlds.platform.system.InitTrigger.RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
@@ -709,8 +709,7 @@ public class HandleWorkflow {
         try {
             final var platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            if (this.initTrigger != EVENT_STREAM_RECOVERY
-                    && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
+            if (this.initTrigger != RECOVERY && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
                     blockStreamManager.setLastTopLevelTime(parentTxn.consensusNow());
                 }

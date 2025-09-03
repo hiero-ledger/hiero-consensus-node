@@ -4,9 +4,9 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.HashSet;
@@ -36,8 +36,7 @@ public class BlockNumberSequenceValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi"))
                 .toAbsolutePath()
                 .normalize();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
+        final var blocks = BlockStreamUtils.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         new BlockNumberSequenceValidator().validateBlocks(blocks);
     }
 

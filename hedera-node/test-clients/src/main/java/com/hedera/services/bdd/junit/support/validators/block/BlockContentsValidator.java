@@ -5,8 +5,8 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
@@ -28,8 +28,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
+        final var blocks = BlockStreamUtils.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
         validator.validateBlocks(blocks);
     }
 
