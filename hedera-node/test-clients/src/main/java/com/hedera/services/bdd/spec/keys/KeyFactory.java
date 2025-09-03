@@ -182,6 +182,29 @@ public class KeyFactory {
     }
 
     /**
+     * Exports the Ed25519 private key associated with the given name to the given PEM location, using
+     * the given passphrase and the given function to extract the target public key bytes.
+     * @param loc the location to which the key should be exported
+     * @param name the name of the key to export
+     * @param targetKeyExtractor a function that extracts the target public key bytes from the named key
+     * @param passphrase the passphrase to use for the PEM file
+     */
+    public void exportEd25519Key(
+            @NonNull final String loc,
+            @NonNull final String name,
+            @NonNull final Function<Key, byte[]> targetKeyExtractor,
+            @NonNull final String passphrase) {
+        requireNonNull(loc);
+        requireNonNull(name);
+        requireNonNull(targetKeyExtractor);
+        requireNonNull(passphrase);
+        final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
+        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
+        final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
+        KeyUtils.writeKeyTo(key, loc, passphrase);
+    }
+
+    /**
      * Exports the ECDSA private key associated with the given name to the given location in a plaintext format.
      *
      * @param name the name of the key to export
@@ -567,17 +590,6 @@ public class KeyFactory {
             @NonNull final String name,
             @NonNull final Function<Key, byte[]> targetKeyExtractor) {
         exportEd25519Key(loc, name, targetKeyExtractor, PEM_PASSPHRASE);
-    }
-
-    private void exportEd25519Key(
-            @NonNull final String loc,
-            @NonNull final String name,
-            @NonNull final Function<Key, byte[]> targetKeyExtractor,
-            @NonNull final String passphrase) {
-        final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
-        final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
-        KeyUtils.writeKeyTo(key, loc, passphrase);
     }
 
     private void exportEcdsaKey(
