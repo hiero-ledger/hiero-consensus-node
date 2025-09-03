@@ -63,6 +63,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
     private final FutureEventBuffer futureEventBuffer;
 
+    /**
+     * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     */
     private double syncRoundLag;
 
     /**
@@ -89,9 +92,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
-        if (config.maxAllowedSyncLag() >= 0) {
-            rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
-        }
+        rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -203,6 +205,10 @@ public class DefaultEventCreationManager implements EventCreationManager {
         return unhealthyDuration;
     }
 
+    /**
+     * Get the lag behind the median of the network latest consensus round
+     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     */
     public double getSyncRoundLag() {
         return syncRoundLag;
     }

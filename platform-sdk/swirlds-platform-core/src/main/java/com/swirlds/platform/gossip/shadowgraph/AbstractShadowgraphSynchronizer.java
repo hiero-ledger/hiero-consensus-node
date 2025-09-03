@@ -174,9 +174,6 @@ public class AbstractShadowgraphSynchronizer {
         return status;
     }
 
-    // TODO: this is temporary solution; proper one would require taking node weights into account
-    // TODO: it could be also done more efficiently but keeping sorted list in place and updating only change value
-    // TODO: also needs to react to disconnections and changing roster
     protected void reportRoundDifference(
             @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
         final long diff = other.getPendingConsensusRound() - self.getPendingConsensusRound();
