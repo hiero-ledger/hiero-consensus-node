@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7 or SDLT2)"
+        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
         type: string
       ref:
         required: true
@@ -172,7 +172,7 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT|SDLT)(\d+)$/')"
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
@@ -263,6 +263,8 @@ jobs:
 
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-longevity-test"
           fi
@@ -344,6 +346,8 @@ jobs:
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-longevity-test"
           fi
@@ -586,7 +590,7 @@ jobs:
         id: check-test-asset
         run: |
           ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc[0-9]$ ]]; then
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             ADHOC="true"
           fi
           echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
