@@ -365,7 +365,7 @@ jobs:
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
-          ls -lR "${{ env.CN_LOG_FOLDER }}"
+          ls -lR "$LOG_FOLDER"
 
       - name: Upload BN and MN Logs
         if: always()
