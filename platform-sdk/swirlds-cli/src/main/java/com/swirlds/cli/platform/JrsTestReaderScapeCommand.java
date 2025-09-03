@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.cli.utility.JtrUtils.scrapeTestData;
 import static com.swirlds.cli.testreader.JrsTestReader.saveTestResults;
+import static com.swirlds.cli.utility.JtrUtils.scrapeTestData;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
+import com.swirlds.cli.testreader.JrsReportData;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.cli.testreader.JrsReportData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;

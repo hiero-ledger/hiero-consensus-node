@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.recovery;
 
+import static com.swirlds.cli.platform.recovery.RecoveryTestUtils.truncateFile;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.event.ConsensusEventStreamUtils.generateRandomEvents;
 import static com.swirlds.platform.test.fixtures.event.ConsensusEventStreamUtils.getFirstEventStreamFile;
-import static com.swirlds.cli.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.test.fixtures.event.ConsensusEventStreamUtils.writeRandomEventStream;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,10 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.cli.internal.ObjectStreamIterator;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.cli.internal.ObjectStreamIterator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;

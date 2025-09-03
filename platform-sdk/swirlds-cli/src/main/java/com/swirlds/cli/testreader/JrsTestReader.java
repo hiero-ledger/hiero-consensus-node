@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.testreader;
 
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static com.swirlds.cli.testreader.TestStatus.FAIL;
 import static com.swirlds.cli.testreader.TestStatus.PASS;
 import static com.swirlds.cli.testreader.TestStatus.UNKNOWN;
+import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.swirlds.platform.util.CommandResult;

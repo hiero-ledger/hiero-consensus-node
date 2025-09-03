@@ -6,12 +6,12 @@ import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
 import static org.hiero.base.CompareTo.isGreaterThan;
 
-import com.swirlds.common.formatting.UnitFormatter;
-import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.units.TimeUnit;
 import com.swirlds.cli.internal.EventStreamLowerBound;
 import com.swirlds.cli.internal.EventStreamMultiFileIterator;
 import com.swirlds.cli.internal.MultiFileRunningHashIterator;
+import com.swirlds.common.formatting.UnitFormatter;
+import com.swirlds.common.io.IOIterator;
+import com.swirlds.common.units.TimeUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;

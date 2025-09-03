@@ -22,6 +22,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.model;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
+    requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb.test.fixtures;
@@ -34,7 +35,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.google.common;
     requires java.desktop;
     requires org.mockito;
-    requires com.swirlds.base.test.fixtures;
 
     exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;

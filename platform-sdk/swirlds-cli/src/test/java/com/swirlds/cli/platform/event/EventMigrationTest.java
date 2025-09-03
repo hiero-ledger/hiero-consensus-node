@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.event;
 
+import com.swirlds.cli.internal.EventStreamSingleFileIterator;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.cli.internal.EventStreamSingleFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;

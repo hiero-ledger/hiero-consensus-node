@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.cli.platform.event.report.EventStreamReport;
-import com.swirlds.cli.platform.event.report.EventStreamScanner;
 import com.swirlds.cli.internal.EventStreamRoundLowerBound;
 import com.swirlds.cli.internal.EventStreamTimestampLowerBound;
+import com.swirlds.cli.platform.event.report.EventStreamReport;
+import com.swirlds.cli.platform.event.report.EventStreamScanner;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.consensus.GenerateConsensus;
 import com.swirlds.platform.test.fixtures.simulated.RandomSigner;
 import com.swirlds.platform.test.fixtures.stream.StreamUtils;

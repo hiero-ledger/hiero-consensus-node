@@ -221,5 +221,4 @@ public final class ConsensusEventStreamUtils {
 
         return eventStreamFiles.get(eventStreamFiles.size() - 1);
     }
-
 }

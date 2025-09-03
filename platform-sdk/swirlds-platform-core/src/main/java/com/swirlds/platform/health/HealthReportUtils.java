@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.health;
 
 import com.swirlds.base.units.UnitConstants;
@@ -40,7 +41,7 @@ public class HealthReportUtils {
                 final double elapsedMillis = report.readNanos() * UnitConstants.NANOSECONDS_TO_MILLISECONDS;
                 System.out.printf(
                         "File system check, took %d nanos (%s millis) "
-                        + "to open the file and read 1 byte (data=%s)%n",
+                                + "to open the file and read 1 byte (data=%s)%n",
                         report.readNanos(), elapsedMillis, report.data());
                 return elapsedMillis;
             } else {

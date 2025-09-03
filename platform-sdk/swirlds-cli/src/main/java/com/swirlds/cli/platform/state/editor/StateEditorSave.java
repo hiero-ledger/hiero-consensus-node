@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.state.editor;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatFile;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;

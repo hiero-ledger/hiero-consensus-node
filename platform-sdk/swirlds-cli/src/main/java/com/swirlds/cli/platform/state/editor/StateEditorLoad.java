@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.state.editor;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatFile;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatNodeType;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatParent;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatRoute;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.io.streams.MerkleDataInputStream;

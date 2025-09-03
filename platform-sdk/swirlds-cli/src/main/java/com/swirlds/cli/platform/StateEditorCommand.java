@@ -4,11 +4,11 @@ package com.swirlds.cli.platform;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.swirlds.cli.commands.StateCommand;
+import com.swirlds.cli.platform.state.editor.StateEditor;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.cli.platform.state.editor.StateEditor;
 import com.swirlds.platform.util.BootstrapUtils;
 import java.io.IOException;
 import java.nio.file.Path;

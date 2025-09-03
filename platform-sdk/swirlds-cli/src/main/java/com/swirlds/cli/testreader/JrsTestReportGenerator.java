@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.testreader;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_MILLISECONDS;
 import static com.swirlds.cli.testreader.TestStatus.FAIL;
 import static com.swirlds.cli.testreader.TestStatus.PASS;
+import static com.swirlds.common.units.TimeUnit.UNIT_MILLISECONDS;
 
 import com.swirlds.common.formatting.UnitFormatter;
 import edu.umd.cs.findbugs.annotations.NonNull;

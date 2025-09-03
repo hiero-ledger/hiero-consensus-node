@@ -77,5 +77,4 @@ public class HealthCheckCommand extends AbstractCommand {
 
         return 0;
     }
-
 }

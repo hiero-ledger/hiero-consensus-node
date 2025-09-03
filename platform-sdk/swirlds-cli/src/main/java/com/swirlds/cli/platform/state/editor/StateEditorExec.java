@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.state.editor;
 
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_CYAN;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatNode;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatNodeType;
+import static com.swirlds.common.formatting.TextEffect.BRIGHT_CYAN;
 
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.merkle.MerkleNode;

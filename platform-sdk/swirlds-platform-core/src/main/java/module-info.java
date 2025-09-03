@@ -61,7 +61,8 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app,
-            org.hiero.otter.fixtures, com.swirlds.cli;
+            org.hiero.otter.fixtures,
+            com.swirlds.cli;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -82,7 +83,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.proof.tree to
             com.swirlds.common,
             org.hiero.base.utility;
-
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.platform.state.editor;
 
-import static com.swirlds.common.merkle.copy.MerkleCopy.copyTreeToLocation;
 import static com.swirlds.cli.platform.state.editor.StateEditorUtils.formatNode;
+import static com.swirlds.common.merkle.copy.MerkleCopy.copyTreeToLocation;
 
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.merkle.MerkleNode;
