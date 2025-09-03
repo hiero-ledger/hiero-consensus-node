@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.positive;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class SysDelSysUndelSpec {
     byte[] ORIG_FILE = "SOMETHING".getBytes();
@@ -48,6 +50,7 @@ public class SysDelSysUndelSpec {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> distinguishesAdminPrivileges() {
         final var lifetime = THREE_MONTHS_IN_SECONDS;
 
@@ -70,6 +73,7 @@ public class SysDelSysUndelSpec {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> systemDeleteThenUndeleteRestoresContentsAndExpiry() {
         var now = Instant.now().getEpochSecond();
         var lifetime = THREE_MONTHS_IN_SECONDS;

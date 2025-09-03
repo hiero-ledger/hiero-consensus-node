@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -111,6 +112,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 public class AtomicBatchNegativeTest {
 
@@ -523,6 +525,7 @@ public class AtomicBatchNegativeTest {
 
         @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
         @DisplayName("Verify inner transaction front end throttle leaks capacity")
+        @Tag(MATS)
         public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
             final var batchOperator = "batchOperator";
             final var contract = "CalldataSize";
@@ -966,6 +969,7 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Nonce gets updated after successful contract call inside batch")
+        @Tag(MATS)
         final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
             final var internalCalleeContract = "InternalCallee";
             final var externalFunction = "externalFunction";

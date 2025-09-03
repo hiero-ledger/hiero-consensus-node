@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -26,6 +27,7 @@ import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 public class ThrottleDefValidationSuite {
@@ -33,6 +35,7 @@ public class ThrottleDefValidationSuite {
 
     @HapiTest
     @Order(1)
+    @Tag(MATS)
     final Stream<DynamicTest> takeThrottleSnapshot() {
         return hapiTest(throttleRestorationOp);
     }
@@ -84,6 +87,7 @@ public class ThrottleDefValidationSuite {
 
     @HapiTest
     @Order(7)
+    @Tag(MATS)
     final Stream<DynamicTest> leastCommonMultipleOverflow() {
         return hapiTest(
                 overridingThrottlesFails("testSystemFiles/lcm-overflow-throttles.json", THROTTLE_GROUP_LCM_OVERFLOW));

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -104,6 +105,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 public class AtomicBatchTest {
     @HapiTest
@@ -1027,6 +1029,7 @@ public class AtomicBatchTest {
 
         @HapiTest
         @DisplayName("Validate crypto transfer precompile gas used for inner transaction")
+        @Tag(MATS)
         final Stream<DynamicTest> validateInnerCallToCryptoTransferPrecompile() {
             final var sender = "sender";
             final var receiver = "receiver";
@@ -1192,6 +1195,7 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> payerIsContract() {
         return hapiTest(
                 cryptoCreate("sender").balance(ONE_MILLION_HBARS),

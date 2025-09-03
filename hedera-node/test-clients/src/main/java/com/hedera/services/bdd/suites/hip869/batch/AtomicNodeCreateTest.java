@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip869.batch;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -75,6 +76,7 @@ import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of NodeCreateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -351,6 +353,7 @@ public class AtomicNodeCreateTest {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.gossipFqdnRestricted"})
+    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCaseForDomains() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
@@ -674,6 +677,7 @@ public class AtomicNodeCreateTest {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @Tag(MATS)
     final Stream<DynamicTest> createNodeWorkWithSysAdminPayer() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),
