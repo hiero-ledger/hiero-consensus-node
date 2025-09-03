@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts;
 
+import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
-import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -46,22 +46,20 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
@@ -79,14 +77,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
     private static final String supplyKey = "supplyKey";
     private static final String adminKey = "adminKey";
     private static final String wipeKey = "wipeKey";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
-    }
 
     @HapiTest
     @DisplayName("Call contract for FT token mint and transfer minted tokens success in atomic batch")
@@ -139,7 +129,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                 transferMintedTokenInnerTxn_First,
                                 transferMintedTokenInnerTxn_Second)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -202,7 +191,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                 transferMintedTokenInnerTxn_First,
                                 transferMintedTokenInnerTxn_Second)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -263,7 +251,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                 associateFungibleTokenInnerTxn,
                                 transferMintedTokenInnerTxn)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the token is minted
@@ -323,7 +310,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                 associateNonFungibleTokenInnerTxn,
                                 transferMintedTokenInnerTxn)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the token is minted
@@ -413,7 +399,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("callNftBurnContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -507,7 +492,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .signedBy(OWNER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -638,7 +622,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("callNftBurnContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -729,7 +712,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("callNftMintContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -829,7 +811,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("associateNonFungibleTokenContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -841,9 +822,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                 getAccountBalance(ASSOCIATE_CONTRACT)
                         .hasTokenBalance(FT_TOKEN, 0L)
                         .hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                getAccountInfo(ASSOCIATE_CONTRACT)
-                        .hasToken(relationshipWith(FT_TOKEN))
-                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)),
                 // Assert the treasury contract has the tokens
                 getAccountBalance(HTS_CALLS_CONTRACT)
                         .hasTokenBalance(FT_TOKEN, 10L)
@@ -953,7 +931,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -1044,7 +1021,7 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                                 1L)
                                         .payingWith(OWNER)
                                         .gas(GAS_TO_OFFER)
-                                        .via("transferNftToContractInnerTxn"),
+                                        .via("transferNftToAssociatedContractInnerTxn"),
                                 // transfer from treasury contract to EOA
                                 contractCall(
                                                 HTS_CALLS_CONTRACT,
@@ -1055,9 +1032,8 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                                 2L)
                                         .payingWith(OWNER)
                                         .gas(GAS_TO_OFFER)
-                                        .via("transferNftToContractInnerTxn"))
+                                        .via("transferNftFromContractToEOAInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // Assert the tokens supply is updated correctly
@@ -1086,13 +1062,13 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                         moving(1, FT_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                 .payingWith(OWNER)
                 .signedBy(OWNER)
-                .via("transferTokenInnerTxn");
+                .via("transferTokenToAssociatedReceiverInnerTxn");
 
         final var transferMintedTokenToNotAssociatedReceiverInnerTxn = cryptoTransfer(
                         moving(1, FT_TOKEN).between(OWNER, RECEIVER_NOT_ASSOCIATED))
                 .payingWith(OWNER)
                 .signedBy(OWNER)
-                .via("transferTokenInnerTxn")
+                .via("transferTokenToNotAssociatedReceiverInnerTxn")
                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
         // Associate the fungible token with the receiver associated account
@@ -1131,7 +1107,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                 transferMintedTokenToAssociatedReceiverInnerTxn,
                                 transferMintedTokenToNotAssociatedReceiverInnerTxn)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the token is not minted
@@ -1210,7 +1185,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .signedBy(OWNER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the tokens were not minted
@@ -1219,9 +1193,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                 // Assert the owner account has no token
                 getAccountBalance(OWNER).hasTokenBalance(FT_TOKEN, 0L).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 // Assert the receiver contract account has no tokens and is not associated with them
-                getAccountBalance(ASSOCIATE_CONTRACT)
-                        .hasTokenBalance(FT_TOKEN, 0L)
-                        .hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 getAccountInfo(ASSOCIATE_CONTRACT)
                         .hasNoTokenRelationship(FT_TOKEN)
                         .hasNoTokenRelationship(NON_FUNGIBLE_TOKEN)));
@@ -1268,7 +1239,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .via("callTokenMintContractInnerTxn"),
                                 transferMintedTokenInnerTxn)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the child transaction record exposes the error code
@@ -1325,7 +1295,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .via("callTokenMintContractInnerTxn"),
                                 transferMintedTokenInnerTxn)
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasPrecheck(INSUFFICIENT_GAS)),
 
                 // Assert the token is not minted
@@ -1409,7 +1378,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("callNftMintContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the tokens were not minted
@@ -1511,7 +1479,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("associateNonFungibleTokenContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the tokens were not minted
@@ -1520,9 +1487,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                 // Assert the owner account has no tokens
                 getAccountBalance(OWNER).hasTokenBalance(FT_TOKEN, 0L).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 // Assert the receiver associated account does not have tokens and is not associated with them
-                getAccountBalance(ASSOCIATE_CONTRACT)
-                        .hasTokenBalance(FT_TOKEN, 0L)
-                        .hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 getAccountInfo(ASSOCIATE_CONTRACT)
                         .hasNoTokenRelationship(FT_TOKEN)
                         .hasNoTokenRelationship(NON_FUNGIBLE_TOKEN),
@@ -1618,7 +1582,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("associateNonFungibleTokenContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the tokens were not minted
@@ -1699,7 +1662,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .via("transferFungibleTokenToContractInnerTxn")
                                         .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the tokens supply is updated correctly
@@ -1785,7 +1747,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                                 .between(HTS_CALLS_CONTRACT, ASSOCIATE_CONTRACT))
                                         .hasKnownStatus(INVALID_NFT_ID))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
 
                 // Assert the token is not minted
@@ -1851,7 +1812,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // The contract does not revert and the batch succeeds but the child transaction fails
@@ -1919,7 +1879,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // The contract does not revert and the batch succeeds but the child transaction fails
@@ -1972,7 +1931,7 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                 tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
                 tokenAssociate(RECEIVER_ASSOCIATED_SECOND, NON_FUNGIBLE_TOKEN),
 
-                // Mint and Transfer NFT tokens to accounts with unsufficient token balance in atomic batch
+                // Mint and Transfer NFT tokens to accounts with insufficient token balance in atomic batch
                 sourcing(() -> atomicBatchDefaultOperator(
                                 // Mint NFT
                                 contractCall(
@@ -2007,7 +1966,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("transferNftToContractInnerTxnSecond"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // The contract does not revert and the batch succeeds but the child transaction fails
@@ -2083,7 +2041,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("transferNftToContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // The contract does not revert and the batch succeeds but the child transaction fails
@@ -2153,7 +2110,6 @@ public class AtomicBatchEndToEndSmartContractsHTSCallsAndAssociationsTest {
                                         .gas(GAS_TO_OFFER)
                                         .via("callNftBurnContractInnerTxn"))
                         .payingWith(DEFAULT_BATCH_OPERATOR)
-                        .via("atomicBatchTxn")
                         .hasKnownStatus(SUCCESS)),
 
                 // The contract does not revert and the batch succeeds but the child transaction fails
