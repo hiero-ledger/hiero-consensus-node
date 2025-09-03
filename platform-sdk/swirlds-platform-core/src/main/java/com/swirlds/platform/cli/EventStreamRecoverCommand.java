@@ -62,7 +62,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @CommandLine.Parameters(
             index = "0",
-            description = "The path to the initial state directory." + "Events will be replayed on top of this state.")
+            description = "The path to the initial state directory. Events will be replayed on top of this state.")
     private void setInitStateDir(final Path initStateDir) {
         this.initStateDir = pathMustExist(initStateDir.toAbsolutePath());
     }
