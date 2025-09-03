@@ -58,7 +58,10 @@ import java.time.Duration;
  *                                           can be considered if set &gt; 0 and &lt;= 1, this number is set as a ratio of
  *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
  *                                           as minimal round robin size
+ * @param broadcast                          enable simplistic broadcast, where all self-events are broadcast to all
+ *                                           neighbours
  */
+
 @ConfigData("sync")
 public record SyncConfig(
         @ConfigProperty(defaultValue = "25") int syncSleepAfterFailedNegotiation,
@@ -75,8 +78,9 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "5ms") Duration rpcSleepAfterSync,
+        @ConfigProperty(defaultValue = "250ms") Duration rpcSleepAfterSync,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
-        @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize) {}
+        @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
+        @ConfigProperty(defaultValue = "true") boolean broadcast) {}
