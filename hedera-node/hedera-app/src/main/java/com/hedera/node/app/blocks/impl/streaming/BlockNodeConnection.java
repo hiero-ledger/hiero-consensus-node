@@ -485,14 +485,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(request, "request must not be null");
 
         if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
-            if (request.hasEndStream()) {
-                blockStreamMetrics.recordRequestEndStreamSent(
-                        request.endStream().endCode());
-            } else {
-                blockStreamMetrics.recordRequestSent(request.request().kind());
-            }
             try {
                 requestPipeline.onNext(request);
+                if (request.hasEndStream()) {
+                    blockStreamMetrics.recordRequestEndStreamSent(
+                            request.endStream().endCode());
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
+                }
             } catch (final RuntimeException e) {
                 blockStreamMetrics.recordRequestSendFailure();
                 throw e;
@@ -512,13 +512,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         logger.debug("[{}] Closing connection...", this);
-        blockStreamMetrics.recordConnectionClosed();
 
         try {
             closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.CLOSED);
             jumpToBlock(-1L);
-
+            blockStreamMetrics.recordConnectionClosed();
             logger.debug("[{}] Connection successfully closed", this);
         } catch (final RuntimeException e) {
             logger.warn("[{}] Error occurred while attempting to close connection", this);
