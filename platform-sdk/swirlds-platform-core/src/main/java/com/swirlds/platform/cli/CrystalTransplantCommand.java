@@ -128,7 +128,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
      */
     @CommandLine.Option(
             names = {"-t", "--targetNodePath"},
-            description = "The path to target node's fs")
+            description = "The path to target node directory")
     @SuppressWarnings("unused") // used by picocli
     private void setTargetNodePath(final Path targetNodePath) {
         this.targetNodePath = pathMustExist(targetNodePath.toAbsolutePath());
@@ -159,7 +159,11 @@ public class CrystalTransplantCommand extends AbstractCommand {
     @Override
     public Integer call() throws IOException {
         requestConfirmation(String.format(
-                "Start migration process for selfId: %s using networkOverride:%s sourceStatePath:%s and targetNodePath:%s bumpVersion:%s",
+                "Start migration process for selfId:%s "
+                        + "using networkOverride:%s"
+                        + " sourceStatePath:%s "
+                        + "and targetNodePath:%s"
+                        + " bumpVersion:%s",
                 selfId,
                 networkOverrideFile != null ? networkOverrideFile.toAbsolutePath() : "<NONE>",
                 sourceStatePath.toAbsolutePath(),
@@ -185,7 +189,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         final ApplicationDefinition appDefinition =
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
 
-        final StateInformation sourceStateInfo = loadSourceStateAndGetConfirmation(appDefinition, version);
+        final StateInformation sourceStateInfo = loadSourceState(appDefinition, version);
 
         this.targetStateDir = new SignedStateFilePath(stateConfig)
                 .getSignedStateDirectory(
@@ -215,7 +219,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         return RETURN_CODE_SUCCESS;
     }
 
-    private SemanticVersion getSemanticVersion(Configuration configuration) {
+    private SemanticVersion getSemanticVersion(final Configuration configuration) {
         final String versionString = configuration.getValue(CONFIG_KEY, "1.0.0");
         return Optional.ofNullable(versionString)
                 .map(HapiUtils::fromString)
@@ -230,13 +234,12 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.overrideRoster = roster;
     }
 
-    private StateInformation loadSourceStateAndGetConfirmation(
-            final ApplicationDefinition appDefinition, final SemanticVersion version) {
+    private StateInformation loadSourceState(final ApplicationDefinition appDefinition, final SemanticVersion version) {
         setupConstructableRegistry();
         try {
             setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
             registerVirtualMapConstructables(platformContext.getConfiguration());
-        } catch (ConstructableRegistryException e) {
+        } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
 
@@ -279,12 +282,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private SwirldMain<? extends MerkleNodeState> appMain(
             final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
         try {
-            if (HederaUtils.HDERA_MAIN.equals(appDefinition.getMainClassName())) {
+            if (HederaUtils.HEDERA_MAIN.equals(appDefinition.getMainClassName())) {
                 return HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
             } else {
                 return loadAppMain(appDefinition.getMainClassName());
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
+            System.err.println("Error loading app main " + e.getMessage());
             return null;
         }
     }
@@ -307,7 +311,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 Files.createDirectories(networkOverrideFile);
             }
             Files.copy(this.networkOverrideFile, networkOverrideFile, REPLACE_EXISTING);
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.err.printf("Unable to copy network override file for self-id %s. %s %n", selfId, e);
             System.exit(RETURN_CODE_ERROR);
         }
@@ -349,7 +353,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 }
             }
 
-            stateMetadata = SavedStateMetadata.parse(targetStateDir.resolve(SavedStateMetadata.FILE_NAME));
         } catch (IOException e) {
             System.err.printf("Unable to move state files from:%s to:%s. %s %n", sourceDir, targetStateDir, e);
             System.exit(RETURN_CODE_ERROR);
@@ -361,9 +364,9 @@ public class CrystalTransplantCommand extends AbstractCommand {
      * rounds to make the state look like a freeze state
      */
     private void truncatePCESFilesIfNotAFreezeState() throws IOException {
-        requestConfirmation("Truncate PCES files");
-
+        stateMetadata = SavedStateMetadata.parse(targetStateDir.resolve(SavedStateMetadata.FILE_NAME));
         if (stateMetadata.freezeState() == null || !stateMetadata.freezeState()) {
+            requestConfirmation("Truncate PCES files");
             final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(targetStateDir, platformContext);
             System.out.printf(
                     "PCES file truncation complete. %d events were discarded due to being from a future round.%n",
@@ -382,6 +385,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private void copyPCESFilesToCorrectDirectory(final Path sourcePcesDir, final Path targetPcesDir) {
         requestConfirmation("Copy PCES files to correct directory");
         try {
+            FileUtils.deleteDirectory(targetPcesDir);
             FileUtils.copyDirectory(sourcePcesDir, targetPcesDir);
         } catch (IOException e) {
             System.err.printf("Unable to move PCES files from:%s to:%s. %s %n", sourcePcesDir, targetPcesDir, e);

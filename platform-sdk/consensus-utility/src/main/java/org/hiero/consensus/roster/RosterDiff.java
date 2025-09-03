@@ -3,6 +3,7 @@ package org.hiero.consensus.roster;
 
 import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.utility.Pair;
@@ -28,16 +29,16 @@ public class RosterDiff {
      * @return A RosterComparisonResult object detailing the changes.
      */
     @NonNull
-    public static RosterDiffResult report(@Nullable final Roster oldRoster, @Nullable final Roster newRoster) {
+    public static RosterDiffReport report(@Nullable final Roster oldRoster, @Nullable final Roster newRoster) {
         // Handle null cases for entire rosters
         if (oldRoster == null && newRoster == null) {
-            return new RosterDiffResult(List.of(), List.of(), List.of());
+            return new RosterDiffReport(List.of(), List.of(), List.of());
         }
         if (oldRoster == null) {
-            return new RosterDiffResult(newRoster.rosterEntries(), List.of(), List.of());
+            return new RosterDiffReport(newRoster.rosterEntries(), List.of(), List.of());
         }
         if (newRoster == null) {
-            return new RosterDiffResult(List.of(), oldRoster.rosterEntries(), List.of());
+            return new RosterDiffReport(List.of(), oldRoster.rosterEntries(), List.of());
         }
 
         final Map<Long, RosterEntry> oldEntriesById =
@@ -72,14 +73,14 @@ public class RosterDiff {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        return new RosterDiffResult(addedEntries, deletedEntries, modifiedEntries);
+        return new RosterDiffReport(addedEntries, deletedEntries, modifiedEntries);
     }
 
     /**
      * A data class to hold the results of a comparison between two Roster objects.
      * It also provides a formatted string representation of the differences.
      */
-    public record RosterDiffResult(
+    public record RosterDiffReport(
             List<RosterEntry> added, List<RosterEntry> deleted, List<Pair<RosterEntry, RosterEntry>> modified) {
 
         /**
@@ -89,7 +90,7 @@ public class RosterDiff {
          * @param deleted  List of RosterEntry objects that were deleted.
          * @param modified List of RosterEntry pair objects that were modified.
          */
-        public RosterDiffResult {
+        public RosterDiffReport {
             Objects.requireNonNull(added);
             Objects.requireNonNull(deleted);
             Objects.requireNonNull(modified);
@@ -129,52 +130,86 @@ public class RosterDiff {
             if (!modified.isEmpty()) {
                 report.append("\n--- MODIFIED ---\n");
                 modified.forEach(mod -> {
-                    RosterEntry oldE = mod.left();
-                    RosterEntry newE = mod.right();
+                    final RosterEntry oldE = mod.left();
+                    final RosterEntry newE = mod.right();
                     report.append("Node ID: ").append(newE.nodeId()).append("\n");
 
                     // Compare each property and report the change if different.
-                    if (oldE.weight() != newE.weight()) {
-                        report.append(String.format("  - weight: %d -> %d\n", oldE.weight(), newE.weight()));
-                    }
-                    if (!oldE.gossipCaCertificate().equals(newE.gossipCaCertificate())) {
-                        report.append("  - gossipCaCertificate: has changed\n");
-                    }
-                    if (!oldE.gossipEndpoint().equals(newE.gossipEndpoint())) {
-                        report.append("  - gossipEndpoint: \n");
-                        if (oldE.gossipEndpoint().size()
-                                != newE.gossipEndpoint().size()) {
-                            report.append(String.format(
-                                    "    -- size: %d -> %d",
-                                    oldE.gossipEndpoint().size(),
-                                    newE.gossipEndpoint().size()));
-                            if (newE.gossipEndpoint().size()
-                                    > oldE.gossipEndpoint().size()) {
-                                report.append(". Only first entry will be used.");
-                            }
-                            report.append("\n");
-                        }
-                        var oldEndpoint = oldE.gossipEndpoint().getFirst();
-                        var newEndpoint = newE.gossipEndpoint().getFirst();
-                        if (!oldEndpoint.ipAddressV4().equals(newEndpoint.ipAddressV4())) {
-                            report.append(String.format(
-                                    "    -- ipAddressV4: %s -> %s\n",
-                                    asReadableIp(oldEndpoint.ipAddressV4()), asReadableIp(newEndpoint.ipAddressV4())));
-                        }
-                        if (oldEndpoint.port() != newEndpoint.port()) {
-                            report.append(
-                                    String.format("    -- port: %s -> %s\n", oldEndpoint.port(), newEndpoint.port()));
-                        }
-                        if (!oldEndpoint.domainName().equals(newEndpoint.domainName())) {
-                            report.append(String.format(
-                                    "    -- domainName: %s -> %s\n",
-                                    oldEndpoint.domainName(), newEndpoint.domainName()));
-                        }
-                    }
+                    reportDiffForWeight(oldE, newE, report);
+                    reportDiffForCaCertificate(oldE, newE, report);
+                    reportDiffForServiceEndpoint(oldE, newE, report);
                 });
             }
 
             return report.toString();
+        }
+
+        private static void reportDiffForServiceEndpoint(
+                final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
+            if (!oldE.gossipEndpoint().equals(newE.gossipEndpoint())) {
+                report.append("  - gossipEndpoint: \n");
+                if (oldE.gossipEndpoint().size() != newE.gossipEndpoint().size()) {
+                    report.append(String.format(
+                            "    -- size: %d -> %d",
+                            oldE.gossipEndpoint().size(), newE.gossipEndpoint().size()));
+                    if (newE.gossipEndpoint().size() > oldE.gossipEndpoint().size()) {
+                        report.append(". Only first entry will be used.");
+                    }
+                    report.append("\n");
+                }
+                final ServiceEndpoint oldEndpoint = oldE.gossipEndpoint().getFirst();
+                final ServiceEndpoint newEndpoint = newE.gossipEndpoint().getFirst();
+                reportDiffForIpAddress(report, oldEndpoint, newEndpoint);
+                reportDiffForPort(report, oldEndpoint, newEndpoint);
+                reportDiffForDomainName(report, oldEndpoint, newEndpoint);
+            }
+        }
+
+        private static void reportDiffForCaCertificate(
+                final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
+            reportDiff(oldE, newE, report, RosterEntry::gossipCaCertificate, "gossipCaCertificate");
+        }
+
+        private static void reportDiffForWeight(
+                final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
+            reportDiff(oldE, newE, report, RosterEntry::weight, "weight");
+        }
+
+        private static void reportDiff(
+                final RosterEntry oldE,
+                final RosterEntry newE,
+                final StringBuilder report,
+                Function<RosterEntry, ?> extract,
+                String name) {
+            final Object oldValue = extract.apply(oldE);
+            final Object neValue = extract.apply(newE);
+            if (!oldValue.equals(neValue)) {
+                report.append(String.format("  - %s: %s -> %s\n", name, oldValue, neValue));
+            }
+        }
+
+        private static void reportDiffForDomainName(
+                final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
+            if (!oldEndpoint.domainName().equals(newEndpoint.domainName())) {
+                report.append(String.format(
+                        "    -- domainName: %s -> %s\n", oldEndpoint.domainName(), newEndpoint.domainName()));
+            }
+        }
+
+        private static void reportDiffForPort(
+                final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
+            if (oldEndpoint.port() != newEndpoint.port()) {
+                report.append(String.format("    -- port: %s -> %s\n", oldEndpoint.port(), newEndpoint.port()));
+            }
+        }
+
+        private static void reportDiffForIpAddress(
+                final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
+            if (!oldEndpoint.ipAddressV4().equals(newEndpoint.ipAddressV4())) {
+                report.append(String.format(
+                        "    -- ipAddressV4: %s -> %s\n",
+                        asReadableIp(oldEndpoint.ipAddressV4()), asReadableIp(newEndpoint.ipAddressV4())));
+            }
         }
     }
 }

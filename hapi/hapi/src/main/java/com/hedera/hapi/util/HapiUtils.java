@@ -382,7 +382,14 @@ public class HapiUtils {
      */
     public static String asReadableIp(@NonNull final Bytes ipV4Addr) {
         requireNonNull(ipV4Addr);
-        final var bytes = ipV4Addr.toByteArray();
-        return (0xff & bytes[0]) + "." + (0xff & bytes[1]) + "." + (0xff & bytes[2]) + "." + (0xff & bytes[3]);
+        return "%d.%d.%d.%d"
+                .formatted(
+                        // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
+                        // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
+                        // to get rid of the extended "sign bits" to keep this an actual, positive byte.
+                        ipV4Addr.getByte(0) & 0xFF,
+                        ipV4Addr.getByte(1) & 0xFF,
+                        ipV4Addr.getByte(2) & 0xFF,
+                        ipV4Addr.getByte(3) & 0xFF);
     }
 }

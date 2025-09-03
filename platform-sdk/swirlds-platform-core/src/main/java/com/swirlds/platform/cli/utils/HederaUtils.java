@@ -19,7 +19,7 @@ import org.hiero.base.crypto.Hash;
  */
 public class HederaUtils {
 
-    public static final String HDERA_MAIN = "com.hedera.node.app.ServicesMain";
+    public static final String HEDERA_MAIN = "com.hedera.node.app.ServicesMain";
 
     /**
      * Hedera main class has a particular way of building using a static method.
@@ -33,12 +33,12 @@ public class HederaUtils {
     public static SwirldMain<? extends MerkleNodeState> createHederaAppMain(
             @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
         try {
-            final Class<?> mainClass = Class.forName(HDERA_MAIN);
+            final Class<?> mainClass = Class.forName(HEDERA_MAIN);
             Method newHederaMethod = mainClass.getDeclaredMethod(
                     "newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
             return (SwirldMain<? extends MerkleNodeState>) newHederaMethod.invoke(
                     null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
-        } catch (ClassNotFoundException
+        } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException
                 | IllegalAccessException e) {
@@ -56,7 +56,7 @@ public class HederaUtils {
         try {
             Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
             setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+        } catch (final NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
