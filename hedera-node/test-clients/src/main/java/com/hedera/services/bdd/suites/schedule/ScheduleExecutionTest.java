@@ -1326,7 +1326,7 @@ public class ScheduleExecutionTest {
                         .via(CREATE_TXN),
                 recordFeeAmount(CREATE_TXN, SCHEDULE_CREATE_FEE),
                 cryptoDelete(PAYING_ACCOUNT),
-                scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
+                scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).payingWith(DEFAULT_PAYER).hasKnownStatus(SUCCESS),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
                 getTxnRecord(CREATE_TXN)
                         .scheduled()
