@@ -41,7 +41,7 @@ public class BlockStreamUtils {
             case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
             case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
             case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
-            case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TransactionReceiptQueue";
+            case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
             case STATE_ID_SCHEDULES_BY_ID -> "ScheduleService.SCHEDULES_BY_ID";
@@ -62,8 +62,8 @@ public class BlockStreamUtils {
             case STATE_ID_TSS_ENCRYPTION_KEYS -> "TssBaseService.TSS_ENCRYPTION_KEY";
             case STATE_ID_TSS_STATUS -> "TssBaseService.TSS_STATUS";
             case STATE_ID_HINTS_KEY_SETS -> "HintsService.HINTS_KEY_SETS";
-            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINT_CONSTRUCTION";
-            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINT_CONSTRUCTION";
+            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINTS_CONSTRUCTION";
+            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINTS_CONSTRUCTION";
             case STATE_ID_PREPROCESSING_VOTES -> "HintsService.PREPROCESSING_VOTES";
             case STATE_ID_LEDGER_ID -> "HistoryService.LEDGER_ID";
             case STATE_ID_PROOF_KEY_SETS -> "HistoryService.PROOF_KEY_SETS";
