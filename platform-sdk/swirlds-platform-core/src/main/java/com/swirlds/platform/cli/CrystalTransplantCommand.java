@@ -378,6 +378,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private void copyPCESFilesToCorrectDirectory(final Path sourcePcesDir, final Path targetPcesDir) {
         requestConfirmation("Copy PCES files to correct directory");
         try {
+            FileUtils.deleteDirectory(targetPcesDir);
             FileUtils.copyDirectory(sourcePcesDir, targetPcesDir);
         } catch (final IOException e) {
             System.err.printf("Unable to move PCES files from:%s to:%s. %s %n", sourcePcesDir, targetPcesDir, e);
