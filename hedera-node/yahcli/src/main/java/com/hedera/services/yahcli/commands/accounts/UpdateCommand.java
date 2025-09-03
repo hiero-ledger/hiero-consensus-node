@@ -64,11 +64,12 @@ public class UpdateCommand implements Callable<Integer> {
         }
 
         final var delegate = new UpdateSuite(
-                config.asSpecConfig(),
+                config,
                 effectiveMemo,
                 effectivePublicKeys,
                 effectiveTargetAccount,
-                accountsCommand.getYahcli().isScheduled());
+                accountsCommand.getYahcli().isScheduled(),
+                accountsCommand.getYahcli().getRegistryCallback());
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

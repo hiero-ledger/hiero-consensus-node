@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -15,6 +16,7 @@ import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,7 @@ public class SendSuite extends HapiSuite {
     private final boolean schedule;
     private final boolean batch;
     private final long unitsToSend;
+    private final Consumer<HapiSpecRegistry> registryCb;
 
     public SendSuite(
             final ConfigManager configManager,
@@ -41,7 +44,8 @@ public class SendSuite extends HapiSuite {
             final String memo,
             @Nullable final String denomination,
             final boolean schedule,
-            final boolean batch) {
+            final boolean batch,
+            @Nullable Consumer<HapiSpecRegistry> registryCb) {
         this.memo = memo;
         this.configManager = configManager;
         this.beneficiary = beneficiary;
@@ -49,6 +53,7 @@ public class SendSuite extends HapiSuite {
         this.denomination = denomination;
         this.schedule = schedule;
         this.batch = batch;
+        this.registryCb = registryCb;
     }
 
     @Override
@@ -82,6 +87,9 @@ public class SendSuite extends HapiSuite {
 
         final var spec = new HapiSpec(
                 "DoSend", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {transfer});
+        if (registryCb != null) {
+            spec.setRegistryCb(registryCb);
+        }
         return HapiSpecUtils.targeted(spec, configManager);
     }
 

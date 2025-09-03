@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.Yahcli;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,12 +28,27 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     @Nullable
     private Consumer<String> outputCb;
 
+    @Nullable
+    private Consumer<HapiSpecRegistry> registryCb;
+
+    private boolean schedule = false;
+
     public YahcliCallOperation(@NonNull final String[] args) {
         this.args = requireNonNull(args);
     }
 
     public YahcliCallOperation exposingOutputTo(@NonNull final Consumer<String> outputCb) {
         this.outputCb = requireNonNull(outputCb);
+        return this;
+    }
+
+    public YahcliCallOperation exposingRegistry(@NonNull final Consumer<HapiSpecRegistry> registryCb) {
+        this.registryCb = registryCb;
+        return this;
+    }
+
+    public YahcliCallOperation schedule() {
+        this.schedule = true;
         return this;
     }
 
@@ -44,7 +60,11 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     @Override
     public Optional<Throwable> execFor(@NonNull final HapiSpec spec) {
         requireNonNull(spec);
-        final var commandLine = new CommandLine(new Yahcli());
+        final var yahcli = new Yahcli();
+        if (registryCb != null) {
+            yahcli.setRegistryCb(registryCb);
+        }
+        final var commandLine = new CommandLine(yahcli);
         var finalizedArgs = args;
         if (!workingDirProvidedViaArgs()) {
             final var w = workingDirOrThrow();
@@ -53,6 +73,9 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         if (!configProvidedViaArgs()) {
             final var c = configLocOrThrow();
             finalizedArgs = prepend(finalizedArgs, "-c", c);
+        }
+        if (schedule) {
+            finalizedArgs = prepend(finalizedArgs, "--schedule");
         }
         try {
             Path outputPath = null;

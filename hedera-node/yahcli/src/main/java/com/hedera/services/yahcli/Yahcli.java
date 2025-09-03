@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli;
 
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.yahcli.commands.accounts.AccountsCommand;
 import com.hedera.services.yahcli.commands.accounts.SetupStakeCommand;
 import com.hedera.services.yahcli.commands.fees.FeesCommand;
@@ -17,6 +18,7 @@ import com.hedera.services.yahcli.commands.system.TelemetryUpgradeCommand;
 import com.hedera.services.yahcli.commands.system.VersionInfoCommand;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -49,6 +51,8 @@ import picocli.CommandLine.Spec;
 public class Yahcli implements Callable<Integer> {
     public static final long NO_FIXED_FEE = Long.MIN_VALUE;
     public static final String DEFAULT_LOG_LEVEL = "WARN";
+
+    Consumer<HapiSpecRegistry> registryCallback;
 
     @Spec
     CommandSpec spec;
@@ -162,5 +166,13 @@ public class Yahcli implements Callable<Integer> {
 
     public String getNodeIpv4Addr() {
         return nodeIpv4Addr;
+    }
+
+    public void setRegistryCb(Consumer<HapiSpecRegistry> registryCb) {
+        this.registryCallback = registryCb;
+    }
+
+    public Consumer<HapiSpecRegistry> getRegistryCallback() {
+        return registryCallback;
     }
 }

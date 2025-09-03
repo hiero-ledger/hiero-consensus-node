@@ -21,6 +21,7 @@ public class YahcliVerbs {
             Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
     private static final Pattern TOKEN_TRANSFER_PATTERN =
             Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern PUBLIC_KEY_PATTERN = Pattern.compile("public key .+ is: ([a-fA-F0-9]+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -38,6 +39,16 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliAccounts(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "accounts"));
+    }
+
+    public static YahcliCallOperation yahcliKey(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "keys"));
+    }
+
+    public static YahcliCallOperation yahcliScheduleSign(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "schedule"));
     }
 
     /**
@@ -142,6 +153,17 @@ public class YahcliVerbs {
 
     // Note: denom can be hbar|kilobar|tinybar or a token number
     public record CryptoTransferOutput(long amount, String denom, long toAcctNum) {}
+
+    public static Consumer<String> publicKeyCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = PUBLIC_KEY_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected output to contain public key information");
+            }
+        };
+    }
 
     /**
      * Prepend the given strings to the front of the given array.

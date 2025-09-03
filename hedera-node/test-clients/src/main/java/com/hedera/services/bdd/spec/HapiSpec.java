@@ -94,6 +94,7 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -125,6 +126,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
@@ -284,6 +286,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private SpecStateObserver specStateObserver;
+
+    /**
+     *
+     */
+    @Nullable
+    private Consumer<HapiSpecRegistry> registryCb;
+
     /**
      * If non-null, a list of shared states to include in this spec's initial state.
      */
@@ -386,6 +395,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public void setSpecStateObserver(@NonNull final SpecStateObserver specStateObserver) {
         this.specStateObserver = specStateObserver;
+    }
+
+    public void setRegistryCb(final Consumer<HapiSpecRegistry> registryCb) {
+        this.registryCb = registryCb;
     }
 
     public void setSidecarWatcher(@NonNull final SidecarWatcher watcher) {
@@ -493,6 +506,14 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .setShardNum(shard())
                 .setRealmNum(realm())
                 .setContractNum(num)
+                .build();
+    }
+
+    public LongFunction<ScheduleID> scheduleIdFactory() {
+        return num -> ScheduleID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setScheduleNum(num)
                 .build();
     }
 
@@ -783,6 +804,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
         if (specStateObserver != null) {
             specStateObserver.observe(new SpecStateObserver.SpecState(hapiRegistry, keyFactory));
+        }
+
+        if (registryCb != null) {
+            registryCb.accept(hapiRegistry);
         }
         nullOutInfrastructure();
     }
