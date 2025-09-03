@@ -209,8 +209,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testScheduleConnectionAttempt_failure() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        doReturn(nodeConfig).when(connection).getNodeConfig();
         doThrow(new RuntimeException("what the..."))
                 .when(executorService)
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
@@ -746,7 +744,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection, times(2)).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -784,7 +782,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection, times(2)).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -863,7 +861,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection, times(2)).close(true);
         verify(newConnection).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -1009,7 +1007,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
-        doReturn(node1Config).when(connection).getNodeConfig();
         doReturn(null).when(bufferService).getBlockState(10L);
         doReturn(11L).when(bufferService).getLastBlockNumberProduced();
         doReturn(node1Config).when(connection).getNodeConfig();
