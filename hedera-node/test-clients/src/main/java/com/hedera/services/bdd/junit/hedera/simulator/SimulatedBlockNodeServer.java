@@ -110,7 +110,8 @@ public class SimulatedBlockNodeServer {
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
-    public SimulatedBlockNodeServer(final int port,  final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
+    public SimulatedBlockNodeServer(
+            final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.highLatency = highLatency;
         this.serviceImpl = new MockBlockStreamServiceImpl();
@@ -484,7 +485,8 @@ public class SimulatedBlockNodeServer {
                                             port);
                                     for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
                                         if (highLatency) {
-                                            // If the simulator is set to be with high latency, delay acknowledgements with
+                                            // If the simulator is set to be with high latency, delay acknowledgements
+                                            // with
                                             // 1500 ms (assuming CN considers 1000 ms delays as high latency)
                                             Thread.sleep(1500);
                                         }

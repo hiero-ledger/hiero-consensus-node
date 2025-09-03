@@ -129,8 +129,9 @@ public class BlockNodeNetwork {
     public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
         // Find an available port
         int port = findAvailablePort();
-        boolean highLatency = blockNodeHighLatencyById.getOrDefault(entry.getKey(), false);
-        final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
+        boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
+        final SimulatedBlockNodeServer server =
+                new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
         try {
             server.start();
         } catch (Exception e) {

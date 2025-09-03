@@ -30,7 +30,6 @@ import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -518,17 +517,17 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.sendRequest(request);
 
-        verify(requestObserver).onNext(request);
+        verify(requestPipeline).onNext(request);
 
         final Map<Long, Instant> blockSendTimestamps =
                 (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         assertThat(blockSendTimestamps).containsKey(1L);
         assertThat(blockSendTimestamps.get(1L)).isNotNull();
 
-        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
-        verifyNoInteractions(stateManager);
+        verifyNoInteractions(bufferService);
     }
 
     @Test
@@ -544,7 +543,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.sendRequest(request);
 
-        verify(requestObserver).onNext(request);
+        verify(requestPipeline).onNext(request);
 
         final Map<Long, Instant> blockSendTimestamps =
                 (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
@@ -552,10 +551,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(blockSendTimestamps).doesNotContainKey(2L);
         assertThat(blockSendTimestamps.get(1L)).isNotNull();
 
-        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
-        verifyNoInteractions(stateManager);
+        verifyNoInteractions(bufferService);
     }
 
     @Test
@@ -720,15 +719,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, times(3)).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
         verify(metrics, times(3)).recordHighLatencyEvent(eq(LOCALHOST_8080));
 
-        verify(connectionManager)
-                .rescheduleAndSelectNewNode(eq(connection), eq(BlockNodeConnection.LONGER_RETRY_DELAY));
+        verify(connectionManager).rescheduleConnection(eq(connection), eq(BlockNodeConnection.LONGER_RETRY_DELAY));
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
-        verify(requestObserver).onNext(requestCaptor.capture());
+        verify(requestPipeline).onNext(requestCaptor.capture());
         assertEquals(
                 PublishStreamRequest.EndStream.Code.TIMEOUT,
                 requestCaptor.getValue().endStream().endCode());
 
-        verify(requestObserver).onCompleted();
+        verify(requestPipeline).onComplete();
 
         assertThat(blockSendTimestamps).isEmpty();
     }

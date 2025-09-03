@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -13,10 +14,9 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -330,7 +330,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
                 final int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
                 if (highLatencyCount >= highLatencyEventsBeforeSwitching
-                        && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured(this)) {
+                        && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
                     logger.info(
                             "[{}] Block node has exceeded high latency threshold {} times consecutively. "
                                     + "Latest latency: {}ms. Switching to a different node.",
@@ -340,22 +340,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
                     consecutiveHighLatencyEvents.set(0);
 
-                    final PublishStreamRequest endStreamTimeout = PublishStreamRequest.newBuilder()
-                            .endStream(PublishStreamRequest.EndStream.newBuilder()
-                                    .endCode(PublishStreamRequest.EndStream.Code.TIMEOUT)
-                                    .earliestBlockNumber(blockBufferService.getEarliestAvailableBlockNumber())
-                                    .latestBlockNumber(blockBufferService.getHighestAckedBlockNumber())
-                                    .build())
-                            .build();
-
-                    sendRequest(endStreamTimeout);
-
-                    close();
-                    blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
+                    endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
                 }
             } else {
                 consecutiveHighLatencyEvents.set(0);
             }
+        }
 
         if (maybeJumpToBlock
                 && (acknowledgedBlockNumber > currentBlockProducing
@@ -561,7 +551,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     }
                 }
             }
-            blockNodeStreamObserver.onNext(request);
+            requestPipeline.onNext(request);
         }
     }
 
