@@ -446,7 +446,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var expectedNumContractStorageSlots =
                 entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_STORAGE.protoOrdinal()), Set.of());
         final var expectedNumTokenRelations =
-                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKENS.protoOrdinal()), Set.of());
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal()), Set.of());
         final var expectedNumAccounts =
                 entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal()), Set.of());
         final var expectedNumAliases =
