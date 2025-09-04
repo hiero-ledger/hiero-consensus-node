@@ -47,16 +47,22 @@ class FilteredWritableStatesTest {
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null key")
-        void nonNullKey() {
+        @DisplayName("Throws IAE for an unknown K/V state ID")
+        void unknownKVStateId() {
             assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null Singleton key")
-        void nonNullSingletonKey() {
+        @DisplayName("Throws IAE for an unknown singleton state ID")
+        void unknownSingletonStateId() {
             assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("Throws IAE for an unknown queue state ID")
+        void unknownQueueStateId() {
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -89,16 +95,22 @@ class FilteredWritableStatesTest {
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null key")
-        void nonNullKey() {
+        @DisplayName("Throws IAE for an unknown K/V state ID")
+        void unknownKVStateId() {
             assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null Singleton key")
-        void nonNullSingletonKey() {
+        @DisplayName("Throws IAE for an unknown singleton state ID")
+        void unknownSingletonStateId() {
             assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("Throws IAE for an unknown queue state ID")
+        void unknownQueueStateId() {
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @NonNull
@@ -239,9 +251,9 @@ class FilteredWritableStatesTest {
         }
 
         @Test
-        @DisplayName("A modifiable `stateKeys` set provided to a constructor can be changed without"
+        @DisplayName("A modifiable `stateIds` set provided to a constructor can be changed without"
                 + " impacting the FilteredWritableStates")
-        void modifiableStateISs() {
+        void modifiableStateIDs() {
             // Given a delegate with multiple k/v states and a modifiable set of state IDs,
             final var modifiableStateIds = new HashSet<Integer>();
             modifiableStateIds.add(COUNTRY_STATE_ID);
@@ -258,7 +270,7 @@ class FilteredWritableStatesTest {
         }
 
         @Test
-        @DisplayName("The set of filtered state keys is unmodifiable")
+        @DisplayName("The set of filtered state IDs is unmodifiable")
         void filteredStateIdsAreUnmodifiable() {
             // Given a FilteredWritableStates
             final var stateIds = Set.of(COUNTRY_STATE_ID);

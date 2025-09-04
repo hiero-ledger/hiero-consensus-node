@@ -76,16 +76,9 @@ class MerkleStateRootTest extends MerkleTestBase {
     void setUp() {
         setupConstructableRegistry();
         registerMerkleStateRootClassIds();
-        //        setupFruitVirtualMap();
         stateRoot = new TestMerkleStateRoot();
         stateRoot.init(
                 new FakeTime(), CONFIGURATION, new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
-    }
-
-    @AfterEach
-    void tearDown() {
-        //        fruitVirtualMap.release();
-        //        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     /** Looks for a merkle node with the given label */
@@ -120,15 +113,15 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Adding a null service node will throw an NPE")
         void addingNullServiceNodeThrows() {
             //noinspection ConstantConditions
-            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, null))
+            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitMetadata, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
         @Test
         @DisplayName("Adding a service node that is not Labeled throws IAE")
         void addingWrongKindOfNodeThrows() {
-            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(
-                            fruitVirtualMetadata, () -> Mockito.mock(MerkleNode.class)))
+            assertThatThrownBy(() ->
+                            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> Mockito.mock(MerkleNode.class)))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -137,7 +130,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         void addingNodeWithNoLabelThrows() {
             final var fruitNodeNoLabel = Mockito.mock(MerkleMap.class);
             Mockito.when(fruitNodeNoLabel.getLabel()).thenReturn(null);
-            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitNodeNoLabel))
+            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitNodeNoLabel))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -145,14 +138,14 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Adding a service node with a label that doesn't match service name and state key throws IAE")
         void addingBadServiceNodeNameThrows() {
             fruitVirtualMap.getMetadata().setLabel("Some Random Label");
-            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap))
+            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         @DisplayName("Adding a service")
         void addingService() {
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             assertThat(stateRoot.getNumberOfChildren()).isEqualTo(1);
             assertThat(getNodeForLabel(fruitVirtualLabel)).isSameAs(fruitVirtualMap);
         }
@@ -163,7 +156,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             // Given a virtual map
 
             // When added to the merkle tree
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
             // Then we can see it is on the tree
             assertThat(stateRoot.getNumberOfChildren()).isEqualTo(1);
@@ -202,7 +195,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Adding a service to a MerkleStateRoot that has other node types on it")
         void addingServiceWhenNonServiceNodeChildrenExist() {
             stateRoot.setChild(0, Mockito.mock(MerkleNode.class));
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             assertThat(stateRoot.getNumberOfChildren()).isEqualTo(2);
             assertThat(getNodeForLabel(fruitVirtualLabel)).isSameAs(fruitVirtualMap);
         }
@@ -210,8 +203,8 @@ class MerkleStateRootTest extends MerkleTestBase {
         @Test
         @DisplayName("Adding the same service twice is idempotent")
         void addingServiceTwiceIsIdempotent() {
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             assertThat(stateRoot.getNumberOfChildren()).isEqualTo(1);
             assertThat(getNodeForLabel(fruitVirtualLabel)).isSameAs(fruitVirtualMap);
         }
@@ -227,7 +220,7 @@ class MerkleStateRootTest extends MerkleTestBase {
                     StateDefinition.inMemory(
                             FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
 
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(fruitMetadata2, () -> fruitVirtualMap);
 
             // Then the original node is kept and the second node ignored
@@ -248,8 +241,8 @@ class MerkleStateRootTest extends MerkleTestBase {
             setupSingletonCountry();
             setupSteamQueue();
 
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             countrySingleton.setValue(GHANA);
             steamQueue.add(ART);
         }
@@ -272,7 +265,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Reading an unknown state on ReadableStates should throw IAE")
         void unknownState() {
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -287,7 +280,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Read a virtual map")
         void readVirtualMap() {
             // Given a State with the fruit virtual map
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
             // When we get the ReadableStates
             final var states = stateRoot.getReadableStates(FIRST_SERVICE);
@@ -300,7 +293,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Contains is true for all states in stateKeys and false for unknown ones")
         void contains() {
             // Given a State with the fruit and animal and country and steam states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -322,7 +315,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Getting the same readable state twice returns the same instance")
         void getReturnsSameInstanceIfCalledTwice() {
             // Given a State with the fruit and the ReadableStates for it
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             final var states = stateRoot.getReadableStates(FIRST_SERVICE);
 
             // When we call get twice
@@ -337,7 +330,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Getting ReadableStates on a known service returns an object with all the state")
         void knownServiceNameUsingReadableStates() {
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -347,7 +340,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             // Then query it, we find the data we expected to find
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isFalse();
-            assertThat(states.size()).isEqualTo(3); // animal and fruit and country and steam
+            assertThat(states.size()).isEqualTo(3); // fruit and country and steam
 
             final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_ID);
             assertFruitState(fruitState);
@@ -410,8 +403,8 @@ class MerkleStateRootTest extends MerkleTestBase {
             setupSingletonCountry();
             setupSteamQueue();
 
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             countrySingleton.setValue(FRANCE);
             steamQueue.add(ART);
         }
@@ -434,7 +427,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Reading an unknown state on WritableState should throw IAE")
         void unknownState() {
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -449,7 +442,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Read a virtual map")
         void readVirtualMap() {
             // Given a State with the fruit virtual map
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
             // When we get the WritableStates
             final var states = stateRoot.getWritableStates(FIRST_SERVICE);
@@ -462,7 +455,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Contains is true for all states in stateKeys and false for unknown ones")
         void contains() {
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -484,7 +477,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Getting the same writable state twice returns the same instance")
         void getReturnsSameInstanceIfCalledTwice() {
             // Given a State with the fruit and the WritableStates for it
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             final var states = stateRoot.getWritableStates(FIRST_SERVICE);
 
             // When we call get twice
@@ -499,7 +492,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Getting WritableStates on a known service returns an object with all the state")
         void knownServiceNameUsingWritableStates() {
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -544,7 +537,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             setupFruitVirtualMap();
             try {
                 stateRoot.copy();
-                assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap))
+                assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap))
                         .isInstanceOf(MutabilityException.class);
             } finally {
                 fruitVirtualMap.release();
@@ -582,14 +575,14 @@ class MerkleStateRootTest extends MerkleTestBase {
             setupSingletonCountry();
             setupSteamQueue();
 
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, C_KEY, CHERRY);
+            addKvState(fruitVirtualMap, fruitMetadata, C_KEY, CHERRY);
             countrySingleton.setValue(FRANCE);
             steamQueue.add(ART);
         }
 
         @Test
         void appropriateListenersAreInvokedOnCommit() {
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
@@ -664,13 +657,13 @@ class MerkleStateRootTest extends MerkleTestBase {
             setupSteamQueue();
             setupFruitVirtualMap();
 
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             countrySingleton.setValue(GHANA);
             steamQueue.add(ART);
 
             // Given a State with the fruit and animal and country states
-            stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitVirtualMap);
+            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 

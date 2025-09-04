@@ -64,14 +64,6 @@ public class StateTestBase extends TestBase {
     protected static final ProtoBytes FEIJOA = toProtoBytes("Feijoa");
     protected static final ProtoBytes GRAPE = toProtoBytes("Grape");
 
-    protected static final ProtoBytes ASTRONAUT = toProtoBytes("Astronaut");
-    protected static final ProtoBytes BLASTOFF = toProtoBytes("Blastoff");
-    protected static final ProtoBytes COMET = toProtoBytes("Comet");
-    protected static final ProtoBytes DRACO = toProtoBytes("Draco");
-    protected static final ProtoBytes EXOPLANET = toProtoBytes("Exoplanet");
-    protected static final ProtoBytes FORCE = toProtoBytes("Force");
-    protected static final ProtoBytes GRAVITY = toProtoBytes("Gravity");
-
     protected static final ProtoBytes ART = toProtoBytes("Art");
     protected static final ProtoBytes BIOLOGY = toProtoBytes("Biology");
     protected static final ProtoBytes CHEMISTRY = toProtoBytes("Chemistry");

@@ -52,7 +52,7 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     public <K, V> WritableKVState<K, V> get(final int stateId) {
         final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown k/v state ID " + stateId);
+            throw new IllegalArgumentException("Unknown K/V state ID " + stateId);
         }
 
         return (WritableKVState<K, V>) state;
@@ -76,7 +76,7 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     public <E> WritableQueueState<E> getQueue(final int stateId) {
         final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown queue state key " + stateId);
+            throw new IllegalArgumentException("Unknown queue state ID " + stateId);
         }
 
         return (WritableQueueState<E>) state;

@@ -137,19 +137,19 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addingKvService() {
             // Given a virtual map
             setupFruitVirtualMap();
-            final int kvStateId = fruitVirtualMetadata.stateDefinition().stateId();
+            final int kvStateId = fruitMetadata.stateDefinition().stateId();
 
             // When added to the state
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
 
             // Then we can see it in the state
             assertThat(virtualMapState.getServices().size()).isEqualTo(1);
-            assertTrue(virtualMapState.getServices().containsKey(fruitVirtualMetadata.serviceName()));
+            assertTrue(virtualMapState.getServices().containsKey(fruitMetadata.serviceName()));
             assertDoesNotThrow(() -> virtualMapState
-                    .getReadableStates(fruitVirtualMetadata.serviceName())
+                    .getReadableStates(fruitMetadata.serviceName())
                     .get(kvStateId));
             assertDoesNotThrow(() -> virtualMapState
-                    .getWritableStates(fruitVirtualMetadata.serviceName())
+                    .getWritableStates(fruitMetadata.serviceName())
                     .get(kvStateId));
         }
 
@@ -165,15 +165,15 @@ public class VirtualMapStateTest extends MerkleTestBase {
                     StateDefinition.onDisk(
                             FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 999));
 
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(fruitVirtualMetadata2);
 
             // Then the original node is kept and the second node ignored
             assertThat(virtualMapState.getServices().size()).isEqualTo(1);
-            assertTrue(virtualMapState.getServices().containsKey(fruitVirtualMetadata.serviceName()));
+            assertTrue(virtualMapState.getServices().containsKey(fruitMetadata.serviceName()));
             assertTrue(virtualMapState
                     .getServices()
-                    .get(fruitVirtualMetadata.serviceName())
+                    .get(fruitMetadata.serviceName())
                     .containsKey(FRUIT_STATE_ID));
         }
     }
@@ -194,13 +194,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void removeWithUnknownServiceName() {
             // Given a virtual map state with a random service
             setupFruitVirtualMap();
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             final var stateMetadataSize = virtualMapState
                     .getServices()
-                    .get(fruitVirtualMetadata.serviceName())
+                    .get(fruitMetadata.serviceName())
                     .size();
             final var writableStatesSize = virtualMapState
-                    .getReadableStates(fruitVirtualMetadata.serviceName())
+                    .getReadableStates(fruitMetadata.serviceName())
                     .size();
 
             // When you try to remove an unknown service
@@ -209,11 +209,11 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // It has no effect on anything
             assertThat(virtualMapState
                             .getServices()
-                            .get(fruitVirtualMetadata.serviceName())
+                            .get(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(stateMetadataSize);
             assertThat(virtualMapState
-                            .getWritableStates(fruitVirtualMetadata.serviceName())
+                            .getWritableStates(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(writableStatesSize);
         }
@@ -223,13 +223,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void removeWithUnknownStateKey() {
             // Given a virtual map state with a random service
             setupFruitVirtualMap();
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             final var stateMetadataSize = virtualMapState
                     .getServices()
-                    .get(fruitVirtualMetadata.serviceName())
+                    .get(fruitMetadata.serviceName())
                     .size();
             final var writableStatesSize = virtualMapState
-                    .getWritableStates(fruitVirtualMetadata.serviceName())
+                    .getWritableStates(fruitMetadata.serviceName())
                     .size();
 
             // When you try to remove an unknown service
@@ -238,11 +238,11 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // It has no effect on anything
             assertThat(virtualMapState
                             .getServices()
-                            .get(fruitVirtualMetadata.serviceName())
+                            .get(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(stateMetadataSize);
             assertThat(virtualMapState
-                            .getWritableStates(fruitVirtualMetadata.serviceName())
+                            .getWritableStates(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(writableStatesSize);
         }
@@ -252,7 +252,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void remove() {
             // Given a virtual map state with a first service
             setupFruitVirtualMap();
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
 
             // When you try to remove a first service
             virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_ID);
@@ -260,11 +260,11 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // First service would be removed
             assertThat(virtualMapState
                             .getServices()
-                            .get(fruitVirtualMetadata.serviceName())
+                            .get(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(0);
             assertThat(virtualMapState
-                            .getWritableStates(fruitVirtualMetadata.serviceName())
+                            .getWritableStates(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(0);
         }
@@ -283,8 +283,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(virtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(virtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // adding queue state via State API, to init the QueueState
@@ -306,7 +306,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Reading an unknown state on ReadableStates should throw IAE")
         void unknownState() {
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -322,7 +322,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void readVirtualMap() {
             try {
                 // Given a State with the fruit virtual map
-                virtualMapState.initializeState(fruitVirtualMetadata);
+                virtualMapState.initializeState(fruitMetadata);
 
                 // When we get the ReadableStates
                 final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
@@ -338,7 +338,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Contains is true for all states in stateKeys and false for unknown ones")
         void contains() {
             // Given a State with the fruit and animal and country and steam states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -360,7 +360,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Getting the same readable state twice returns the same instance")
         void getReturnsSameInstanceIfCalledTwice() {
             // Given a State with the fruit and the ReadableStates for it
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
 
             // When we call get twice
@@ -375,7 +375,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Getting ReadableStates on a known service returns an object with all the state")
         void knownServiceNameUsingReadableStates() {
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -385,7 +385,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // Then query it, we find the data we expected to find
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isFalse();
-            assertThat(states.size()).isEqualTo(3); // animal and fruit and country and steam
+            assertThat(states.size()).isEqualTo(3); // fruit and country and steam
 
             final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_ID);
             assertFruitState(fruitState);
@@ -421,12 +421,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void testGetInfoJson() {
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
             // adding queue state via State API, to init the QueueState
@@ -484,8 +484,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(virtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(virtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // adding queue state via State API, to init the QueueState
@@ -507,7 +507,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Reading an unknown state on WritableState should throw IAE")
         void unknownState() {
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -523,7 +523,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void readVirtualMap() {
             try {
                 // Given a State with the fruit virtual map
-                virtualMapState.initializeState(fruitVirtualMetadata);
+                virtualMapState.initializeState(fruitMetadata);
 
                 // When we get the WritableStates
                 final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
@@ -539,7 +539,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Contains is true for all states in stateKeys and false for unknown ones")
         void contains() {
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -561,7 +561,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Getting the same writable state twice returns the same instance")
         void getReturnsSameInstanceIfCalledTwice() {
             // Given a State with the fruit and the WritableStates for it
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
 
             // When we call get twice
@@ -576,7 +576,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Getting WritableStates on a known service returns an object with all the state")
         void knownServiceNameUsingWritableStates() {
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -621,7 +621,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addServiceOnOriginalAfterCopyThrows() {
             setupFruitVirtualMap();
             final var stateRootCopy = virtualMapState.copy();
-            assertThatThrownBy(() -> virtualMapState.initializeState(fruitVirtualMetadata))
+            assertThatThrownBy(() -> virtualMapState.initializeState(fruitMetadata))
                     .isInstanceOf(MutabilityException.class);
             stateRootCopy.release();
         }
@@ -630,7 +630,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Cannot call removeServiceState on original after copy")
         void removeServiceOnOriginalAfterCopyThrows() {
             setupFruitVirtualMap();
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             final var stateRootCopy = virtualMapState.copy();
             assertThatThrownBy(() -> virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_ID))
                     .isInstanceOf(MutabilityException.class);
@@ -673,7 +673,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, C_KEY, CHERRY);
+            addKvState(fruitVirtualMap, fruitMetadata, C_KEY, CHERRY);
             addSingletonState(virtualMap, countryMetadata, FRANCE);
 
             // adding queue state via State API, to init the QueueState
@@ -685,7 +685,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         void appropriateListenersAreInvokedOnCommit() {
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -737,12 +737,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, B_KEY, BANANA);
+            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
             // adding queue state via State API, to init the QueueState

@@ -39,7 +39,7 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
 
     protected SemanticVersion v1 = SemanticVersion.newBuilder().major(1).build();
 
-    protected StateMetadata<ProtoBytes, ProtoBytes> fruitVirtualMetadata;
+    protected StateMetadata<ProtoBytes, ProtoBytes> fruitMetadata;
     protected StateMetadata<ProtoBytes, ProtoBytes> steamMetadata;
     protected StateMetadata<ProtoBytes, ProtoBytes> countryMetadata;
 
@@ -47,7 +47,7 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     @Override
     protected void setupFruitVirtualMap() {
         super.setupFruitVirtualMap();
-        fruitVirtualMetadata = new StateMetadata<>(
+        fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
                 new TestSchema(1),
                 StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));

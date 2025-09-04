@@ -31,20 +31,20 @@ class EmptyReadableStatesTest extends StateTestBase {
     }
 
     @Test
-    @DisplayName("Throws IAE for any non-null key")
-    void nonNullKey() {
+    @DisplayName("Throws IAE for an unknown K/V state ID")
+    void unknownKVStateId() {
         assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("Throws IAE for any non-null singleton key")
-    void nonNullSingletonKey() {
+    @DisplayName("Throws IAE for an unknown singleton state ID")
+    void unknownSingletongStateId() {
         assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("Throws IAE for any non-null queue key")
-    void nonNullQueueKey() {
+    @DisplayName("Throws IAE for an unknown queue state ID")
+    void unknownQueueStateId() {
         assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 }

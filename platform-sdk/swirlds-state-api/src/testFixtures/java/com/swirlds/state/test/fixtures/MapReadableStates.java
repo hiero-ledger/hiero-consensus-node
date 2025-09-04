@@ -29,7 +29,7 @@ public class MapReadableStates implements ReadableStates {
     public <K, V> ReadableKVState<K, V> get(final int stateId) {
         final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown k/v state key " + stateId);
+            throw new IllegalArgumentException("Unknown K/V state ID " + stateId);
         }
 
         return (ReadableKVState<K, V>) state;
@@ -41,7 +41,7 @@ public class MapReadableStates implements ReadableStates {
     public <T> ReadableSingletonState<T> getSingleton(final int stateId) {
         final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown singleton state key " + stateId);
+            throw new IllegalArgumentException("Unknown singleton state ID " + stateId);
         }
 
         return (ReadableSingletonState<T>) state;
@@ -53,7 +53,7 @@ public class MapReadableStates implements ReadableStates {
     public <E> ReadableQueueState<E> getQueue(final int stateId) {
         final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown queue state key " + stateId);
+            throw new IllegalArgumentException("Unknown queue state ID " + stateId);
         }
 
         return (ReadableQueueState<E>) state;

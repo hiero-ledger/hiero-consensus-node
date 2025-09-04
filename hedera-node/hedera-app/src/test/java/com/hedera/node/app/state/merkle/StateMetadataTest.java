@@ -25,7 +25,7 @@ class StateMetadataTest extends MerkleTestBase {
     void setUp() {
         setupFruitVirtualMap();
         schema = new TestSchema(1);
-        def = fruitVirtualMetadata.stateDefinition();
+        def = fruitMetadata.stateDefinition();
     }
 
     @Test

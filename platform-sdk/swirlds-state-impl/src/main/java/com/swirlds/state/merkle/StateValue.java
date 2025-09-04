@@ -33,7 +33,6 @@ public record StateValue<V>(int stateId, @NonNull V value) {
 
         @Override
         public StateValue<V> getDefaultInstance() {
-            // throw new UnsupportedOperationException("getDefaultInstance() must not be called");
             return new StateValue<>(stateId, valueCodec.getDefaultInstance());
         }
 
