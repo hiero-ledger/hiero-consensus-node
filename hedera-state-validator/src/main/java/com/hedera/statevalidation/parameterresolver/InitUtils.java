@@ -61,16 +61,7 @@ import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.converter.PermissionedAccountsRangeConverter;
 import com.hedera.node.config.converter.ScaleFactorConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.ApiPermissionConfig;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.BootstrapConfig;
-import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
-import com.hedera.node.config.data.TssConfig;
-import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.data.*;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.HederaFunctionalitySet;
@@ -100,6 +91,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.interledger.clpr.impl.ClprServiceImpl;
 
 public class InitUtils {
 
@@ -127,6 +119,7 @@ public class InitUtils {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
+                .withConfigDataType(ClprConfig.class)
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
@@ -222,6 +215,7 @@ public class InitUtils {
                                         .get()
                                         .getState(),
                                 PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE),
+                        new ClprServiceImpl(),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         return servicesRegistry;
