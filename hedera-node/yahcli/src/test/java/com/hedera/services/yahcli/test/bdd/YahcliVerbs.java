@@ -48,11 +48,25 @@ public class YahcliVerbs {
         return new YahcliCallOperation(prepend(args, "accounts"));
     }
 
+    /**
+     * Returns an operation that invokes a yahcli {@code keys} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the keys subcommand
+     * @return the operation that will execute the keys subcommand
+     */
     public static YahcliCallOperation yahcliKey(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "keys"));
     }
 
+    /**
+     * Returns an operation that invokes a yahcli {@code schedule} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the schedule subcommand
+     * @return the operation that will execute the schedule subcommand
+     */
     public static YahcliCallOperation yahcliScheduleSign(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "schedule"));
@@ -227,13 +241,20 @@ public class YahcliVerbs {
     // Note: denom can be hbar|kilobar|tinybar or a token number
     public record CryptoTransferOutput(long amount, String denom, long toAcctNum) {}
 
+    /**
+     * Returns a callback that will look for a line containing public key information,
+     * and pass the extracted public key to the given callback.
+     *
+     * @param cb the callback to capture the extracted public key
+     * @return the output consumer that processes public key information from command output
+     */
     public static Consumer<String> publicKeyCapturer(@NonNull final Consumer<String> cb) {
         return output -> {
             final var m = PUBLIC_KEY_PATTERN.matcher(output);
             if (m.find()) {
                 cb.accept(m.group(1));
             } else {
-                Assertions.fail("Expected output to contain public key information");
+                Assertions.fail("Expected '" + output + "' to contain '" + PUBLIC_KEY_PATTERN.pattern() + "'");
             }
         };
     }

@@ -24,8 +24,10 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -99,17 +101,10 @@ public class ScheduleCommandsTest {
                                 .exposingOutputTo(publicKeyCapturer(publicKeyR::set)),
                         yahcliKey("print-public", "-p", accountKeyPath(String.valueOf(accountNumT.get())))
                                 .exposingOutputTo(publicKeyCapturer(publicKeyT::set)))),
-
-                // create new key file
+                // schedule account S key update
                 doingContextual(spec -> {
-                    newKeyFilePath.set(newKeyFilePath("newAccountSKey.txt"));
-                    try {
-                        Files.createFile(Path.of(newKeyFilePath.get()));
-                        Files.writeString(Path.of(newKeyFilePath.get()), publicKeyR.get() + "\n" + publicKeyT.get());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
+                    // create new key file and create the schedule
+                    newKeyFilePath.set(combinePublicKeys(publicKeyR.get(), publicKeyT.get()));
                     allRunFor(
                             spec,
                             yahcliAccounts(
@@ -150,13 +145,13 @@ public class ScheduleCommandsTest {
                                 String.valueOf(scheduleNum.get()),
                                 "-k",
                                 accountKeyPath(String.valueOf(accountNumS.get()))))),
+                // Query all account keys
                 doingContextual(spec -> allRunFor(
                         spec,
                         getAccountInfo(String.valueOf(accountNumR.get())).exposingKeyTo(keyR::set),
                         getAccountInfo(String.valueOf(accountNumT.get())).exposingKeyTo(keyT::set),
-                        getAccountInfo(String.valueOf(accountNumS.get())).exposingKeyTo(actualKeyS::set),
-                        // print account info S
-                        yahcliAccounts("info", String.valueOf(accountNumS.get())))),
+                        getAccountInfo(String.valueOf(accountNumS.get())).exposingKeyTo(actualKeyS::set))),
+                // Validate account S new key
                 doingContextual(spec -> {
                     // compose expected key form R and T account keys
                     final var expectedKey = Key.newBuilder()
@@ -171,6 +166,20 @@ public class ScheduleCommandsTest {
     }
 
     // Helpers
+    private String combinePublicKeys(String... publicKeys) {
+        final var path = newKeyFilePath("combinedPublicKey.txt");
+        try {
+            Files.createFile(Path.of(path));
+            final var keys = Arrays.stream(publicKeys).toList();
+            StringBuilder content = new StringBuilder();
+            keys.forEach(key -> content.append(key).append("\n"));
+            Files.writeString(Path.of(path), content.toString());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return path;
+    }
+
     private String accountKeyPath(String accountNum) {
         return newKeyFilePath(String.format("account%s.pem", accountNum));
     }
