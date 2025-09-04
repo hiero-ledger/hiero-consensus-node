@@ -492,6 +492,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             request.endStream().endCode());
                 } else {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
+                    blockStreamMetrics.recordBlockItemsSent(
+                            request.blockItems().blockItems().size());
                 }
             } catch (final RuntimeException e) {
                 blockStreamMetrics.recordRequestSendFailure();

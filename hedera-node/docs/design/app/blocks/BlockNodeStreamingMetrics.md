@@ -56,10 +56,11 @@ These metrics relate to responses received from a block node. They are identifie
 These metrics relate to the requests sent from the consensus node to a block node. They are identified using the
 "connSend" prefix.
 
-|                  Metric Name                  |  Type   |                  Description                   |
-|-----------------------------------------------|---------|------------------------------------------------|
-| `blockStream_connSend_blockItems`             | Counter | Number of BlockItems requests sent             |
-| `blockStream_connSend_endStream_reset`        | Counter | Number of EndStream.Reset requests sent        |
-| `blockStream_connSend_endStream_timeout`      | Counter | Number of EndStream.Timeout requests sent      |
-| `blockStream_connSend_endStream_error`        | Counter | Number of EndStream.Error requests sent        |
-| `blockStream_connSend_endStream_tooFarBehind` | Counter | Number of EndStream.TooFarBehind requests sent |
+|                         Metric Name                         |  Type   |                     Description                      |
+|-------------------------------------------------------------|---------|------------------------------------------------------|
+| `blockStream_connSend_blockItems`                           | Counter | Number of BlockItems sent                            |
+| `blockStream_connSend_publishStreamRequest_with_blockItems` | Counter | Number of PublishStreamRequests with BlockItems sent |
+| `blockStream_connSend_endStream_reset`                      | Counter | Number of EndStream.Reset requests sent              |
+| `blockStream_connSend_endStream_timeout`                    | Counter | Number of EndStream.Timeout requests sent            |
+| `blockStream_connSend_endStream_error`                      | Counter | Number of EndStream.Error requests sent              |
+| `blockStream_connSend_endStream_tooFarBehind`               | Counter | Number of EndStream.TooFarBehind requests sent       |

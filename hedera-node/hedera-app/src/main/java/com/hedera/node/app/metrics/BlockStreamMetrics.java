@@ -36,6 +36,7 @@ public class BlockStreamMetrics {
 
     // connection send metrics
     private Counter connSend_failureCounter;
+    private Counter connSend_blockItemsCounter;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -70,6 +71,11 @@ public class BlockStreamMetrics {
     private Counter buffer_numBlocksClosedCounter;
     private Counter buffer_numBlocksMissingCounter;
 
+    /**
+     * Constructor of this class.
+     *
+     * @param metrics The metrics system to use
+     */
     @Inject
     public BlockStreamMetrics(@NonNull final Metrics metrics) {
         this.metrics = requireNonNull(metrics);
@@ -116,46 +122,83 @@ public class BlockStreamMetrics {
         buffer_backPressureStateGauge = metrics.getOrCreate(backPressureStateCfg);
     }
 
+    /**
+     * Record the current saturation of the block buffer.
+     * @param saturation the current saturation (0.0 to 100.0)
+     */
     public void recordBufferSaturation(final double saturation) {
         buffer_saturationGauge.set(saturation);
     }
 
+    /**
+     * Record the latest block number that was opened.
+     * @param blockNumber the block number that was most recently opened
+     */
     public void recordLatestBlockOpened(final long blockNumber) {
         buffer_latestBlockOpenedGauge.set(blockNumber);
     }
 
+    /**
+     * Record the highest block number that was acknowledged.
+     * @param blockNumber the block number that was most recently acknowledged
+     */
     public void recordLatestBlockAcked(final long blockNumber) {
         buffer_latestBlockAckedGauge.set(blockNumber);
     }
 
+    /**
+     * Record the number of blocks that were pruned in the latest pruning cycle.
+     * @param numBlocksPruned the number of blocks that were pruned
+     */
     public void recordNumberOfBlocksPruned(final int numBlocksPruned) {
         buffer_numBlocksPrunedCounter.add(numBlocksPruned);
     }
 
+    /**
+     * Record that a block was opened.
+     */
     public void recordBlockOpened() {
         buffer_numBlocksOpenedCounter.increment();
     }
 
+    /**
+     * Record that a block was closed.
+     */
     public void recordBlockClosed() {
         buffer_numBlocksClosedCounter.increment();
     }
 
+    /**
+     * Record that an attempt to retrieve a block from the block buffer failed because the block was missing.
+     */
     public void recordBlockMissing() {
         buffer_numBlocksMissingCounter.increment();
     }
 
+    /**
+     * Record that back pressure is active.
+     */
     public void recordBackPressureActive() {
         buffer_backPressureStateGauge.set(BACK_PRESSURE_ACTIVE);
     }
 
+    /**
+     * Record that back pressure is at the action stage.
+     */
     public void recordBackPressureActionStage() {
         buffer_backPressureStateGauge.set(BACK_PRESSURE_ACTION_STAGE);
     }
 
+    /**
+     * Record that back pressure is recovering.
+     */
     public void recordBackPressureRecovering() {
         buffer_backPressureStateGauge.set(BACK_PRESSURE_RECOVERING);
     }
 
+    /**
+     * Record that back pressure is disabled (normal state).
+     */
     public void recordBackPressureDisabled() {
         buffer_backPressureStateGauge.set(BACK_PRESSURE_DISABLED);
     }
@@ -188,26 +231,44 @@ public class BlockStreamMetrics {
         conn_createFailureCounter = metrics.getOrCreate(createFailureCfg);
     }
 
+    /**
+     * Record that a connection to a block node completed normally.
+     */
     public void recordConnectionOnComplete() {
         conn_onCompleteCounter.increment();
     }
 
+    /**
+     * Record that an error occurred on a connection to a block node.
+     */
     public void recordConnectionOnError() {
         conn_onErrorCounter.increment();
     }
 
+    /**
+     * Record that a connection to a block node was opened.
+     */
     public void recordConnectionOpened() {
         conn_openedCounter.increment();
     }
 
+    /**
+     * Record that a connection to a block node was closed.
+     */
     public void recordConnectionClosed() {
         conn_closedCounter.increment();
     }
 
+    /**
+     * Record that streaming a block was attempted but there was no active connection to a block node.
+     */
     public void recordNoActiveConnection() {
         conn_noActiveCounter.increment();
     }
 
+    /**
+     * Record that establishing a connection to a block node failed.
+     */
     public void recordConnectionCreateFailure() {
         conn_createFailureCounter.increment();
     }
@@ -249,10 +310,17 @@ public class BlockStreamMetrics {
         this.connRecv_unknownCounter = metrics.getOrCreate(recvUnknownCfg);
     }
 
+    /**
+     * Record that an unknown response was received from a block node.
+     */
     public void recordUnknownResponseReceived() {
         connRecv_unknownCounter.increment();
     }
 
+    /**
+     * Record that a response was received from a block node.
+     * @param responseType the type of response received
+     */
     public void recordResponseReceived(final PublishStreamResponse.ResponseOneOfType responseType) {
         final Counter counter = connRecv_counters.get(responseType);
         if (counter != null) {
@@ -260,6 +328,10 @@ public class BlockStreamMetrics {
         }
     }
 
+    /**
+     * Record that an end of stream response was received from a block node.
+     * @param responseType the type of end of stream response received
+     */
     public void recordResponseEndOfStreamReceived(final PublishStreamResponse.EndOfStream.Code responseType) {
         final Counter counter = connRecv_endOfStreamCounters.get(responseType);
         if (counter != null) {
@@ -271,7 +343,7 @@ public class BlockStreamMetrics {
 
     private void registerConnectionSendMetrics() {
         for (final PublishStreamRequest.RequestOneOfType reqType : PublishStreamRequest.RequestOneOfType.values()) {
-            final String reqTypeName = toCamelCase(reqType.protoName());
+            final String reqTypeName = "publishStreamRequest_with_" + toCamelCase(reqType.protoName());
             switch (reqType) {
                 case UNSET -> {
                     /* ignore */
@@ -284,13 +356,15 @@ public class BlockStreamMetrics {
                         }
                         final String name = reqTypeName + "_" + toCamelCase(esCode.protoName());
                         final Counter.Config cfg = newCounter(GROUP_CONN_SEND, name)
-                                .withDescription("Number of " + name + " requests sent to block nodes");
+                                .withDescription(
+                                        "Number of PublishStreamRequests with " + name + " sent to block nodes");
                         connSend_endStreamCounters.put(esCode, metrics.getOrCreate(cfg));
                     }
                 }
                 default -> {
                     final Counter.Config cfg = newCounter(GROUP_CONN_SEND, reqTypeName)
-                            .withDescription("Number of " + reqTypeName + " requests sent to the block nodes");
+                            .withDescription(
+                                    "Number of PublishStreamRequests with " + reqTypeName + " sent to the block nodes");
                     connSend_counters.put(reqType, metrics.getOrCreate(cfg));
                 }
             }
@@ -299,8 +373,16 @@ public class BlockStreamMetrics {
         final Counter.Config sendFailureCfg = newCounter(GROUP_CONN_SEND, "failure")
                 .withDescription("Number of requests sent to block nodes that failed");
         this.connSend_failureCounter = metrics.getOrCreate(sendFailureCfg);
+
+        final Counter.Config blockItemsCfg =
+                newCounter(GROUP_CONN_SEND, "blockItems").withDescription("Number of block items sent to block nodes");
+        this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
     }
 
+    /**
+     * Record that a request was sent to a block node.
+     * @param requestType the type of request sent
+     */
     public void recordRequestSent(final PublishStreamRequest.RequestOneOfType requestType) {
         final Counter counter = connSend_counters.get(requestType);
         if (counter != null) {
@@ -308,6 +390,20 @@ public class BlockStreamMetrics {
         }
     }
 
+    /**
+     * Record the number of block items sent in a request to a block node.
+     * @param numBlockItems the number of block items sent in the request
+     */
+    public void recordBlockItemsSent(final int numBlockItems) {
+        if (numBlockItems > 0) {
+            connSend_blockItemsCounter.add(numBlockItems);
+        }
+    }
+
+    /**
+     * Record that an end stream request was sent to a block node.
+     * @param requestType the type of end stream request sent
+     */
     public void recordRequestEndStreamSent(final PublishStreamRequest.EndStream.Code requestType) {
         final Counter counter = connSend_endStreamCounters.get(requestType);
         if (counter != null) {
@@ -315,6 +411,9 @@ public class BlockStreamMetrics {
         }
     }
 
+    /**
+     * Record that a request to a block node failed to be sent.
+     */
     public void recordRequestSendFailure() {
         connSend_failureCounter.increment();
     }
