@@ -71,6 +71,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class QueryDispatcherTest {
     @Mock
+    private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
+
+    @Mock
     private ConsensusGetTopicInfoHandler consensusGetTopicInfoHandler;
 
     @Mock
@@ -141,9 +144,6 @@ class QueryDispatcherTest {
 
     @Mock
     private TokenGetNftInfoHandler tokenGetNftInfoHandler;
-
-    @Mock
-    private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
 
     @Mock
     private TokenGetNftInfosHandler tokenGetNftInfosHandler;
