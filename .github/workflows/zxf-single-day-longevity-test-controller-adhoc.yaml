@@ -62,6 +62,14 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      kubernetes-cluster:
+        required: true
+        default: "k8s.pft.dal.lat.ope.eng.hashgraph.io"
+        description: "Chi (SD8-9) or Dal (Adhoc5-7)"
+        type: choice
+        options:
+          - "k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          - "k8s.pft.chi.lat.ope.eng.hashgraph.io"
 
 defaults:
   run:
@@ -128,7 +136,7 @@ jobs:
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
-      kubernetes-cluster: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
+      kubernetes-cluster: "${{ inputs.kubernetes-cluster }}"
       add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
