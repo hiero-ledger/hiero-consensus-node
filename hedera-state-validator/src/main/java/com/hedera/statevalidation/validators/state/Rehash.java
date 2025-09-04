@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.state;
 
+import static com.hedera.statevalidation.validators.ParallelProcessingUtil.submitSingleTask;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -171,10 +172,12 @@ public class Rehash {
                 .start();
         try {
             final long start = System.currentTimeMillis();
+            final var hashingTask = submitSingleTask(() -> hasher.hash(
+                    records::findHash, rehashIterator, firstLeafPath, lastLeafPath, null, virtualMapConfig));
             leafFeedFuture.get(MAX_FULL_REHASHING_TIMEOUT, SECONDS);
             final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
             logger.info("It took {} seconds to feed all leaves to the hasher for the VirtualMap", secondsSpent);
-            return hasher.hash(records::findHash, rehashIterator, firstLeafPath, lastLeafPath, null, virtualMapConfig);
+            return hashingTask.join();
         } catch (ExecutionException e) {
             final var message = "VirtualMap failed to get hash during full rehashing";
             throw new MerkleSynchronizationException(message, e);

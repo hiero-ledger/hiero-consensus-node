@@ -161,13 +161,13 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
           certificate-ttl: 20h
 

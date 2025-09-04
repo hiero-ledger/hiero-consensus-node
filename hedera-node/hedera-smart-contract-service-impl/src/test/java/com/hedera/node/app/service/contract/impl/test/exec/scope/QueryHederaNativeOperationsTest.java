@@ -15,6 +15,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.spi.key.KeyVerifier.NO_AUTHORIZING_KEYS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
@@ -91,6 +92,7 @@ class QueryHederaNativeOperationsTest {
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> subject.trackSelfDestructBeneficiary(deletedAccount, beneficiaryAccount, frame));
+        assertFalse(subject.canScheduleContractCall(123L, 456L, AccountID.DEFAULT));
     }
 
     @Test

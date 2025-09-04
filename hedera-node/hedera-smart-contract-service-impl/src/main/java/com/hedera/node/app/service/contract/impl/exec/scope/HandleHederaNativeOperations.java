@@ -17,6 +17,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
+import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -147,6 +148,16 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                 requireNonNull(accountStore.getAccountIDByAlias(config.shard(), config.realm(), evmAddress));
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
         tokenServiceApi.finalizeHollowAccountAsContract(hollowAccountId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean canScheduleContractCall(final long expiry, final long gasLimit, @NonNull final AccountID payerId) {
+        requireNonNull(payerId);
+        final var scheduleServiceApi = context.storeFactory().serviceApi(ScheduleServiceApi.class);
+        return scheduleServiceApi.hasContractCallCapacity(expiry, context.consensusNow(), gasLimit, payerId);
     }
 
     /**

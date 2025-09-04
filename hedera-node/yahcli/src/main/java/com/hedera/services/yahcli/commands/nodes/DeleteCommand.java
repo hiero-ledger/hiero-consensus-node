@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.nodes;
 
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -39,7 +38,7 @@ public class DeleteCommand implements Callable<Integer> {
         final var targetId = validatedNodeId(normalizedNodeId);
 
         if (adminKeyPath == null) {
-            COMMON_MESSAGES.warn("No --adminKey option, payer signature alone must meet signing requirements");
+            config.output().warn("No --adminKey option, payer signature alone must meet signing requirements");
         } else {
             NodesCommand.validateKeyAt(adminKeyPath, yahcli);
         }
@@ -48,9 +47,9 @@ public class DeleteCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - node" + normalizedNodeId + " has been deleted");
+            config.output().info("SUCCESS - node" + normalizedNodeId + " has been deleted");
         } else {
-            COMMON_MESSAGES.warn("FAILED to delete node" + normalizedNodeId);
+            config.output().warn("FAILED to delete node" + normalizedNodeId);
             return 1;
         }
 
