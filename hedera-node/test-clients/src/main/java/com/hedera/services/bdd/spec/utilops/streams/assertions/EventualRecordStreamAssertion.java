@@ -29,6 +29,8 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
 
     private final boolean replayExistingFiles;
 
+    private boolean stopAfterFirstSuccess = false;
+
     /**
      * Once this op is submitted, the assertion to be tested.
      */
@@ -135,6 +137,9 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                     try {
                         if (assertion.test(item)) {
                             result.pass();
+                            if (stopAfterFirstSuccess) {
+                                unsubscribe.run();
+                            }
                         }
                     } catch (final AssertionError e) {
                         result.fail(e.getMessage());
@@ -182,5 +187,18 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     private static Path recordStreamLocFor(@NonNull final HapiSpec spec) {
         return spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(RECORD_STREAMS_DIR);
+    }
+
+    /**
+     * Configures this assertion to automatically unsubscribe from the record stream
+     * once a passing validation occurs. When enabled, the listener will stop receiving
+     * new record stream items immediately after the first successful validation,
+     * conserving system resources by preventing unnecessary processing.
+     *
+     * @return this instance for method chaining
+     */
+    public EventualRecordStreamAssertion stopAfterFirstSuccess() {
+        this.stopAfterFirstSuccess = true;
+        return this;
     }
 }

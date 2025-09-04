@@ -7,6 +7,7 @@ import "services/basic_types.proto";
 import "services/state/roster/roster.proto";
 import "platform/state/platform_state.proto";
 import "platform/event/gossip_event.proto";
+import "platform/event/event_consensus_data.proto";
 import "platform/event/event_descriptor.proto";
 import "google/protobuf/empty.proto";
 
@@ -117,18 +118,6 @@ message EventMetadata {
   int64 birth_round = 9;
 }
 
-// Represents a consensus event.
-message CesEvent {
-  // Gossip event associated with the platform.
-  com.hedera.hapi.platform.event.GossipEvent platform_event = 1;
-  // Running hash of the event.
-  bytes running_hash = 2;
-  // Round in which the event was received.
-  int64 round_received = 3;
-  // Indicates if this is the last event in the round received.
-  bool last_in_round_received = 4;
-}
-
 // Represents a window of events with thresholds.
 message EventWindow {
   // Latest consensus round.
@@ -141,24 +130,29 @@ message EventWindow {
   int64 expired_threshold = 4;
 }
 
+message ProtoPlatformEvent {
+  // The gossip event that this platform event wraps.
+  com.hedera.hapi.platform.event.GossipEvent gossip_event = 1;
+  // The consensus data of the event
+  com.hedera.hapi.platform.event.EventConsensusData consensus_data = 2;
+}
+
 // Represents a single consensus round.
 message ProtoConsensusRound {
   // Events that reached consensus in this round.
-  repeated com.hedera.hapi.platform.event.GossipEvent consensus_events = 1;
-  // Streamed events in this round.
-  repeated CesEvent streamed_events = 2;
+  repeated ProtoPlatformEvent consensus_events = 1;
   // Window of events for this round.
-  EventWindow event_window = 3;
+  EventWindow event_window = 2;
   // Number of application transactions in this round.
-  int32 num_app_transactions = 4;
+  int32 num_app_transactions = 3;
   // Snapshot of the consensus state.
-  com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = 5;
+  com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = 4;
   // Roster of nodes participating in consensus.
-  com.hedera.hapi.node.state.roster.Roster consensus_roster = 6;
+  com.hedera.hapi.node.state.roster.Roster consensus_roster = 5;
   // Indicates if this is a PCES round.
-  bool pces_round = 7;
+  bool pces_round = 6;
   // Timestamp when consensus was reached.
-  uint64 reached_cons_timestamp = 8;
+  uint64 reached_cons_timestamp = 7;
 }
 
 // Represents multiple consensus rounds.

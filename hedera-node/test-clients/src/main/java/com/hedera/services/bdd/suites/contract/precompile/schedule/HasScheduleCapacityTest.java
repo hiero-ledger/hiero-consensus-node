@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -44,8 +45,7 @@ public class HasScheduleCapacityTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     @AfterAll
@@ -58,14 +58,11 @@ public class HasScheduleCapacityTest {
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
-                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS))
-                .andAssert(txn -> txn.hasResults(
-                        ContractFnResultAsserts.resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
-                                        ContractFnResultAsserts.isLiteralResult(new Object[] {true})),
-                        // for child record asserting, because hasScheduleCapacity is a view function
-                        ContractFnResultAsserts.anyResult())));
+                .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
+                        .resultThruAbi(
+                                getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
+                                ContractFnResultAsserts.isLiteralResult(new Object[] {true}))))
+                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
     }
 
     // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
@@ -80,7 +77,7 @@ public class HasScheduleCapacityTest {
             fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
-        return hapiTest(UtilVerbs.withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule
             final var scheduleAddress = new AtomicReference<Address>();
             allRunFor(

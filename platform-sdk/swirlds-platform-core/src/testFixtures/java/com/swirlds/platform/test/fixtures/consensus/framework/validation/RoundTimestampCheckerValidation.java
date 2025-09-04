@@ -28,6 +28,7 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
                 final PlatformEvent previousEvent = round.getConsensusEvents().get(i - 1);
                 final PlatformEvent currentEvent = round.getConsensusEvents().get(i);
 
+                // Check the consensus timestamp
                 assertThat(currentEvent.getConsensusTimestamp())
                         .withFailMessage(String.format(
                                 "Consensus time does not increase!%n"
@@ -40,6 +41,20 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
                                 currentEvent.getConsensusOrder(),
                                 currentEvent.getConsensusTimestamp()))
                         .isAfter(previousEvent.getConsensusTimestamp());
+
+                // Check the consensus order
+                assertThat(currentEvent.getConsensusOrder())
+                        .withFailMessage(String.format(
+                                "Consensus order does not increase by 1!%n"
+                                        + "Event %s consOrder:%s consTime:%s%n"
+                                        + "Event %s consOrder:%s consTime:%s%n",
+                                previousEvent.getDescriptor(),
+                                previousEvent.getConsensusOrder(),
+                                previousEvent.getConsensusTimestamp(),
+                                currentEvent.getDescriptor(),
+                                currentEvent.getConsensusOrder(),
+                                currentEvent.getConsensusTimestamp()))
+                        .isEqualTo(previousEvent.getConsensusOrder() + 1);
             }
         }
     }

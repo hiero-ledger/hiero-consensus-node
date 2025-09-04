@@ -86,7 +86,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
@@ -1721,9 +1720,7 @@ public class RepeatableHip423Tests {
                         .hasKnownStatus(SCHEDULE_EXPIRY_IS_BUSY));
     }
 
-    @LeakyRepeatableHapiTest(
-            value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
-            overrides = {"atomicBatch.isEnabled", "atomicBatch.maxNumberOfTransactions"})
+    @RepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Failing batch will trigger schedule")
     // BATCH_14
     final Stream<DynamicTest> failingBatchWillTriggerSchedule() {
@@ -1732,7 +1729,6 @@ public class RepeatableHip423Tests {
         final var schedule = "scheduledXfer";
         final var batchOperator = "batchOperator";
         return hapiTest(
-                overridingTwo("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"),
                 cryptoCreate(batchOperator),
                 cryptoCreate(sender).balance(ONE_HBAR).via("createSender"),
                 cryptoCreate(receiver).balance(0L),

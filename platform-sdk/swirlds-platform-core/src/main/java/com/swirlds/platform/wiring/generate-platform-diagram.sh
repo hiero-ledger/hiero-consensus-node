@@ -11,7 +11,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 ../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
-    -l 'EventCreationManager:get transactions:TransactionPool' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
     -s 'EventWindowManager:event window:🌀' \
     -s 'Heartbeat:heartbeat:❤️' \
@@ -19,7 +18,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'InlinePcesWriter:events to gossip:📬' \
     -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
-    -s 'StaleEventDetectorRouter:non-validated events:🍎' \
+    -s 'EventCreationManager:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
@@ -38,9 +37,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Transaction Resubmitter:TransactionResubmitter' \
-    -g 'Stale Event Detector:StaleEventDetector,StaleEventDetectorSplitter,StaleEventDetectorRouter' \
-    -g 'Event Creation:EventCreationManager,TransactionPool,Stale Event Detector,postSigner_encode_systemTransactions,Transaction Resubmitter,⚰️' \
+    -g 'Event Creation:EventCreationManager' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler,getStatusAction' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \

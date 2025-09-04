@@ -160,4 +160,12 @@ public abstract class AbstractNode implements Node {
             throw new IllegalStateException(message);
         }
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return "Node{id=" + selfId.id() + '}';
+    }
 }

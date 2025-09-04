@@ -993,7 +993,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     DigestType.SHA_384,
                     // FUTURE WORK: drop StateDefinition.maxKeysHint and load VM size
                     // from VirtualMapConfig.size instead
-                    merkleDbConfig.maxNumOfKeys(),
+                    merkleDbConfig.initialCapacity(),
                     merkleDbConfig.hashesRamToDiskThreshold());
             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
             final var virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);

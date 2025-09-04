@@ -28,12 +28,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -67,12 +71,29 @@ class SimulatedGossipTests {
         final AddressBook addressBook =
                 RandomAddressBookBuilder.create(randotron).withSize(networkSize).build();
 
+        final SimulatedNetwork network = new SimulatedNetwork(randotron, addressBook);
+
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
-        final Duration standardDeviationDelay = Duration.ofMillis((long) (averageDelay.toMillis() * 0.1));
-
-        final SimulatedNetwork network =
-                new SimulatedNetwork(randotron, addressBook, averageDelay, standardDeviationDelay);
+        final ConnectionData connectionData =
+                new ConnectionData(true, averageDelay, Percentage.withPercentage(10.0), BandwidthLimit.UNLIMITED);
+        final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+        for (final NodeId sender : addressBook.getNodeIdSet()) {
+            for (final NodeId receiver : addressBook.getNodeIdSet()) {
+                if (!sender.equals(receiver)) {
+                    final com.hedera.hapi.platform.state.NodeId fromNode =
+                            com.hedera.hapi.platform.state.NodeId.newBuilder()
+                                    .id(sender.id())
+                                    .build();
+                    final com.hedera.hapi.platform.state.NodeId toNode =
+                            com.hedera.hapi.platform.state.NodeId.newBuilder()
+                                    .id(receiver.id())
+                                    .build();
+                    connections.put(new ConnectionKey(fromNode, toNode), connectionData);
+                }
+            }
+        }
+        network.setConnections(connections);
 
         // Each node will add received events to the appropriate list
         final Map<NodeId, List<PlatformEvent>> receivedEvents = new HashMap<>();

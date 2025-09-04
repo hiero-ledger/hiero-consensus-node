@@ -43,7 +43,8 @@
             "UtilPrng",
             "NodeCreate",
             "NodeUpdate",
-            "NodeDelete"
+            "NodeDelete",
+            "AtomicBatch"
           ]
         },
         {

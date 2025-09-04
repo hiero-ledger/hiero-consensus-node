@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static java.util.Comparator.comparingInt;
-
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -79,8 +79,8 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Identifies the rounds which have reached consensus on all nodes and verifies that they are equal. If a node has
-     * not produced any rounds, this assertion will always pass.
+     * Identifies the rounds which have reached consensus on more than one node and verifies that they are equal. If no
+     * rounds have been produced or if only one node has produced rounds, this assertion will always pass.
      *
      * @return this assertion object for method chaining
      */
@@ -88,30 +88,34 @@ public class MultipleNodeConsensusResultsAssert
     public MultipleNodeConsensusResultsAssert haveEqualCommonRounds() {
         isNotNull();
 
-        // create list of actual rounds
-        final List<NodeRoundsResult> actualNodeRoundsResult = actual.results().stream()
-                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
-                .toList();
-
-        // find list
-        final Optional<NodeRoundsResult> optionalLongestNodeRoundsResult =
-                actualNodeRoundsResult.stream().max(comparingInt(NodeRoundsResult::size));
-        if (optionalLongestNodeRoundsResult.isEmpty()) {
-            // no consensus rounds collected
+        // Collect rounds produced by each node and store them in a map keyed by round number.
+        final Map<Long, List<NodeRound>> roundMap = new TreeMap<>();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            for (final ConsensusRound round : result.consensusRounds()) {
+                roundMap.computeIfAbsent(round.getRoundNum(), k -> new ArrayList<>())
+                        .add(new NodeRound(result.nodeId(), round));
+            }
+        }
+        if (roundMap.isEmpty()) {
+            // no rounds produced
             return this;
         }
-        final NodeRoundsResult longestNodeRoundsResult = optionalLongestNodeRoundsResult.get();
 
-        for (final NodeRoundsResult roundsFromNodeToAssert : actualNodeRoundsResult) {
-            if (roundsFromNodeToAssert.nodeId().equals(longestNodeRoundsResult.nodeId())) {
+        // Validate that each node that produced a consensus round for a given round number produced the same round as
+        // the others.
+        for (final long roundNum : roundMap.keySet()) {
+            final List<NodeRound> rounds = roundMap.get(roundNum);
+            if (rounds.size() <= 1) {
+                // no consensus rounds collected or only one node produced rounds
                 continue;
             }
 
-            // Get the same rounds from this node as create by the node with the most rounds and compare them
-            final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
-            final List<ConsensusRound> expectedRounds =
-                    longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
-            ConsensusRoundValidator.validate(roundsToAssert, expectedRounds);
+            // Second, compare the rounds produced by different nodes to ensure they arrived at the same consensus.
+            final NodeRound firstNodeRound = rounds.getFirst();
+            for (int i = 1; i < rounds.size(); i++) {
+                ConsensusRoundValidator.validate(
+                        firstNodeRound.round(), rounds.get(i).round());
+            }
         }
 
         return this;
@@ -122,8 +126,8 @@ public class MultipleNodeConsensusResultsAssert
      * equal to or less than the {@code splitRound}, and all events with a creation time after the {@code splitTime}
      * have a birth ground greater than {@code splitRound}.
      *
-     * @param splitTime  all events with a creation time before and including this time should have a birth round equal
-     *                   to or less that the {@code splitRound}
+     * @param splitTime all events with a creation time before and including this time should have a birth round equal
+     * to or less that the {@code splitRound}
      * @param splitRound the maximum birth round for events created before and up to the {@code splitTime}
      * @return this assertion object for method chaining
      */
@@ -152,6 +156,13 @@ public class MultipleNodeConsensusResultsAssert
         }
         return this;
     }
+
+    /**
+     * An internal record used to keep track of which node produced which round. Tracking this is useful for debugging.
+     * @param nodeId the ID of the node that produced the round
+     * @param round the round produced by the node
+     */
+    private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
     private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
