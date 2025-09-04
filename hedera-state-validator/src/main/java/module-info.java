@@ -37,6 +37,7 @@ module com.hedera.state.validator {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.interledger.clpr.impl;
     requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
