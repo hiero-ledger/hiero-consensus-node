@@ -18,10 +18,19 @@ import org.hiero.base.crypto.Hash;
  * A set of utility methods to work with Hedera application specifics dependencies
  */
 public class HederaUtils {
-
-    public static final String HEDERA_MAIN = "com.hedera.node.app.ServicesMain";
-
     /**
+     * The application name from the platform's perspective. This is currently locked in at the old main class name and
+     * requires data migration to change.
+     */
+    public static final String HEDERA_MAIN_CLASS = "com.hedera.node.app.ServicesMain";
+
+    public static final String HEDERA_APP_NAME = "com.hedera.services.ServicesMain";
+    /**
+     * The swirld name. Currently, there is only one swirld.
+     */
+    public static final String SWIRLD_NAME = "123";
+    /**
+     * /**
      * Hedera main class has a particular way of building using a static method.
      * This is to avoid the circular dependency app-->platform-->app
      *
@@ -33,7 +42,7 @@ public class HederaUtils {
     public static SwirldMain<? extends MerkleNodeState> createHederaAppMain(
             @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
         try {
-            final Class<?> mainClass = Class.forName(HEDERA_MAIN);
+            final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
             Method newHederaMethod = mainClass.getDeclaredMethod(
                     "newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
             return (SwirldMain<? extends MerkleNodeState>) newHederaMethod.invoke(

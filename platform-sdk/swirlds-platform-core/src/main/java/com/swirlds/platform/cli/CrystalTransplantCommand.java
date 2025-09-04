@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
@@ -29,10 +27,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
-import com.swirlds.platform.ApplicationDefinition;
-import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.cli.utils.HederaUtils;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SavedStateUtils;
@@ -41,7 +36,6 @@ import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -171,7 +165,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 targetNodePath.toAbsolutePath(),
                 bumpVersion));
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new PropertyFileConfigSource(targetNodePath.resolve(DEFAULT_CONFIG_FILE_NAME)))
                 .withSource(new PropertyFileConfigSource(targetNodePath.resolve("settings.txt")))
                 .autoDiscoverExtensions()
                 .build();
@@ -186,26 +179,14 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final SemanticVersion version = getSemanticVersion(configuration);
 
-        final PathsConfig defaultPathsConfig = configuration.getConfigData(PathsConfig.class);
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-        final PathsConfig pathsToUse = new PathsConfig(
-                targetNodePath.resolve(defaultPathsConfig.settingsUsedDir()).toString(),
-                targetNodePath.resolve(defaultPathsConfig.keysDirPath()).toString(),
-                targetNodePath.resolve(defaultPathsConfig.appsDirPath()).toString(),
-                targetNodePath.resolve(defaultPathsConfig.logPath()).toString(),
-                targetNodePath.resolve(defaultPathsConfig.markerFilesDir()).toString(),
-                defaultPathsConfig.writePlatformMarkerFiles());
-
-        final ApplicationDefinition appDefinition = ApplicationDefinitionLoader.loadDefault(
-                pathsToUse, getAbsolutePath(targetNodePath.resolve(DEFAULT_CONFIG_FILE_NAME)));
-
-        final StateInformation sourceStateInfo = loadSourceState(appDefinition, version);
+        final StateInformation sourceStateInfo = loadSourceState(version);
 
         this.targetStateDir = new SignedStateFilePath(
                         new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
                 .getSignedStateDirectory(
-                        appDefinition.getMainClassName(), selfId, appDefinition.getSwirldName(), sourceStateInfo.round);
+                        HederaUtils.HEDERA_APP_NAME, selfId, HederaUtils.SWIRLD_NAME, sourceStateInfo.round);
 
         if (networkOverrideFile != null) {
             validateOverrideNetworkJson();
@@ -246,7 +227,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.overrideRoster = roster;
     }
 
-    private StateInformation loadSourceState(final ApplicationDefinition appDefinition, final SemanticVersion version) {
+    private StateInformation loadSourceState(final SemanticVersion version) {
         setupConstructableRegistry();
         try {
             setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
@@ -257,7 +238,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        final SwirldMain<? extends MerkleNodeState> appMain = appMain(appDefinition, new PlatformStateFacade());
+        final SwirldMain<? extends MerkleNodeState> appMain =
+                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -510,23 +492,4 @@ public class CrystalTransplantCommand extends AbstractCommand {
     }
 
     record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {}
-
-    // When running Hedera, ServicesMain lazy loads hedera field in the main method, which is the one that loads all the
-    // deserialization logic.
-    // without actually running the state dependencies are not loaded, and thus fails in this command but not in
-    // browser.
-    // We force loading hedera in case we are told to do so
-    private SwirldMain<? extends MerkleNodeState> appMain(
-            final ApplicationDefinition appDefinition, final PlatformStateFacade platformStateFacade) {
-        try {
-            if (HederaUtils.HEDERA_MAIN.equals(appDefinition.getMainClassName())) {
-                return HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
-            } else {
-                return BootstrapUtils.getSwirldMain(appDefinition);
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading main application: " + e.getMessage());
-            return null;
-        }
-    }
 }
