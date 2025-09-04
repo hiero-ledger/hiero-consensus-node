@@ -50,6 +50,11 @@ public class HasScheduleCapacityCall extends AbstractCall {
     }
 
     @Override
+    public boolean allowsStaticFrame() {
+        return true;
+    }
+
+    @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         final boolean hasCapacity = nativeOperations().canScheduleContractCall(consensusSecond, gasLimit, senderId);
         return gasOnly(

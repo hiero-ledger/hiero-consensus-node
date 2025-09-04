@@ -59,7 +59,7 @@ contract HIP1215Contract is HederaScheduleService_HIP1215 {
         }
     }
 
-    function hasScheduleCapacityExample(uint256 expiryShift) external returns (bool hasCapacity) {
+    function hasScheduleCapacityExample(uint256 expiryShift) view external returns (bool hasCapacity) {
         uint256 expirySecond = block.timestamp + expiryShift;
         return hasScheduleCapacity(expirySecond, SCHEDULE_GAS_LIMIT);
     }

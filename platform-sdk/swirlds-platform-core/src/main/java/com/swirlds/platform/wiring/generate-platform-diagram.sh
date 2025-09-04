@@ -26,7 +26,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'getStatusAction:PlatformStatusAction:💀' \
     -s 'LatestCompleteStateNotifier:complete state notification:💢' \
     -s 'RunningEventHashOverride:hash override:💨' \
-    -s 'StaleEventDetectorRouter:publishStaleEvent:⚰️' \
     -s 'toStateWrittenToDiskAction:PlatformStatusAction:💾' \
     -s 'StatusStateMachine:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \

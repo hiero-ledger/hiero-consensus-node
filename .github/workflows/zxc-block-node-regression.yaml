@@ -1,0 +1,514 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Block Node Explorer Regression"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
+    secrets:
+      access-token:
+        description: "GitHub Access Token with write permissions to the repository."
+        required: true
+      slack-detailed-report-webhook:
+        description: "Slack Webhook URL for Detailed Test Reporting."
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  checks: write
+  contents: read
+  actions: write
+  statuses: write
+  id-token: write
+
+env:
+  SOLO_CLUSTER_NAME: "solo-block-node-e2e"
+  SOLO_NAMESPACE: "solo-block-node-e2e"
+  SOLO_DEPLOYMENT: "solo-block-node-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+
+jobs:
+  # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
+  block-node-regression:
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hiero-citr-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      #  Check out the specified hiero-consensus-node reference
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 0
+
+      # Get latest tag for the checked out hiero-consensus-node
+      - name: Get Latest Stable CN Tag
+        run: |
+          git fetch --tags
+          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [[ -z "${LATEST_STABLE:-}" ]]; then
+            echo "No stable v*.*.* tags found."; exit 1
+          fi
+          echo "Latest stable tag: ${LATEST_STABLE}"
+          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+
+      #  Checkout the block-node repository
+      - name: Checkout Block-Node Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: block-node
+          repository: hiero-ledger/hiero-block-node
+          fetch-depth: 0
+          fetch-tags: true
+
+      # checkout the latest block node tag if needed
+      - name: Checkout Latest BN Tag
+        run: |
+          cd block-node
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest Block Node tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
+          echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
+
+      #  Checkout the sdk-tck repository and the TCK SDK Client
+      - name: Checkout Regression Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: sdk-tck/regression
+          repository: hiero-ledger/hiero-sdk-tck
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout Latest Tag (TCK)
+        run: |
+          cd sdk-tck/regression
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest TCK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
+
+      # Checkout the JS-SDK server
+      - name: Checkout JS-SDK Server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: sdk-tck/sdk-server
+          repository: hiero-ledger/hiero-sdk-js
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout Latest Tag (JS-SDK)
+        run: |
+          cd sdk-tck/sdk-server
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest JS-SDK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
+
+      # Set up Java Environment
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
+      # Set up the node environment
+      # Version 20.18.0 is the recommended version for solo.
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Setup PNPM
+        run: |
+          npm install -g pnpm
+
+      # Set up the gradle environment
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        with:
+          cache-read-only: false
+
+      # Build the hiero-consensus-node artifacts
+      - name: Build hiero-consensus-node
+        run: ${GRADLE_EXEC} assemble
+
+      # Set up the npm dependencies and cache on the tck-client
+      - name: Set up the tck-client
+        run: |
+          npm cache clean --force
+          npm install
+        working-directory: sdk-tck/regression
+
+      # Set up the npm dependencies and cache on the sdk-server
+      - name: Install NodeJS Dependencies (sdk-server)
+        id: start-sdk-server
+        run: |
+          # Extract package versions from the parent package.json
+          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
+          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
+          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
+
+          echo "Using SDK version: $SDK_VERSION"
+          echo "Using long version: $LONG_VERSION"
+          echo "Using proto version: $PROTO_VERSION"
+
+          # Install with the extracted versions
+          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
+          pnpm install
+          nohup pnpm start &
+          server_pid=$!
+          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
+        working-directory: sdk-tck/sdk-server/tck
+
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
+        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Create Mirror Values Override File (uses BN service)
+      # This is a temporary workaround until we have a proper release of the mirror node chart that supports block nodes
+      # and the latest version of blockstream in `0.65.0`
+      - name: Create Mirror Values Override File
+        run: |
+          cat <<EOF > mirror-bn-values.yaml
+          importer:
+            image:
+              registry: docker.io
+              repository: xinatswirlds/importer
+              tag: e741ea2b2
+            config:
+              hiero:
+                mirror:
+                  importer:
+                    block:
+                      enabled: true
+                      nodes:
+                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                      sourceType: BLOCK_NODE
+                    downloader:
+                      record:
+                        enabled: false
+                    startDate: 1970-01-01T00:00:00Z
+                    stream:
+                      maxSubscribeAttempts: 10
+                      responseTimeout: 10s
+          EOF
+
+      - name: Print MN Override Values
+        run: cat mirror-bn-values.yaml
+
+      # ---- Solo with BN Section ----
+
+      # cluster setup
+      - name: Cluster setup (Kind + Solo)
+        run: |
+          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+          sleep 10
+          solo init
+          solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+
+      # node deployment
+      - name: Solo Nodes deployment (BN/CN/MN)
+        run: |
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
+          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
+
+      # port forwards
+      - name: Solo Port forwards
+        run: |
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/block-node-0 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+
+      # ---- BN verification with grpcurl ----
+
+      # produce protobuf source artifact
+      - name: Produce Protobuf proto artifact
+        working-directory: block-node
+        run: ${GRADLE_EXEC} :block-node-protobuf-sources:generateBlockNodeProtoArtifact
+
+      # untar protobuf sources
+      - name: Untar Protobuf Sources
+        working-directory: block-node/protobuf-sources
+        run: |
+          mkdir -p proto
+          # Extract the 'v' from the tag if it exists
+          PROTO_TAG="${{ env.BLOCK_NODE_TAG }}"
+          PROTO_TAG="${PROTO_TAG#v}"
+          # untar the artifact
+          tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
+
+      - name: Install grpcurl
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # Verify the BN is getting blocks
+      - name: Get ServerStatus from Block Node
+        working-directory: block-node
+        run: |
+          # Call serverStatus once
+          STATUS_JSON=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path protobuf-sources/proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40840 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
+          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
+
+          echo "First available block is $FIRST_AVAILABLE_BLOCK"
+          echo "Last available block is $LAST_AVAILABLE_BLOCK"
+
+          # Validate
+          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
+              echo "First available block is not 0"
+              exit 1
+          fi
+          if (( LAST_AVAILABLE_BLOCK < 1 )); then
+              echo "Last available block is less than 1"
+              exit 1
+          fi
+
+          # Export for later steps
+          echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+
+      # Start the TCK client
+      - name: Start tck-client
+        env:
+          OPERATOR_ACCOUNT_ID: "0.0.2"
+          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
+          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
+          NODE_IP: "127.0.0.1:50211"
+          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
+          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
+        run: |
+          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          cp .env.custom_node .env
+          npm run test
+        working-directory: sdk-tck/regression # required
+
+      - name: BN Based - SDK TCK Regression Test Report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: SDK TCK Regression Test Report
+          path: "**/sdk-tck/regression/mochawesome-report/mochawesome.*"
+          retention-days: 7
+
+      - name: Collect BN and MN Logs
+        if: always()
+        run: |
+          # Get BN Logs
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-0" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+
+          # Get MN Logs
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
+
+      - name: Collect CN Logs
+        if: always()
+        run: |
+          # Get CN Logs
+          solo node logs -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
+          LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
+          echo "Latest log folder is $LOG_FOLDER"
+          echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
+          ls -lR "$LOG_FOLDER"
+
+      - name: Upload BN and MN Logs
+        if: always()
+        id: update_bn_mn_logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bn-mn-log
+          path: |
+            bn0-logs.log
+            mn0-logs.log
+
+      - name: Upload CN Logs
+        id: upload_cn_logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cn-log
+          path: ${{ env.CN_LOG_FOLDER }}/*.zip
+
+      - name: Add Logs to Summary
+        if: always()
+        run: |
+          {
+            echo "### 📜 Logs"
+            echo ""
+            echo "You can download the logs from this run here:"
+            echo "- [Download bn-mn-logs](${{ steps.update_bn_mn_logs.outputs.artifact-url }})"
+            echo "- [Download cn-logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Stop the TCK Tests server
+      - name: Stop TCK Test Server
+        if: ${{ always() }}
+        run: |
+          echo ${{ steps.start-sdk-server.outputs.pid }}
+          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
+
+      # Stop the solo nodes
+      - name: Stop solo
+        if: ${{ always() }}
+        run: |
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+  report-block-node-regression-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hiero-citr-linux-medium
+    needs: block-node-regression
+    if: ${{ always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          COLOR="#FF0000"
+          if [[ "${{ needs.block-node-regression.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.block-node-regression.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Block Node Regression Panel was executed. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Block Node Regression Panel Result"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.block-node-regression.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report Status to Detailed Test Reports Channel
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

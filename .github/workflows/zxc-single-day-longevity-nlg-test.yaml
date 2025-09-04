@@ -50,6 +50,9 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
+      rootly-api-token:
+        required: true
+        description: "Rootly API Token for creating alerts/incidents"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -635,7 +638,7 @@ jobs:
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.rootly-api-token }}
           summary: ${{ steps.rootly-summary.outputs.title }}
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
@@ -650,7 +653,7 @@ jobs:
         if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
         uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.rootly-api-token }}
           title: ${{ steps.rootly-summary.outputs.title }}
           kind: "normal"
           create_public_incident: "false"

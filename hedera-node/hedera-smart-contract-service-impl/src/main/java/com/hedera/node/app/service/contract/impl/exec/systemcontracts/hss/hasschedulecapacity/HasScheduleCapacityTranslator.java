@@ -30,6 +30,7 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
 
     public static final SystemContractMethod HAS_SCHEDULE_CAPACITY = SystemContractMethod.declare(
                     "hasScheduleCapacity(uint256,uint256)", ReturnTypes.BOOL)
+            .withModifier(SystemContractMethod.Modifier.VIEW)
             .withCategories(Category.SCHEDULE);
 
     @Inject

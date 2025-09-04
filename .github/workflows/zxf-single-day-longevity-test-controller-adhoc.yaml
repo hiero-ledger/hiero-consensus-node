@@ -132,6 +132,7 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
