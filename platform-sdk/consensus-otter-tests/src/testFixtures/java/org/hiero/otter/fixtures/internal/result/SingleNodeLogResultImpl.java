@@ -76,7 +76,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @Override
     public void subscribe(@NonNull final LogSubscriber subscriber) {
         final LogSubscriber wrapper = logEntry -> {
-            if (!suppressedLogMarkers.contains(logEntry.marker())) {
+            if (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker())) {
                 return subscriber.onLogEntry(logEntry);
             }
             return SubscriberAction.CONTINUE;

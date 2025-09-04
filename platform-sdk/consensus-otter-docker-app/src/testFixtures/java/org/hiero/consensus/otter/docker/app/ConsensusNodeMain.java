@@ -6,8 +6,8 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAI
 import com.hedera.hapi.platform.state.NodeId;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,8 +75,11 @@ public class ConsensusNodeMain {
      */
     private static void writeStartedMarkerFile() {
         try {
-            Files.createFile(STARTED_MARKER_FILE);
-            log.info("Node Communication Service marker file written to {}", STARTED_MARKER_FILE);
+            if (new File(STARTED_MARKER_FILE.toString()).createNewFile()) {
+                log.info("Node Communication Service marker file written to {}", STARTED_MARKER_FILE);
+            } else {
+                log.info("Node Communication Service marker file already exists at {}", STARTED_MARKER_FILE);
+            }
         } catch (final IOException e) {
             log.error("Failed to write Node Communication Service marker file", e);
             throw new RuntimeException("Failed to write Node Communication Service marker file", e);
