@@ -118,6 +118,7 @@ jobs:
             K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -142,7 +143,8 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ steps.set-k8s-cluster.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 168h
 
       - name: Authenticate to Google Cloud

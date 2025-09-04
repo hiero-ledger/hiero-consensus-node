@@ -120,7 +120,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ steps.set-k8s-cluster.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -230,7 +230,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
