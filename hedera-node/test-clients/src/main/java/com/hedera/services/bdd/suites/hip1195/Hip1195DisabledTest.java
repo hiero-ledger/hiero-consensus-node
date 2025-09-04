@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class Hip1195DisabledTest {
@@ -51,6 +53,7 @@ public class Hip1195DisabledTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> cannotUseLambdaSStoreWhenHooksDisabled() {
         return hapiTest(accountLambdaSStore(DEFAULT_PAYER, 123L)
                 .putSlot(Bytes.EMPTY, Bytes.EMPTY)

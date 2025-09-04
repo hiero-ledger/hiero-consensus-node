@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -50,6 +51,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of CryptoServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
@@ -125,6 +127,7 @@ public class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoDeleteAllowance transaction has expected base fee")
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoDeleteAllowanceBaseUSDFee() {
         final String token = "token";
         final String nft = "nft";
@@ -583,6 +586,7 @@ public class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoTransfer NFT transaction has expected base fee")
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoNFTTransferBaseUSDFee() {
         final var nonFungibleToken = "nonFungibleToken";
         final var nftXferTxn = "nftXferTxn";

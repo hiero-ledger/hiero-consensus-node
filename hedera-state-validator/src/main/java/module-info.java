@@ -8,6 +8,7 @@ module com.hedera.state.validator {
     requires com.hedera.node.app.service.network.admin.impl;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.token.impl;
+    requires com.hedera.node.app.service.token;
     requires com.hedera.node.app.service.util.impl;
     requires com.hedera.node.app.spi;
     requires com.hedera.node.app.test.fixtures;
