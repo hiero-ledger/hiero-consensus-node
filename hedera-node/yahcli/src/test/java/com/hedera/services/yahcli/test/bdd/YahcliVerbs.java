@@ -239,14 +239,7 @@ public class YahcliVerbs {
      * @return the output consumer
      */
     public static Consumer<String> newStakedNodeCapturer(@NonNull final LongConsumer cb) {
-        return output -> {
-            final var m = NEW_NODE_STAKE_PATTERN.matcher(output);
-            if (m.find()) {
-                cb.accept(Long.parseLong(m.group(1)));
-            } else {
-                Assertions.fail("Expected '" + output + "' to contain '" + NEW_NODE_STAKE_PATTERN.pattern() + "'");
-            }
-        };
+        return output -> extractAndAcceptValue(output, NEW_NODE_STAKE_PATTERN, cb);
     }
 
     /**
@@ -256,14 +249,7 @@ public class YahcliVerbs {
      * @return the output consumer
      */
     public static Consumer<String> newStakedAccountCapturer(@NonNull final LongConsumer cb) {
-        return output -> {
-            final var m = NEW_ACCOUNT_STAKE_PATTERN.matcher(output);
-            if (m.find()) {
-                cb.accept(Long.parseLong(m.group(1)));
-            } else {
-                Assertions.fail("Expected '" + output + "' to contain '" + NEW_ACCOUNT_STAKE_PATTERN.pattern() + "'");
-            }
-        };
+        return output -> extractAndAcceptValue(output, NEW_ACCOUNT_STAKE_PATTERN, cb);
     }
 
     /**
