@@ -17,4 +17,12 @@ public enum TargetNetworkType {
      * An embedded "network" with a single Hedera instance whose workflows invoked directly, without gRPC.
      */
     EMBEDDED_NETWORK,
+    /**
+     * A network whose nodes are running in Docker containers.
+     */
+    OTTER_CONTAINER_NETWORK,
+    /**
+     * A network whose nodes are running in Otter's Turtle environment.
+     */
+    OTTER_TURTLE_NETWORK,
 }

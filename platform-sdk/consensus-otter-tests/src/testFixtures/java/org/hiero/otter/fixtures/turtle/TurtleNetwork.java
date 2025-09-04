@@ -6,12 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -22,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -91,7 +88,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+        throw new UnsupportedOperationException("Freeze transactions are not supported in the container environment.");
+        //        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -122,18 +120,18 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         executorService = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(randotron)
-                .withSize(count)
-                .withWeightGenerator(weightGenerator)
-                .withRealKeysEnabled(true);
-        final Roster roster = rosterBuilder.build();
+        final RosterFactory rosterFactory = new RosterFactory(randotron, count, weightGenerator);
+        roster = rosterFactory.roster();
 
         simulatedNetwork = new SimulatedNetwork(randotron, roster);
 
         return roster.rosterEntries().stream()
-                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
-                .sorted(Comparator.comparing(NodeId::id))
-                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
+                .map(rosterEntry -> {
+                    final NodeId nodeId =
+                            NodeId.newBuilder().id(rosterEntry.nodeId()).build();
+                    final KeysAndCerts privateKeys = rosterFactory.keyAndCerts(nodeId.id());
+                    return createTurtleNode(nodeId, roster, privateKeys);
+                })
                 .toList();
     }
 

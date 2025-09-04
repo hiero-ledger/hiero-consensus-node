@@ -8,7 +8,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -20,9 +22,16 @@ public abstract class AbstractNode implements Node {
      * Represents the lifecycle states of a node.
      */
     public enum LifeCycle {
+        /** The node is initializing. */
         INIT,
+
+        /** The node is running. */
         RUNNING,
+
+        /** The node was shut down, but can be started again. */
         SHUTDOWN,
+
+        /** The node was destroyed and cannot be started again. */
         DESTROYED
     }
 
@@ -49,25 +58,11 @@ public abstract class AbstractNode implements Node {
      * Constructor for the AbstractNode class.
      *
      * @param selfId the unique identifier for this node
-     * @param weight the weight of this node
-     */
-    protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
-        this.selfId = requireNonNull(selfId, "selfId must not be null");
-        this.weight = weight;
-    }
-
-    /**
-     * Constructor for the AbstractNode class.
-     *
-     * @param selfId the unique identifier for this node
      * @param roster the roster for the network this node is part of
      */
     protected AbstractNode(@NonNull final NodeId selfId, final Roster roster) {
-        this(selfId, getWeight(selfId, roster));
-    }
-
-    private static long getWeight(@NonNull final NodeId selfId, @NonNull final Roster roster) {
-        return roster.rosterEntries().stream()
+        this.selfId = requireNonNull(selfId, "selfId must not be null");
+        this.weight = roster.rosterEntries().stream()
                 .filter(r -> r.nodeId() == selfId.id())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
@@ -135,6 +130,46 @@ public abstract class AbstractNode implements Node {
             newBuildNumber = 1;
         }
         this.version = this.version.copyBuilder().build("" + newBuildNumber).build();
+    }
+
+    /**
+     * Gets the default async actions for this node.
+     *
+     * @return the default async actions
+     */
+    @NonNull
+    protected abstract AsyncNodeActions defaultAsyncActions();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void start() {
+        defaultAsyncActions().start();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void killImmediately() {
+        defaultAsyncActions().killImmediately();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+        defaultAsyncActions().startSyntheticBottleneck(delayPerRound);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopSyntheticBottleneck() {
+        defaultAsyncActions().stopSyntheticBottleneck();
     }
 
     /**

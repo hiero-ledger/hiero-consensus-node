@@ -16,6 +16,7 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.otter.OtterFactory;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -118,7 +119,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
                                     .map(Boolean::parseBoolean)
                                     .orElse(false);
-                            yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
+                            yield isRemote ? sharedOtterContainerNetwork() : sharedTurtleNetwork();
                         }
                         // For the default Test task, we need to run some tests in concurrent embedded mode and
                         // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
@@ -206,6 +207,24 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     networkSize,
                     getConfigShard(),
                     getConfigRealm());
+        }
+
+        /**
+         * Creates a shared Otter container network.
+         * @return the shared Otter container network
+         */
+        public static HederaNetwork sharedOtterContainerNetwork() {
+            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                    .map(Integer::parseInt)
+                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+            return OtterFactory.createContainerNetwork(SHARED_NETWORK_NAME, networkSize);
+        }
+
+        public static HederaNetwork sharedTurtleNetwork() {
+            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                    .map(Integer::parseInt)
+                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+            return OtterFactory.createTurtleNetwork(SHARED_NETWORK_NAME, networkSize);
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {

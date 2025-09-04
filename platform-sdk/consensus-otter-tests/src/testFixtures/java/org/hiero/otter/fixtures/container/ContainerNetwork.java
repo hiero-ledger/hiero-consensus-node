@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.utils.DockerUtils.getNetworkIpAddress;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -28,10 +29,11 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
+import org.hiero.otter.fixtures.container.utils.DockerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -84,7 +86,8 @@ public class ContainerNetwork extends AbstractNetwork {
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
-                .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+                .withDockerfile(Path.of(
+                        "..", "..", "platform-sdk", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
         transactionGenerator.setNodesSupplier(topology::nodes);
     }
 
@@ -103,7 +106,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+        throw new UnsupportedOperationException("Freeze transactions are not supported in the container environment.");
+        //        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -151,18 +155,24 @@ public class ContainerNetwork extends AbstractNetwork {
                     .build());
         }
 
-        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
+        roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
         final List<ContainerNode> newNodes = sortedNodeIds.stream()
                 .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
                 .toList();
+
+        // Something failed when trying to use domain names, thus we replace the alias with the internal IP address of
+        // the container
+        final List<RosterEntry> mappedEndpoints =
+                newNodes.stream().map(node -> mapRosterEntry(node, roster)).toList();
+        roster = Roster.newBuilder().rosterEntries(mappedEndpoints).build();
 
         // set up the toxiproxy container and network behavior
         toxiproxyContainer = new ToxiproxyContainer(network);
         toxiproxyContainer.start();
         final String toxiproxyHost = toxiproxyContainer.getHost();
         final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
-        final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
+        final String toxiproxyIpAddress = getNetworkIpAddress(toxiproxyContainer, network);
         networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
         for (final ContainerNode sender : newNodes) {
             final List<NetworkEndpoint> endpointOverrides = newNodes.stream()
@@ -173,6 +183,16 @@ public class ContainerNetwork extends AbstractNetwork {
         }
 
         return newNodes;
+    }
+
+    private RosterEntry mapRosterEntry(@NonNull final ContainerNode node, @NonNull final Roster roster) {
+        final ServiceEndpoint endpoint = ServiceEndpoint.newBuilder()
+                .domainName(DockerUtils.getNetworkIpAddress(node.container(), network))
+                .port(GOSSIP_PORT)
+                .build();
+        final RosterEntry oldEntry =
+                RosterUtils.getRosterEntry(roster, node.selfId().id());
+        return oldEntry.copyBuilder().gossipEndpoint(endpoint).build();
     }
 
     private ContainerNode createContainerNode(

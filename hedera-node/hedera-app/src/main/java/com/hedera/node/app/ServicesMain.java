@@ -397,7 +397,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * @param nodeId the node id
      * @return the event stream location
      */
-    private static String eventStreamLocOrThrow(@NonNull final Network network, final long nodeId) {
+    public static String eventStreamLocOrThrow(@NonNull final Network network, final long nodeId) {
         return network.nodeMetadata().stream()
                 .map(NodeMetadata::nodeOrThrow)
                 .filter(node -> node.nodeId() == nodeId)
@@ -413,7 +413,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * @param root the platform merkle state root
      * @return the event stream name
      */
-    private static String canonicalEventStreamLoc(final long nodeId, @NonNull final State root) {
+    public static String canonicalEventStreamLoc(final long nodeId, @NonNull final State root) {
         try {
             final var nodeStore = new ReadableNodeStoreImpl(
                     root.getReadableStates(AddressBookService.NAME),

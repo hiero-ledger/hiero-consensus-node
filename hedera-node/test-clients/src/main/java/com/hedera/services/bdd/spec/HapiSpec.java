@@ -71,6 +71,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
+import com.hedera.services.bdd.junit.hedera.otter.OtterTurtleNetwork;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
@@ -551,6 +552,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     public @NonNull Instant consensusTime() {
         if (targetNetworkOrThrow() instanceof EmbeddedNetwork embeddedNetwork) {
             return embeddedNetwork.embeddedHederaOrThrow().now();
+        } else if (targetNetwork instanceof OtterTurtleNetwork otterTurtleNetwork) {
+            return otterTurtleNetwork.now();
         } else {
             return Instant.now();
         }
@@ -1425,6 +1428,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             if (embeddedNetwork.inRepeatableMode()) {
                 spec.setKeyGenerator(requireNonNull(REPEATABLE_KEY_GENERATOR.get()));
             }
+        }
+
+        if (targetNetwork instanceof final OtterTurtleNetwork otterTurtleNetwork) {
+            spec.setNextValidStart(otterTurtleNetwork::nextValidStart);
         }
 
         spec.finalizeSetupProperties();

@@ -11,6 +11,8 @@ import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -25,7 +27,12 @@ public class SimulatedGossip implements Gossip {
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
-    private StandardOutputWire<PlatformEvent> eventOutput;
+    private volatile StandardOutputWire<PlatformEvent> eventOutput;
+
+    /**
+     * Buffer for events received before the node is ready to process them
+     */
+    private final List<PlatformEvent> eventBuffer = new ArrayList<>();
 
     /**
      * Constructor.
@@ -83,6 +90,15 @@ public class SimulatedGossip implements Gossip {
         if (intakeEventCounter != null) {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
         }
-        eventOutput.forward(event);
+
+        if (eventOutput != null) {
+            for (final PlatformEvent bufferedEvent : eventBuffer) {
+                eventOutput.forward(bufferedEvent);
+            }
+            eventBuffer.clear();
+            eventOutput.forward(event);
+        } else {
+            eventBuffer.add(event);
+        }
     }
 }
