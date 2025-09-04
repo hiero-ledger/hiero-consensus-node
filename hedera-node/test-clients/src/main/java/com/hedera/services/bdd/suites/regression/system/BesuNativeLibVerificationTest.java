@@ -33,10 +33,10 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 // Order to be last as it will restart the network and halt if the lib is not present
-@Disabled("Only to be run manually on a local env when validating native lib verification behavior")
 @OrderedInIsolation
 @Order(Integer.MAX_VALUE)
 @Tag(RESTART)
+@Disabled("Only to be run manually on a local env when validating native lib verification behavior")
 public class BesuNativeLibVerificationTest implements LifecycleTest {
 
     @HapiTest
