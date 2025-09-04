@@ -29,6 +29,7 @@ import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.

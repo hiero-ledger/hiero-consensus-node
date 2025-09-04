@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * An implementation of {@link InstrumentedNode} for the Turtle framework.
