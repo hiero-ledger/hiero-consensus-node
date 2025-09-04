@@ -4,6 +4,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.status.DefaultStatusStateMachine;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import com.swirlds.platform.uptime.UptimeTracker;
@@ -12,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -26,7 +28,6 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         statusStateMachine = new DefaultStatusStateMachine(platformContext);
         uptimeTracker = new UptimeTracker(
                 platformContext,
-                statusStateMachine::submitStatusAction,
                 selfId);
     }
 
@@ -37,12 +38,21 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     }
 
     @Override
-    public PlatformStatus heartbeat(@NonNull final Instant time){
+    public PlatformStatus heartbeat(@NonNull final Instant time) {
         return statusStateMachine.submitStatusAction(new TimeElapsedAction(time));
     }
 
     @Override
-    public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result){
+    public PlatformStatus consensusRound(@NonNull final ConsensusRound round) {
+        final SelfEventReachedConsensusAction statusAction = uptimeTracker.handleRound(round);
+        if (statusAction == null) {
+            return null;
+        }
+        return statusStateMachine.submitStatusAction(statusAction);
+    }
+
+    @Override
+    public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result) {
         return statusStateMachine.submitStatusAction(
                 new StateWrittenToDiskAction(result.round(), result.freezeState())
         );
@@ -52,7 +62,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     @Override
     public PlatformStatus issNotification(final List<IssNotification> notifications) {
         final Set<IssType> issTypes = Set.of(IssType.SELF_ISS, IssType.CATASTROPHIC_ISS);
-        if(notifications.stream().map(IssNotification::getIssType).anyMatch(issTypes::contains)){
+        if (notifications.stream().map(IssNotification::getIssType).anyMatch(issTypes::contains)) {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
         }
         // don't change status for other types of ISSs

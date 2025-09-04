@@ -103,7 +103,7 @@ class UptimeTests {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
+                new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -218,7 +218,7 @@ class UptimeTests {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
+                new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
@@ -339,7 +339,7 @@ class UptimeTests {
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
+                new UptimeTracker(platformContext, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis

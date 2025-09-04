@@ -43,11 +43,6 @@ public class UptimeTracker {
     private final AtomicReference<Instant> lastSelfEventTime = new AtomicReference<>();
 
     /**
-     * Enables submitting platform status actions.
-     */
-    private final StatusActionSubmitter statusActionSubmitter;
-
-    /**
      * The uptime data for all the nodes. It's package-private for testing purposes.
      */
     final UptimeData uptimeData;
@@ -56,17 +51,14 @@ public class UptimeTracker {
      * Construct a new uptime detector.
      *
      * @param platformContext       the platform context
-     * @param statusActionSubmitter enables submitting platform status actions
      * @param selfId                the ID of this node
      */
     public UptimeTracker(
             @NonNull final PlatformContext platformContext,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final NodeId selfId) {
 
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         this.time = Objects.requireNonNull(platformContext).getTime();
-        this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
         this.degradationThreshold = platformContext
                 .getConfiguration()
                 .getConfigData(UptimeConfig.class)
@@ -80,10 +72,10 @@ public class UptimeTracker {
      *
      * @param round       the round to analyze
      */
-    public void handleRound(@NonNull final ConsensusRound round) {
+    public SelfEventReachedConsensusAction handleRound(@NonNull final ConsensusRound round) {
 
         if (round.isEmpty()) {
-            return;
+            return null;
         }
 
         final Instant start = time.now();
@@ -91,7 +83,7 @@ public class UptimeTracker {
         addAndRemoveNodes(uptimeData, round.getConsensusRoster());
         final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator = new HashMap<>();
         final Map<NodeId, ConsensusEvent> judgesByCreator = new HashMap<>();
-        scanRound(round, lastEventsInRoundByCreator, judgesByCreator);
+        final SelfEventReachedConsensusAction statusAction = scanRound(round, lastEventsInRoundByCreator, judgesByCreator);
         updateUptimeData(
                 round.getConsensusRoster(),
                 uptimeData,
@@ -105,6 +97,7 @@ public class UptimeTracker {
         uptimeMetrics
                 .getUptimeComputationTimeMetric()
                 .update(UNIT_NANOSECONDS.convertTo(elapsed.toNanos(), UNIT_MICROSECONDS));
+        return statusAction;
     }
 
     /**
@@ -159,7 +152,7 @@ public class UptimeTracker {
      * @param lastEventsInRoundByCreator the last event in the round by creator, is updated by this method
      * @param judgesByCreator            the judges by creator, is updated by this method
      */
-    private void scanRound(
+    private SelfEventReachedConsensusAction scanRound(
             @NonNull final Round round,
             @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator,
             @NonNull final Map<NodeId, ConsensusEvent> judgesByCreator) {
@@ -183,9 +176,10 @@ public class UptimeTracker {
                 lastSelfEventTime.set(lastSelfEventConsensusTimestamp);
 
                 // the action receives the wall clock time, NOT the consensus timestamp
-                statusActionSubmitter.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
+                return new SelfEventReachedConsensusAction(time.now());
             }
         }
+        return null;
     }
 
     /**
