@@ -205,7 +205,7 @@ jobs:
             image:
               registry: docker.io
               repository: xinatswirlds/importer
-              tag: e741ea2b2
+              tag: 8b691c4
             config:
               hiero:
                 mirror:
