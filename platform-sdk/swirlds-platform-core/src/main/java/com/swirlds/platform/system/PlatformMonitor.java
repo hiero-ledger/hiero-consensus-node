@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -41,4 +42,6 @@ public interface PlatformMonitor {
     @Nullable
     @InputWireLabel("PlatformStatusAction")
     PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action);
+
+    PlatformStatus consensusRound(@NonNull final ConsensusRound round);
 }
