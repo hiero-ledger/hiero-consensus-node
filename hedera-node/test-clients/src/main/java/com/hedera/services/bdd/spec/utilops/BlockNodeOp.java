@@ -122,7 +122,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startSimulator(nodeIndex, persistState);
+                    controller.startSimulator(nodeIndex);
                     log.info("Started simulator {}", nodeIndex);
                 } catch (final IOException e) {
                     log.error("Failed to start simulator {}", nodeIndex, e);
@@ -139,7 +139,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startAllSimulators(persistState);
+                    controller.startAllSimulators();
                     log.info("Started all previously shutdown simulators");
                 } catch (final IOException e) {
                     log.error("Failed to start simulators", e);
@@ -195,7 +195,7 @@ public class BlockNodeOp extends UtilOp {
                     log.error("Cannot start container {} because it has not been shut down", nodeIndex);
                     return false;
                 }
-                controller.startContainer(nodeIndex, persistState);
+                controller.startContainer(nodeIndex);
                 break;
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex, persistState);
