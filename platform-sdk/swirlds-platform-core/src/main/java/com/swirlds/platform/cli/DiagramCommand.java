@@ -120,7 +120,7 @@ public final class DiagramCommand extends AbstractCommand {
                 .setPrintStdout(true)
                 .setPrintStderr(true);
 
-        final Path temporaryMermaidFile = Path.of("platformComponentWiring.mmd");
+        final Path temporaryMermaidFile = Path.of("platformWiring.mmd");
 
         if (Files.exists(temporaryMermaidFile)) {
             Files.delete(temporaryMermaidFile);
