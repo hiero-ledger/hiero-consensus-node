@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
@@ -24,7 +25,6 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -55,7 +55,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
-    private static final int ENTITY_COUNTS_STATE_ID = SingletonType.ENTITYIDSERVICE_I_ENTITY_COUNTS.protoOrdinal();
 
     @NonNull
     private final StoreMetricsService storeMetricsService;

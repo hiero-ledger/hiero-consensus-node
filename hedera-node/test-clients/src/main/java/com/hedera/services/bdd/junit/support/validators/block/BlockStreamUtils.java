@@ -52,7 +52,7 @@ public class BlockStreamUtils {
             case STATE_ID_ALIASES -> "TokenService.ALIASES";
             case STATE_ID_NFTS -> "TokenService.NFTS";
             case STATE_ID_PENDING_AIRDROPS -> "TokenService.PENDING_AIRDROPS";
-            case STATE_ID_STAKING_INFO -> "TokenService.STAKING_INFOS";
+            case STATE_ID_STAKING_INFOS -> "TokenService.STAKING_INFOS";
             case STATE_ID_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
             case STATE_ID_TOKEN_RELATIONS -> "TokenService.TOKEN_RELS";
             case STATE_ID_TOKENS -> "TokenService.TOKENS";

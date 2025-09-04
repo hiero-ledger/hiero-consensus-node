@@ -193,7 +193,7 @@ public class AddressBookTestBase {
                         c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {}));
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {}));
         given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()

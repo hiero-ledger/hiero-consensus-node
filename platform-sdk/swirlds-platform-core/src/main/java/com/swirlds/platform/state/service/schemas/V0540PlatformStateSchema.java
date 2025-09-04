@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.BasicConfig;
@@ -32,8 +33,9 @@ public class V0540PlatformStateSchema extends Schema {
     };
 
     public static final String PLATFORM_STATE_KEY = "PLATFORM_STATE";
-    // State ID must match virtual_map_state.proto
-    public static final int PLATFORM_STATE_STATE_ID = 26;
+    // FUTURE WORK: get rid of this dependency on SingletonType
+    public static final int PLATFORM_STATE_STATE_ID =
+            SingletonType.PLATFORMSTATESERVICE_I_PLATFORM_STATE.protoOrdinal();
     public static final String PLATFORM_STATE_STATE_LABEL = computeLabel(PlatformStateService.NAME, PLATFORM_STATE_KEY);
 
     /**

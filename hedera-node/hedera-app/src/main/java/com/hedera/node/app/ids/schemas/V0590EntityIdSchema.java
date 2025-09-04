@@ -5,7 +5,7 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.ids.EntityIdService;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 public class V0590EntityIdSchema extends Schema {
+
     /**
      * The version of the schema.
      */
@@ -21,8 +22,7 @@ public class V0590EntityIdSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(59).patch(0).build();
 
     public static final String ENTITY_COUNTS_KEY = "ENTITY_COUNTS";
-    public static final int ENTITY_COUNTS_STATE_ID =
-            StateValue.ValueOneOfType.ENTITYIDSERVICE_I_ENTITY_COUNTS.protoOrdinal();
+    public static final int ENTITY_COUNTS_STATE_ID = SingletonType.ENTITYIDSERVICE_I_ENTITY_COUNTS.protoOrdinal();
     public static final String ENTITY_COUNTS_STATE_LABEL = computeLabel(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
     public V0590EntityIdSchema() {

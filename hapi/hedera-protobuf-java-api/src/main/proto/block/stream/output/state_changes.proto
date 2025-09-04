@@ -260,7 +260,7 @@ enum StateIdentifier {
     /**
      * A state identifier for network staking information. Key/value state.
      */
-    STATE_ID_STAKING_INFO = 10;
+    STATE_ID_STAKING_INFOS = 10;
 
     /**
      * A state identifier for network staking rewards. Singleton state.

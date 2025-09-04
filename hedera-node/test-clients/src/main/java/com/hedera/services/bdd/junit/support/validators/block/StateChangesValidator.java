@@ -441,8 +441,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var actualCounts = requireNonNull(entityCounts.get());
         final var expectedNumAirdrops = entityChanges.getOrDefault(
                 stateNameOf(StateIdentifier.STATE_ID_PENDING_AIRDROPS.protoOrdinal()), Set.of());
-        final var expectedNumStakingInfos =
-                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_STAKING_INFO.protoOrdinal()), Set.of());
+        final var expectedNumStakingInfos = entityChanges.getOrDefault(
+                stateNameOf(StateIdentifier.STATE_ID_STAKING_INFOS.protoOrdinal()), Set.of());
         final var expectedNumContractStorageSlots = entityChanges.getOrDefault(
                 stateNameOf(StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal()), Set.of());
         final var expectedNumTokenRelations = entityChanges.getOrDefault(
