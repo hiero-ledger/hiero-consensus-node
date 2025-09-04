@@ -76,7 +76,6 @@ jobs:
       Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
-      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
