@@ -218,10 +218,6 @@ public class BlockNodeOp extends UtilOp {
         SHUTDOWN,
         /** Shutdown all block nodes */
         SHUTDOWN_ALL,
-        /** Pause block node */
-        PAUSE,
-        /** Resume block node */
-        RESUME,
 
         /* Next actions are only applicable to simulated block nodes */
 
@@ -285,26 +281,6 @@ public class BlockNodeOp extends UtilOp {
      */
     public static ShutdownBuilder shutdownImmediately(final long nodeIndex) {
         return new ShutdownBuilder(nodeIndex);
-    }
-
-    /**
-     * Creates a builder for pausing a specific block node container.
-     *
-     * @param nodeIndex the index of the block node (0-based)
-     * @return a builder for the operation
-     */
-    public static PauseBuilder pause(final long nodeIndex) {
-        return new PauseBuilder(nodeIndex);
-    }
-
-    /**
-     * Creates a builder for resuming a specific block node container.
-     *
-     * @param nodeIndex the index of the block node (0-based)
-     * @return a builder for the operation
-     */
-    public static ResumeBuilder resume(final long nodeIndex) {
-        return new ResumeBuilder(nodeIndex);
     }
 
     /**
@@ -530,50 +506,6 @@ public class BlockNodeOp extends UtilOp {
          */
         public BlockNodeOp build() {
             return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, persistState);
-        }
-
-        @Override
-        protected boolean submitOp(final HapiSpec spec) throws Throwable {
-            return build().submitOp(spec);
-        }
-    }
-
-    public static class PauseBuilder extends UtilOp {
-        private final long nodeIndex;
-
-        private PauseBuilder(final long nodeIndex) {
-            this.nodeIndex = nodeIndex;
-        }
-
-        /**
-         * Builds the operation.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.PAUSE, null, 0, null, null, true, true);
-        }
-
-        @Override
-        protected boolean submitOp(final HapiSpec spec) throws Throwable {
-            return build().submitOp(spec);
-        }
-    }
-
-    public static class ResumeBuilder extends UtilOp {
-        private final long nodeIndex;
-
-        private ResumeBuilder(final long nodeIndex) {
-            this.nodeIndex = nodeIndex;
-        }
-
-        /**
-         * Builds the operation.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.RESUME, null, 0, null, null, true, true);
         }
 
         @Override
