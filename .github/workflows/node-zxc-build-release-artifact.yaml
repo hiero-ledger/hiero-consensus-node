@@ -865,8 +865,8 @@ jobs:
             SET_AS_PRERELEASE="false"
           fi
 
-          echo "create-release=${CREATE_RELEASE}" >>"${GITHUB_OUTPUT}"
-          echo "set-as-prerelease=${SET_AS_PRERELEASE}" >>"${GITHUB
+          echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "set-as-prerelease=${SET_AS_PRERELEASE}" >> "${GITHUB_OUTPUT}"
 
       - name: Create github release
         if: ${{ steps.set-gh-release-flag.outputs.create-release == 'true' }}
