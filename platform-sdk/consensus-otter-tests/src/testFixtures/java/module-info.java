@@ -30,6 +30,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
+    requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
@@ -37,11 +38,11 @@ module org.hiero.otter.fixtures {
     requires com.fasterxml.jackson.datatype.jsr310;
     requires com.github.dockerjava.api;
     requires io.grpc.protobuf;
+    requires java.logging;
     requires java.net.http;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
-    requires java.logging;
 
     exports org.hiero.otter.fixtures;
     exports org.hiero.otter.fixtures.assertions;

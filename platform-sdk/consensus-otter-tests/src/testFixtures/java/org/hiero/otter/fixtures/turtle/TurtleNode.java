@@ -91,8 +91,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Nullable
     private Platform platform;
 
-//    @Nullable
-//    private ExecutionLayer executionLayer;
+    //    @Nullable
+    //    private ExecutionLayer executionLayer;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -435,7 +435,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         //        platformWiring
         //                .getConsensusEngineOutputWire()
-        //                .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+        //                .solderTo("nodeConsensusRoundsCollector", "consensusRounds",
+        // resultsCollector::addConsensusRounds);
 
         platformWiring
                 .getStatusStateMachineOutputWire()

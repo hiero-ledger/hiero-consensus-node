@@ -36,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -77,13 +76,13 @@ public class OtterTurtleNetwork extends AbstractNetwork implements HederaNetwork
             @NonNull final String configTxt) {
         super(networkName, nodes.stream().map(HederaNode.class::cast).toList());
         this.network = requireNonNull(network);
-        this.nodes =
-                nodes.stream().collect(Collectors.toMap(node -> node.getAccountId().accountNum(), Function.identity()));
+        this.nodes = nodes.stream()
+                .collect(Collectors.toMap(node -> node.getAccountId().accountNum(), Function.identity()));
         this.timeManager = requireNonNull(timeManager);
         this.configTxt = requireNonNull(configTxt);
         Executors.newSingleThreadScheduledExecutor(
-                getStaticThreadManager().createThreadFactory("platform-core", "TickerThread"))
-                        .submit(this::ticker);
+                        getStaticThreadManager().createThreadFactory("platform-core", "TickerThread"))
+                .submit(this::ticker);
     }
 
     private void ticker() {
@@ -147,7 +146,9 @@ public class OtterTurtleNetwork extends AbstractNetwork implements HederaNetwork
                         .<RunningHashes>getSingleton("RUNNING_HASHES")
                         .get();
                 if (runningHashes != null) {
-                    log.info("Final record running hash - {}", runningHashes.runningHash().toHex());
+                    log.info(
+                            "Final record running hash - {}",
+                            runningHashes.runningHash().toHex());
                 }
             }
         }

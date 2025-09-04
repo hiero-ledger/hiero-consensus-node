@@ -28,12 +28,12 @@ public class SimulatedGossip implements Gossip {
     private IntakeEventCounter intakeEventCounter;
 
     private volatile StandardOutputWire<PlatformEvent> eventOutput;
-    
+
     /**
      * Buffer for events received before the node is ready to process them
      */
     private final List<PlatformEvent> eventBuffer = new ArrayList<>();
-    
+
     /**
      * Constructor.
      *
@@ -89,7 +89,7 @@ public class SimulatedGossip implements Gossip {
         if (intakeEventCounter != null) {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
         }
-        
+
         if (eventOutput != null) {
             for (final PlatformEvent bufferedEvent : eventBuffer) {
                 eventOutput.forward(bufferedEvent);
