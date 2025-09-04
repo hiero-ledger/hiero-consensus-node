@@ -117,6 +117,7 @@ class SyncPermitProviderTests {
                 .withValue(SyncConfig_.PERMITS_REVOKED_PER_SECOND, permitsLostPerSecond)
                 .withValue(SyncConfig_.PERMITS_RETURNED_PER_SECOND, permitsReturnedPerSecond)
                 .withValue(SyncConfig_.MINIMUM_HEALTHY_UNREVOKED_PERMIT_COUNT, minimumHealthyPermitCount)
+                .withValue(SyncConfig_.KEEP_SENDING_EVENTS_WHEN_UNHEALTHY, false)
                 .getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)

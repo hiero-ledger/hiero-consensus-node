@@ -215,11 +215,11 @@ public class BlockNodeController {
      * Shutdown all simulated block nodes to simulate connection drops.
      * The servers can be restarted using {@link #startAllSimulators(boolean)}.
      */
-    public void shutdownAllSimulators(boolean keepState) {
+    public void shutdownAllSimulators(final boolean persistState) {
         shutdownBlockNodePorts.clear();
         for (final Map.Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodes.entrySet()) {
             final long nodeId = entry.getKey();
-            shutdownSimulator(nodeId, keepState);
+            shutdownSimulator(nodeId, persistState);
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
     }
@@ -230,12 +230,12 @@ public class BlockNodeController {
      *
      * @param nodeId the index of the simulated block node (0-based)
      */
-    public void shutdownSimulator(long nodeId, boolean keepState) {
+    public void shutdownSimulator(long nodeId, final boolean persistState) {
         if (nodeId >= 0 && nodeId < simulatedBlockNodes.size()) {
             final SimulatedBlockNodeServer server = simulatedBlockNodes.get(nodeId);
             final int port = server.getPort();
             shutdownBlockNodePorts.put(nodeId, port);
-            lastVerifiedBlockNumbers.put(nodeId, keepState ? server.getLastVerifiedBlockNumber() : -1L);
+            lastVerifiedBlockNumbers.put(nodeId, persistState ? server.getLastVerifiedBlockNumber() : -1L);
             server.stop();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", nodeId, port);
         } else {
@@ -249,10 +249,10 @@ public class BlockNodeController {
      *
      * @throws IOException if a server fails to start
      */
-    public void startAllSimulators(final boolean keepState) throws IOException {
+    public void startAllSimulators(final boolean persistState) throws IOException {
         for (final Entry<Long, Integer> entry : shutdownBlockNodePorts.entrySet()) {
             final long index = entry.getKey();
-            startSimulator(index, keepState);
+            startSimulator(index, persistState);
             shutdownBlockNodePorts.remove(index);
         }
 
@@ -266,7 +266,7 @@ public class BlockNodeController {
      * @param nodeId the nodeId of the simulated block node (0-based)
      * @throws IOException if the server fails to start
      */
-    public void startSimulator(final long nodeId, final boolean keepState) throws IOException {
+    public void startSimulator(final long nodeId, final boolean persistState) throws IOException {
         if (!shutdownBlockNodePorts.containsKey(nodeId)) {
             log.error("Simulator {} was not previously shutdown or has already been restarted", nodeId);
             return;
@@ -276,7 +276,8 @@ public class BlockNodeController {
             final int port = shutdownBlockNodePorts.get(nodeId);
 
             // Create a new server on the same port
-            final long lastVerifiedBlockNumber = keepState ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L) : -1L;
+            final long lastVerifiedBlockNumber =
+                    persistState ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L) : -1L;
             final SimulatedBlockNodeServer newServer =
                     new SimulatedBlockNodeServer(port, () -> lastVerifiedBlockNumber);
             newServer.start();
@@ -383,7 +384,7 @@ public class BlockNodeController {
      * *
      * @param nodeIndex the index of the block node to be started
      */
-    public void startContainer(long nodeIndex, boolean keepState) {
+    public void startContainer(long nodeIndex, final boolean persistState) {
         if (!shutdownBlockNodePorts.containsKey(nodeIndex)) {
             log.error("Block Node container {} was not previously shutdown or has already been restarted", nodeIndex);
             return;
@@ -393,7 +394,7 @@ public class BlockNodeController {
             final int port = shutdownBlockNodePorts.get(nodeIndex);
             final BlockNodeContainer blockNodeContainer;
 
-            if (keepState) {
+            if (persistState) {
                 blockNodeContainer = blockNodeContainers.get(nodeIndex);
                 blockNodeContainer.resume();
             } else {
@@ -414,14 +415,14 @@ public class BlockNodeController {
      *
      * @param nodeIndex the index of the block node to be shutdown
      */
-    public void shutdownContainer(long nodeIndex, boolean keepState) {
+    public void shutdownContainer(long nodeIndex, final boolean persistState) {
         if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
             final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeIndex);
             log.info("Shutting down container {} @ {}", nodeIndex, shutdownContainer);
 
             shutdownBlockNodePorts.put(nodeIndex, shutdownContainer.getPort());
 
-            if (keepState) {
+            if (persistState) {
                 shutdownContainer.pause();
             } else {
                 shutdownContainer.stop();

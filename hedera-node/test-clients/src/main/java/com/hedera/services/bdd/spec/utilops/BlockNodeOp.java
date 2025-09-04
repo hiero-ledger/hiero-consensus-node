@@ -27,7 +27,7 @@ public class BlockNodeOp extends UtilOp {
     private final AtomicLong lastVerifiedBlockNumber;
     private final Consumer<Long> lastVerifiedBlockConsumer;
     private final boolean sendBlockAcknowledgementsEnabled;
-    private final boolean keepPersistentState;
+    private final boolean persistState;
 
     private BlockNodeOp(
             final long nodeIndex,
@@ -37,7 +37,7 @@ public class BlockNodeOp extends UtilOp {
             final AtomicLong lastVerifiedBlockNumber,
             final Consumer<Long> lastVerifiedBlockConsumer,
             final boolean sendBlockAcknowledgementsEnabled,
-            final boolean keepPersistentState) {
+            final boolean persistState) {
         this.nodeIndex = nodeIndex;
         this.action = action;
         this.responseCode = responseCode;
@@ -45,7 +45,7 @@ public class BlockNodeOp extends UtilOp {
         this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
         this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
         this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
-        this.keepPersistentState = keepPersistentState;
+        this.persistState = persistState;
     }
 
     @Override
@@ -113,7 +113,7 @@ public class BlockNodeOp extends UtilOp {
                 log.info("Reset all responses on simulator {} to default behavior", nodeIndex);
                 break;
             case SHUTDOWN:
-                controller.shutdownSimulator(nodeIndex, keepPersistentState);
+                controller.shutdownSimulator(nodeIndex, persistState);
                 log.info("Shutdown simulator {}", nodeIndex);
                 break;
             case START:
@@ -122,7 +122,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startSimulator(nodeIndex, keepPersistentState);
+                    controller.startSimulator(nodeIndex, persistState);
                     log.info("Started simulator {}", nodeIndex);
                 } catch (final IOException e) {
                     log.error("Failed to start simulator {}", nodeIndex, e);
@@ -130,7 +130,7 @@ public class BlockNodeOp extends UtilOp {
                 }
                 break;
             case SHUTDOWN_ALL:
-                controller.shutdownAllSimulators(keepPersistentState);
+                controller.shutdownAllSimulators(persistState);
                 log.info("Shutdown all simulators to simulate connection drops");
                 break;
             case START_ALL:
@@ -139,7 +139,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startAllSimulators(keepPersistentState);
+                    controller.startAllSimulators(persistState);
                     log.info("Started all previously shutdown simulators");
                 } catch (final IOException e) {
                     log.error("Failed to start simulators", e);
@@ -195,10 +195,10 @@ public class BlockNodeOp extends UtilOp {
                     log.error("Cannot start container {} because it has not been shut down", nodeIndex);
                     return false;
                 }
-                controller.startContainer(nodeIndex, keepPersistentState);
+                controller.startContainer(nodeIndex, persistState);
                 break;
             case SHUTDOWN:
-                controller.shutdownContainer(nodeIndex, keepPersistentState);
+                controller.shutdownContainer(nodeIndex, persistState);
                 break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
@@ -483,20 +483,19 @@ public class BlockNodeOp extends UtilOp {
 
     public static class ShutdownBuilder extends UtilOp {
         private final long nodeIndex;
-        private boolean keepState = true;
+        private boolean persistState = true;
 
         private ShutdownBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
         /**
-         * Sets whether the state should be persistent after shutdown.
-         *
-         * @param keepState whether state should be persistent
-         * @return this builder
+         * Sets whether to persist the state of the block node before shutting down.
+         * Default is true.
+         * @param persistState whether to persist the state of the block node before shutting down
          */
-        public ShutdownBuilder keepState(final boolean keepState) {
-            this.keepState = keepState;
+        public ShutdownBuilder persistState(final boolean persistState) {
+            this.persistState = persistState;
             return this;
         }
 
@@ -506,7 +505,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, keepState);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, persistState);
         }
 
         @Override
@@ -619,7 +618,14 @@ public class BlockNodeOp extends UtilOp {
 
         public BlockNodeOp build() {
             return new BlockNodeOp(
-                    nodeIndex, BlockNodeAction.UPDATE_SENDING_BLOCK_ACKS, null, 0, null, null, true, true);
+                    nodeIndex,
+                    BlockNodeAction.UPDATE_SENDING_BLOCK_ACKS,
+                    null,
+                    0,
+                    null,
+                    null,
+                    sendBlockAcknowledgementsEnabled,
+                    true);
         }
 
         @Override
