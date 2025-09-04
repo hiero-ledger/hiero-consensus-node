@@ -424,7 +424,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         }
     }
-    
+
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
