@@ -51,7 +51,17 @@ public abstract class AbstractTimeManager implements TimeManager {
     public void waitFor(@NonNull final Duration waitTime) {
         log.info("Waiting for {}...", waitTime);
 
-        waitForCondition(() -> false, waitTime);
+        final Instant start = now();
+        final Instant end = start.plus(waitTime);
+
+        Instant now = start;
+        while (now.isBefore(end)) {
+            for (final TimeTickReceiver receiver : timeTickReceivers) {
+                receiver.tick(now);
+            }
+            advanceTime(granularity);
+            now = now();
+        }
     }
 
     /**
