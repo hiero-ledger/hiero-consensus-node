@@ -17,6 +17,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("com.swirlds.cli")
 }
 
 testModuleInfo {

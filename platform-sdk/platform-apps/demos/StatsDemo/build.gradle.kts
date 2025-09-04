@@ -2,3 +2,5 @@
 plugins { id("org.hiero.gradle.module.application") }
 
 application.mainClass = "com.swirlds.demo.stats.StatsDemoMain"
+
+mainModuleInfo { runtimeOnly("com.swirlds.cli") }

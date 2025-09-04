@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins {
-    id("org.hiero.gradle.module.library")
-    id("org.hiero.gradle.feature.publish-artifactregistry")
-}
+plugins { id("org.hiero.gradle.module.application") }
+
+application.mainClass = "com.swirlds.cli.PlatformCli"
 
 testModuleInfo {
     requires("org.junit.jupiter.api")

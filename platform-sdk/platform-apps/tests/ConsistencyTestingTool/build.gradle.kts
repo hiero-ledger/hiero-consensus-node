@@ -3,7 +3,10 @@ plugins { id("org.hiero.gradle.module.application") }
 
 application.mainClass = "com.swirlds.demo.consistency.ConsistencyTestingToolMain"
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    runtimeOnly("com.swirlds.cli")
+}
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")

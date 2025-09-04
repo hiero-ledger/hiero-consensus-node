@@ -14,6 +14,8 @@ tasks.withType<JavaCompile>().configureEach {
 
 application.mainClass = "com.swirlds.demo.platform.PlatformTestingToolMain"
 
+mainModuleInfo { runtimeOnly("com.swirlds.cli") }
+
 testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.apache.logging.log4j.core")
