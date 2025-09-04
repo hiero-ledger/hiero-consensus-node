@@ -31,8 +31,6 @@ public class YahcliVerbs {
     private static final Pattern PUBLIC_KEY_PATTERN = Pattern.compile("public key .+ is: ([a-fA-F0-9]+)");
     private static final Pattern SCHEDULE_FREEZE_PATTERN =
             Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
-    private static final Pattern SCHEDULE_FREEZE_UPDATE_PATTERN =
-            Pattern.compile("NMT software upgrade in motion from ([\\d.]+) artifacts ZIP");
     private static final Pattern ABORT_FREEZE_PATTERN =
             Pattern.compile("freeze aborted and/or staged upgrade discarded");
 
@@ -312,25 +310,6 @@ public class YahcliVerbs {
                 cb.accept(m.group(1));
             } else {
                 Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
-            }
-        };
-    }
-
-    /**
-     * Returns a callback that will look for a line containing software upgrade information,
-     * and pass the extracted version number to the given callback.
-     *
-     * @param cb the callback to capture the extracted version number
-     * @return the output consumer that processes software upgrade information from command output
-     */
-    public static Consumer<String> scheduleUpgradeCapturer(@NonNull final Consumer<String> cb) {
-        return output -> {
-            final var m = SCHEDULE_FREEZE_UPDATE_PATTERN.matcher(output);
-            if (m.find()) {
-                cb.accept(m.group(1));
-            } else {
-                Assertions.fail(
-                        "Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_UPDATE_PATTERN.pattern() + "'");
             }
         };
     }

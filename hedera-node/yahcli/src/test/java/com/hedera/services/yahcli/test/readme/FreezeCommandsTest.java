@@ -6,13 +6,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.freezeAbortIsSuccessful;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.scheduleFreezeCapturer;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.scheduleUpgradeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliFreezeAbort;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliFreezeOnly;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliFreezeUpgrade;
 import static java.time.ZoneId.systemDefault;
 import static java.time.temporal.ChronoUnit.DAYS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.time.Instant;
@@ -35,13 +35,13 @@ public class FreezeCommandsTest {
                         .exposingOutputTo(scheduleFreezeCapturer(freezeDate::set)),
                 doingContextual(spec -> assertEquals(freezeDate.get(), fiveDaysFromNow)),
                 yahcliFreezeAbort().exposingOutputTo(freezeAbortIsSuccessful()),
-                // freeze with update
+                // freeze with upgrade
                 yahcliFreezeUpgrade(
                                 "--start-time",
                                 fiveDaysFromNow,
                                 "--upgrade-zip-hash",
                                 "5d3b0e619d8513dfbf606ef00a2e83ba97d736f5f5ba61561d895ea83a6d4c34fce05d6cd74c83ec171f710e37e12aab")
-                        .exposingOutputTo(scheduleUpgradeCapturer(ignore -> {})),
+                        .exposingOutputTo(output -> assertTrue(output.contains("NMT software upgrade in motion from"))),
                 yahcliFreezeAbort().exposingOutputTo(freezeAbortIsSuccessful()));
     }
 
