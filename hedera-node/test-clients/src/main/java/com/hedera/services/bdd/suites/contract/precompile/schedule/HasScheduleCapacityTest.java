@@ -45,7 +45,8 @@ public class HasScheduleCapacityTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(
+                UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     @AfterAll
