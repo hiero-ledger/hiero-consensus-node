@@ -95,15 +95,15 @@ class UptimeTests {
     void roundScanTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -210,15 +210,15 @@ class UptimeTests {
     void roundScanChangingRosterTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
@@ -331,15 +331,15 @@ class UptimeTests {
     void degradedTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final FakeTime time = new FakeTime();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(3).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker =
-                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
+                new UptimeTracker(platformContext, mock(StatusActionSubmitter.class), selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis

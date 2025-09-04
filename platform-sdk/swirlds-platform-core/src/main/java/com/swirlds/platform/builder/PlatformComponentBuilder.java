@@ -591,7 +591,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public PlatformMonitor buildPlatformMonitor() {
         if (platformMonitor == null) {
-            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext());
+            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
         }
         return platformMonitor;
     }

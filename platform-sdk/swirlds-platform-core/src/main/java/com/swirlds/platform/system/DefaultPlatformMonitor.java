@@ -6,11 +6,13 @@ import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import com.swirlds.platform.uptime.UptimeTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -18,9 +20,14 @@ import org.hiero.consensus.model.status.PlatformStatus;
 
 public class DefaultPlatformMonitor implements PlatformMonitor {
     private final DefaultStatusStateMachine statusStateMachine;
+    private final UptimeTracker uptimeTracker;
 
-    public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext) {
+    public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
         statusStateMachine = new DefaultStatusStateMachine(platformContext);
+        uptimeTracker = new UptimeTracker(
+                platformContext,
+                statusStateMachine::submitStatusAction,
+                selfId);
     }
 
     @Nullable

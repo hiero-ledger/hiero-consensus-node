@@ -56,26 +56,22 @@ public class UptimeTracker {
      * Construct a new uptime detector.
      *
      * @param platformContext       the platform context
-     * @param roster                the current roster
      * @param statusActionSubmitter enables submitting platform status actions
      * @param selfId                the ID of this node
-     * @param time                  a source of time
      */
     public UptimeTracker(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Roster roster,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final NodeId selfId,
-            @NonNull final Time time) {
+            @NonNull final NodeId selfId) {
 
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
-        this.time = Objects.requireNonNull(time);
+        this.time = Objects.requireNonNull(platformContext).getTime();
         this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
         this.degradationThreshold = platformContext
                 .getConfiguration()
                 .getConfigData(UptimeConfig.class)
                 .degradationThreshold();
-        this.uptimeMetrics = new UptimeMetrics(platformContext.getMetrics(), roster, this::isSelfDegraded);
+        this.uptimeMetrics = new UptimeMetrics(platformContext.getMetrics(), this::isSelfDegraded);
         this.uptimeData = new UptimeData();
     }
 

@@ -95,7 +95,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionHandler = new TransactionHandler(selfId, stats);
         this.uptimeTracker =
-                new UptimeTracker(platformContext, roster, statusActionSubmitter, selfId, platformContext.getTime());
+                new UptimeTracker(platformContext, statusActionSubmitter, selfId);
     }
 
     /**
