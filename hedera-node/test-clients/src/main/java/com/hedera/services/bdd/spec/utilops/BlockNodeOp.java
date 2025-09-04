@@ -113,7 +113,7 @@ public class BlockNodeOp extends UtilOp {
                 log.info("Reset all responses on simulator {} to default behavior", nodeIndex);
                 break;
             case SHUTDOWN:
-                controller.shutdownSimulator(nodeIndex);
+                controller.shutdownSimulator(nodeIndex, keepPersistentState);
                 log.info("Shutdown simulator {}", nodeIndex);
                 break;
             case START:
@@ -122,7 +122,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startSimulator(nodeIndex);
+                    controller.startSimulator(nodeIndex, keepPersistentState);
                     log.info("Started simulator {}", nodeIndex);
                 } catch (final IOException e) {
                     log.error("Failed to start simulator {}", nodeIndex, e);
@@ -130,7 +130,7 @@ public class BlockNodeOp extends UtilOp {
                 }
                 break;
             case SHUTDOWN_ALL:
-                controller.shutdownAllSimulators();
+                controller.shutdownAllSimulators(keepPersistentState);
                 log.info("Shutdown all simulators to simulate connection drops");
                 break;
             case START_ALL:
@@ -139,7 +139,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startAllSimulators();
+                    controller.startAllSimulators(keepPersistentState);
                     log.info("Started all previously shutdown simulators");
                 } catch (final IOException e) {
                     log.error("Failed to start simulators", e);
@@ -171,10 +171,6 @@ public class BlockNodeOp extends UtilOp {
                         sendBlockAcknowledgementsEnabled);
                 controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
-            case UPDATE_STATE_PERSISTENCE:
-                log.info("[node {}] Update state persistence to: {}", nodeIndex, keepPersistentState);
-                controller.setStatePersistence(nodeIndex, keepPersistentState);
-                break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node simulators");
         }
@@ -194,19 +190,15 @@ public class BlockNodeOp extends UtilOp {
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
 
         switch (action) {
-            case UPDATE_STATE_PERSISTENCE:
-                log.info("[node {}] Update state persistence to: {}", nodeIndex, keepPersistentState);
-                controller.setStatePersistence(nodeIndex, keepPersistentState);
-                break;
             case START:
                 if (!controller.isBlockNodeShutdown(nodeIndex)) {
                     log.error("Cannot start container {} because it has not been shut down", nodeIndex);
                     return false;
                 }
-                controller.startContainer(nodeIndex);
+                controller.startContainer(nodeIndex, keepPersistentState);
                 break;
             case SHUTDOWN:
-                controller.shutdownContainer(nodeIndex);
+                controller.shutdownContainer(nodeIndex, keepPersistentState);
                 break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
@@ -244,9 +236,7 @@ public class BlockNodeOp extends UtilOp {
         /** Get the last verified block number */
         GET_LAST_VERIFIED_BLOCK,
         /** Whether or not to send block acknowledgements */
-        UPDATE_SENDING_BLOCK_ACKS,
-        /** Whether or not to keep state on shutdown */
-        UPDATE_STATE_PERSISTENCE
+        UPDATE_SENDING_BLOCK_ACKS
     }
 
     /**
@@ -352,17 +342,6 @@ public class BlockNodeOp extends UtilOp {
     public static UpdateSendingBlockAcknowledgementsBuilder updateSendingBlockAcknowledgements(
             final long nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
         return new UpdateSendingBlockAcknowledgementsBuilder(nodeIndex, sendBlockAcknowledgementsEnabled);
-    }
-
-    /**
-     * Creates a builder that allows for updating whether the last acknowledged block should be available after restart of the specified block node.
-     *
-     * @param nodeIndex the index of the block node to update (0-based)
-     * @param keepState true if last acknowledged block should be available after restart of the block node, otherwise it will not be
-     * @return the builder
-     */
-    public static UpdateStatePersistenceBuilder updateStatePersistence(final long nodeIndex, final boolean keepState) {
-        return new UpdateStatePersistenceBuilder(nodeIndex, keepState);
     }
 
     /**
@@ -502,35 +481,23 @@ public class BlockNodeOp extends UtilOp {
         }
     }
 
-    /**
-     * Builder for setting persistence of the last acknowledged block upon block node restart.
-     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
-     */
-    public static class UpdateStatePersistenceBuilder extends UtilOp {
-        private final long nodeIndex;
-        private final boolean keepState;
-
-        private UpdateStatePersistenceBuilder(final long nodeIndex, final boolean keepState) {
-            this.nodeIndex = nodeIndex;
-            this.keepState = keepState;
-        }
-
-        public BlockNodeOp build() {
-            return new BlockNodeOp(
-                    nodeIndex, BlockNodeAction.UPDATE_STATE_PERSISTENCE, null, 0, null, null, false, keepState);
-        }
-
-        @Override
-        protected boolean submitOp(final HapiSpec spec) throws Throwable {
-            return build().submitOp(spec);
-        }
-    }
-
     public static class ShutdownBuilder extends UtilOp {
         private final long nodeIndex;
+        private boolean keepState = true;
 
         private ShutdownBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
+        }
+
+        /**
+         * Sets whether the state should be persistent after shutdown.
+         *
+         * @param keepState whether state should be persistent
+         * @return this builder
+         */
+        public ShutdownBuilder keepState(final boolean keepState) {
+            this.keepState = keepState;
+            return this;
         }
 
         /**
@@ -539,7 +506,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, true);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, keepState);
         }
 
         @Override
@@ -549,13 +516,26 @@ public class BlockNodeOp extends UtilOp {
     }
 
     public static class ShutdownAllBuilder extends UtilOp {
+        private boolean keepState = true;
+
+        /**
+         * Sets whether the state should be persistent after shutdown.
+         *
+         * @param keepState whether state should be persistent
+         * @return this builder
+         */
+        public ShutdownAllBuilder keepState(final boolean keepState) {
+            this.keepState = keepState;
+            return this;
+        }
+
         /**
          * Builds the operation.
          *
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, true);
+            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, keepState);
         }
 
         @Override

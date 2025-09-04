@@ -84,8 +84,8 @@ public class BlockNodeVerbs {
          *
          * @return the operation
          */
-        public BlockNodeOp shutDownImmediately() {
-            return BlockNodeOp.shutdownImmediately(nodeIndex).build();
+        public BlockNodeOp.ShutdownBuilder shutDownImmediately() {
+            return BlockNodeOp.shutdownImmediately(nodeIndex);
         }
 
         /**
@@ -179,16 +179,6 @@ public class BlockNodeVerbs {
         public BlockNodeOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
             return BlockNodeOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
                     .build();
-        }
-
-        /**
-         * Updates whether last acknowledged block should be persistent upon block node restart.
-         *
-         * @param keepState true if last acknowledged block should be persistent, else it will not be
-         * @return the operation
-         */
-        public BlockNodeOp keepState(final boolean keepState) {
-            return BlockNodeOp.updateStatePersistence(nodeIndex, keepState).build();
         }
     }
 

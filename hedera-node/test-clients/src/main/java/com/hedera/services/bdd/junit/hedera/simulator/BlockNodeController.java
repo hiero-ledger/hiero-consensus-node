@@ -6,7 +6,6 @@ import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -24,7 +23,6 @@ public class BlockNodeController {
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
     private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
-    private static final Set<Long> persistentStateBlockNodes = new HashSet<>();
     private static final Map<Long, Long> lastVerifiedBlockNumbers = new HashMap<>();
 
     /**
@@ -215,30 +213,29 @@ public class BlockNodeController {
 
     /**
      * Shutdown all simulated block nodes to simulate connection drops.
-     * The servers can be restarted using {@link #startAllSimulators()}.
+     * The servers can be restarted using {@link #startAllSimulators(boolean)}.
      */
-    public void shutdownAllSimulators() {
+    public void shutdownAllSimulators(boolean keepState) {
         shutdownBlockNodePorts.clear();
         for (final Map.Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodes.entrySet()) {
             final long nodeId = entry.getKey();
-            shutdownSimulator(nodeId);
+            shutdownSimulator(nodeId, keepState);
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
     }
 
     /**
      * Shutdown a specific simulated block node to simulate a connection drop.
-     * The server can be restarted using {@link #startSimulator(long)}.
+     * The server can be restarted using {@link #startSimulator(long, boolean)}.
      *
      * @param nodeId the index of the simulated block node (0-based)
      */
-    public void shutdownSimulator(long nodeId) {
+    public void shutdownSimulator(long nodeId, boolean keepState) {
         if (nodeId >= 0 && nodeId < simulatedBlockNodes.size()) {
             final SimulatedBlockNodeServer server = simulatedBlockNodes.get(nodeId);
             final int port = server.getPort();
             shutdownBlockNodePorts.put(nodeId, port);
-            lastVerifiedBlockNumbers.put(
-                    nodeId, persistentStateBlockNodes.contains(nodeId) ? server.getLastVerifiedBlockNumber() : -1L);
+            lastVerifiedBlockNumbers.put(nodeId, keepState ? server.getLastVerifiedBlockNumber() : -1L);
             server.stop();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", nodeId, port);
         } else {
@@ -252,10 +249,10 @@ public class BlockNodeController {
      *
      * @throws IOException if a server fails to start
      */
-    public void startAllSimulators() throws IOException {
+    public void startAllSimulators(final boolean keepState) throws IOException {
         for (final Entry<Long, Integer> entry : shutdownBlockNodePorts.entrySet()) {
             final long index = entry.getKey();
-            startSimulator(index);
+            startSimulator(index, keepState);
             shutdownBlockNodePorts.remove(index);
         }
 
@@ -269,7 +266,7 @@ public class BlockNodeController {
      * @param nodeId the nodeId of the simulated block node (0-based)
      * @throws IOException if the server fails to start
      */
-    public void startSimulator(final long nodeId) throws IOException {
+    public void startSimulator(final long nodeId, final boolean keepState) throws IOException {
         if (!shutdownBlockNodePorts.containsKey(nodeId)) {
             log.error("Simulator {} was not previously shutdown or has already been restarted", nodeId);
             return;
@@ -279,9 +276,7 @@ public class BlockNodeController {
             final int port = shutdownBlockNodePorts.get(nodeId);
 
             // Create a new server on the same port
-            final long lastVerifiedBlockNumber = persistentStateBlockNodes.contains(nodeId)
-                    ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L)
-                    : -1L;
+            final long lastVerifiedBlockNumber = keepState ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L) : -1L;
             final SimulatedBlockNodeServer newServer =
                     new SimulatedBlockNodeServer(port, () -> lastVerifiedBlockNumber);
             newServer.start();
@@ -388,7 +383,7 @@ public class BlockNodeController {
      * *
      * @param nodeIndex the index of the block node to be started
      */
-    public void startContainer(long nodeIndex) {
+    public void startContainer(long nodeIndex, boolean keepState) {
         if (!shutdownBlockNodePorts.containsKey(nodeIndex)) {
             log.error("Block Node container {} was not previously shutdown or has already been restarted", nodeIndex);
             return;
@@ -398,7 +393,7 @@ public class BlockNodeController {
             final int port = shutdownBlockNodePorts.get(nodeIndex);
             final BlockNodeContainer blockNodeContainer;
 
-            if (persistentStateBlockNodes.contains(nodeIndex)) {
+            if (keepState) {
                 blockNodeContainer = blockNodeContainers.get(nodeIndex);
                 blockNodeContainer.resume();
             } else {
@@ -419,14 +414,14 @@ public class BlockNodeController {
      *
      * @param nodeIndex the index of the block node to be shutdown
      */
-    public void shutdownContainer(long nodeIndex) {
+    public void shutdownContainer(long nodeIndex, boolean keepState) {
         if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
             final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeIndex);
             log.info("Shutting down container {} @ {}", nodeIndex, shutdownContainer);
 
             shutdownBlockNodePorts.put(nodeIndex, shutdownContainer.getPort());
 
-            if (persistentStateBlockNodes.contains(nodeIndex)) {
+            if (keepState) {
                 shutdownContainer.pause();
             } else {
                 shutdownContainer.stop();
@@ -447,19 +442,5 @@ public class BlockNodeController {
     public void setSendBlockAcknowledgementsEnabled(
             final long nodeIdx, final boolean sendBlockAcknowledgementsEnabled) {
         simulatedBlockNodes.get(nodeIdx).setSendingBlockAcknowledgementsEnabled(sendBlockAcknowledgementsEnabled);
-    }
-
-    /**
-     * Updates whether the last acknowledged block should be available after restart of the specified block node.
-     *
-     * @param nodeIdx the index of the block node to update (0-based)
-     * @param isPersistent true if last acknowledged block should be available after restart of the block node, otherwise it will not be
-     */
-    public void setStatePersistence(final long nodeIdx, final boolean isPersistent) {
-        if (isPersistent) {
-            persistentStateBlockNodes.add(nodeIdx);
-        } else {
-            persistentStateBlockNodes.remove(nodeIdx);
-        }
     }
 }
