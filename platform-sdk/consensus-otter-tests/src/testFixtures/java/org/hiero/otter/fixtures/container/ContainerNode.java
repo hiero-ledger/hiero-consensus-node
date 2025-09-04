@@ -16,7 +16,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -35,6 +34,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
@@ -413,7 +413,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             log.info("Starting node {}...", selfId);
 
             final InitRequest initRequest = InitRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.fromPbj(selfId))
+                    .setSelfId(ProtobufConverter.fromModel(selfId))
                     .build();
             //noinspection ResultOfMethodCallIgnored
             containerControlBlockingStub.init(initRequest);

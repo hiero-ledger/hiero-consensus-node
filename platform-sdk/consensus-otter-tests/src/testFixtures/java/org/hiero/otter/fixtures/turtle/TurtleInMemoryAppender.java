@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.AbstractInMemoryAppender;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -41,7 +42,15 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
      */
     @Nullable
     public static String toJSON(@Nullable final NodeId nodeId) {
-        return nodeId == null ? null : NodeId.JSON.toJSON(nodeId);
+        Objects.requireNonNull(nodeId);
+        return com.hedera.hapi.platform.state.NodeId.JSON.toJSON(toProto(nodeId));
+    }
+
+    private static com.hedera.hapi.platform.state.NodeId toProto(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId);
+        return com.hedera.hapi.platform.state.NodeId.newBuilder()
+                .id(nodeId.id())
+                .build();
     }
 
     /**
@@ -56,7 +65,9 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
             return null;
         }
         try {
-            return NodeId.JSON.parseStrict(Bytes.wrap(value));
+            final com.hedera.hapi.platform.state.NodeId protoNodeId =
+                    com.hedera.hapi.platform.state.NodeId.JSON.parseStrict(Bytes.wrap(value));
+            return NodeId.of(protoNodeId.id());
         } catch (final ParseException e) {
             return null;
         }
