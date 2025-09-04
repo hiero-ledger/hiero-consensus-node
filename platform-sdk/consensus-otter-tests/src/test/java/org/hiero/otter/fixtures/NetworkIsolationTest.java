@@ -155,9 +155,7 @@ class NetworkIsolationTest {
             assertThat(network.getPartitionContaining(node3)).isNull();
 
             // The nodes should be active again
-            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15))) {
-                fail("Not all nodes became ACTIVE after rejoining");
-            }
+            network.waitForAllNodesActive(Duration.ofSeconds(15), "Not all nodes became ACTIVE after rejoining");
         } finally {
             env.destroy();
         }

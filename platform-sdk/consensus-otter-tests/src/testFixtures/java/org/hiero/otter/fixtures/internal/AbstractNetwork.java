@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -517,6 +518,41 @@ public abstract class AbstractNetwork implements Network {
      * @param connections a map of connections representing the current state of the network
      */
     protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForAllNodesActive(@NonNull final Duration timeout) {
+        waitForAllNodesActive(timeout, "Timeout while waiting for nodes to become active.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForAllNodesActive(@NonNull final Duration timeout, @NonNull final String message) {
+        waitForAllNodesInStatus(ACTIVE, timeout, message);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForAllNodesInStatus(@NonNull final PlatformStatus status, @NonNull final Duration timeout) {
+        waitForAllNodesInStatus(status, timeout, "Timeout while waiting for all nodes to reach status: " + status);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForAllNodesInStatus(
+            @NonNull final PlatformStatus status, @NonNull final Duration timeout, @NonNull final String message) {
+        if (!timeManager().waitForCondition(() -> allNodesInStatus(status), timeout)) {
+            fail(message);
+        }
+    }
 
     /**
      * Default implementation of {@link AsyncNetworkActions}

@@ -55,7 +55,8 @@ public interface Network {
     /**
      * Adds a single node to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * @return the created node
      */
@@ -67,7 +68,8 @@ public interface Network {
     /**
      * Adds multiple nodes to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * @param count the number of nodes to add
      * @return list of created nodes
@@ -80,7 +82,8 @@ public interface Network {
     /**
      * Add an instrumented node to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * <p>This method is used to add a node that has additional instrumentation for testing purposes.
      * For example, it can exhibit malicious or erroneous behavior.
@@ -124,10 +127,11 @@ public interface Network {
     void start();
 
     /**
-     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
-     * each other, but are disconnected from all nodes outside the partition.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
+     * other, but are disconnected from all nodes outside the partition.
      *
-     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new
+     * one.
      *
      * <p>If there was no partition before, a second partition is created implicitly that contains the remaining nodes.
      *
@@ -139,10 +143,11 @@ public interface Network {
     Partition createPartition(@NonNull Collection<Node> nodes);
 
     /**
-     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
-     * each other, but are disconnected from all nodes outside the partition.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
+     * other, but are disconnected from all nodes outside the partition.
      *
-     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new
+     * one.
      *
      * @param node0 the first node to include in the partition (mandatory)
      * @param nodes additional nodes to include in the partition (optional)
@@ -155,7 +160,8 @@ public interface Network {
     }
 
     /**
-     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the partition.
+     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the
+     * partition.
      *
      * @param partition the partition to remove
      */
@@ -391,4 +397,42 @@ public interface Network {
     default boolean allNodesInStatus(@NonNull final PlatformStatus status) {
         return nodes().stream().allMatch(node -> node.platformStatus() == status);
     }
+
+    /**
+     * Waits until all nodes in the network are in the specified {@link PlatformStatus} or the timeout is reached.
+     *
+     * @param status the status to wait for
+     * @param timeout the maximum duration to wait
+     * @throws IllegalStateException if the timeout is reached before all nodes are in the specified status
+     */
+    void waitForAllNodesInStatus(@NonNull final PlatformStatus status, @NonNull final Duration timeout);
+
+    /**
+     * Waits until all nodes in the network are in the specified {@link PlatformStatus} or the timeout is reached.
+     *
+     * @param status the status to wait for
+     * @param timeout the maximum duration to wait
+     * @param message the message to include in the exception if the timeout is reached
+     * @throws IllegalStateException if the timeout is reached before all nodes are in the specified status
+     * @see #waitForAllNodesInStatus(PlatformStatus, Duration)
+     */
+    void waitForAllNodesInStatus(
+            @NonNull final PlatformStatus status, @NonNull final Duration timeout, @NonNull final String message);
+
+    /** Waits until all nodes in the network are {@link PlatformStatus#ACTIVE} or the timeout is reached.
+     *
+     * @param timeout the maximum duration to wait
+     * @throws IllegalStateException if the timeout is reached before all nodes are active
+     */
+    void waitForAllNodesActive(@NonNull final Duration timeout);
+
+    /**
+     * Waits until all nodes in the network are {@link PlatformStatus#ACTIVE} or the timeout is reached.
+     *
+     * @param timeout the maximum duration to wait
+     * @param message the message to include in the exception if the timeout is reached
+     * @throws IllegalStateException if the timeout is reached before all nodes are active
+     * @see #waitForAllNodesActive(Duration)
+     */
+    void waitForAllNodesActive(@NonNull final Duration timeout, @NonNull final String message);
 }
