@@ -1108,6 +1108,7 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1122,6 +1123,7 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
 
   performance-HeliSwapLoadTest:
     needs:
@@ -1136,6 +1138,7 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
 
   performance-SmartContractLoadTest:
     needs:
@@ -1150,6 +1153,7 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:

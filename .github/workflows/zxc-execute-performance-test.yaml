@@ -44,6 +44,11 @@ on:
         default: ""
         description: "Google storage HTTPS location"
         type: string
+      kubernetes-cluster:
+        required: true
+        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
+        type: string
+        description: "Kubernetes cluster to run"
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
@@ -158,20 +163,23 @@ jobs:
           version: 18.1.4
 
       - name: Authorize Teleport SSH Access
+        id: auth-ssh
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
+        id: auth-k8s
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          certificate-ttl: 168h
 
       - name: Authenticate to Google Cloud
+        id: google-auth
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
@@ -190,6 +198,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21.0.6
+
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
