@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.commands.ivy;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
+import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONSENSUS;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONTRACT;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CRYPTO;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.FILE;
@@ -15,7 +16,12 @@ import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterru
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig;
-import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyConsensusScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyContractScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyFileScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyStakingScenarioSuite;
+import com.hedera.services.yahcli.commands.ivy.suites.IvyXfersScenarioSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.config.YahcliKeys;
@@ -35,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -43,7 +50,7 @@ import org.yaml.snakeyaml.nodes.Tag;
 import picocli.CommandLine;
 
 @CommandLine.Command(
-        name = "vs",
+        name = "scenarios",
         subcommands = {CommandLine.HelpCommand.class},
         description = "Runs original validation scenarios")
 public class ValidationScenariosCommand implements Callable<Integer> {
@@ -61,37 +68,37 @@ public class ValidationScenariosCommand implements Callable<Integer> {
 
     @CommandLine.Option(
             names = {"--crypto"},
-            description = "Include the VS crypto scenario")
+            description = "Include the crypto scenario")
     boolean crypto;
 
     @CommandLine.Option(
             names = {"--file"},
-            description = "Include the VS file scenario")
+            description = "Include the file scenario")
     boolean file;
 
     @CommandLine.Option(
             names = {"--contract"},
-            description = "Include the VS contract scenario")
+            description = "Include the contract scenario")
     boolean contract;
 
     @CommandLine.Option(
             names = {"--consensus"},
-            description = "Include the VS consensus scenario")
+            description = "Include the consensus scenario")
     boolean consensus;
 
     @CommandLine.Option(
             names = {"--xfers"},
-            description = "Include the VS xfers scenario")
+            description = "Include the xfers scenario")
     boolean xfers;
 
     @CommandLine.Option(
             names = {"--staking"},
-            description = "Include the VS staking scenario")
+            description = "Include the staking scenario")
     boolean staking;
 
     @CommandLine.Option(
             names = {"-n", "--new-entities"},
-            description = "Enable the VS 'novel' flag")
+            description = "Enable the 'novel' flag")
     boolean novel;
 
     @Nullable
@@ -110,48 +117,97 @@ public class ValidationScenariosCommand implements Callable<Integer> {
         requireNonNull(scenariosConfig);
         final var specConfig = config.asSpecConfig();
         final var scenariosToRun = requestedScenarios();
+        config.output().info("--- ivy scenarios ---");
+        config.output().info(scenariosToRun.toString());
+        config.output().info("---------------------\n");
+
         final var nodeAccounts = nodeAccounts(scenariosConfig, config);
         final Runnable persistUpdatedScenarios = this::persistCurrentScenariosConfig;
         final var yahcliKeys = config.keys();
         final var results = scenariosToRun.stream()
                 .collect(toMap(
                         Function.identity(),
-                        scenario -> run(scenario, specConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys)));
+                        scenario -> run(
+                                scenariosLoc,
+                                scenario,
+                                specConfig,
+                                nodeAccounts,
+                                persistUpdatedScenarios,
+                                yahcliKeys,
+                                config.networkSize())));
+
+        config.output().info("--- ivy scenario results ---");
+        final var firstEntry = new AtomicBoolean(true);
+        config.output()
+                .info(results.entrySet().stream()
+                        .map(e -> (firstEntry.compareAndSet(true, false) ? "\n* " : "* ") + e.getKey() + ": "
+                                + e.getValue())
+                        .collect(Collectors.joining("\n")));
+        config.output().info("----------------------------");
         return results.values().stream().allMatch(PASSED::equals) ? 0 : 1;
     }
 
     private HapiSpec.SpecStatus run(
+            @NonNull final String scenariosLoc,
             @NonNull final Scenario scenario,
             @NonNull final Map<String, String> specConfig,
             @NonNull final Supplier<Supplier<String>> nodeAccounts,
             @NonNull final Runnable persistUpdatedScenarios,
-            @NonNull final YahcliKeys yahcliKeys) {
+            @NonNull final YahcliKeys yahcliKeys,
+            final int networkSize) {
         requireNonNull(scenariosConfig);
         final HapiSuite delegate =
                 switch (scenario) {
                     case CRYPTO ->
-                        new IvyCryptoSuite(
+                        new IvyCryptoScenarioSuite(
                                 specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys, novel);
-                    case FILE -> throw new AssertionError("Not implemented");
-                    case CONTRACT -> throw new AssertionError("Not implemented");
-                    case CONSENSUS -> throw new AssertionError("Not implemented");
-                    case XFERS -> throw new AssertionError("Not implemented");
-                    case STAKING -> throw new AssertionError("Not implemented");
+                    case FILE ->
+                        new IvyFileScenarioSuite(
+                                specConfig,
+                                scenariosConfig,
+                                nodeAccounts,
+                                persistUpdatedScenarios,
+                                yahcliKeys,
+                                novel,
+                                scenariosLoc);
+                    case CONTRACT ->
+                        new IvyContractScenarioSuite(
+                                specConfig,
+                                scenariosConfig,
+                                nodeAccounts,
+                                persistUpdatedScenarios,
+                                yahcliKeys,
+                                novel,
+                                scenariosLoc);
+                    case CONSENSUS ->
+                        new IvyConsensusScenarioSuite(
+                                specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys, novel);
+                    case XFERS ->
+                        new IvyXfersScenarioSuite(
+                                specConfig,
+                                scenariosConfig,
+                                nodeAccounts,
+                                persistUpdatedScenarios,
+                                yahcliKeys,
+                                networkSize);
+                    case STAKING ->
+                        new IvyStakingScenarioSuite(
+                                specConfig, scenariosConfig, nodeAccounts, persistUpdatedScenarios, yahcliKeys);
                 };
         delegate.runSuiteSync();
         return delegate.getFinalSpecs().getFirst().getStatus();
     }
 
     private Set<Scenario> requestedScenarios() {
-        return EnumSet.copyOf(Stream.<Stream<Scenario>>of(
+        return Stream.<Stream<Scenario>>of(
                         crypto ? Stream.of(CRYPTO) : Stream.empty(),
                         file ? Stream.of(FILE) : Stream.empty(),
                         contract ? Stream.of(CONTRACT) : Stream.empty(),
-                        consensus ? Stream.of(CONTRACT) : Stream.empty(),
+                        consensus ? Stream.of(CONSENSUS) : Stream.empty(),
                         xfers ? Stream.of(XFERS) : Stream.empty(),
                         staking ? Stream.of(Scenario.STAKING) : Stream.empty())
                 .flatMap(Function.identity())
-                .toList());
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Scenario.class)));
     }
 
     private static Supplier<Supplier<String>> nodeAccounts(
