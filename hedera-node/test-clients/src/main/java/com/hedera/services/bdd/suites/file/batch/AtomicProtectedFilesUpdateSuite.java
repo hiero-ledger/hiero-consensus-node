@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -53,6 +54,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ProtectedFilesUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -93,6 +95,7 @@ public class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> account2CanUpdateApiPermissions() {
         return specialAccountCanUpdateSpecialPropertyFile(GENESIS, API_PERMISSIONS, "createTopic", "1-*");
     }
@@ -171,6 +174,7 @@ public class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
     }

@@ -60,7 +60,8 @@ public class SimulatedGossip implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
-            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput) {
+            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
+            @NonNull final StandardOutputWire<Double> syncLagOutput) {
 
         this.eventOutput = requireNonNull(eventOutput);
         eventInput.bindConsumer(event -> network.submitEvent(selfId, event));

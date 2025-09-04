@@ -79,6 +79,11 @@ public class PlatformWiring {
         components.gossipWiring().getEventOutput().solderTo(hasherInputWire);
 
         components
+                .gossipWiring()
+                .getSyncLagOutput()
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::reportSyncRoundLag));
+
+        components
                 .eventHasherWiring()
                 .getOutputWire()
                 .solderTo(

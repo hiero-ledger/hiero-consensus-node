@@ -287,6 +287,19 @@ public class WorkingDirUtils {
         return path;
     }
 
+    /**
+     * Reads all bytes from a file, throwing an unchecked exception if an {@link IOException} occurs.
+     * @param path the path to read
+     * @return the bytes at the given path
+     */
+    public static byte[] readBytesUnchecked(@NonNull final Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static String readStringUnchecked(@NonNull final Path path) {
         try {
             return Files.readString(path);

@@ -29,8 +29,8 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
  */
 public class ReconnectTest {
 
-    private static final long ROUNDS_NON_ANCIENT = 20L;
-    private static final long ROUNDS_EXPIRED = 40L;
+    private static final long ROUNDS_NON_ANCIENT = 50L;
+    private static final long ROUNDS_EXPIRED = 100L;
 
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(final TestEnvironment env) {

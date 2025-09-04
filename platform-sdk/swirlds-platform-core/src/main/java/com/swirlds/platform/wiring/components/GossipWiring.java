@@ -47,6 +47,11 @@ public class GossipWiring {
     private final StandardOutputWire<PlatformEvent> eventOutput;
 
     /**
+     * Average sync lag is reported over this wire
+     */
+    private final StandardOutputWire<Double> syncLagOutput;
+
+    /**
      * This wire is used to start gossip.
      */
     private final BindableInputWire<NoInput, Void> startInput;
@@ -85,6 +90,7 @@ public class GossipWiring {
         eventInput = scheduler.buildInputWire("events to gossip");
         eventWindowInput = scheduler.buildInputWire("event window");
         eventOutput = scheduler.buildSecondaryOutputWire();
+        syncLagOutput = scheduler.buildSecondaryOutputWire();
 
         startInput = scheduler.buildInputWire("start");
         stopInput = scheduler.buildInputWire("stop");
@@ -108,7 +114,8 @@ public class GossipWiring {
                 stopInput,
                 clearInput,
                 systemHealthInput,
-                platformStatusInput);
+                platformStatusInput,
+                syncLagOutput);
     }
 
     /**
@@ -139,6 +146,15 @@ public class GossipWiring {
     @NonNull
     public OutputWire<PlatformEvent> getEventOutput() {
         return eventOutput;
+    }
+
+    /**
+     * Get the output wire for average sync lag during gossip
+     *
+     * @return the output wire for sync lag
+     */
+    public OutputWire<Double> getSyncLagOutput() {
+        return syncLagOutput;
     }
 
     /**

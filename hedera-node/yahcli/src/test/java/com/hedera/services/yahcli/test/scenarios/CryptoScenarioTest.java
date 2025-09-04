@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenariosConfig;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.assertYahcliScenarios;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.deleteYahcliScenariosConfig;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestInstance;
 
 /**
- * Validates that {@code yahcli ivy --crypto} creates a sender and receiver account when there is no config
+ * Validates that {@code yahcli ivy scenarios --crypto} creates a sender and receiver account when there is no config
  * specifying well-known accounts; and then reuses those accounts (but creates a novel account) when run again with
  * the {@code --new-entities} flag.
  */
@@ -55,8 +55,8 @@ public class CryptoScenarioTest {
     @Order(0)
     final Stream<DynamicTest> cryptoScenarioCreatesLongLivedEntitiesWhenNoConfigYet() {
         return hapiTest(
-                yahcliIvy("vs", "--crypto"),
-                assertYahcliScenariosConfig(s -> {
+                yahcliIvy("scenarios", "--crypto"),
+                assertYahcliScenarios(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);
                     senderNum = crypto.getSender();
@@ -73,8 +73,8 @@ public class CryptoScenarioTest {
     @Order(1)
     final Stream<DynamicTest> cryptoScenarioCreatesJustNovelEntitiesWithConfig() {
         return hapiTest(
-                yahcliIvy("vs", "--crypto", "--new-entities"),
-                assertYahcliScenariosConfig(s -> {
+                yahcliIvy("scenarios", "--crypto", "--new-entities"),
+                assertYahcliScenarios(s -> {
                     final var crypto = s.getCrypto();
                     assertNotNull(crypto);
                     assertEquals(senderNum, crypto.getSender(), "Sender should be reused");

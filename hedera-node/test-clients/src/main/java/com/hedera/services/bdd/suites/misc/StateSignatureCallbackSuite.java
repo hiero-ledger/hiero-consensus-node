@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.USES_STATE_SIGNATURE_TRANSACTION_CALLBACK;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiStateSignature;
@@ -15,6 +16,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class StateSignatureCallbackSuite {
 
@@ -36,6 +38,7 @@ public class StateSignatureCallbackSuite {
 
     @RepeatableHapiTest(USES_STATE_SIGNATURE_TRANSACTION_CALLBACK)
     @DisplayName("StateSignatureTransaction calls StateSignatureTransaction callbacks")
+    @Tag(MATS)
     final Stream<DynamicTest> callsStateSignatureCallback() {
         final var preHandleCallback = new Callback();
         final var handleCallback = new Callback();

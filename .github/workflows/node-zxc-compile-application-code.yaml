@@ -122,6 +122,11 @@ on:
         description: "The branch, tag or SHA to checkout."
         required: false
         type: string
+      mats-suffix:
+        description: "MATS Tag Suffix designation"
+        type: string
+        required: false
+        default: ""
 
     secrets:
       access-token:
@@ -303,7 +308,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
@@ -339,7 +344,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords
+        run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }}
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1

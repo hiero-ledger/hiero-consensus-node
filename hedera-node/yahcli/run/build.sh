@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-TAG=${1:-'0.7.11'}
+if [ $# -lt 1 ]; then
+  echo "USAGE: $0 <TAG>"
+  exit 1
+fi
+
+TAG=${1}
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
 
 READLINK_OPTS=""

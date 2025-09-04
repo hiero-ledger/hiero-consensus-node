@@ -5,13 +5,15 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "AdHoc5"
-        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7)"
+        default: "AdHocSD8"
+        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
       ref:
         required: true
         default: "main"

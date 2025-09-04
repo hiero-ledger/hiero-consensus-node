@@ -25,6 +25,7 @@ import com.hedera.services.yahcli.config.domain.NodeConfig;
 import com.hedera.services.yahcli.output.FileYahcliOutput;
 import com.hedera.services.yahcli.output.YahcliOutput;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -110,36 +112,114 @@ public class ConfigManager {
         return new YahcliKeys() {
             @Override
             public <T extends PrivateKey> T loadAccountKey(final long number, @NonNull final Class<T> type) {
-                requireNonNull(type);
-                final var f = keyFileFor(keysLoc(), "account" + number).orElseThrow();
-                final var k = loadKeyOrThrow(f, "YAHCLI_PASSPHRASE");
-                if (!type.isInstance(k)) {
-                    throw new IllegalStateException(
-                            String.format("Key for account %d is not a %s!", number, type.getSimpleName()));
-                }
-                return type.cast(k);
+                return loadTypedKeyOrThrow("account" + number, type);
+            }
+
+            @Override
+            public <T extends PrivateKey> T loadContractKey(final long number, @NonNull final Class<T> type) {
+                return loadTypedKeyOrThrow("account" + number, type);
+            }
+
+            @Override
+            public <T extends PrivateKey> T loadTopicAdminKey(final long number, @NonNull final Class<T> type) {
+                return loadTypedKeyOrThrow("topicAdmin" + number, type);
+            }
+
+            @Override
+            public <T extends PrivateKey> T loadFileKey(final long number, @NonNull final Class<T> type) {
+                return loadTypedKeyOrThrow("file" + number, type);
             }
 
             @Override
             public void exportAccountKey(@NonNull final HapiSpec spec, @NonNull final String name) {
-                final var key = spec.registry().getKey(name);
                 final long accountNum = spec.registry().getAccountID(name).getAccountNum();
                 final var pemLoc = keysLoc() + File.separator + "account" + accountNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "account" + accountNum + ".pass";
+                exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
+            }
+
+            @Override
+            public void exportContractKey(@NonNull final HapiSpec spec, @NonNull final String name) {
+                final long contractNum = spec.registry().getContractId(name).getContractNum();
+                final var pemLoc = keysLoc() + File.separator + "contract" + contractNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "contract" + contractNum + ".pass";
+                exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
+            }
+
+            @Override
+            public void exportFirstFileWaclKey(@NonNull final HapiSpec spec, @NonNull final String name) {
+                final long fileNum = spec.registry().getFileId(name).getFileNum();
+                final var pemLoc = keysLoc() + File.separator + "file" + fileNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "file" + fileNum + ".pass";
+                exportCryptoKey(
+                        spec, name, pemLoc, passLoc, key -> key.getKeyList().getKeys(0));
+            }
+
+            @Override
+            public void exportTopicAdminKey(@NonNull final HapiSpec spec, @NonNull final String name) {
+                final long topicNum = spec.registry().getTopicID(name).getTopicNum();
+                final var pemLoc = keysLoc() + File.separator + "topicAdmin" + topicNum + ".pem";
+                final var passLoc = keysLoc() + File.separator + "topicAdmin" + topicNum + ".pass";
+                exportCryptoKey(spec, name, pemLoc, passLoc, key -> key);
+            }
+
+            /**
+             * Exports the given key to the given PEM location, and writes the passphrase to the given pass location.
+             * *
+             * @param spec the spec with the registered key
+             * @param name the name of the key to export
+             * @param pemLoc the location to write the PEM file
+             * @param passLoc the location to write the passphrase file
+             * @param extractor the function to extract the desired key from a Key structure
+             */
+            private static void exportCryptoKey(
+                    @NonNull final HapiSpec spec,
+                    @NonNull final String name,
+                    @NonNull final String pemLoc,
+                    @NonNull final String passLoc,
+                    @NonNull final UnaryOperator<Key> extractor) {
+                final var key = extractor.apply(spec.registry().getKey(name));
                 final var passphrase =
                         Optional.ofNullable(System.getenv("YAHCLI_PASSPHRASE")).orElseGet(() -> randomAlphaNumeric(8));
                 switch (key.getKeyCase()) {
-                    case ED25519 -> spec.keys().exportEd25519Key(pemLoc, name, passphrase);
+                    case ED25519 ->
+                        spec.keys()
+                                .exportEd25519Key(
+                                        pemLoc,
+                                        name,
+                                        k -> extractor.apply(k).getEd25519().toByteArray(),
+                                        passphrase);
                     case ECDSA_SECP256K1 -> spec.keys().exportEcdsaKey(pemLoc, name, passphrase);
                     default -> throw new IllegalStateException("Cannot export key structure " + key);
                 }
-                final var passLoc = keysLoc() + File.separator + "account" + accountNum + ".pass";
                 try {
                     Files.writeString(Paths.get(passLoc), passphrase);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             }
+
+            private <T extends PrivateKey> T loadTypedKeyOrThrow(
+                    @NonNull final String typedNum, @NonNull final Class<T> type) {
+                requireNonNull(typedNum);
+                requireNonNull(type);
+                final var f = keyFileFor(keysLoc(), typedNum).orElseThrow();
+                final var k = loadKeyOrThrow(f, "YAHCLI_PASSPHRASE");
+                if (!type.isInstance(k)) {
+                    throw new IllegalStateException(
+                            String.format("Key for %s is not a %s!", typedNum, type.getSimpleName()));
+                }
+                return type.cast(k);
+            }
         };
+    }
+
+    /**
+     * Returns the number of nodes in the target network.
+     */
+    public int networkSize() {
+        requireNonNull(targetNet);
+        return targetNet.getNodes().size();
     }
 
     public Map<String, String> asSpecConfig() {

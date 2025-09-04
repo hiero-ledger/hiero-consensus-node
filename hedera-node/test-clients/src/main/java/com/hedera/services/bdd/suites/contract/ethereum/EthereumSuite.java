@@ -260,7 +260,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1),
                 getAccountBalance(RECEIVER).hasTinyBars(FIVE_HBARS),
                 getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                         .hasTinyBars(changeFromSnapshot(aliasBalanceSnapshot, -FIVE_HBARS)));
@@ -526,7 +528,9 @@ public class EthereumSuite {
                             .hasTinyBars(unchangedFromSnapshot(senderSnapshot));
                     allRunFor(spec, relayerBalance, senderBalance);
                 }),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(0L))
+                        .hasMaxAutomaticAssociations(-1),
                 // But the failing call attempt is rejected at ingest if the relayer's balance is too low
                 getAccountBalance(RELAYER).exposingBalanceTo(balanceRef::set),
                 sourcing(() ->
@@ -672,7 +676,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)));
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1));
     }
 
     @HapiTest
@@ -862,7 +868,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1),
                 getAccountBalance(RECEIVER).hasTinyBars(FIVE_HBARS),
                 getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                         .hasTinyBars(changeFromSnapshot(aliasBalanceSnapshot, -FIVE_HBARS)));
@@ -1030,7 +1038,8 @@ public class EthereumSuite {
                     // assert account nonce is increased to 1
                     var op4 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .logged()
-                            .has(accountWith().nonce(1));
+                            .has(accountWith().nonce(1))
+                            .hasMaxAutomaticAssociations(-1);
 
                     allRunFor(spec, op1, op2, op3, op4);
 
@@ -1049,7 +1058,8 @@ public class EthereumSuite {
 
                     var op2 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             // TBD: balance should be 4 or 2 hbars
-                            .has(accountWith().nonce(0).balance(2 * ONE_HBAR));
+                            .has(accountWith().nonce(0).balance(2 * ONE_HBAR))
+                            .hasMaxAutomaticAssociations(-1);
 
                     allRunFor(spec, op1, op2);
                 }));

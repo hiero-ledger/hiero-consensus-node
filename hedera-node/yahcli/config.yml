@@ -4,12 +4,6 @@ networks:
     allowedReceiverAccountIds: []
     nodes:
       - { id: 0, account: 3, ipv4Addr: host.docker.internal}
-      - { id: 1, account: 4, ipv4Addr: host.docker.internal}
-      - { id: 2, account: 5, ipv4Addr: host.docker.internal}
-      - { id: 3, account: 6, ipv4Addr: host.docker.internal}
-      - { id: 4, account: 7, ipv4Addr: host.docker.internal}
-      - { id: 5, account: 8, ipv4Addr: host.docker.internal}
-      - { id: 6, account: 9, ipv4Addr: host.docker.internal}
   previewnet:
     allowedReceiverAccountIds:
     nodes:
@@ -23,6 +17,11 @@ networks:
     allowedReceiverAccountIds:
     nodes:
       - { id: 0, account: 3, ipv4Addr: 34.94.106.61 }
+      - { id: 0, account: 4, ipv4Addr: 35.237.119.55 }
+      - { id: 0, account: 5, ipv4Addr: 35.245.27.193 }
+      - { id: 0, account: 6, ipv4Addr: 34.83.112.116 }
+      - { id: 0, account: 7, ipv4Addr: 34.94.160.4 }
+      - { id: 0, account: 8, ipv4Addr: 34.106.102.218 }
   mainnet:
     allowedReceiverAccountIds:
     defaultPayer: 950

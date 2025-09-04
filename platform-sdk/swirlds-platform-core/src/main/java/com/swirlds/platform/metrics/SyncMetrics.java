@@ -5,6 +5,7 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_DECIMAL_3;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
@@ -14,6 +15,7 @@ import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
+import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -168,6 +170,11 @@ public class SyncMetrics {
                     Metrics.PLATFORM_CATEGORY, "syncs_in_progress")
             .withDescription("number of syncs running concurrently");
 
+    private final DoubleGauge.Config SYNC_LAG_BEHIND_CONFIG = new DoubleGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "sync_round_lag")
+            .withDescription("How many rounds on average are we lagging behind peers")
+            .withFormat(FORMAT_DECIMAL_3);
+
     private final RunningAverageMetric tipsPerSync;
 
     private final AverageStat syncIndicatorDiff;
@@ -193,6 +200,7 @@ public class SyncMetrics {
     private final IntegerGauge rpcWriteThreadRunning;
     private final IntegerGauge rpcDispatchThreadRunning;
     private final IntegerGauge syncsInProgress;
+    private final DoubleGauge syncLagBehind;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -315,13 +323,15 @@ public class SyncMetrics {
                 "rpc_output_queue_poll_time",
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
+
+        syncLagBehind = metrics.getOrCreate(SYNC_LAG_BEHIND_CONFIG);
     }
 
     /**
      * Supplies the event window numbers of a sync for statistics
      *
-     * @param self  event window of our graph at the start of the sync
-     * @param other event window of their graph at the start of the sync
+     * @param self   event window of our graph at the start of the sync
+     * @param other  event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
@@ -639,5 +649,9 @@ public class SyncMetrics {
      */
     public void syncFinished() {
         syncsInProgress.add(-1);
+    }
+
+    public void reportMedianLag(final double medianLag) {
+        syncLagBehind.set(medianLag);
     }
 }

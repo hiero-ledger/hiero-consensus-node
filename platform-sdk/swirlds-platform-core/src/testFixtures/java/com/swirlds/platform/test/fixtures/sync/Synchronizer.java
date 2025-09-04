@@ -27,8 +27,8 @@ public class Synchronizer {
 
     /**
      * Performs synchronization between the caller and listener nodes.
-     *
-     * The {@link ShadowgraphSynchronizer#synchronize(PlatformContext, Connection)} method is
+     * <br/>
+     * The {@link ShadowgraphSynchronizer#synchronize(PlatformContext, Connection, boolean)} method is
      * invoked on each node in parallel using the {@link ParallelExecutor}.
      *
      * @throws Exception
@@ -50,7 +50,7 @@ public class Synchronizer {
                 () -> {
                     try {
                         final boolean synchronize =
-                                caller.getSynchronizer().synchronize(platformContext, caller.getConnection());
+                                caller.getSynchronizer().synchronize(platformContext, caller.getConnection(), false);
                         caller.setSynchronizerReturn(synchronize);
                     } catch (final Exception e) {
                         caller.setSynchronizerReturn(null);
@@ -64,8 +64,8 @@ public class Synchronizer {
                 () -> {
                     try {
                         if (listener.isCanAcceptSync()) {
-                            final boolean synchronize =
-                                    listener.getSynchronizer().synchronize(platformContext, listener.getConnection());
+                            final boolean synchronize = listener.getSynchronizer()
+                                    .synchronize(platformContext, listener.getConnection(), false);
                             listener.setSynchronizerReturn(synchronize);
                         }
                     } catch (final Exception e) {

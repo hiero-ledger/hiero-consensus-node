@@ -3,6 +3,7 @@ package com.hedera.statevalidation.parameterresolver;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
+import static com.hedera.statevalidation.validators.Constants.TMP_DIR;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -108,7 +109,7 @@ public class InitUtils {
      * This method initializes the configuration of the Merkle tree
      */
     static void initConfiguration() {
-        CONFIGURATION = ConfigurationBuilder.create()
+        ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
@@ -142,8 +143,12 @@ public class InitUtils {
                 .withConverter(LongPair.class, new LongPairConverter())
                 .withConverter(KeyValuePair.class, new KeyValuePairConverter())
                 .withConverter(HederaFunctionalitySet.class, new FunctionalitySetConverter())
-                .withConverter(Bytes.class, new BytesConverter())
-                .build();
+                .withConverter(Bytes.class, new BytesConverter());
+        if (!TMP_DIR.isEmpty()) {
+            configurationBuilder.withSource(
+                    new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
+        }
+        CONFIGURATION = configurationBuilder.build();
     }
 
     public static Configuration getConfiguration() {

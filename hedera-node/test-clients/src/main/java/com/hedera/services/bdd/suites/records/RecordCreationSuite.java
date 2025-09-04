@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class RecordCreationSuite {
@@ -111,6 +113,7 @@ public class RecordCreationSuite {
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @Tag(MATS)
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";
         final AtomicReference<FeeObject> feeObsWithOneSignature = new AtomicReference<>();
@@ -199,6 +202,7 @@ public class RecordCreationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> accountsGetPayerRecordsIfSoConfigured() {
         final var txn = "ofRecord";
 

@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-TAG=${1:-'0.7.11'}
+if [ $# -lt 1 ]; then
+  echo "USAGE: $0 <TAG>"
+  exit 1
+fi
+
+TAG=${1}
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
 
 READLINK_OPTS=""
@@ -25,5 +30,5 @@ cd "${SCRIPT_PATH}/.."
 rm -f assets/yahcli.jar >/dev/null 2>&1 || true
 cp -f yahcli.jar assets/
 
-docker buildx create --use --name "multiarch074b"
+docker buildx create --use --name "multiarch${TAG}"
 docker buildx build --push --platform linux/amd64,linux/arm64 -t gcr.io/hedera-registry/yahcli:$TAG .

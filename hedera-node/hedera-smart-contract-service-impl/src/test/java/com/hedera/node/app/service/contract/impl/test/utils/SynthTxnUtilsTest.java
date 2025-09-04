@@ -38,8 +38,17 @@ class SynthTxnUtilsTest {
                 .memo(LAZY_CREATION_MEMO)
                 .alias(CANONICAL_ALIAS)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
+                .maxAutomaticTokenAssociations(-1)
                 .build();
-        assertEquals(expected, synthHollowAccountCreation(CANONICAL_ALIAS));
+        assertEquals(expected, synthHollowAccountCreation(CANONICAL_ALIAS, true));
+
+        final var expectedWithoutUnlimitedAssociations = CryptoCreateTransactionBody.newBuilder()
+                .key(IMMUTABILITY_SENTINEL_KEY)
+                .memo(LAZY_CREATION_MEMO)
+                .alias(CANONICAL_ALIAS)
+                .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
+                .build();
+        assertEquals(expectedWithoutUnlimitedAssociations, synthHollowAccountCreation(CANONICAL_ALIAS, false));
     }
 
     @Test
