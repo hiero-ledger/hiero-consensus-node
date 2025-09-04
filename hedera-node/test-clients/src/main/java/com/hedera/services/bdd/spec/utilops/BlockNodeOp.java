@@ -515,16 +515,16 @@ public class BlockNodeOp extends UtilOp {
     }
 
     public static class ShutdownAllBuilder extends UtilOp {
-        private boolean keepState = true;
+        private boolean persistState = true;
 
         /**
          * Sets whether the state should be persistent after shutdown.
          *
-         * @param keepState whether state should be persistent
+         * @param persistState whether state should be persistent
          * @return this builder
          */
-        public ShutdownAllBuilder keepState(final boolean keepState) {
-            this.keepState = keepState;
+        public ShutdownAllBuilder persistState(final boolean persistState) {
+            this.persistState = persistState;
             return this;
         }
 
@@ -534,7 +534,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, keepState);
+            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, persistState);
         }
 
         @Override

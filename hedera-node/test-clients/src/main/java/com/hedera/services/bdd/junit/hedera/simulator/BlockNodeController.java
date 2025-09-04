@@ -24,8 +24,8 @@ public class BlockNodeController {
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
     private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
-    private static final Set<Long> persistentStateBlockNodes = new HashSet<>();
     private static final Map<Long, Long> lastVerifiedBlockNumbers = new HashMap<>();
+    private static final Set<Long> persistentStateBlockNodes = new HashSet<>();
 
     /**
      * Create a controller for the given network's simulated block nodes.
@@ -239,11 +239,19 @@ public class BlockNodeController {
      */
     public void shutdownSimulator(long nodeId, final boolean persistState) {
         if (nodeId >= 0 && nodeId < simulatedBlockNodes.size()) {
-            setStatePersistence(nodeId, persistState);
             final SimulatedBlockNodeServer server = simulatedBlockNodes.get(nodeId);
             final int port = server.getPort();
+
             shutdownBlockNodePorts.put(nodeId, port);
-            lastVerifiedBlockNumbers.put(nodeId, persistState ? server.getLastVerifiedBlockNumber() : -1L);
+
+            if (persistState) {
+                persistentStateBlockNodes.add(nodeId);
+                lastVerifiedBlockNumbers.put(nodeId, server.getLastVerifiedBlockNumber());
+            } else {
+                persistentStateBlockNodes.remove(nodeId);
+                lastVerifiedBlockNumbers.put(nodeId, -1L);
+            }
+
             server.stop();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", nodeId, port);
         } else {
@@ -422,25 +430,26 @@ public class BlockNodeController {
     /**
      * Shutdown a specific block node container to simulate a connection drop.
      *
-     * @param nodeIndex the index of the block node to be shutdown
+     * @param nodeId the index of the block node to be shutdown
      */
-    public void shutdownContainer(final long nodeIndex, final boolean persistState) {
-        if (nodeIndex >= 0 && nodeIndex < blockNodeContainers.size()) {
-            final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeIndex);
-            log.info("Shutting down container {} @ {}", nodeIndex, shutdownContainer);
+    public void shutdownContainer(final long nodeId, final boolean persistState) {
+        if (nodeId >= 0 && nodeId < blockNodeContainers.size()) {
+            final BlockNodeContainer shutdownContainer = blockNodeContainers.get(nodeId);
+            log.info("Shutting down container {} @ {}", nodeId, shutdownContainer);
 
-            shutdownBlockNodePorts.put(nodeIndex, shutdownContainer.getPort());
-            setStatePersistence(nodeIndex, persistState);
+            shutdownBlockNodePorts.put(nodeId, shutdownContainer.getPort());
 
             if (persistState) {
+                persistentStateBlockNodes.add(nodeId);
                 shutdownContainer.pause();
             } else {
+                persistentStateBlockNodes.remove(nodeId);
                 shutdownContainer.stop();
             }
 
-            log.info("Container {} shutdown complete", nodeIndex);
+            log.info("Container {} shutdown complete", nodeId);
         } else {
-            log.error("Invalid container index: {}, valid range is 0-{}", nodeIndex, blockNodeContainers.size() - 1);
+            log.error("Invalid container index: {}, valid range is 0-{}", nodeId, blockNodeContainers.size() - 1);
         }
     }
 
@@ -453,19 +462,5 @@ public class BlockNodeController {
     public void setSendBlockAcknowledgementsEnabled(
             final long nodeIdx, final boolean sendBlockAcknowledgementsEnabled) {
         simulatedBlockNodes.get(nodeIdx).setSendingBlockAcknowledgementsEnabled(sendBlockAcknowledgementsEnabled);
-    }
-
-    /**
-     * Updates whether the last acknowledged block should be available after restart of the specified block node.
-     *
-     * @param nodeIdx the index of the block node to update (0-based)
-     * @param persistState true if last acknowledged block should be available after restart of the block node, otherwise it will not be
-     */
-    public void setStatePersistence(final long nodeIdx, final boolean persistState) {
-        if (persistState) {
-            persistentStateBlockNodes.add(nodeIdx);
-        } else {
-            persistentStateBlockNodes.remove(nodeIdx);
-        }
     }
 }

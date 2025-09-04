@@ -125,41 +125,45 @@ public class BlockNodeNetwork {
             final long blockNodeId = entry.getKey();
             final BlockNodeMode mode = entry.getValue();
             if (mode == BlockNodeMode.REAL) {
-                startRealBlockNodeContainer(blockNodeId, findAvailablePort());
+                startRealBlockNodeContainer(blockNodeId);
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 startSimulatorNode(entry.getKey(), null);
             }
         }
     }
 
-    private void startRealBlockNodeContainer(final long blockNodeId, final int port) {
+    private void startRealBlockNodeContainer(final long id) {
+        // Find an available port
+        final int port = findAvailablePort();
         try {
-            final BlockNodeContainer container = new BlockNodeContainer(blockNodeId, port);
+            final BlockNodeContainer container = new BlockNodeContainer(id, findAvailablePort());
 
             container.start();
             container.waitForHealthy(Duration.ofMinutes(2));
 
-            blockNodeContainerById.put(blockNodeId, container);
-            blockNodeController.setStatePersistence(blockNodeId, true);
+            blockNodeContainerById.put(id, container);
+            // blockNodeController.setStatePersistence(id, true);
 
-            logger.info("Started real block node container {} @ {}", blockNodeId, container);
+            logger.info("Started real block node container {} @ {}", id, container);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to start real block node container " + blockNodeId, e);
+            throw new RuntimeException("Failed to start real block node container " + id + " on port " + port, e);
         }
     }
 
     public void startSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
         // Find an available port
-        int port = findAvailablePort();
+        final int port = findAvailablePort();
         final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
         try {
             server.start();
+
+            simulatedBlockNodeById.put(id, server);
+            // blockNodeController.setStatePersistence(id, true);
+
+            logger.info("Started shared simulated block node @ localhost:{}", port);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+            throw new RuntimeException("Failed to start simulated block node " + id + " on port " + port, e);
         }
-        logger.info("Started shared simulated block node @ localhost:{}", port);
-        simulatedBlockNodeById.put(id, server);
-        blockNodeController.setStatePersistence(id, true);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
