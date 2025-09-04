@@ -84,8 +84,8 @@ public class BlockNodeVerbs {
          *
          * @return the operation
          */
-        public BlockNodeOp shutDownImmediately() {
-            return BlockNodeOp.shutdownImmediately(nodeIndex).build();
+        public BlockNodeOp.ShutdownBuilder shutDownImmediately() {
+            return BlockNodeOp.shutdownImmediately(nodeIndex);
         }
 
         /**
@@ -93,26 +93,8 @@ public class BlockNodeVerbs {
          *
          * @return the operation
          */
-        public BlockNodeOp startImmediately() {
-            return BlockNodeOp.startImmediately(nodeIndex).build();
-        }
-
-        /**
-         * Pauses the block node container.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp pause() {
-            return BlockNodeOp.pause(nodeIndex).build();
-        }
-
-        /**
-         * Resumes the block node container.
-         *
-         * @return the operation
-         */
-        public BlockNodeOp resume() {
-            return BlockNodeOp.resume(nodeIndex).build();
+        public BlockNodeOp.StartBuilder startImmediately() {
+            return BlockNodeOp.startImmediately(nodeIndex);
         }
 
         /**
