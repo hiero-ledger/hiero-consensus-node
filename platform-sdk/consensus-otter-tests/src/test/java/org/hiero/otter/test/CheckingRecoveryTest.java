@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.assertj.core.api.Fail.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -54,16 +53,16 @@ public class CheckingRecoveryTest {
 
         // Throttle the last node for a period of time so that it falls into CHECKING
         nodeToThrottle.startSyntheticBottleneck(Duration.ofSeconds(30));
-        if (!timeManager.waitForCondition(nodeToThrottle::isChecking, Duration.ofMinutes(2))) {
-            fail(
-                    "Node did not enter CHECKING status within the expected time frame after synthetic bottleneck was enabled.");
-        }
+        timeManager.waitForCondition(
+                nodeToThrottle::isChecking,
+                Duration.ofMinutes(2),
+                "Node did not enter CHECKING status within the expected time frame after synthetic bottleneck was enabled.");
         nodeToThrottle.stopSyntheticBottleneck();
 
         // Verify that the node recovers when the bottleneck is lifted
-        if (!timeManager.waitForCondition(nodeToThrottle::isActive, Duration.ofSeconds(60L))) {
-            fail(
-                    "Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
-        }
+        timeManager.waitForCondition(
+                nodeToThrottle::isActive,
+                Duration.ofSeconds(60L),
+                "Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
     }
 }

@@ -12,6 +12,7 @@ import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.util.TimeoutException;
 
 /**
  * An abstract implementation of {@link TimeManager} that contains all functionality shared between the different
@@ -57,7 +58,16 @@ public abstract class AbstractTimeManager implements TimeManager {
      * {@inheritDoc}
      */
     @Override
-    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+    public void waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+        waitForCondition(condition, waitTime, "Condition not met within the allotted time.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForCondition(
+            @NonNull final BooleanSupplier condition, @NonNull final Duration waitTime, @NonNull final String message) {
         log.debug("Waiting up to {} for condition to become true...", waitTime);
 
         final Instant start = now();
@@ -72,7 +82,9 @@ public abstract class AbstractTimeManager implements TimeManager {
             }
         }
 
-        return condition.getAsBoolean();
+        if (!condition.getAsBoolean()) {
+            throw new TimeoutException(message);
+        }
     }
 
     /**
@@ -88,8 +100,8 @@ public abstract class AbstractTimeManager implements TimeManager {
      * A receiver of time ticks.
      *
      * <p>A receiver of time ticks is notified when the time manager advances time by the granularity specified in
-     * {@link #granularity}. It is expected to perform any necessary actions that happened
-     * between this call and the previous call.
+     * {@link #granularity}. It is expected to perform any necessary actions that happened between this call and the
+     * previous call.
      */
     public interface TimeTickReceiver {
 

@@ -399,40 +399,11 @@ public interface Network {
     }
 
     /**
-     * Waits until all nodes in the network are in the specified {@link PlatformStatus} or the timeout is reached.
+     * Checks if all nodes in the network are {@link PlatformStatus#ACTIVE}.
      *
-     * @param status the status to wait for
-     * @param timeout the maximum duration to wait
-     * @throws IllegalStateException if the timeout is reached before all nodes are in the specified status
+     * @return {@code true} if all nodes are active, {@code false} otherwise
      */
-    void waitForAllNodesInStatus(@NonNull final PlatformStatus status, @NonNull final Duration timeout);
-
-    /**
-     * Waits until all nodes in the network are in the specified {@link PlatformStatus} or the timeout is reached.
-     *
-     * @param status the status to wait for
-     * @param timeout the maximum duration to wait
-     * @param message the message to include in the exception if the timeout is reached
-     * @throws IllegalStateException if the timeout is reached before all nodes are in the specified status
-     * @see #waitForAllNodesInStatus(PlatformStatus, Duration)
-     */
-    void waitForAllNodesInStatus(
-            @NonNull final PlatformStatus status, @NonNull final Duration timeout, @NonNull final String message);
-
-    /** Waits until all nodes in the network are {@link PlatformStatus#ACTIVE} or the timeout is reached.
-     *
-     * @param timeout the maximum duration to wait
-     * @throws IllegalStateException if the timeout is reached before all nodes are active
-     */
-    void waitForAllNodesActive(@NonNull final Duration timeout);
-
-    /**
-     * Waits until all nodes in the network are {@link PlatformStatus#ACTIVE} or the timeout is reached.
-     *
-     * @param timeout the maximum duration to wait
-     * @param message the message to include in the exception if the timeout is reached
-     * @throws IllegalStateException if the timeout is reached before all nodes are active
-     * @see #waitForAllNodesActive(Duration)
-     */
-    void waitForAllNodesActive(@NonNull final Duration timeout, @NonNull final String message);
+    default boolean allNodesAreActive() {
+        return allNodesInStatus(PlatformStatus.ACTIVE);
+    }
 }

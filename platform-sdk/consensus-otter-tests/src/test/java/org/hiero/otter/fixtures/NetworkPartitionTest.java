@@ -94,7 +94,10 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
 
             // Wait for nodes to become inactive
-            network.waitForAllNodesInStatus(CHECKING, Duration.ofSeconds(15));
+            timeManager.waitForCondition(
+                    () -> network.allNodesInStatus(CHECKING),
+                    Duration.ofSeconds(15),
+                    "Not all nodes entered CHECKING status within the expected time after creating partition");
 
         } finally {
             env.destroy();
@@ -159,7 +162,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
 
             // Wait for nodes to become inactive
-            network.waitForAllNodesInStatus(CHECKING, Duration.ofSeconds(15));
+            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
         } finally {
             env.destroy();
         }
@@ -199,7 +202,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
 
             // Wait for nodes to become inactive
-            network.waitForAllNodesInStatus(CHECKING, Duration.ofSeconds(15));
+            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
 
             // Remove the partition
             network.removePartition(partition);
@@ -212,7 +215,8 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node3)).isNull();
 
             // The node should be active again
-            network.waitForAllNodesActive(
+            timeManager.waitForCondition(
+                    network::allNodesAreActive,
                     Duration.ofSeconds(15),
                     "Not all nodes entered ACTIVE status within the expected time after removing partition");
         } finally {
@@ -462,7 +466,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node4)).isNull();
             assertThat(network.getPartitionContaining(node5)).isNull();
 
-            network.waitForAllNodesActive(Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
         } finally {
             env.destroy();
         }
@@ -509,7 +513,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            network.waitForAllNodesActive(Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
         } finally {
             env.destroy();
         }
