@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7 or SDLT2)"
+        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
         type: string
       ref:
         required: true
@@ -87,6 +87,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -102,15 +111,15 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -220,6 +229,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -585,7 +595,7 @@ jobs:
         id: check-test-asset
         run: |
           ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc[0-9]$ ]]; then
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             ADHOC="true"
           fi
           echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
@@ -599,7 +609,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title: "The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
