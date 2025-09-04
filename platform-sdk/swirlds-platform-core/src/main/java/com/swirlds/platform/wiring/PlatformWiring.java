@@ -56,10 +56,10 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -130,7 +130,7 @@ public class PlatformWiring {
     private final boolean publishSnapshotOverrides;
     private final boolean publishStaleEvents;
     private final ExecutionLayer execution;
-    private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
+    private final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
 
@@ -237,7 +237,7 @@ public class PlatformWiring {
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        statusStateMachineWiring = new ComponentWiring<>(model, StatusStateMachine.class, config.statusStateMachine());
+        platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, config.statusStateMachine());
 
         branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
         branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
@@ -255,7 +255,7 @@ public class PlatformWiring {
                 stateSignatureCollectorWiring,
                 transactionHandlerWiring,
                 stateHasherWiring,
-                statusStateMachineWiring,
+                platformMonitorWiring,
                 branchDetectorWiring,
                 branchReporterWiring,
                 pcesInlineWriterWiring);
@@ -307,7 +307,7 @@ public class PlatformWiring {
 
         final OutputWire<IssNotification> issNotificationOutputWire = issDetectorWiring.getSplitOutput();
         issNotificationOutputWire.solderTo(notifierWiring.getInputWire(AppNotifier::sendIssNotification));
-        statusStateMachineWiring
+        platformMonitorWiring
                 .getOutputWire()
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
@@ -373,7 +373,7 @@ public class PlatformWiring {
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
-                .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::heartbeat), OFFER);
+                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::heartbeat), OFFER);
 
         eventCreationManagerWiring
                 .getOutputWire()
@@ -535,9 +535,9 @@ public class PlatformWiring {
                         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
 
-        stateSnapshotManagerWiring
-                .getTransformedOutput(StateSnapshotManager::toStateWrittenToDiskAction)
-                .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::submitStatusAction));
+        stateSnapshotManagerWiring.getOutputWire().solderTo(
+                platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk)
+        );
 
         runningEventHashOverrideWiring
                 .runningHashUpdateOutput()
@@ -548,23 +548,24 @@ public class PlatformWiring {
 
         final OutputWire<IssNotification> splitIssDetectorOutput = issDetectorWiring.getSplitOutput();
         splitIssDetectorOutput.solderTo(issHandlerWiring.getInputWire(IssHandler::issObserved));
-        issDetectorWiring
-                .getSplitAndTransformedOutput(IssDetector::getStatusAction)
-                .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::submitStatusAction));
+        issDetectorWiring.getOutputWire().solderTo(
+                platformMonitorWiring.getInputWire(PlatformMonitor::issNotification)
+        );
+
 
         completeReservedSignedStatesWire.solderTo(latestCompleteStateNotifierWiring.getInputWire(
                 LatestCompleteStateNotifier::latestCompleteStateHandler));
 
-        statusStateMachineWiring
+        platformMonitorWiring
                 .getOutputWire()
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus));
-        statusStateMachineWiring
+        platformMonitorWiring
                 .getOutputWire()
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
-        statusStateMachineWiring
+        platformMonitorWiring
                 .getOutputWire()
                 .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
-        statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
+        platformMonitorWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
 
@@ -658,7 +659,7 @@ public class PlatformWiring {
         notifierWiring.bind(notifier);
         platformPublisherWiring.bind(platformPublisher);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
-        statusStateMachineWiring.bind(builder::buildStatusStateMachine);
+        platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
@@ -825,8 +826,8 @@ public class PlatformWiring {
      */
     @NonNull
     public StatusActionSubmitter getStatusActionSubmitter() {
-        return action -> statusStateMachineWiring
-                .getInputWire(StatusStateMachine::submitStatusAction)
+        return action -> platformMonitorWiring
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
     }
 
@@ -837,7 +838,7 @@ public class PlatformWiring {
      */
     @NonNull
     public OutputWire<PlatformStatus> getStatusStateMachineOutputWire() {
-        return statusStateMachineWiring.getOutputWire();
+        return platformMonitorWiring.getOutputWire();
     }
 
     /**

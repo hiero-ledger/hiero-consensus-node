@@ -18,7 +18,7 @@ import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -52,7 +52,7 @@ public class PlatformCoordinator {
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
     private final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring;
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
-    private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
+    private final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
@@ -95,7 +95,7 @@ public class PlatformCoordinator {
                             stateSignatureCollectorWiring,
             @NonNull final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
             @NonNull final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-            @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
+            @NonNull final ComponentWiring<PlatformMonitor, PlatformStatus> statusStateMachineWiring,
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
             @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring) {
@@ -112,7 +112,7 @@ public class PlatformCoordinator {
         this.stateSignatureCollectorWiring = Objects.requireNonNull(stateSignatureCollectorWiring);
         this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
         this.stateHasherWiring = Objects.requireNonNull(stateHasherWiring);
-        this.statusStateMachineWiring = Objects.requireNonNull(statusStateMachineWiring);
+        this.platformMonitorWiring = Objects.requireNonNull(statusStateMachineWiring);
         this.branchDetectorWiring = Objects.requireNonNull(branchDetectorWiring);
         this.branchReporterWiring = Objects.requireNonNull(branchReporterWiring);
         this.pcesInlineWriterWiring = pcesInlineWriterWiring;
@@ -156,7 +156,7 @@ public class PlatformCoordinator {
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        statusStateMachineWiring.flush();
+        platformMonitorWiring.flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when

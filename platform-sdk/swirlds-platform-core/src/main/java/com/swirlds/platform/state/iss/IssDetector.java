@@ -55,20 +55,4 @@ public interface IssDetector {
      */
     @Nullable
     List<IssNotification> overridingState(@NonNull ReservedSignedState state);
-
-    /**
-     * Given an ISS notification, produce the appropriate status action.
-     *
-     * @param notification the ISS notification
-     * @return the status action, or null if no action is needed
-     */
-    @Nullable
-    default PlatformStatusAction getStatusAction(final IssNotification notification) {
-        if (Set.of(IssNotification.IssType.SELF_ISS, IssNotification.IssType.CATASTROPHIC_ISS)
-                .contains(notification.getIssType())) {
-            return new CatastrophicFailureAction();
-        }
-        // don't change status for other types of ISS
-        return null;
-    }
 }

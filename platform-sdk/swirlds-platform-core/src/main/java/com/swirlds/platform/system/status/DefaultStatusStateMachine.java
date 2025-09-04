@@ -31,9 +31,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * The default implementation of {@link StatusStateMachine}.
+ * A state machine that processes {@link PlatformStatusAction}s
  */
-public class DefaultStatusStateMachine implements StatusStateMachine {
+public class DefaultStatusStateMachine {
     private static final Logger logger = LogManager.getLogger(DefaultStatusStateMachine.class);
 
     /**
@@ -118,9 +118,9 @@ public class DefaultStatusStateMachine implements StatusStateMachine {
      * Repeated calls of this method cause the platform state machine to be traversed
      *
      * @param action the action to process
+     * @return the new status after processing the action, or null if the status did not change
      */
     @Nullable
-    @Override
     public PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action) {
         Objects.requireNonNull(action);
 
@@ -151,14 +151,5 @@ public class DefaultStatusStateMachine implements StatusStateMachine {
 
         metrics.setCurrentStatus(newStatus);
         return newStatus;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
-    @Override
-    public PlatformStatus heartbeat(@NonNull final Instant time) {
-        return submitStatusAction(new TimeElapsedAction(time));
     }
 }

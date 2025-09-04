@@ -58,15 +58,4 @@ public interface StateSnapshotManager {
     default Long extractOldestMinimumBirthRoundOnDisk(@NonNull final StateSavingResult result) {
         return result.oldestMinimumBirthRoundOnDisk();
     }
-
-    /**
-     * Convert a {@link StateSavingResult} to a {@link PlatformStatusAction}.
-     *
-     * @param result the result of the state saving operation
-     * @return the action
-     */
-    @NonNull
-    default PlatformStatusAction toStateWrittenToDiskAction(@NonNull final StateSavingResult result) {
-        return new StateWrittenToDiskAction(result.round(), result.freezeState());
-    }
 }
