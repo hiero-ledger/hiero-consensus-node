@@ -17,11 +17,13 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.container.ContainerNode;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.turtle.TurtleNode;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.testcontainers.containers.GenericContainer;
 
 /**
@@ -29,17 +31,23 @@ import org.testcontainers.containers.GenericContainer;
  */
 public class OtterFactory {
 
-    private static final Configuration DEFAULT_CONFIGURATION = ConfigurationBuilder.create()
+    private static final Configuration DEFAULT_CONTAINER_CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(GrpcConfig.class)
             .withConfigDataType(PrometheusConfig.class)
             .build();
-    private static final Path WORKING_DIR = Path.of("/opt", "DockerApp");
-    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
+    private static final Path CONTAINER_WORKING_DIR = Path.of("/opt", "DockerApp");
+
+    private static final String FAKE_TURTLE_HOST = "127.0.0.1";
+    private static final Path TURTLE_WORKING_DIR = Path.of("build", "turtle");
+    private static final long RANDOM_SEED = 0L;
+
+    private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(4);
 
     private OtterFactory() {}
 
     /**
      * Creates a new Otter-based Hedera network with the given name and node count.
+     * Nodes are run in testcontainers.
      *
      * @param networkName the name of the network
      * @param nodeCount the number of nodes in the network
@@ -58,6 +66,7 @@ public class OtterFactory {
         return new OtterContainerNetwork(networkName, network, hederaNodes, configTxt);
     }
 
+    @SuppressWarnings("resource")
     private static HederaNode createContainerNode(@NonNull final ContainerNode node) {
         final int id = (int) node.selfId().id();
         final AccountID accountId = AccountID.newBuilder()
@@ -66,8 +75,8 @@ public class OtterFactory {
                 .accountNum(AddressBookUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM + id)
                 .build();
         final GenericContainer<?> container = node.container();
-        final GrpcConfig grpcConfig = DEFAULT_CONFIGURATION.getConfigData(GrpcConfig.class);
-        final PrometheusConfig prometheusConfig = DEFAULT_CONFIGURATION.getConfigData(PrometheusConfig.class);
+        final GrpcConfig grpcConfig = DEFAULT_CONTAINER_CONFIGURATION.getConfigData(GrpcConfig.class);
+        final PrometheusConfig prometheusConfig = DEFAULT_CONTAINER_CONFIGURATION.getConfigData(PrometheusConfig.class);
         final NodeMetadata metadata = new NodeMetadata(
                 id,
                 String.format("node-%d", id),
@@ -78,7 +87,48 @@ public class OtterFactory {
                 NodeMetadata.UNKNOWN_PORT,
                 NodeMetadata.UNKNOWN_PORT,
                 container.getMappedPort(prometheusConfig.endpointPortNumber()),
-                WORKING_DIR);
+                CONTAINER_WORKING_DIR);
         return new OtterContainerNode(metadata, node, EXECUTOR);
+    }
+
+    /**
+     * Creates a new Otter-based Hedera network with the given name and node count.
+     * Nodes are run in testcontainers.
+     *
+     * @param networkName the name of the network
+     * @param nodeCount the number of nodes in the network
+     * @return a new Otter-based Hedera network
+     */
+    public static OtterTurtleNetwork createTurtleNetwork(@NonNull final String networkName, final int nodeCount) {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final Network network = env.network();
+        final List<TurtleNode> nodes = network.addNodes(nodeCount).stream()
+                .map(node -> (TurtleNode) node)
+                .toList();
+        final Roster roster = network.roster();
+        final List<OtterTurtleNode> hederaNodes =
+                nodes.stream().map(OtterFactory::createTurtleNode).toList();
+        final String configTxt = configTxtForRoster(networkName, roster);
+        return new OtterTurtleNetwork(networkName, network, hederaNodes, env.timeManager(), configTxt);
+    }
+
+    private static OtterTurtleNode createTurtleNode(@NonNull final TurtleNode node) {
+        final int id = (int) node.selfId().id();
+        final AccountID accountId = AccountID.newBuilder()
+                .accountNum(AddressBookUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM + id)
+                .build();
+        final String name = String.format("node-%d", id);
+        final NodeMetadata metadata = new NodeMetadata(
+                id,
+                name,
+                accountId,
+                FAKE_TURTLE_HOST,
+                NodeMetadata.UNKNOWN_PORT,
+                NodeMetadata.UNKNOWN_PORT,
+                NodeMetadata.UNKNOWN_PORT,
+                NodeMetadata.UNKNOWN_PORT,
+                NodeMetadata.UNKNOWN_PORT,
+                TURTLE_WORKING_DIR.resolve(name));
+        return new OtterTurtleNode(metadata, node, EXECUTOR);
     }
 }

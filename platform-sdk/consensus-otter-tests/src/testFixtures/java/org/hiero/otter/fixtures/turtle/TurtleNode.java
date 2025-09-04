@@ -1,51 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.hedera.node.app.ServicesMain.canonicalEventStreamLoc;
+import static com.hedera.node.app.ServicesMain.eventStreamLocOrThrow;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
-import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.node.app.Hedera;
+import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.internal.network.Network;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.config.PathsConfig;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -54,12 +51,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
-import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
-import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
-import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
-import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
@@ -82,16 +74,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private final Randotron randotron;
     private final Time time;
-    private final Roster roster;
+    //    private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final SimulatedNetwork network;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
-    private final NodeResultsCollector resultsCollector;
-    private final TurtleMarkerFileObserver markerFileObserver;
+    //    private final NodeResultsCollector resultsCollector;
+    //    private final TurtleMarkerFileObserver markerFileObserver;
     private final AsyncNodeActions defaultAsyncActions = new TurtleAsyncNodeActions();
 
-    private PlatformContext platformContext;
+    //    private PlatformContext platformContext;
 
     @Nullable
     private DeterministicWiringModel model;
@@ -99,8 +91,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Nullable
     private Platform platform;
 
-    @Nullable
-    private OtterExecutionLayer executionLayer;
+//    @Nullable
+//    private ExecutionLayer executionLayer;
 
     @Nullable
     private PlatformWiring platformWiring;
@@ -133,17 +125,40 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             this.randotron = requireNonNull(randotron);
             this.time = requireNonNull(time);
-            this.roster = requireNonNull(roster);
+            //            this.roster = requireNonNull(roster);
             this.keysAndCerts = requireNonNull(keysAndCerts);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId);
-            this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
+            //            this.resultsCollector = new NodeResultsCollector(selfId);
+            //            this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
+    }
+
+    /**
+     * Gets the platform.
+     *
+     * @return the platform
+     */
+    @NonNull
+    public Platform platform() {
+        if (platform == null) {
+            throw new IllegalStateException("Platform is not initialized. Has the node been started?");
+        }
+        return platform;
+    }
+
+    /**
+     * Gets the time provider.
+     *
+     * @return the time provider
+     */
+    @NonNull
+    public Time time() {
+        return time;
     }
 
     @Override
@@ -165,20 +180,21 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
-
-            throwIfIn(INIT, "Node has not been started yet.");
-            throwIfIn(SHUTDOWN, "Node has been shut down.");
-            throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            assert executionLayer != null; // executionLayer must be initialized
-
-            executionLayer.submitApplicationTransaction(transaction);
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
+        throw new UnsupportedOperationException("submitTransaction is not yet supported in TurtleNode.");
+        //        try {
+        //            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
+        //
+        //            throwIfIn(INIT, "Node has not been started yet.");
+        //            throwIfIn(SHUTDOWN, "Node has been shut down.");
+        //            throwIfIn(DESTROYED, "Node has been destroyed.");
+        //            assert platform != null; // platform must be initialized if lifeCycle is STARTED
+        //            assert executionLayer != null; // executionLayer must be initialized
+        //
+        //            executionLayer.submitApplicationTransaction(transaction);
+        //
+        //        } finally {
+        //            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        //        }
     }
 
     /**
@@ -196,7 +212,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeConsensusResult newConsensusResult() {
-        return resultsCollector.newConsensusResult();
+        throw new UnsupportedOperationException("New Consensus is not yet supported for TurtleNode.");
+        //        return resultsCollector.newConsensusResult();
     }
 
     /**
@@ -205,7 +222,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     @Override
     public SingleNodeLogResult newLogResult() {
-        return resultsCollector.newLogResult();
+        throw new UnsupportedOperationException("New Log is not yet supported for TurtleNode.");
+        //        return resultsCollector.newLogResult();
     }
 
     /**
@@ -214,7 +232,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePlatformStatusResult newPlatformStatusResult() {
-        return resultsCollector.newStatusProgression();
+        throw new UnsupportedOperationException("New Platform Status is not yet supported for TurtleNode.");
+        //        return resultsCollector.newStatusProgression();
     }
 
     /**
@@ -223,7 +242,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+        throw new UnsupportedOperationException("New PCES is not yet supported for TurtleNode.");
+        //        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
     }
 
     /**
@@ -243,7 +263,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeMarkerFileResult newMarkerFileResult() {
-        return new SingleNodeMarkerFileResultImpl(resultsCollector);
+        throw new UnsupportedOperationException("New Marker File is not yet supported for TurtleNode.");
+        //        return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
 
     /**
@@ -261,7 +282,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
         }
 
-        markerFileObserver.tick(now);
+        //        markerFileObserver.tick(now);
     }
 
     /**
@@ -272,7 +293,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
-            resultsCollector.destroy();
+            //            resultsCollector.destroy();
             doShutdownNode();
             lifeCycle = DESTROYED;
 
@@ -285,7 +306,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private void doShutdownNode() {
         if (lifeCycle == RUNNING) {
-            markerFileObserver.stopObserving();
+            //            markerFileObserver.stopObserving();
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             try {
                 platform.destroy();
@@ -300,73 +321,103 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         lifeCycle = SHUTDOWN;
     }
 
-    private void doStartNode() {
+    public void initHedera(
+            @NonNull final Hedera hedera,
+            @NonNull final PlatformContext platformContext,
+            @NonNull final AddressBook addressBook) {
 
-        final Configuration currentConfiguration = nodeConfiguration.current();
+        final Configuration currentConfiguration = platformContext.getConfiguration();
+        //        final Configuration currentConfiguration = nodeConfiguration.current();
         final org.hiero.consensus.model.node.NodeId legacyNodeId =
                 org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
-        setupGlobalMetrics(currentConfiguration);
-
-        final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
-        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
-        if (markerFilesDir != null) {
-            markerFileObserver.startObserving(markerFilesDir);
-        }
+        //        setupGlobalMetrics(currentConfiguration);
+        //
+        //        final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
+        //        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
+        //        if (markerFilesDir != null) {
+        //            markerFileObserver.startObserving(markerFilesDir);
+        //        }
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        MerkleDb.resetDefaultInstancePath();
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
-        final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-        final RecycleBin recycleBin = RecycleBin.create(
-                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
-
-        platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(currentConfiguration)
-                .withFileSystemManager(fileSystemManager)
-                .withMetrics(metrics)
-                .withRecycleBin(recycleBin)
-                .build();
+        //        MerkleDb.resetDefaultInstancePath();
+        //        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
+        //        final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
+        //        final RecycleBin recycleBin = RecycleBin.create(
+        //                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager,
+        // legacyNodeId);
+        //
+        //        platformContext = TestPlatformContextBuilder.create()
+        //                .withTime(time)
+        //                .withConfiguration(currentConfiguration)
+        //                .withFileSystemManager(fileSystemManager)
+        //                .withMetrics(metrics)
+        //                .withRecycleBin(recycleBin)
+        //                .build();
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                 .build();
 
+        version = hedera.getSemanticVersion();
+        final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
+
         final HashedReservedSignedState reservedState = loadInitialState(
-                recycleBin,
+                platformContext.getRecycleBin(),
                 version,
-                () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
-                OtterApp.APP_NAME,
-                OtterApp.SWIRLD_NAME,
+                () -> {
+                    Network network;
+                    try {
+                        network = hedera.startupNetworks().genesisNetworkOrThrow(currentConfiguration);
+                    } catch (Exception ignore) {
+                        // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
+                        network = DiskStartupNetworks.fromLegacyAddressBook(
+                                addressBook, hedera.bootstrapConfigProvider().getConfiguration());
+                    }
+                    genesisNetwork.set(network);
+                    final var genesisState = hedera.newStateRoot();
+                    hedera.initializeStatesApi(genesisState, GENESIS, currentConfiguration);
+                    return genesisState;
+                },
+                Hedera.APP_NAME,
+                Hedera.SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
-                OtterAppState::new);
+                hedera.stateRootFromVirtualMap());
         final ReservedSignedState initialState = reservedState.state();
 
-        final State state = initialState.get().getState();
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        final String eventStreamLoc = selfId.toString();
+        final MerkleNodeState state = initialState.get().getState();
+        if (genesisNetwork.get() == null) {
+            hedera.initializeStatesApi(state, RESTART, currentConfiguration);
+        }
+        hedera.setInitialStateHash(reservedState.hash());
 
-        this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        //        final String eventStreamLoc = selfId.toString();
+
+        //        this.executionLayer = new OtterExecutionLayerNo(platformContext.getMetrics());
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        hedera.newConsensusStateEvenHandler(),
                         legacyNodeId,
-                        eventStreamLoc,
+                        // If at genesis, base the event stream location on the genesis network metadata
+                        Optional.ofNullable(genesisNetwork.get())
+                                .map(network -> eventStreamLocOrThrow(network, selfId.id()))
+                                // Otherwise derive if from the node's id in state or
+                                .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
                         platformStateFacade,
                         OtterAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionLayer)
+                .withExecutionLayer(hedera)
                 .withModel(model)
                 .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
 
@@ -382,23 +433,26 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         platformWiring = platformBuildingBlocks.platformWiring();
 
-        platformWiring
-                .getConsensusEngineOutputWire()
-                .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+        //        platformWiring
+        //                .getConsensusEngineOutputWire()
+        //                .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
         platformWiring
                 .getStatusStateMachineOutputWire()
                 .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            if (Objects.equals(logEntry.nodeId(), selfId)) {
-                resultsCollector.addLogEntry(logEntry);
-            }
-            return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-        });
+        //        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+        //            if (Objects.equals(logEntry.nodeId(), selfId)) {
+        //                resultsCollector.addLogEntry(logEntry);
+        //            }
+        //            return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+        //        });
 
         platform = platformComponentBuilder.build();
         platformStatus = PlatformStatus.STARTING_UP;
+    }
+
+    private void doStartNode() {
         platform.start();
 
         lifeCycle = RUNNING;
@@ -406,7 +460,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = requireNonNull(platformStatus);
-        resultsCollector.addPlatformStatus(platformStatus);
+        //        resultsCollector.addPlatformStatus(platformStatus);
     }
 
     /**

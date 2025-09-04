@@ -89,7 +89,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
                                     .map(Boolean::parseBoolean)
                                     .orElse(false);
-                            yield isRemote ? sharedOtterContainerNetwork() : sharedSubProcessNetwork(null, null);
+                            yield isRemote ? sharedOtterContainerNetwork() : sharedTurtleNetwork();
                         }
                         // For the default Test task, we need to run some tests in concurrent embedded mode and
                         // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
@@ -184,6 +184,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     .map(Integer::parseInt)
                     .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
             return OtterFactory.createContainerNetwork(SHARED_NETWORK_NAME, networkSize);
+        }
+
+        public static HederaNetwork sharedTurtleNetwork() {
+            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                    .map(Integer::parseInt)
+                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+            return OtterFactory.createTurtleNetwork(SHARED_NETWORK_NAME, networkSize);
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {

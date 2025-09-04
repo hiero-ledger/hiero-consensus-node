@@ -71,11 +71,11 @@ import org.hiero.consensus.model.roster.AddressBook;
 public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     private static final Logger log = LogManager.getLogger(AbstractEmbeddedHedera.class);
 
-    private static final int NANOS_IN_A_SECOND = 1_000_000_000;
+    public static final int NANOS_IN_A_SECOND = 1_000_000_000;
 
     protected static final NodeId MISSING_NODE_ID = NodeId.of(666L);
-    protected static final int MAX_PLATFORM_TXN_SIZE = 1024 * 6;
-    protected static final int MAX_QUERY_RESPONSE_SIZE = 1024 * 1024 * 2;
+    public static final int MAX_PLATFORM_TXN_SIZE = 1024 * 6;
+    public static final int MAX_QUERY_RESPONSE_SIZE = 1024 * 1024 * 2;
     protected static final Hash FAKE_START_OF_STATE_HASH = new Hash(new byte[48]);
     protected static final TransactionResponse OK_RESPONSE = TransactionResponse.getDefaultInstance();
     protected static final PlatformStatusChangeNotification ACTIVE_NOTIFICATION =
@@ -315,7 +315,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 .toByteArray();
     }
 
-    protected static TransactionResponse parseTransactionResponse(@NonNull final BufferedData responseBuffer) {
+    public static TransactionResponse parseTransactionResponse(@NonNull final BufferedData responseBuffer) {
         try {
             return TransactionResponse.parseFrom(AbstractEmbeddedHedera.usedBytesFrom(responseBuffer));
         } catch (IOException e) {
@@ -323,7 +323,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         }
     }
 
-    protected static Response parseQueryResponse(@NonNull final BufferedData responseBuffer) {
+    public static Response parseQueryResponse(@NonNull final BufferedData responseBuffer) {
         try {
             return Response.parseFrom(AbstractEmbeddedHedera.usedBytesFrom(responseBuffer));
         } catch (IOException e) {

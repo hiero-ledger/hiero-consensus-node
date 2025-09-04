@@ -21,4 +21,8 @@ public enum TargetNetworkType {
      * A network whose nodes are running in Docker containers.
      */
     OTTER_CONTAINER_NETWORK,
+    /**
+     * A network whose nodes are running in Otter's Turtle environment.
+     */
+    OTTER_TURTLE_NETWORK,
 }

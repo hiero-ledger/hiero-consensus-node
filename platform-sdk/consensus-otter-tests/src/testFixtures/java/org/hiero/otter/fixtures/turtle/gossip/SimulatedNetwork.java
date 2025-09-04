@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -31,6 +33,7 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 @SuppressWarnings("removal")
 public class SimulatedNetwork {
 
+    private static final Logger log = LogManager.getLogger();
     /**
      * The random number generator to use for simulating network delays.
      */
@@ -167,7 +170,11 @@ public class SimulatedNetwork {
                 }
 
                 iterator.remove();
-                gossipInstances.get(nodeId).receiveEvent(event.event());
+                try {
+                    gossipInstances.get(nodeId).receiveEvent(event.event());
+                } catch (final Exception e) {
+                    log.error("Error delivering event to node {}", nodeId, e);
+                }
             }
         }
     }
