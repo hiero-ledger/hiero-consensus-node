@@ -42,7 +42,7 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         return this;
     }
 
-    public YahcliCallOperation exposingRegistry(@NonNull final Consumer<HapiSpecRegistry> registryCb) {
+    public YahcliCallOperation exposingCommandSpecRegistry(@NonNull final Consumer<HapiSpecRegistry> registryCb) {
         this.registryCb = registryCb;
         return this;
     }

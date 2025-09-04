@@ -29,6 +29,12 @@ public class YahcliVerbs {
     private static final Pattern PER_NODE_STAKE_PATTERN = Pattern.compile("staked to node\\d+ for\\s+(\\d+)");
     private static final Pattern BALANCE_PATTERN = Pattern.compile("balance credit of\\s+(\\d+)");
     private static final Pattern PUBLIC_KEY_PATTERN = Pattern.compile("public key .+ is: ([a-fA-F0-9]+)");
+    private static final Pattern SCHEDULE_FREEZE_PATTERN =
+            Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
+    private static final Pattern SCHEDULE_FREEZE_UPDATE_PATTERN =
+            Pattern.compile("NMT software upgrade in motion from ([\\d.]+) artifacts ZIP");
+    private static final Pattern ABORT_FREEZE_PATTERN =
+            Pattern.compile("freeze aborted and/or staged upgrade discarded");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -70,6 +76,39 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliScheduleSign(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "schedule"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze subcommand
+     * @return the operation that will execute the freeze subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeOnly(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze-upgrade} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-upgrade subcommand
+     * @return the operation that will execute the freeze-upgrade subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeUpgrade(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-upgrade"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze-abort} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-abort subcommand
+     * @return the operation that will execute the freeze-abort subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeAbort(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-abort"));
     }
 
     /**
@@ -255,6 +294,58 @@ public class YahcliVerbs {
                 cb.accept(m.group(1));
             } else {
                 Assertions.fail("Expected '" + output + "' to contain '" + PUBLIC_KEY_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing scheduled freeze information,
+     * and pass the extracted freeze date to the given callback.
+     *
+     * @param cb the callback to capture the extracted freeze date
+     * @return the output consumer that processes freeze scheduling information from command output
+     */
+    public static Consumer<String> scheduleFreezeCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_FREEZE_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing software upgrade information,
+     * and pass the extracted version number to the given callback.
+     *
+     * @param cb the callback to capture the extracted version number
+     * @return the output consumer that processes software upgrade information from command output
+     */
+    public static Consumer<String> scheduleUpgradeCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_FREEZE_UPDATE_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail(
+                        "Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_UPDATE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will verify if a freeze abort message is present in the output,
+     * and notifies the given callback when found.
+     *
+     * @return the output consumer that processes freeze abort information from command output
+     */
+    public static Consumer<String> freezeAbortIsSuccessful() {
+        return output -> {
+            final var m = ABORT_FREEZE_PATTERN.matcher(output);
+            if (!m.find()) {
+                Assertions.fail("Expected '" + output + "' to contain '" + ABORT_FREEZE_PATTERN.pattern() + "'");
             }
         };
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.test.scenarios;
+package com.hedera.services.yahcli.test.readme;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asScheduleString;
@@ -60,7 +60,7 @@ public class ScheduleCommandsTest {
                                         "\"Never gonna give you up\"",
                                         String.valueOf(5))
                                 .schedule()
-                                .exposingRegistry(registry -> {
+                                .exposingCommandSpecRegistry(registry -> {
                                     var num = registry.getScheduleId("original").getScheduleNum();
                                     newScheduleNum.set(num);
                                 }))),
@@ -114,7 +114,7 @@ public class ScheduleCommandsTest {
                                             "--targetAccount",
                                             String.valueOf(accountNumS.get()))
                                     .schedule()
-                                    .exposingRegistry(registry -> {
+                                    .exposingCommandSpecRegistry(registry -> {
                                         var num =
                                                 registry.getScheduleId("update").getScheduleNum();
                                         scheduleNum.set(num);
