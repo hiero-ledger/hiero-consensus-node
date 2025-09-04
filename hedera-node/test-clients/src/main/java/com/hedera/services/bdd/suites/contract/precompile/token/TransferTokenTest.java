@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
 @Tag(SMART_CONTRACT)
+@Tag(MATS)
 @DisplayName("transferToken")
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
@@ -82,7 +83,6 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("transferring owner's tokens using transferFrom function given allowance")
-        @Tag(MATS)
         public Stream<DynamicTest> transferUsingTransferFromWithAllowance() {
             return hapiTest(
                     // Approve the transfer contract to spend 2 tokens
@@ -123,7 +123,6 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("transferring owner's tokens using transferToken function from receiver contract")
-        @Tag(MATS)
         public Stream<DynamicTest> transferUsingTransferFromReceiver() {
             return hapiTest(
                     // Transfer using receiver contract transfer function should fail
