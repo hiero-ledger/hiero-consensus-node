@@ -27,13 +27,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.hyperledger.besu.crypto.SECP256K1;
 import org.hyperledger.besu.crypto.SECP256R1;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 // Order to be last as it will restart the network and halt if the lib is not present
+@Disabled("Only to be run manually on a local env when validating native lib verification behavior")
 @OrderedInIsolation
-@Order(Integer.MAX_VALUE - 2)
+@Order(Integer.MAX_VALUE)
 @Tag(RESTART)
 public class BesuNativeLibVerificationTest implements LifecycleTest {
 
