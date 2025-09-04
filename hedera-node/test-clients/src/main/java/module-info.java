@@ -56,6 +56,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.assertions.matchers;
     exports com.hedera.services.bdd.junit;
     exports com.hedera.services.bdd.junit.hedera;
+    exports com.hedera.services.bdd.junit.hedera.utils;
     exports com.hedera.services.bdd.junit.hedera.embedded;
     exports com.hedera.services.bdd.junit.hedera.embedded.fakes;
     exports com.hedera.services.bdd.junit.hedera.subprocess;
@@ -68,6 +69,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.restart;
     exports com.hedera.services.bdd.junit.hedera.remote;
     exports com.hedera.services.bdd.spec.remote;
+    exports com.hedera.services.bdd.suites.utils.sysfiles;
 
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
@@ -87,13 +89,14 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.grpc.helidon.config;
+    requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
-    requires com.swirlds.metrics.impl;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
@@ -115,6 +118,8 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common;
+    requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;

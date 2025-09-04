@@ -75,6 +75,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     @Override
+    public Duration restartOffset() {
+        return Duration.between(FIXED_POINT, time.now());
+    }
+
+    @Override
     public void tick(@NonNull Duration duration) {
         time.tick(duration);
     }
@@ -173,6 +178,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
      * Executes the transaction in the last-created event within its own round.
      */
     public void handleNextRoundIfPresent() {
+        final List<Bytes> bufferedTransactions = hedera.getTransactionsForEvent();
+        if (!bufferedTransactions.isEmpty()) {
+            platform.lastCreatedEvent =
+                    new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(bufferedTransactions.getFirst()));
+        }
         if (platform.lastCreatedEvent != null) {
             hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
             final var round = platform.nextConsensusRound();
@@ -198,12 +208,6 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                 @NonNull final ScheduledExecutorService executorService,
                 @NonNull final Metrics metrics) {
             super(selfId, roster, executorService, metrics);
-        }
-
-        @Override
-        public boolean createTransaction(@NonNull final byte[] transaction) {
-            lastCreatedEvent = new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(transaction));
-            return true;
         }
 
         @Override

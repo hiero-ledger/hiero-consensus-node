@@ -57,6 +57,9 @@ public interface EventCreationManager {
     @InputWireLabel("health info")
     void reportUnhealthyDuration(@NonNull final Duration duration);
 
+    @InputWireLabel("sync round lag")
+    void reportSyncRoundLag(@NonNull Double lag);
+
     /**
      * Clear the internal state of the event creation manager.
      */

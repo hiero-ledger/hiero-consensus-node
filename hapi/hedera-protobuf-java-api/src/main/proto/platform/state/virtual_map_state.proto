@@ -221,7 +221,7 @@ message StateKey {
     /**
      * A state identifier for the TSS encryption keys. 
      */    
-    proto.EntityNumber TssBaseService_I_TSS_ENCRYPTION_KEY = 35;
+    proto.EntityNumber TssBaseService_I_TSS_ENCRYPTION_KEYS = 35;
 
     /**
      * A state identifier for hinTS key sets. 
@@ -267,7 +267,7 @@ message StateKey {
     /**
      * Queue index for the round receipts queue.
      */
-    uint64 RecordCacheTransactionReceiptQueue = 126;
+    uint64 RecordCache_I_TransactionReceiptQueue = 126;
     
     /**
      * Queue index for the `150` upgrade file data.
@@ -514,7 +514,7 @@ message StateValue {
     /**
      * A state identifier for the TSS encryption keys.
      */
-    com.hedera.hapi.node.state.tss.TssEncryptionKeys TssBaseService_I_TSS_ENCRYPTION_KEY = 35;
+    com.hedera.hapi.node.state.tss.TssEncryptionKeys TssBaseService_I_TSS_ENCRYPTION_KEYS = 35;
 
     /**
      * A state identifier for hinTS key sets.
@@ -738,12 +738,12 @@ enum SingletonType {
   /**
    * A state identifier for the active hinTS construction. Singleton state.
    */
-  HintsService_I_ACTIVE_HINTS_CONSTRUCTION = 38;
+  HintsService_I_ACTIVE_HINT_CONSTRUCTION = 38;
   
   /**
    * A state identifier for the next hinTS construction. Singleton state.
    */
-  HintsService_I_NEXT_HINTS_CONSTRUCTION = 39;
+  HintsService_I_NEXT_HINT_CONSTRUCTION = 39;
 
   /**
    * A state identifier for the entity counts. Singleton state.

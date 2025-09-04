@@ -13,12 +13,14 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -70,6 +72,12 @@ public abstract class BlockNodeCommunicationTestBase {
         return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
     }
 
+    @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
+        final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
     protected ConfigProvider createConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -110,6 +118,14 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static BlockItem newBlockProofItem() {
         return BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().build())
+                .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+        return BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .port(port)
+                .priority(priority)
                 .build();
     }
 }

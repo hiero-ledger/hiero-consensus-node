@@ -10,6 +10,7 @@ import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -29,12 +30,14 @@ import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
@@ -59,8 +62,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -71,6 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -131,6 +133,8 @@ public interface HederaInjectionComponent {
 
     BlockNodeConnectionManager blockNodeConnectionManager();
 
+    BlockBufferService blockBufferService();
+
     BlockStreamManager blockStreamManager();
 
     NodeRewardManager nodeRewardManager();
@@ -169,7 +173,7 @@ public interface HederaInjectionComponent {
         Builder contractServiceImpl(ContractServiceImpl contractService);
 
         @BindsInstance
-        Builder scheduleService(ScheduleService scheduleService);
+        Builder scheduleService(ScheduleServiceImpl scheduleService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
@@ -185,6 +189,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder transactionPool(TransactionPoolNexus transactionPool);
 
         @BindsInstance
         Builder self(NodeInfo self);

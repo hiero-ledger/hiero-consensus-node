@@ -3,6 +3,7 @@ package com.swirlds.common.threading.pool;
 
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.manager.ThreadManager;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -33,7 +34,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
      * @param threadManager responsible for managing thread lifecycles
      * @param name          the name given to the threads in the pool
      */
-    public CachedPoolParallelExecutor(final ThreadManager threadManager, final String name) {
+    public CachedPoolParallelExecutor(@NonNull final ThreadManager threadManager, final String name) {
         factory = threadManager.createThreadFactory("parallel-executor", name);
     }
 
@@ -128,53 +129,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
      * {@inheritDoc}
      */
     @Override
-    public <T> T doParallel(
-            final Callable<T> foregroundTask, final Callable<Void> backgroundTask, final Runnable onThrow)
-            throws ParallelExecutionException {
-        throwIfMutable("must be started first");
-
-        final Future<Void> future = threadPool.submit(backgroundTask);
-
-        // exception to throw, if any of the tasks throw
-        ParallelExecutionException toThrow = null;
-
-        T result = null;
-        try {
-            result = foregroundTask.call();
-        } catch (final Throwable e) { // NOSONAR: Any exceptions & errors that occur needs to trigger onThrow.
-            toThrow = new ParallelExecutionException(e);
-            onThrow.run();
-        }
-
-        try {
-            future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            if (toThrow == null) {
-                toThrow = new ParallelExecutionException(e);
-                onThrow.run();
-            } else {
-                // if foregroundTask already threw an exception, we add this one as a suppressed exception
-                toThrow.addSuppressed(e);
-            }
-        }
-
-        // if any of the tasks threw an exception then we throw
-        if (toThrow != null) {
-            throw toThrow;
-        }
-
-        return result;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void doParallel(
-            final Runnable onThrow, final ThrowingRunnable foregroundTask, final ThrowingRunnable... backgroundTasks)
+    public <T> T doParallelWithHandler(
+            final Runnable errorHandler, final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks)
             throws ParallelExecutionException {
 
         throwIfMutable("must be started first");
@@ -185,11 +141,12 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
         // exception to throw, if any of the tasks throw
         ParallelExecutionException toThrow = null;
 
+        T result = null;
         try {
-            foregroundTask.run();
+            result = foregroundTask.call();
         } catch (final Throwable e) { // NOSONAR: Any exceptions & errors that occur needs to trigger onThrow.
             toThrow = new ParallelExecutionException(e);
-            onThrow.run();
+            errorHandler.run();
         }
 
         for (final Future<Void> future : futures) {
@@ -201,7 +158,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
                 }
                 if (toThrow == null) {
                     toThrow = new ParallelExecutionException(e);
-                    onThrow.run();
+                    errorHandler.run();
                 } else {
                     // if foregroundTask already threw an exception, we add this one as a suppressed exception
                     toThrow.addSuppressed(e);
@@ -212,15 +169,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
         // if any of the tasks threw an exception then we throw
         if (toThrow != null) {
             throw toThrow;
+        } else {
+            return result;
         }
-    }
-
-    /**
-     * Same as {@link #doParallel(Callable, Callable, Runnable)} where the onThrow task is a no-op
-     */
-    @Override
-    public <T> T doParallel(final Callable<T> foregroundTask, final Callable<Void> backgroundTask)
-            throws ParallelExecutionException {
-        return doParallel(foregroundTask, backgroundTask, NOOP);
     }
 }

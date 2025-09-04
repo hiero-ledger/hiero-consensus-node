@@ -3,8 +3,10 @@ package com.hedera.services.bdd.suites.utils.sysfiles;
 
 import static java.util.stream.Collectors.toList;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hederahashgraph.api.proto.java.NodeAddress;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Function;
 
@@ -25,6 +27,15 @@ public class AddressBookPojo {
 
     public static AddressBookPojo nodeDetailsFrom(NodeAddressBook book) {
         return from(book, BookEntryPojo::fromGrpc);
+    }
+
+    public static AddressBookPojo nodeDetailsFrom(@NonNull final byte[] bytes) {
+        try {
+            final var book = NodeAddressBook.parseFrom(bytes);
+            return nodeDetailsFrom(book);
+        } catch (InvalidProtocolBufferException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     private static AddressBookPojo from(NodeAddressBook book, Function<NodeAddress, BookEntryPojo> converter) {

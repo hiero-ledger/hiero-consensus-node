@@ -6,13 +6,18 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeMarkerFileResults}
@@ -73,6 +78,18 @@ public class MultipleNodeMarkerFileResultsImpl implements MultipleNodeMarkerFile
     public MultipleNodeMarkerFileResults suppressingNode(@NonNull final NodeId nodeId) {
         final List<SingleNodeMarkerFileResult> filtered = results.stream()
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
+                .toList();
+        return new MultipleNodeMarkerFileResultsImpl(filtered);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull MultipleNodeMarkerFileResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
+        final List<SingleNodeMarkerFileResult> filtered = results.stream()
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodeMarkerFileResultsImpl(filtered);
     }

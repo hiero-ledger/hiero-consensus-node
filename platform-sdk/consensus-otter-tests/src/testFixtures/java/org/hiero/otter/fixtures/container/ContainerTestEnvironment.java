@@ -67,6 +67,15 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
+    public Set<Capability> capabilities() {
+        return CAPABILITIES;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
     public Network network() {
         return network;
     }
@@ -93,7 +102,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException {
+    public void destroy() {
         network.destroy();
     }
 }

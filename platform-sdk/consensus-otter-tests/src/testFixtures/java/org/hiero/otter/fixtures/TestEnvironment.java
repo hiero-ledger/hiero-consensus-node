@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 
 /**
  * Interface representing the test environment of an Otter test.
@@ -10,6 +11,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * the network, time manager, transaction generator, and validator.
  */
 public interface TestEnvironment {
+
+    /**
+     * Get the capabilities supported by this test environment.
+     *
+     * @return the set of capabilities
+     */
+    @NonNull
+    Set<Capability> capabilities();
 
     /**
      * Get the network associated with this test environment.
@@ -39,9 +48,6 @@ public interface TestEnvironment {
      * Destroys the test environment. Once this method is called, the test environment and all its
      * components are no longer usable. This method is idempotent, meaning that it is safe to call
      * multiple times.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting for the destruction
-     * process to complete causing the test to fail.
      */
-    void destroy() throws InterruptedException;
+    void destroy();
 }

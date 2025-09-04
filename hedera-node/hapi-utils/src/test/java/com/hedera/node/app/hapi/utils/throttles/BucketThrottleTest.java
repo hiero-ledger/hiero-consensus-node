@@ -48,12 +48,12 @@ class BucketThrottleTest {
         var fromMtpsAndBurstPeriodMs = BucketThrottle.withMtpsAndBurstPeriodMs(tps / 2 * MTPS_PER_TPS, 2000);
 
         // expect:
-        assertEquals(expectedCapacity, fromTps.bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromMtps.bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromTpsAndBurstPeriod.bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromMtpsAndBurstPeriod.bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromTpsAndBurstPeriodMs.bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromMtpsAndBurstPeriodMs.bucket().totalCapacity());
+        assertEquals(expectedCapacity, fromTps.bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromMtps.bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromTpsAndBurstPeriod.bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromMtpsAndBurstPeriod.bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromTpsAndBurstPeriodMs.bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromMtpsAndBurstPeriodMs.bucket().brimfulCapacity());
         // and:
         assertEquals(tps * MTPS_PER_TPS, fromTps.mtps());
         assertEquals(tps * MTPS_PER_TPS, fromMtps.mtps());
@@ -91,7 +91,7 @@ class BucketThrottleTest {
 
         // then:
         assertTrue(shouldAllowAll);
-        assertEquals(0, subject.bucket().capacityFree());
+        assertEquals(0, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -102,7 +102,7 @@ class BucketThrottleTest {
         var subject = BucketThrottle.withTps(tps);
 
         assertTrue(subject.allowInstantaneous(tps / 2));
-        assertEquals(internalCapacity / 2, subject.bucket().capacityFree());
+        assertEquals(internalCapacity / 2, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -119,7 +119,7 @@ class BucketThrottleTest {
 
         // then:
         assertTrue(shouldAllowHalf);
-        assertEquals(internalCapacity / 2, subject.bucket().capacityFree());
+        assertEquals(internalCapacity / 2, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -136,7 +136,7 @@ class BucketThrottleTest {
 
         // then:
         assertFalse(shouldntAllowOverRate);
-        assertEquals(internalCapacity, subject.bucket().capacityFree());
+        assertEquals(internalCapacity, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -155,7 +155,7 @@ class BucketThrottleTest {
 
         // then:
         assertTrue(shouldAllowWithJustEnoughCapacity);
-        assertEquals(0, subject.bucket().capacityFree());
+        assertEquals(0, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -190,7 +190,7 @@ class BucketThrottleTest {
 
         // then:
         assertTrue(shouldAllowWithJustEnoughCapacity);
-        assertEquals(0, subject.bucket().capacityFree());
+        assertEquals(0, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -209,7 +209,7 @@ class BucketThrottleTest {
 
         // then:
         assertTrue(shouldAllowWithJustEnoughCapacity);
-        assertEquals(0, subject.bucket().capacityFree());
+        assertEquals(0, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -218,7 +218,7 @@ class BucketThrottleTest {
         int burstPeriod = 2;
 
         var subject = BucketThrottle.withMtpsAndBurstPeriod(mtps, burstPeriod);
-        final var totalCap = subject.bucket().totalCapacity();
+        final var totalCap = subject.bucket().brimfulCapacity();
         subject.bucket().useCapacity(totalCap / 2);
 
         assertEquals(50.0, subject.percentUsed(0));
@@ -231,7 +231,7 @@ class BucketThrottleTest {
         int burstPeriod = 2;
 
         var subject = BucketThrottle.withMtpsAndBurstPeriod(mtps, burstPeriod);
-        final var totalCap = subject.bucket().totalCapacity();
+        final var totalCap = subject.bucket().brimfulCapacity();
         subject.bucket().useCapacity(totalCap / 2);
 
         assertEquals(50.0, subject.instantaneousPercentUsed());
@@ -259,7 +259,7 @@ class BucketThrottleTest {
         // and when:
         subject.reclaimLastAllowedUse();
         // then:
-        assertEquals(internalCapacity, subject.bucket().capacityFree());
+        assertEquals(internalCapacity, subject.bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -285,7 +285,7 @@ class BucketThrottleTest {
         subject.reclaimLastAllowedUse();
 
         // then:
-        assertEquals(0, subject.bucket().capacityFree());
+        assertEquals(0, subject.bucket().brimfulCapacityFree());
     }
 
     @Test

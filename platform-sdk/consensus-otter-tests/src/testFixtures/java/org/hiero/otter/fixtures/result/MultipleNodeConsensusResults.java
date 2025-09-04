@@ -3,6 +3,8 @@ package org.hiero.otter.fixtures.result;
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.Node;
@@ -48,5 +50,25 @@ public interface MultipleNodeConsensusResults extends OtterResult {
     @NonNull
     default MultipleNodeConsensusResults suppressingNode(@NonNull final Node node) {
         return suppressingNode(node.selfId());
+    }
+
+    /**
+     * Excludes the consensus results of one or more nodes from the current results.
+     *
+     * @param nodes the nodes whose consensus results are to be excluded
+     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results excluded
+     */
+    @NonNull
+    MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes);
+
+    /**
+     * Excludes the consensus results of one or more nodes from the current results.
+     *
+     * @param nodes the nodes whose consensus results are to be excluded
+     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results excluded
+     */
+    @NonNull
+    default MultipleNodeConsensusResults suppressingNodes(@NonNull final Node... nodes) {
+        return suppressingNodes(Arrays.asList(nodes));
     }
 }
