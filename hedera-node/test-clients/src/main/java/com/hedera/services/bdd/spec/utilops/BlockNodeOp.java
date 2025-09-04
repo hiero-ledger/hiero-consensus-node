@@ -122,7 +122,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startSimulator(nodeIndex, persistState);
+                    controller.startSimulator(nodeIndex);
                     log.info("Started simulator {}", nodeIndex);
                 } catch (final IOException e) {
                     log.error("Failed to start simulator {}", nodeIndex, e);
@@ -139,7 +139,7 @@ public class BlockNodeOp extends UtilOp {
                     return false;
                 }
                 try {
-                    controller.startAllSimulators(persistState);
+                    controller.startAllSimulators();
                     log.info("Started all previously shutdown simulators");
                 } catch (final IOException e) {
                     log.error("Failed to start simulators", e);
@@ -195,7 +195,7 @@ public class BlockNodeOp extends UtilOp {
                     log.error("Cannot start container {} because it has not been shut down", nodeIndex);
                     return false;
                 }
-                controller.startContainer(nodeIndex, persistState);
+                controller.startContainer(nodeIndex);
                 break;
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex, persistState);
@@ -515,13 +515,26 @@ public class BlockNodeOp extends UtilOp {
     }
 
     public static class ShutdownAllBuilder extends UtilOp {
+        private boolean keepState = true;
+
+        /**
+         * Sets whether the state should be persistent after shutdown.
+         *
+         * @param keepState whether state should be persistent
+         * @return this builder
+         */
+        public ShutdownAllBuilder keepState(final boolean keepState) {
+            this.keepState = keepState;
+            return this;
+        }
+
         /**
          * Builds the operation.
          *
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, true);
+            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, keepState);
         }
 
         @Override
@@ -532,20 +545,9 @@ public class BlockNodeOp extends UtilOp {
 
     public static class StartBuilder extends UtilOp {
         private final long nodeIndex;
-        private boolean persistState = true;
 
         private StartBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
-        }
-
-        /**
-         * Sets whether to apply the persisted state of the block node before shutting it down.
-         * Default is true.
-         * @param persistState whether to persist the state of the block node before shutting down
-         */
-        public StartBuilder persistState(final boolean persistState) {
-            this.persistState = persistState;
-            return this;
         }
 
         /**
@@ -554,7 +556,7 @@ public class BlockNodeOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeOp build() {
-            return new BlockNodeOp(nodeIndex, BlockNodeAction.START, null, 0, null, null, true, persistState);
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.START, null, 0, null, null, true, true);
         }
 
         @Override

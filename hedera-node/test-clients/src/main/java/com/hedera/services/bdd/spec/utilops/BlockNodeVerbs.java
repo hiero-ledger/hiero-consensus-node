@@ -93,8 +93,8 @@ public class BlockNodeVerbs {
          *
          * @return the operation
          */
-        public BlockNodeOp.StartBuilder startImmediately() {
-            return BlockNodeOp.startImmediately(nodeIndex);
+        public BlockNodeOp startImmediately() {
+            return BlockNodeOp.startImmediately(nodeIndex).build();
         }
 
         /**
