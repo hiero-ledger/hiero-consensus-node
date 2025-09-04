@@ -7,7 +7,7 @@ each managing a specific aspect of the system. For instance,
 This document serves as a valuable resource for understanding how
 Hedera Services can be customized and configured to meet specific requirements.
 For more detailed information on other types of configuration, please refer to the
-[Service Configuration](hedera-node/docs/services-configuration.md).
+[Service Configuration](../../services-configuration.md).
 
 - **AccountsConfig.java**: Provides configuration settings for various account-related properties, including admin roles and treasury accounts.
 - **ApiPermissionConfig.java**: Manages permissions for different API functionalities, specifying which accounts are allowed to execute certain operations.
