@@ -33,7 +33,9 @@ public class V0590EntityIdSchema extends Schema {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var entityIdState = ctx.newStates().getSingleton(ENTITY_COUNTS_KEY);
-        entityIdState.put(EntityCounts.DEFAULT);
+        if (ctx.isGenesis()) {
+            final var entityIdState = ctx.newStates().getSingleton(ENTITY_COUNTS_KEY);
+            entityIdState.put(EntityCounts.DEFAULT);
+        }
     }
 }

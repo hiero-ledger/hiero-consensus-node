@@ -14,7 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;

@@ -180,20 +180,45 @@ the module. The image is built using the Eclipse Temurin base image for Java 21:
 
 ```dockerfile
 FROM eclipse-temurin:21
-RUN mkdir /opt/DockerApp && \
-    mkdir /opt/DockerApp/apps && \
-    mkdir /opt/DockerApp/lib
-COPY apps/* /opt/DockerApp/apps/
-COPY lib/* /opt/DockerApp/lib/
-EXPOSE 8080
+
+# Create non-root user and group
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Create app directories and set ownership
+RUN mkdir -p /opt/DockerApp/apps /opt/DockerApp/lib \
+    && chown -R appuser:appuser /opt/DockerApp
+
+# Copy app artifacts with proper ownership
+COPY --chown=appuser:appuser apps/* /opt/DockerApp/apps/
+COPY --chown=appuser:appuser lib/* /opt/DockerApp/lib/
+
+# Run as non-root user
+USER appuser
+
 CMD ["java", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]
 ```
 
 ### Container Startup Process
 
-When a `ContainerNode` is created, it starts a Docker container running the `DockerApp`. The container is configured to
-expose port 8080 for gRPC communication. The `DockerApp` initializes a gRPC server and listens for incoming connections
-from the `ContainerNode`.
+There are two processes, each with their own API, that the `ContainerNode` interacts with:
+
+1. **DockerApp**: The application running inside the Docker container that starts and stops the second process via a
+   gRPC API. It is initialized when the node is created in the test and runs until the container is killed at test
+   teardown.
+2. **NodeCommunicationService**: The application running inside the Docker container that provides a second gRPC API for
+   communicating with the consensus node. It is initialized when the consensus node is started and is killed when the
+   consensus node is killed.
+
+These two applications are run in separate processes within the same Docker container so that the consensus node process
+can be killed and restarted without having to restart the entire container. This setup allows for more flexible testing
+scenarios, such as simulating node failures or restarts.
+
+When a `ContainerNode` is created, it starts a Docker container running the `DockerApp` using the default `DockerMain`
+class. The container is configured to expose port 8080 for gRPC communication. The `DockerApp` initializes a gRPC server
+and listens for incoming connections from the `ContainerNode`. When the `ContainerNode` is started, a command is sent to
+the `DockerApp` to initialize a second process inside the container that exposes the second gRPC API. This second API is
+for communicating with the consensus node and can do things like start the node, submit transactions, and perform a
+freeze.
 
 The following sequence diagram shows the container startup process:
 
@@ -206,6 +231,8 @@ sequenceDiagram
     participant Container as Docker Container
     participant DockerMain
     participant DockerManager
+    participant ConsensusNodeMain
+    participant NodeCommunicationService
     participant ConsensusNodeManager
     participant Platform
     Test ->> ContainerNetwork: addNodes(4)
@@ -218,44 +245,61 @@ sequenceDiagram
         Container ->>+ DockerMain: java -jar DockerApp.jar
         DockerMain ->>+ DockerManager: Initialize gRPC server
         ContainerNode ->> DockerManager: Establish gRPC connection
-        ContainerNode ->> DockerManager: Send InitRequest
     end
 
     Test ->> ContainerNetwork: start()
 
     loop For each node
         ContainerNetwork ->> ContainerNode: start()
-        ContainerNode ->> DockerManager: Send StartRequest
-        DockerManager ->>+ ConsensusNodeManager: new ConsensusNodeManager()
-        ConsensusNodeManager ->>+ Platform: Initialize Platform
+        ContainerNode ->> DockerManager: Send InitRequest
+        DockerManager ->>+ ConsensusNodeMain: java -cp DockerApp.jar
+        ConsensusNodeMain ->>+ NodeCommunicationService: Initialize gRPC server
+        ContainerNode ->> NodeCommunicationService: Establish gRPC connection
+        ContainerNode ->> NodeCommunicationService: Send StartRequest
+        NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+        ConsensusNodeManager ->>+ Platform: Initialize
+        ContainerNode ->> NodeCommunicationService: Send StartRequest
+        NodeCommunicationService ->> ConsensusNodeManager: start
+        ConsensusNodeManager ->> Platform: start
         Note over ContainerNode, Platform: 🔄 Ongoing consensus and event streaming
     end
 
     deactivate ContainerNode
     deactivate GenericContainer
+    deactivate ConsensusNodeMain
     deactivate Container
     deactivate DockerMain
     deactivate DockerManager
     deactivate ConsensusNodeManager
+    deactivate NodeCommunicationService
     deactivate Platform
 ```
 
-When nodes are added to the `ContainerNetwork`, a `ContainerNode` is created for each. A `ContainerNode` creates a new
-Docker container using the `GenericContainer` class from Testcontainers. The container runs the `DockerApp`, which
-initializes a gRPC server for communication. The `ContainerNode` then establishes a connection to this server, allowing
-it to send requests and receive events.
-
-This process ensures each container runs an independent consensus node with real network communication.
-
 ## 📡 gRPC Protocol
 
-Container nodes use gRPC for control and monitoring.
+Container nodes use two gRPC APIs for interacting with the container. One for creating and stopping the consensus node,
+and one for interacting with the consensus node itself:
 
 ```protobuf
 // Service definition for controlling tests.
-service TestControl {
+service ContainerControlService {
   // RPC to initialize the container with the node ID.
   rpc Init(InitRequest) returns (google.protobuf.Empty);
+
+  // RCP to signal a kill of the app
+  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+}
+
+// Request to initialize the container.
+message InitRequest {...}
+
+// Request to kill the application immediately.
+message KillImmediatelyRequest {...}
+```
+
+```protobuf
+// Service definition for communicating with the consensus node.
+service NodeCommunicationService {
 
   // RPC to start the platform and stream event messages.
   rpc Start(StartRequest) returns (stream EventMessage);
@@ -263,9 +307,6 @@ service TestControl {
   // RPC used by the test harness to submit a transaction to the running
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
-
-  // RCP to signal a kill of the app
-  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
 
   // RPC to change the synthetic bottleneck of the handle thread.
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
@@ -285,10 +326,6 @@ message EventMessage {
     MarkerFileAdded marker_file_added = 4;
   }
 }
-
-// Request to initialize the container.
-message InitRequest {...}
-
 // Request to start the remote platform.
 message StartRequest {...}
 
@@ -297,9 +334,6 @@ message TransactionRequest {...}
 
 // Response to a transaction submission request.
 message TransactionRequestAnswer {...}
-
-// Request to kill the application immediately.
-message KillImmediatelyRequest {...}
 
 // Request to set the synthetic bottleneck.
 message SyntheticBottleneckRequest {...}
@@ -310,17 +344,18 @@ message SyntheticBottleneckRequest {...}
 ```mermaid
 sequenceDiagram
     participant ContainerNode
-    participant DockerManager
+    participant NodeCommunicationService
     participant ConsensusNodeManager
     participant Platform
-    ContainerNode ->> DockerManager: StartRequest via gRPC
-    DockerManager ->>+ ConsensusNodeManager: new ConsensusNodeManager()
-    ConsensusNodeManager ->>+ Platform: Initialize Platform
+
+    ContainerNode ->> NodeCommunicationService: Send StartRequest
+    NodeCommunicationService ->>+ ConsensusNodeManager: new ConsensusNodeManager()
+    ConsensusNodeManager ->>+ Platform: Initialize
 
     loop Event Streaming
         Platform ->> ConsensusNodeManager: Notification via OutputWire
-        ConsensusNodeManager ->> DockerManager: Notify event
-        DockerManager ->> ContainerNode: Stream EventMessage
+        ConsensusNodeManager ->> NodeCommunicationService: Notify event
+        NodeCommunicationService ->> ContainerNode: Stream EventMessage
         ContainerNode ->> ContainerNode: Add EventMessage to Queue
     end
 
@@ -328,10 +363,38 @@ sequenceDiagram
     deactivate Platform
 ```
 
-Once a connection between the `ContainerNode` and the `DockerManager` is established, it can receive events. The
-`Platform` notifies the `ConsensusNodeManager` of various events such as status changes, log entries, and consensus
-rounds. The `ConsensusNodeManager` then relays these events to the `DockerManager`, which streams them back to the
+Once the `Platform` is started, the `ContainerNode` can receive events. The `Platform` notifies the
+`ConsensusNodeManager` of various events such as status changes, log entries, and consensus rounds. The
+`ConsensusNodeManager` then relays these events to the `NodeCommunicationService`, which streams them back to the
 `ContainerNode` as `EventMessage` objects.
+
+## 📁 File System Structure
+
+All application files, data, and logs are stored under `/opt/DockerApp`. The owner of all files is a user named
+`appuser`, which is created during the Docker image build process. Using a defined user who owns all files ensures that
+we do not run into permission issues when accessing files from other containers as is done when tests are run as GitHub
+actions.
+
+### Layout
+
+```
+/opt/DockerApp
+├── lib/                 # All .jar dependencies
+├── apps/
+│   └── DockerApp.jar    # Main application executable
+├── data/
+│   ├── saved/           # Persisted state
+│   ├── tmp/             # Temporary files
+│   └── stats/           # CSV statistics
+├── output/
+│   ├── swirlds.log      # Main log file
+│   └── swirlds-hashstream/
+│       └── swirlds-hashstream.log  # Hashstream logs
+├── hgcapp/              # Event stream data (currently unused)
+└── settingsUsed.txt     # Runtime configuration summary
+```
+
+Note: All persistent data must remain inside `/opt/DockerApp`.
 
 ## ⏱️ Time Management
 

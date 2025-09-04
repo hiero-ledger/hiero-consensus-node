@@ -182,7 +182,7 @@ public interface Node {
      *
      * @param version the software version to set for the node
      */
-    void setVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
      * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be

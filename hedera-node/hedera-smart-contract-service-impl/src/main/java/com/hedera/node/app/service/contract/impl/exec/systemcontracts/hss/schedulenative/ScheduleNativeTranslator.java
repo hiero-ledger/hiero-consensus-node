@@ -50,7 +50,7 @@ public class ScheduleNativeTranslator extends AbstractCallTranslator<HssCallAtte
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         // Dagger
-        super(SystemContractMethod.SystemContract.HAS, systemContractMethodRegistry, contractMetrics);
+        super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
         registerMethods(SCHEDULED_NATIVE_CALL);
 
         requireNonNull(htsCallFactory);

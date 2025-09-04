@@ -23,7 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;

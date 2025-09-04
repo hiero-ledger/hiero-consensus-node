@@ -11,8 +11,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;

@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.dispatcher;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -19,6 +20,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +44,8 @@ class ServiceApiFactoryTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ServiceApiFactory(stack, DEFAULT_CONFIG);
+        subject =
+                new ServiceApiFactory(stack, DEFAULT_CONFIG, Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
     }
 
     @Test

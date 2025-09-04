@@ -56,7 +56,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                         virtualMap.remove(key);
                         if (verify) map[(int) id] = 0L;
                     } else {
-                        value.update(l -> l + val);
+                        value = value.copyBuilder().update(l -> l + val).build();
                         virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
                         if (verify) map[(int) id] += val;
                     }
@@ -154,7 +154,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 BenchmarkValue value = virtualMap.get(key, BenchmarkValueCodec.INSTANCE);
                 final long val = nextValue();
                 if (value != null) {
-                    value.update(l -> l + val);
+                    value = value.copyBuilder().update(l -> l + val).build();
                     virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
                     if (verify) map[(int) id] += val;
                 } else {

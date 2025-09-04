@@ -15,6 +15,7 @@ module com.swirlds.demo.iss {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
 }

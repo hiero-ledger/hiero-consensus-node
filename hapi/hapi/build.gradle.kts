@@ -3,7 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.11.13"
+    id("com.hedera.pbj.pbj-compiler") version "0.11.15"
     // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
 }
 

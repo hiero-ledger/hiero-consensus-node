@@ -113,7 +113,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void setVersion(@NonNull final SemanticVersion version) {
+    public void version(@NonNull final SemanticVersion version) {
         throwIfIn(LifeCycle.RUNNING, "Cannot set version while the node is running");
         throwIfIn(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
@@ -159,5 +159,13 @@ public abstract class AbstractNode implements Node {
         if (lifeCycle != expected) {
             throw new IllegalStateException(message);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return "Node{id=" + selfId.id() + '}';
     }
 }

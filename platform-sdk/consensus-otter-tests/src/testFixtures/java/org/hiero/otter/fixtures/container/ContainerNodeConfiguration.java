@@ -21,6 +21,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
+        overriddenProperties.put("event.eventsLogDir", "/opt/DockerApp/hgcapp");
     }
 
     /**

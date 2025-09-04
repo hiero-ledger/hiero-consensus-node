@@ -3,11 +3,11 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.Map;

@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests expected behavior when the {@code nodes.updateAccountIdAllowed} feature flag is on for
@@ -73,6 +75,7 @@ public class UpdateAccountEnabledTest {
             reason = MUST_SKIP_INGEST,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/mainnet-throttles.json")
+    @Tag(MATS)
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         return hapiTest(
@@ -117,6 +120,7 @@ public class UpdateAccountEnabledTest {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @Tag(MATS)
     final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),

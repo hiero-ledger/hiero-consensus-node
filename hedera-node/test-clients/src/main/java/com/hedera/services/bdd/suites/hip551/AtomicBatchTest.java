@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -74,6 +75,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -85,9 +88,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -97,19 +98,18 @@ import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 public class AtomicBatchTest {
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {
@@ -144,12 +144,6 @@ public class AtomicBatchTest {
                 validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 validateInnerTxnChargedUsd("innerTxn", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
                 validateInnerTxnChargedUsd("innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5));
-    }
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @HapiTest
@@ -1038,6 +1032,7 @@ public class AtomicBatchTest {
 
         @HapiTest
         @DisplayName("Validate crypto transfer precompile gas used for inner transaction")
+        @Tag(MATS)
         final Stream<DynamicTest> validateInnerCallToCryptoTransferPrecompile() {
             final var sender = "sender";
             final var receiver = "receiver";
@@ -1203,6 +1198,7 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> payerIsContract() {
         return hapiTest(
                 cryptoCreate("sender").balance(ONE_MILLION_HBARS),
@@ -1232,5 +1228,35 @@ public class AtomicBatchTest {
                         .payingWith("batchOperator")
                         .via("batch")
                         .hasPrecheck(PAYER_ACCOUNT_DELETED));
+    }
+
+    @HapiTest
+    Stream<DynamicTest> innerTxnIdTooFarInFutureFailsBatch() {
+        final var civilian = "civilian";
+        final var batchOperator = "batchOperator";
+        final var now = Instant.now();
+
+        return hapiTest(
+                cryptoCreate(civilian).balance(ONE_HBAR),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                usableTxnIdNamed("batchTxn")
+                        .modifyValidStart(now.getEpochSecond())
+                        .payerId(batchOperator),
+                usableTxnIdNamed("validInner").payerId(civilian).modifyValidStart(now.getEpochSecond() + 60L),
+                usableTxnIdNamed("invalidInner").payerId(civilian).modifyValidStart(now.getEpochSecond() + 300L),
+                atomicBatch(
+                                // The valid inner transaction, only 60 seconds after batch valid start, is fine
+                                cryptoTransfer(movingHbar(1).between(civilian, batchOperator))
+                                        .batchKey(batchOperator)
+                                        .txnId("validInner")
+                                        .payingWith(civilian)
+                                        .hasPrecheck(OK),
+                                // But the invalid inner transaction, 5 minutes after batch valid start, is too late
+                                cryptoTransfer(movingHbar(1).between(civilian, batchOperator))
+                                        .batchKey(batchOperator)
+                                        .txnId("invalidInner")
+                                        .payingWith(civilian))
+                        .txnId("batchTxn")
+                        .hasPrecheck(INVALID_TRANSACTION_START));
     }
 }

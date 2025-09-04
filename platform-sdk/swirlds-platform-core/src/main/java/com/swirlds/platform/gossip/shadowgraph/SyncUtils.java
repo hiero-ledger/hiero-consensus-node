@@ -33,6 +33,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -62,7 +63,7 @@ public final class SyncUtils {
      * @param tips        the tips to write
      * @return a {@link Callable} that writes the tips and event window
      */
-    public static Callable<Void> writeMyTipsAndEventWindow(
+    public static ThrowingRunnable writeMyTipsAndEventWindow(
             @NonNull final Connection connection,
             @NonNull final EventWindow eventWindow,
             @NonNull final List<ShadowEvent> tips) {
@@ -86,7 +87,6 @@ public final class SyncUtils {
                         connection::getDescription,
                         () -> SyncLogging.toShortShadows(tips));
             }
-            return null;
         };
     }
 
@@ -126,13 +126,16 @@ public final class SyncUtils {
      * Tell the sync peer which of their tips I have. The complementary function to
      * {@link #readMyTipsTheyHave(Connection, int)}.
      *
-     * @param connection     the connection to write to
-     * @param theirTipsIHave for each tip they sent me, write true if I have it, false otherwise. Order corresponds to
-     *                       the order in which they sent me their tips.
+     * @param connection           the connection to write to
+     * @param theirTipsIHave       for each tip they sent me, write true if I have it, false otherwise. Order
+     *                             corresponds to the order in which they sent me their tips.
+     * @param ignoreIncomingEvents
      * @return a {@link Callable} that writes the booleans
      */
-    public static Callable<Void> writeTheirTipsIHave(final Connection connection, final List<Boolean> theirTipsIHave) {
+    public static ThrowingRunnable writeTheirTipsIHave(
+            final Connection connection, final List<Boolean> theirTipsIHave, final boolean ignoreIncomingEvents) {
         return () -> {
+            connection.getDos().writeBoolean(ignoreIncomingEvents);
             connection.getDos().writeBooleanList(theirTipsIHave);
             connection.getDos().flush();
             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
@@ -142,20 +145,22 @@ public final class SyncUtils {
                         connection::getDescription,
                         () -> SyncLogging.toShortBooleans(theirTipsIHave));
             }
-            return null;
         };
     }
 
+    record TipsInfo(boolean dontSentEvents, @NonNull List<Boolean> theirTips) {}
+
     /**
      * Read from the peer which of my tips they have. The complementary function to
-     * {@link #writeTheirTipsIHave(Connection, List)}.
+     * {@link #writeTheirTipsIHave(Connection, List, boolean)}.
      *
      * @param connection   the connection to read from
      * @param numberOfTips the number of tips I sent them
      * @return a {@link Callable} that reads the booleans
      */
-    public static Callable<List<Boolean>> readMyTipsTheyHave(final Connection connection, final int numberOfTips) {
+    public static Callable<TipsInfo> readMyTipsTheyHave(final Connection connection, final int numberOfTips) {
         return () -> {
+            final boolean dontSendEvents = connection.getDis().readBoolean();
             final List<Boolean> booleans = connection.getDis().readBooleanList(numberOfTips);
             if (booleans == null) {
                 throw new SyncException(connection, "peer sent null booleans");
@@ -167,13 +172,14 @@ public final class SyncUtils {
                         connection::getDescription,
                         () -> SyncLogging.toShortBooleans(booleans));
             }
-            return booleans;
+            return new TipsInfo(dontSendEvents, booleans);
         };
     }
 
     /**
      * Send the events the peer needs. The complementary function to
-     * {@link #readEventsINeed(Connection, Consumer, int, SyncMetrics, CountDownLatch, IntakeEventCounter, Duration)}.
+     * {@link #readEventsINeed(Connection, Consumer, int, SyncMetrics, CountDownLatch, IntakeEventCounter, Duration,
+     * boolean)}.
      *
      * @param connection          the connection to write to
      * @param events              the events to write
@@ -183,7 +189,7 @@ public final class SyncUtils {
      *                            sync
      * @return A {@link Callable} that executes this part of the sync
      */
-    public static Callable<Void> sendEventsTheyNeed(
+    public static ThrowingRunnable sendEventsTheyNeed(
             final Connection connection,
             final List<PlatformEvent> events,
             final CountDownLatch eventReadingDone,
@@ -230,9 +236,6 @@ public final class SyncUtils {
             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
                 logger.debug(SYNC_INFO.getMarker(), "{} sent COMM_SYNC_DONE", connection.getDescription());
             }
-
-            // (ignored)
-            return null;
         };
     }
 
@@ -240,14 +243,15 @@ public final class SyncUtils {
      * Read events from the peer that I need. The complementary function to
      * {@link #sendEventsTheyNeed(Connection, List, CountDownLatch, AtomicBoolean, Duration)}.
      *
-     * @param connection         the connection to read from
-     * @param eventHandler       the consumer of received events
-     * @param maxEventCount      the maximum number of events to read, or 0 for no limit
-     * @param syncMetrics        tracks event reading metrics
-     * @param eventReadingDone   used to notify the writing thread that reading is done
-     * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
-     * @param maxSyncTime        the maximum amount of time to spend syncing with a peer, syncs that take longer than
-     *                           this will be aborted
+     * @param connection           the connection to read from
+     * @param eventHandler         the consumer of received events
+     * @param maxEventCount        the maximum number of events to read, or 0 for no limit
+     * @param syncMetrics          tracks event reading metrics
+     * @param eventReadingDone     used to notify the writing thread that reading is done
+     * @param intakeEventCounter   keeps track of the number of events in the intake pipeline from each peer
+     * @param maxSyncTime          the maximum amount of time to spend syncing with a peer, syncs that take longer than
+     *                             this will be aborted
+     * @param ignoreIncomingEvents discard incoming events because we are unhealthy
      * @return A {@link Callable} that executes this part of the sync
      */
     public static Callable<Integer> readEventsINeed(
@@ -257,7 +261,8 @@ public final class SyncUtils {
             final SyncMetrics syncMetrics,
             final CountDownLatch eventReadingDone,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Duration maxSyncTime) {
+            @NonNull final Duration maxSyncTime,
+            final boolean ignoreIncomingEvents) {
 
         return () -> {
             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
@@ -267,6 +272,7 @@ public final class SyncUtils {
             try {
                 final long startTime = System.nanoTime();
                 int count = 0;
+                boolean firstWrongEvent = false;
                 while (true) {
                     // readByte() will throw a timeout exception if the socket timeout is exceeded
                     final byte next = connection.getDis().readByte();
@@ -282,13 +288,24 @@ public final class SyncUtils {
                                 }
                             }
                             final GossipEvent gossipEvent = connection.getDis().readPbjRecord(GossipEvent.PROTOBUF);
-                            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
 
-                            platformEvent.setSenderId(connection.getOtherId());
-                            intakeEventCounter.eventEnteredIntakePipeline(connection.getOtherId());
+                            if (ignoreIncomingEvents) {
+                                if (!firstWrongEvent) {
+                                    logger.warn(
+                                            SYNC_INFO.getMarker(),
+                                            "We have asked for no events, but still received an event from {}",
+                                            connection.getDescription());
+                                    firstWrongEvent = true;
+                                }
+                            } else {
+                                final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
 
-                            eventHandler.accept(platformEvent);
-                            eventsRead++;
+                                platformEvent.setSenderId(connection.getOtherId());
+                                intakeEventCounter.eventEnteredIntakePipeline(connection.getOtherId());
+
+                                eventHandler.accept(platformEvent);
+                                eventsRead++;
+                            }
                         }
                         case ByteConstants.COMM_EVENT_ABORT -> {
                             logger.info(
@@ -472,7 +489,7 @@ public final class SyncUtils {
      *
      * @return the number of event creators that have more than one tip.
      */
-    public static int computeMultiTipCount(Iterable<ShadowEvent> tips) {
+    public static int computeMultiTipCount(final Iterable<ShadowEvent> tips) {
         // The number of tips per creator encountered when iterating over the sending tips
         final Map<NodeId, Integer> tipCountByCreator = new HashMap<>();
 
@@ -558,7 +575,7 @@ public final class SyncUtils {
      * For each tip sent to the peer, determine if they have that event. If they have it, add it to the list that is
      * returned.
      *
-     * @param peerId    the peer node id
+     * @param peerId         the peer node id
      * @param myTips         the tips we sent them
      * @param myTipsTheyHave a list of booleans corresponding to our tips in the order they were sent. True if they have
      *                       the event, false if they don't
@@ -614,7 +631,7 @@ public final class SyncUtils {
     /**
      * Deserialize an event window from the given input stream.
      *
-     * @param in          the input stream
+     * @param in the input stream
      * @return the deserialized event window
      */
     @NonNull
