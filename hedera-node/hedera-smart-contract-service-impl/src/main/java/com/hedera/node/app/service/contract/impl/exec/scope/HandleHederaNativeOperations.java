@@ -27,6 +27,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -119,8 +120,10 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
+        final boolean unlimitedAutoAssociations =
+                context.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress))
+                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociations))
                 .build();
 
         try {

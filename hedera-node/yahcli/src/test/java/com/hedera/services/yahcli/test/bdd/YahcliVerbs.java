@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -23,6 +24,10 @@ public class YahcliVerbs {
             Pattern.compile("SUCCESS - sent (\\d+) ([a-z]{1,4}bar) to account \\d+\\.\\d+\\.(\\d+)");
     private static final Pattern TOKEN_TRANSFER_PATTERN =
             Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern NEW_NODE_PATTERN = Pattern.compile("SUCCESS - created node(\\d+)");
+    private static final Pattern REWARD_RATE_PATTERN = Pattern.compile("Reward rate of\\s+(\\d+)");
+    private static final Pattern PER_NODE_STAKE_PATTERN = Pattern.compile("staked to node\\d+ for\\s+(\\d+)");
+    private static final Pattern BALANCE_PATTERN = Pattern.compile("balance credit of\\s+(\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -94,6 +99,26 @@ public class YahcliVerbs {
     }
 
     /**
+     * Returns an operation that invokes a yahcli {@code setupStake} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliSetupStaking(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "activate-staking"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code nodes} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliNodes(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "nodes"));
+    }
+
+    /**
      * Returns a callback that will look for a line indicating the creation of a new account,
      * and pass the new account number to the given callback.
      * @param cb the callback to capture the new account number
@@ -107,6 +132,30 @@ public class YahcliVerbs {
             } else {
                 Assertions.fail("Expected '" + output + "' to contain '" + NEW_ACCOUNT_PATTERN.pattern() + "'");
             }
+        };
+    }
+
+    public static Consumer<String> newNodeCapturer(@NonNull final LongConsumer cb) {
+        return output -> extractAndAcceptValue(output, NEW_NODE_PATTERN, cb);
+    }
+
+    /**
+     * Returns a callback that will parse the reward rate, per-node stake, and balance from the
+     * output of a {@code setupStake} command, passing each to the appropriate callback.
+     *
+     * @param rewardRateCb the callback to capture the reward rate
+     * @param perNodeStakeCb the callback to capture the per-node stake
+     * @param balanceCb the callback to capture the balance
+     * @return the output consumer
+     */
+    public static Consumer<String> newSetupStakeCapturer(
+            @NonNull final LongConsumer rewardRateCb,
+            @NonNull final LongConsumer perNodeStakeCb,
+            @NonNull final LongConsumer balanceCb) {
+        return output -> {
+            extractAndAcceptValue(output, REWARD_RATE_PATTERN, rewardRateCb);
+            extractAndAcceptValue(output, PER_NODE_STAKE_PATTERN, perNodeStakeCb);
+            extractAndAcceptValue(output, BALANCE_PATTERN, balanceCb);
         };
     }
 
@@ -216,5 +265,24 @@ public class YahcliVerbs {
         return Path.of(DEFAULT_WORKING_DIR.get(), TEST_NETWORK, "keys")
                 .toAbsolutePath()
                 .toString();
+    }
+
+    private static void extractAndAcceptValue(String output, Pattern pattern, LongConsumer consumer) {
+        final var m = pattern.matcher(output);
+        if (m.find()) {
+            consumer.accept(Long.parseLong(m.group(1)));
+        } else {
+            Assertions.fail("Expected '" + output + "' to contain '" + pattern.pattern() + "'");
+        }
+    }
+
+    /**
+     * Get Path of a resources file.
+     * @param resourceFileName the file name
+     * @return the Path
+     */
+    public static Path loadResourceFile(String resourceFileName) {
+        return Path.of(Objects.requireNonNull(YahcliVerbs.class.getClassLoader().getResource(resourceFileName))
+                .getPath());
     }
 }

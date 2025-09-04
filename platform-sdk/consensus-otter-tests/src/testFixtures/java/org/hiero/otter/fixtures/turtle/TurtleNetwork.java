@@ -9,7 +9,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -22,7 +21,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -38,10 +36,6 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
-
-    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ZERO;
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
@@ -68,7 +62,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator) {
-        super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -83,15 +76,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @NonNull
     protected TimeManager timeManager() {
         return timeManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**

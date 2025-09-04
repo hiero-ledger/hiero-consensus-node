@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.commands.ivy;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
+import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONSENSUS;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CONTRACT;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.CRYPTO;
 import static com.hedera.services.yahcli.commands.ivy.ValidationScenariosCommand.Scenario.FILE;
@@ -40,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -115,6 +117,10 @@ public class ValidationScenariosCommand implements Callable<Integer> {
         requireNonNull(scenariosConfig);
         final var specConfig = config.asSpecConfig();
         final var scenariosToRun = requestedScenarios();
+        config.output().info("--- ivy scenarios ---");
+        config.output().info(scenariosToRun.toString());
+        config.output().info("---------------------\n");
+
         final var nodeAccounts = nodeAccounts(scenariosConfig, config);
         final Runnable persistUpdatedScenarios = this::persistCurrentScenariosConfig;
         final var yahcliKeys = config.keys();
@@ -129,6 +135,15 @@ public class ValidationScenariosCommand implements Callable<Integer> {
                                 persistUpdatedScenarios,
                                 yahcliKeys,
                                 config.networkSize())));
+
+        config.output().info("--- ivy scenario results ---");
+        final var firstEntry = new AtomicBoolean(true);
+        config.output()
+                .info(results.entrySet().stream()
+                        .map(e -> (firstEntry.compareAndSet(true, false) ? "\n* " : "* ") + e.getKey() + ": "
+                                + e.getValue())
+                        .collect(Collectors.joining("\n")));
+        config.output().info("----------------------------");
         return results.values().stream().allMatch(PASSED::equals) ? 0 : 1;
     }
 
@@ -184,15 +199,15 @@ public class ValidationScenariosCommand implements Callable<Integer> {
     }
 
     private Set<Scenario> requestedScenarios() {
-        return EnumSet.copyOf(Stream.<Stream<Scenario>>of(
+        return Stream.<Stream<Scenario>>of(
                         crypto ? Stream.of(CRYPTO) : Stream.empty(),
                         file ? Stream.of(FILE) : Stream.empty(),
                         contract ? Stream.of(CONTRACT) : Stream.empty(),
-                        consensus ? Stream.of(CONTRACT) : Stream.empty(),
+                        consensus ? Stream.of(CONSENSUS) : Stream.empty(),
                         xfers ? Stream.of(XFERS) : Stream.empty(),
                         staking ? Stream.of(Scenario.STAKING) : Stream.empty())
                 .flatMap(Function.identity())
-                .toList());
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Scenario.class)));
     }
 
     private static Supplier<Supplier<String>> nodeAccounts(

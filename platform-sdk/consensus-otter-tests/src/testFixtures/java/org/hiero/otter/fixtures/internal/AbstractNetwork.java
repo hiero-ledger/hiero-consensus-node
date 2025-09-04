@@ -15,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +30,7 @@ import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
@@ -62,7 +62,8 @@ public abstract class AbstractNetwork implements Network {
 
     private static final Logger log = LogManager.getLogger();
 
-    private static final Duration FREEZE_DELAY = Duration.ofSeconds(10);
+    private static final Duration FREEZE_DELAY = Duration.ofSeconds(10L);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
     /**
      * The state of the network.
@@ -78,28 +79,9 @@ public abstract class AbstractNetwork implements Network {
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
+
+    @Nullable
     private PartitionImpl remainingPartition;
-
-    private final AsyncNetworkActions defaultStartAction;
-    private final AsyncNetworkActions defaultFreezeAction;
-    private final AsyncNetworkActions defaultShutdownAction;
-
-    /**
-     * Constructs an instance of {@link AbstractNetwork} with the specified default timeouts for start, freeze, and
-     * shutdown actions.
-     *
-     * @param defaultStartTimeout the default timeout for starting the network
-     * @param defaultFreezeTimeout the default timeout for freezing the network
-     * @param defaultShutdownTimeout the default timeout for shutting down the network
-     */
-    protected AbstractNetwork(
-            @NonNull final Duration defaultStartTimeout,
-            @NonNull final Duration defaultFreezeTimeout,
-            @NonNull final Duration defaultShutdownTimeout) {
-        this.defaultStartAction = withTimeout(defaultStartTimeout);
-        this.defaultFreezeAction = withTimeout(defaultFreezeTimeout);
-        this.defaultShutdownAction = withTimeout(defaultShutdownTimeout);
-    }
 
     /**
      * Returns the time manager for this network.
@@ -108,15 +90,6 @@ public abstract class AbstractNetwork implements Network {
      */
     @NonNull
     protected abstract TimeManager timeManager();
-
-    /**
-     * The factory for creating freeze transactions.
-     *
-     * @param freezeTime the freeze time for the transaction
-     * @return the byte array representing the freeze transaction
-     */
-    @NonNull
-    protected abstract byte[] createFreezeTransaction(@NonNull final Instant freezeTime);
 
     /**
      * The {@link TransactionGenerator} for this network.
@@ -151,8 +124,23 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void start() {
+        doStart(DEFAULT_TIMEOUT);
+    }
+
+    private void doStart(@NonNull final Duration timeout) {
+        throwIfInState(State.RUNNING, "Network is already running.");
+
+        log.info("Starting network...");
+        state = State.RUNNING;
         updateConnections();
-        defaultStartAction.start();
+        for (final Node node : nodes()) {
+            node.start();
+        }
+
+        transactionGenerator().start();
+
+        log.debug("Waiting for nodes to become active...");
+        timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
     }
 
     /**
@@ -202,6 +190,7 @@ public abstract class AbstractNetwork implements Network {
             partitions.clear();
             remainingPartition = null;
         } else {
+            assert remainingPartition != null; // because there are at least 3 partitions
             for (final Node node : partition.nodes()) {
                 partitions.put(node.selfId(), remainingPartition);
                 remainingPartition.nodes.add(node);
@@ -272,7 +261,31 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void freeze() {
-        defaultFreezeAction.freeze();
+        doFreeze(DEFAULT_TIMEOUT);
+    }
+
+    private void doFreeze(@NonNull final Duration timeout) {
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+
+        log.info("Sending freeze transaction...");
+        final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
+                        timeManager().now().plus(FREEZE_DELAY))
+                .toByteArray();
+        nodes().stream()
+                .filter(Node::isActive)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
+                .submitTransaction(freezeTransaction);
+
+        log.debug("Waiting for nodes to freeze...");
+        timeManager()
+                .waitForCondition(
+                        () -> allNodesInStatus(FREEZE_COMPLETE),
+                        timeout,
+                        "Timeout while waiting for all nodes to freeze.");
+
+        transactionGenerator().stop();
     }
 
     /**
@@ -337,7 +350,21 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void shutdown() {
-        defaultShutdownAction.shutdown();
+        doShutdown(DEFAULT_TIMEOUT);
+    }
+
+    private void doShutdown(@NonNull final Duration timeout) {
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
+
+        log.info("Killing nodes immediately...");
+        for (final Node node : nodes()) {
+            node.killImmediately();
+        }
+
+        state = State.SHUTDOWN;
+
+        transactionGenerator().stop();
     }
 
     /**
@@ -538,22 +565,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void start() {
-            throwIfInState(State.RUNNING, "Network is already running.");
-
-            log.info("Starting network...");
-            state = State.RUNNING;
-            for (final Node node : nodes()) {
-                node.start();
-            }
-
-            transactionGenerator().start();
-
-            log.debug("Waiting for nodes to become active...");
-            timeManager()
-                    .waitForCondition(
-                            () -> allNodesInStatus(ACTIVE),
-                            timeout,
-                            "Timeout while waiting for nodes to become active.");
+            doStart(timeout);
         }
 
         /**
@@ -561,26 +573,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void freeze() {
-            throwIfInState(State.INIT, "Network has not been started yet.");
-            throwIfInState(State.SHUTDOWN, "Network has been shut down.");
-
-            log.info("Sending freeze transaction...");
-            final byte[] freezeTransaction =
-                    createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
-            nodes().stream()
-                    .filter(Node::isActive)
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
-                    .submitTransaction(freezeTransaction);
-
-            log.debug("Waiting for nodes to freeze...");
-            timeManager()
-                    .waitForCondition(
-                            () -> allNodesInStatus(FREEZE_COMPLETE),
-                            timeout,
-                            "Timeout while waiting for all nodes to freeze.");
-
-            transactionGenerator().stop();
+            doFreeze(timeout);
         }
 
         /**
@@ -588,17 +581,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void shutdown() {
-            throwIfInState(State.INIT, "Network has not been started yet.");
-            throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
-
-            log.info("Killing nodes immediately...");
-            for (final Node node : nodes()) {
-                node.killImmediately();
-            }
-
-            state = State.SHUTDOWN;
-
-            transactionGenerator().stop();
+            doShutdown(timeout);
         }
     }
 
