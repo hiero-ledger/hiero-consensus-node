@@ -61,13 +61,13 @@ class PlatformWiringTests {
                 TestPlatformContextBuilder.create()
                         .withConfiguration(ConfigurationBuilder.create()
                                 .autoDiscoverExtensions()
-                                .withValue("platformComponentWiring.inlinePces", "false")
+                                .withValue("platformWiring.inlinePces", "false")
                                 .build())
                         .build(),
                 TestPlatformContextBuilder.create()
                         .withConfiguration(ConfigurationBuilder.create()
                                 .autoDiscoverExtensions()
-                                .withValue("platformComponentWiring.inlinePces", "true")
+                                .withValue("platformWiring.inlinePces", "true")
                                 .build())
                         .build());
     }
