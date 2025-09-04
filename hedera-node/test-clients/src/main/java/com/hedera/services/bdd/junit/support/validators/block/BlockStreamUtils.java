@@ -11,14 +11,14 @@ public class BlockStreamUtils {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
-            case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
+            case STATE_ID_BLOCKS -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
             case STATE_ID_BLOCK_STREAM_INFO -> "BlockStreamService.BLOCK_STREAM_INFO";
-            case STATE_ID_CONGESTION_STARTS -> "CongestionThrottleService.CONGESTION_LEVEL_STARTS";
-            case STATE_ID_THROTTLE_USAGE -> "CongestionThrottleService.THROTTLE_USAGE_SNAPSHOTS";
+            case STATE_ID_CONGESTION_LEVEL_STARTS -> "CongestionThrottleService.CONGESTION_LEVEL_STARTS";
+            case STATE_ID_THROTTLE_USAGE_SNAPSHOTS -> "CongestionThrottleService.THROTTLE_USAGE_SNAPSHOTS";
             case STATE_ID_TOPICS -> "ConsensusService.TOPICS";
-            case STATE_ID_CONTRACT_BYTECODE -> "ContractService.BYTECODE";
-            case STATE_ID_CONTRACT_STORAGE -> "ContractService.STORAGE";
+            case STATE_ID_BYTECODE -> "ContractService.BYTECODE";
+            case STATE_ID_STORAGE -> "ContractService.STORAGE";
             case STATE_ID_EVM_HOOK_STATES -> "ContractService.EVM_HOOK_STATES";
             case STATE_ID_LAMBDA_STORAGE -> "ContractService.LAMBDA_STORAGE";
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
@@ -42,7 +42,7 @@ public class BlockStreamUtils {
             case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
             case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
-            case STATE_ID_SCHEDULES_BY_EXPIRY -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
+            case STATE_ID_SCHEDULES_BY_EXPIRY_SEC -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
             case STATE_ID_SCHEDULES_BY_ID -> "ScheduleService.SCHEDULES_BY_ID";
             case STATE_ID_SCHEDULE_ID_BY_EQUALITY -> "ScheduleService.SCHEDULE_ID_BY_EQUALITY";
             case STATE_ID_SCHEDULED_COUNTS -> "ScheduleService.SCHEDULED_COUNTS";
@@ -53,8 +53,8 @@ public class BlockStreamUtils {
             case STATE_ID_NFTS -> "TokenService.NFTS";
             case STATE_ID_PENDING_AIRDROPS -> "TokenService.PENDING_AIRDROPS";
             case STATE_ID_STAKING_INFOS -> "TokenService.STAKING_INFOS";
-            case STATE_ID_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
-            case STATE_ID_TOKEN_RELATIONS -> "TokenService.TOKEN_RELS";
+            case STATE_ID_STAKING_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
+            case STATE_ID_TOKEN_RELS -> "TokenService.TOKEN_RELS";
             case STATE_ID_TOKENS -> "TokenService.TOKENS";
             case STATE_ID_TSS_MESSAGES -> "TssBaseService.TSS_MESSAGES";
             case STATE_ID_TSS_VOTES -> "TssBaseService.TSS_VOTES";

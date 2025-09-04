@@ -2,8 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BYTECODE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -413,7 +412,7 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(stateChanges);
         final var createdIds = stateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .map(MapUpdateChange::keyOrThrow)
@@ -564,7 +563,7 @@ public class BaseTranslator {
             @NonNull final BlockTransactionParts parts) {
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
         final var slotUpdates = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
+                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_BYTECODE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .collect(toMap(
@@ -572,7 +571,7 @@ public class BaseTranslator {
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
         final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(slotUpdates);
         final var slotRemovals = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
+                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_BYTECODE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
@@ -671,7 +670,7 @@ public class BaseTranslator {
                     final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);
                     final var bytecode = remainingStateChanges.stream()
                             .filter(StateChange::hasMapUpdate)
-                            .filter(update -> update.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                            .filter(update -> update.stateId() == STATE_ID_BYTECODE.protoOrdinal())
                             .filter(update -> update.mapUpdateOrThrow()
                                     .keyOrThrow()
                                     .contractIdKeyOrThrow()
@@ -718,7 +717,7 @@ public class BaseTranslator {
             final List<Bytes> writtenKeys = new LinkedList<>();
             final var contractId = slotUsage.contractIdOrThrow();
             for (final var stateChange : stateChanges) {
-                if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                if (stateChange.stateId() != STATE_ID_BYTECODE.protoOrdinal()) {
                     continue;
                 }
                 SlotKey slotKey = null;

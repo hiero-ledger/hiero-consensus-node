@@ -129,13 +129,13 @@ class ImmediateStateChangeListenerTest {
 
                     case TOKEN_RELATIONSHIP_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TOKEN_RELATIONS.protoOrdinal(),
+                                StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal(),
                                 new EntityIDPair(AccountID.DEFAULT, TokenID.DEFAULT),
                                 TokenRelation.DEFAULT);
 
                     case ENTITY_NUMBER_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
+                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(),
                                 new EntityNumber(1L),
                                 Bytecode.DEFAULT);
 
@@ -185,15 +185,11 @@ class ImmediateStateChangeListenerTest {
 
                     case SLOT_KEY_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal(),
-                                SlotKey.DEFAULT,
-                                SlotValue.DEFAULT);
+                                StateIdentifier.STATE_ID_STORAGE.protoOrdinal(), SlotKey.DEFAULT, SlotValue.DEFAULT);
 
                     case CONTRACT_ID_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
-                                ContractID.DEFAULT,
-                                Bytecode.DEFAULT);
+                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(), ContractID.DEFAULT, Bytecode.DEFAULT);
 
                     case TOKEN_ID_KEY ->
                         new MapUpdateScenario<>(
