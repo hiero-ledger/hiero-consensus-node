@@ -37,8 +37,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.consensus.event.creator.ConsensusEventCreator.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
+import org.hiero.consensus.event.creator.test.fixtures.DummyTransactionSupplier;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -46,11 +48,18 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
 public class TipsetEventCreatorTestUtils {
+
+    public static EventCreator buildEventCreator(
+            @NonNull final Random random,
+            @NonNull final Time time,
+            @NonNull final Roster roster,
+            @NonNull final NodeId nodeId) {
+        return buildEventCreator(random, time, roster, nodeId, new DummyTransactionSupplier());
+    }
 
     /**
      * Build an event creator for a node.
@@ -61,7 +70,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -92,7 +101,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();

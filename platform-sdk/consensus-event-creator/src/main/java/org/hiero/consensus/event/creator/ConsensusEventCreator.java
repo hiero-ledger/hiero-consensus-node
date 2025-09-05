@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
@@ -9,11 +10,13 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -32,46 +35,12 @@ public interface ConsensusEventCreator {
     InputWire<PlatformEvent> getOrderedEventsInputWire();
 
     /**
-     * {@link InputWire} for the rounds received from the {@code Hashgraph} component.
-     *
-     * @return the {@link InputWire} for the received rounds
-     */
-    @NonNull
-    InputWire<ConsensusRound> getRoundsInputWire();
-
-    /**
      * {@link OutputWire} for new self events created by this component.
      *
      * @return the {@link OutputWire} for the new self events
      */
     @NonNull
-    OutputWire<PlatformEvent> getNewSelfEventOutputWire();
-
-    /**
-     * {@link OutputWire} for stale events detected by this component.
-     *
-     * @return the {@link OutputWire} for the stale events
-     */
-    @NonNull
-    OutputWire<PlatformEvent> getStaleEventOutputWire();
-
-    /**
-     * Registers a listener for transaction requests.
-     *
-     * @param listener the listener to register
-     * @return this {@link ConsensusEventCreator} instance
-     */
-    @NonNull
-    ConsensusEventCreator registerTransactionRequestListener(@NonNull TransactionRequestListener listener);
-
-    /**
-     * Unegisters a listener for transaction requests.
-     *
-     * @param listener the listener to register
-     * @return this {@link ConsensusEventCreator} instance
-     */
-    @NonNull
-    ConsensusEventCreator unregisterTransactionRequestListener(@NonNull TransactionRequestListener listener);
+    OutputWire<PlatformEvent> getMaybeCreatedEventOutputWire();
 
     // *******************************************************************
     // Additional wires. Most likely going to be added to the architecture
@@ -84,6 +53,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the health status
      */
+    @NonNull
     InputWire<Duration> getHealthStatusInputWire();
 
     /**
@@ -91,23 +61,43 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the platform status
      */
+    @NonNull
     InputWire<PlatformStatus> getPlatformStatusInputWire();
 
     /**
-     * Initializes the component.
+     * {@link InputWire} for the sync round lag.
      *
-     * @param configuration the configuration to be used during initialization
-     * @param metrics the metrics to be used during initialization
-     * @param time the time source to be used during initialization
-     * @param model the wiring model to be used during initialization
-     * @return this {@link ConsensusEventCreator} instance
+     * <p>The sync round lag is the number of rounds this node is behind the median of the latest
+     * rounds of all connected peers.
+     *
+     * @return the {@link InputWire} for the sync round lag
      */
     @NonNull
-    ConsensusEventCreator initialize(
+    InputWire<Double> getSyncRoundLagInputWire();
+
+    /**
+     * Initialize the components
+     *
+     * @param model,
+     * @param configuration
+     * @param metrics
+     * @param time
+     * @param random
+     * @param keysAndCerts
+     * @param roster
+     * @param selfId
+     * @param transactionSupplier
+     */
+    void initialize(
+            @NonNull WiringModel model,
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
-            @NonNull WiringModel model);
+            @NonNull SecureRandom random,
+            @NonNull KeysAndCerts keysAndCerts,
+            @NonNull Roster roster,
+            @NonNull NodeId selfId,
+            @NonNull TransactionSupplier transactionSupplier);
 
     /**
      * Destroys the component.
@@ -123,13 +113,21 @@ public interface ConsensusEventCreator {
      * <p>The {@link ConsensusEventCreator} will call the {@link #getTransactionsForEvent()} method
      * to get all transactions that should be added to the next event.
      */
-    interface TransactionRequestListener {
+    interface TransactionSupplier {
         /**
          * Returns all transactions that should be added to the next event.
          *
          * @return the transactions to add to the next event
          */
+        @NonNull
         List<Bytes> getTransactionsForEvent();
+
+        /**
+         * Returns whether there are any transactions that should be added to the next event.
+         *
+         * @return {@code true} if there are transactions waiting, {@code false} otherwise
+         */
+        boolean hasTransactionsForEvents();
     }
 
     // *****************************************************************
@@ -139,76 +137,39 @@ public interface ConsensusEventCreator {
     /**
      * {@link InputWire} for the event window received from the {@code Hashgraph} component.
      *
-     * <p>This InputWire should be combined with {@link #getRoundsInputWire()}.
-     *
      * @return the {@link InputWire} for the event window
      */
+    @NonNull
     InputWire<EventWindow> getEventWindowInputWire();
-
-    /**
-     * {@link InputWire} for the initial event window received from the {@code Hashgraph} component.
-     *
-     * <p>This InputWire should be replaced with something else. It only notifies the stale event
-     * detector about the event window after restart or reconnect. A direct method call seems more
-     * appropriate. Right now, it is not clear why an InputWire is used here.
-     *
-     * @return the {@link InputWire} for the initial event window
-     */
-    InputWire<EventWindow> getInitialEventWindowInputWire();
 
     /**
      * Starts squelching the internal event creation manager.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
      */
-    void startSquelchingEventCreationManager();
-
-    /**
-     * Starts squelching the internal stale event detector.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    void startSquelchingStaleEventDetector();
+    void startSquelching();
 
     /**
      * Flushes all events of the internal event creation manager.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
      */
-    void flushEventCreationManager();
-
-    /**
-     * Flushes all events of the internal stale event detector.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    void flushStaleEventDetector();
+    void flush();
 
     /**
      * Stops squelching the internal event creation manager.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
      */
-    void stopSquelchingEventCreationManager();
-
-    /**
-     * Stops squelching the internal stale event detector.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    void stopSquelchingStaleEventDetector();
+    void stopSquelching();
 
     /**
      * Get an {@link InputWire} to clear the internal state of the internal event creation manager.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    InputWire<Void> getClearEventCreationMangerInputWire();
-
-    /**
-     * Get an {@link InputWire} to clear the internal state of the internal stale event detector.
      *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     * @return the {@link InputWire} to clear the event creation manager
      */
-    InputWire<Void> getClearStaleEventDetectorInputWire();
+    @NonNull
+    InputWire<Object> getClearEventCreationMangerInputWire();
 }

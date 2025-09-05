@@ -48,7 +48,10 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -60,6 +63,8 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
+import org.hiero.consensus.event.creator.ConsensusEventCreator.TransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -129,6 +134,7 @@ public final class PlatformBuilder {
     private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
     private ExecutionLayer execution;
+    private ConsensusEventCreator consensusEventCreator;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -371,6 +377,48 @@ public final class PlatformBuilder {
         return this;
     }
 
+    @NonNull
+    public PlatformBuilder withConsensusEventCreator(@NonNull final ConsensusEventCreator consensusEventCreator) {
+        throwIfAlreadyUsed();
+        this.consensusEventCreator = Objects.requireNonNull(consensusEventCreator);
+        return this;
+    }
+
+    private ConsensusEventCreator initializeConsensusEventCreator() {
+        if (this.consensusEventCreator == null) {
+            final ServiceLoader<ConsensusEventCreator> serviceLoader = ServiceLoader.load(ConsensusEventCreator.class);
+            final Iterator<ConsensusEventCreator> iterator = serviceLoader.iterator();
+            if (!iterator.hasNext()) {
+                throw new IllegalStateException("No ConsensusEventCreator implementation found!");
+            }
+            this.consensusEventCreator = iterator.next();
+        }
+
+        final TransactionSupplier transactionSupplier = new TransactionSupplier() {
+            @NonNull
+            @Override
+            public List<Bytes> getTransactionsForEvent() {
+                return execution.getTransactionsForEvent();
+            }
+
+            @Override
+            public boolean hasTransactionsForEvents() {
+                return execution.hasBufferedSignatureTransactions();
+            }
+        };
+        consensusEventCreator.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                secureRandomSupplier.get(),
+                keysAndCerts,
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                transactionSupplier);
+        return consensusEventCreator;
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -477,7 +525,10 @@ public final class PlatformBuilder {
             };
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
+        initializeConsensusEventCreator();
+
+        final PlatformWiring platformWiring =
+                new PlatformWiring(platformContext, model, callbacks, execution, consensusEventCreator);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,

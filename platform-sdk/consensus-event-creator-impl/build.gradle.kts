@@ -25,4 +25,5 @@ testModuleInfo {
     requires("org.hiero.junit.extensions")
     opensTo("org.hiero.junit.extensions")
     opensTo("org.hiero.junit.extensions")
+    requires("org.hiero.consensus.event.creator.test.fixtures")
 }

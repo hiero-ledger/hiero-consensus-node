@@ -3,6 +3,7 @@
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
+    uses org.hiero.consensus.event.creator.ConsensusEventCreator;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -123,7 +124,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.event.creator.impl;
+    requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;

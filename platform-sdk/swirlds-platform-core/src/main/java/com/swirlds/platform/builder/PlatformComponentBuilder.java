@@ -71,12 +71,6 @@ import java.util.Objects;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
-import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -105,10 +99,8 @@ public class PlatformComponentBuilder {
     private InternalEventValidator internalEventValidator;
     private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
-    private SelfEventSigner selfEventSigner;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreationManager eventCreationManager;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
@@ -376,38 +368,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a self event signer in place of the platform's default self event signer.
-     *
-     * @param selfEventSigner the self event signer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withSelfEventSigner(@NonNull final SelfEventSigner selfEventSigner) {
-        throwIfAlreadyUsed();
-        if (this.selfEventSigner != null) {
-            throw new IllegalStateException("Self event signer has already been set");
-        }
-        this.selfEventSigner = Objects.requireNonNull(selfEventSigner);
-        return this;
-    }
-
-    /**
-     * Build the self event signer if it has not yet been built. If one has been provided via
-     * {@link #withSelfEventSigner(SelfEventSigner)}, that signer will be used. If this method is called more than once,
-     * only the first call will build the self event signer. Otherwise, the default signer will be created and
-     * returned.
-     *
-     * @return the self event signer
-     */
-    @NonNull
-    public SelfEventSigner buildSelfEventSigner() {
-        if (selfEventSigner == null) {
-            selfEventSigner = new DefaultSelfEventSigner(blocks.keysAndCerts());
-        }
-        return selfEventSigner;
-    }
-
-    /**
      * Build the orphan buffer if it has not yet been built. If one has been provided via
      * {@link #withOrphanBuffer(OrphanBuffer)}, that orphan buffer will be used. If this method is called more than
      * once, only the first call will build the orphan buffer. Otherwise, the default orphan buffer will be created and
@@ -441,53 +401,6 @@ public class PlatformComponentBuilder {
         this.orphanBuffer = Objects.requireNonNull(orphanBuffer);
 
         return this;
-    }
-
-    /**
-     * Provide an event creation manager in place of the platform's default event creation manager.
-     *
-     * @param eventCreationManager the event creation manager to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventCreationManager(@NonNull final EventCreationManager eventCreationManager) {
-        throwIfAlreadyUsed();
-        if (this.eventCreationManager != null) {
-            throw new IllegalStateException("Event creation manager has already been set");
-        }
-        this.eventCreationManager = Objects.requireNonNull(eventCreationManager);
-        return this;
-    }
-
-    /**
-     * Build the event creation manager if it has not yet been built. If one has been provided via
-     * {@link #withEventCreationManager(EventCreationManager)}, that manager will be used. If this method is called more
-     * than once, only the first call will build the event creation manager. Otherwise, the default manager will be
-     * created and returned.
-     *
-     * @return the event creation manager
-     */
-    @NonNull
-    public EventCreationManager buildEventCreationManager() {
-        if (eventCreationManager == null) {
-            final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.secureRandomSupplier().get(),
-                    data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.execution());
-
-            eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.execution(),
-                    eventCreator);
-        }
-        return eventCreationManager;
     }
 
     /**

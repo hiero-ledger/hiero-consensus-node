@@ -6,9 +6,9 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFOR
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.ConsensusEventCreator.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
  * Limits the creation of new events depending on the current platform status.
@@ -16,19 +16,19 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 public class PlatformStatusRule implements EventCreationRule {
 
     private final Supplier<PlatformStatus> platformStatusSupplier;
-    private final SignatureTransactionCheck signatureTransactionCheck;
+    private final TransactionSupplier transactionSupplier;
 
     /**
      * Constructor.
      *
      * @param platformStatusSupplier    provides the current platform status
-     * @param signatureTransactionCheck checks for pending signature transactions
+     * @param transactionSupplier checks for pending signature transactions
      */
     public PlatformStatusRule(
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
+            @NonNull final TransactionSupplier transactionSupplier) {
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.signatureTransactionCheck = Objects.requireNonNull(signatureTransactionCheck);
+        this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
     }
 
     /**
@@ -39,7 +39,7 @@ public class PlatformStatusRule implements EventCreationRule {
         final PlatformStatus currentStatus = platformStatusSupplier.get();
 
         if (currentStatus == PlatformStatus.FREEZING) {
-            return signatureTransactionCheck.hasBufferedSignatureTransactions();
+            return transactionSupplier.hasTransactionsForEvents();
         }
 
         if (currentStatus != PlatformStatus.ACTIVE && currentStatus != PlatformStatus.CHECKING) {
