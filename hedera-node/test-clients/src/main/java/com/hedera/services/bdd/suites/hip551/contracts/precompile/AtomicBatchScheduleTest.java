@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -33,6 +34,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchScheduleTest {
@@ -75,6 +77,7 @@ public class AtomicBatchScheduleTest {
      */
     @HapiTest
     @DisplayName("Atomic can successfully schedule a create fungible token operation")
+    @Tag(MATS)
     public Stream<DynamicTest> atomicScheduledCreateToken(
             @NonNull @Contract(contract = "HIP756Contract", creationGas = 4_000_000L, isImmutable = true)
                     final SpecContract contract,
