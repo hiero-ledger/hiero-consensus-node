@@ -29,6 +29,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
+val blockNodeProtobufSources = "0.17.1"
 val testContainers = "1.21.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -159,5 +160,8 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("org.hiero.block:block-node-protobuf-sources:$blockNodeProtobufSources") {
+        because("External block node protobuf sources")
     }
 }
