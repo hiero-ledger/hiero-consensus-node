@@ -18,10 +18,14 @@ module com.hedera.node.yahcli {
             info.picocli;
     opens com.hedera.services.yahcli.commands.nodes to
             info.picocli;
+    opens com.hedera.services.yahcli.commands.ivy to
+            info.picocli;
 
     exports com.hedera.services.yahcli.config.domain;
+    exports com.hedera.services.yahcli.util;
     exports com.hedera.services.yahcli.config;
     exports com.hedera.services.yahcli.output;
+    exports com.hedera.services.yahcli.commands.files;
 
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook;
