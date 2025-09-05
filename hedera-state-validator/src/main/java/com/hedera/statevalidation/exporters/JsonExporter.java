@@ -139,8 +139,15 @@ public class JsonExporter {
                     } else { // kv
                         write(
                                 writer,
-                                "{\"p\":%d,\"k\":%s, \"v\":%s}\n"
-                                        .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
+                                "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}\n"
+                                        .formatted(
+                                                path,
+                                                keyToJson(stateKey.key())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\""),
+                                                valueToJson(stateValue.value())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\"")));
                     }
                     emptyFile = false;
                     long currentObjCount = objectsProcessed.incrementAndGet();

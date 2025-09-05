@@ -3,13 +3,13 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -107,7 +107,7 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
             List<Block> singleNodeBlocks = null;
             try {
                 log.info("Trying to read blocks from {}", path);
-                singleNodeBlocks = BLOCK_STREAM_ACCESS.readBlocks(Path.of(path));
+                singleNodeBlocks = BlockStreamUtils.readBlocks(Path.of(path));
                 log.info("Read {} blocks from {}", singleNodeBlocks.size(), path);
             } catch (Exception e) {
                 final String message = "Failed to read blocks from '" + path + "' due to '" + e.getMessage() + "'";
