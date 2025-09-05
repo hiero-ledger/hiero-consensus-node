@@ -38,7 +38,7 @@ class EmptyReadableStatesTest extends StateTestBase {
 
     @Test
     @DisplayName("Throws IAE for an unknown singleton state ID")
-    void unknownSingletongStateId() {
+    void unknownSingletonStateId() {
         assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 

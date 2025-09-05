@@ -11,8 +11,6 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.platform.state.StateKey;
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.TokenService;
@@ -28,6 +26,8 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.merkle.StateKey;
+import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -78,17 +78,19 @@ public class TokenRelationsIntegrity {
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = com.swirlds.state.merkle.StateKey.extractStateIdFromStateKey(keyBytes);
-            final int readValueStateId = com.swirlds.state.merkle.StateValue.extractStateIdFromStateValue(valueBytes);
+            final int readKeyStateId = StateKey.extractStateIdFromStateKey(keyBytes);
+            final int readValueStateId = StateValue.extractStateIdFromStateValue(valueBytes);
             if ((readKeyStateId == tokenRelsStateId) && (readValueStateId == tokenRelsStateId)) {
                 try {
-                    final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
+                    final com.hedera.hapi.platform.state.StateKey stateKey =
+                            com.hedera.hapi.platform.state.StateKey.PROTOBUF.parse(keyBytes);
 
                     final EntityIDPair entityIDPair = stateKey.key().as();
                     final AccountID accountId1 = entityIDPair.accountId();
                     final TokenID tokenId1 = entityIDPair.tokenId();
 
-                    final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    final com.hedera.hapi.platform.state.StateValue stateValue =
+                            com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                     final TokenRelation tokenRelation = stateValue.value().as();
                     final AccountID accountId2 = tokenRelation.accountId();
                     final TokenID tokenId2 = tokenRelation.tokenId();
