@@ -33,6 +33,10 @@ public record QueueState(long head, long tail) {
         }
     }
 
+    public QueueState copy() {
+        return new QueueState(head, tail);
+    }
+
     public QueueState elementAdded() {
         return new QueueState(head, tail + 1);
     }

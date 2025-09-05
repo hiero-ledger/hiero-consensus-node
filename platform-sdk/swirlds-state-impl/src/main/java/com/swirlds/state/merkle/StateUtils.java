@@ -244,11 +244,10 @@ public final class StateUtils {
      * For a queue state object, creates an instance of {@link StateValue} that can be
      * stored in a virtual map. Queue states are stored as singletons.
      *
-     * @param stateId the queue state ID
      * @param queueState the queue state
      * @return the {@link StateValue} object
      */
-    public static StateValue<QueueState> getStateValueForQueueState(final int stateId, final QueueState queueState) {
+    public static StateValue<QueueState> getStateValueForQueueState(final QueueState queueState) {
         return new StateValue<>(STATE_VALUE_QUEUE_STATE, queueState);
     }
 
