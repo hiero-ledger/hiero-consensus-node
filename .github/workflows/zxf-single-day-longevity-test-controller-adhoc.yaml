@@ -5,13 +5,15 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "AdHoc5"
-        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7)"
+        default: "AdHocSD8"
+        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
       ref:
         required: true
         default: "main"
@@ -126,10 +128,10 @@ jobs:
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
-      kubernetes-cluster: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
       add-settings: "${{ inputs.add-settings }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result

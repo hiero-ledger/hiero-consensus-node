@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -187,6 +188,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchPrecompileTest {
@@ -1437,6 +1439,7 @@ public class AtomicBatchPrecompileTest {
      * DelegatePrecompileSuite
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> atomicDelegateCallForTransfer() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
@@ -2649,6 +2652,7 @@ public class AtomicBatchPrecompileTest {
      * WipeTokenAccountPrecompileSuite
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> atomicWipeFungibleTokenScenarios() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();

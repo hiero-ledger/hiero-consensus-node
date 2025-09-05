@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -149,6 +150,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of LeakyContractTestsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -550,6 +552,7 @@ public class AtomicLeakyContractTestsSuite {
 
     @HapiTest
     @Order(8)
+    @Tag(MATS)
     final Stream<DynamicTest> autoAssociationSlotsAppearsInInfo() {
         final int maxAutoAssociations = 100;
         final String CONTRACT = "Multipurpose";
@@ -614,6 +617,7 @@ public class AtomicLeakyContractTestsSuite {
 
     @HapiTest
     @Order(3)
+    @Tag(MATS)
     final Stream<DynamicTest> propagatesNestedCreations() {
         final var call = "callTxn";
         final var creation = "createTxn";
