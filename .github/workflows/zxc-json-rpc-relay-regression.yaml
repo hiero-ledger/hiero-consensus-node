@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: JSON-RPC Relay Regression"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
+    secrets:
+      access-token:
+        description: "GitHub Access Token with write permissions to the repository."
+        required: true
+      slack-detailed-report-webhook:
+        description: "Slack Webhook URL for detailed test report."
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  checks: write
+  contents: read
+  actions: write
+  statuses: write
+  id-token: write
+
+env:
+  SOLO_CLUSTER_NAME: "solo-rpc-relay-e2e"
+  SOLO_NAMESPACE: "solo-rpc-relay-e2e"
+  SOLO_DEPLOYMENT: "solo-rpc-relay-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+
+jobs:
+  # Execute JSON-RPC Relay Regression Tests using specified version of hiero-consensus-node
+  json-rpc-relay-regression:
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hiero-citr-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      #  Check out the specified hiero-consensus-node reference
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 0
+
+      #  Checkout the json-rpc-relay repository
+      - name: Checkout JSON-RPC Relay
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: regression-tests/json-rpc-relay
+          repository: hiero-ledger/hiero-json-rpc-relay
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Set up Java Environment
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
+      # Set up the node environment
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Set up the gradle environment
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        with:
+          cache-read-only: false
+
+      # Build the hiero-consensus-node artifacts
+      - name: Build hiero-consensus-node
+        run: ${GRADLE_EXEC} assemble
+
+      # Set up the npm dependencies and cache on the json-rpc-relay repository
+      - name: Install NodeJS Dependencies (json-rpc-relay)
+        run: npm ci
+        working-directory: regression-tests/json-rpc-relay
+
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
+        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Set up solo
+      - name: Configure and run solo
+        run: |
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          solo init
+          solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+          solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+          solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+          solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+          solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+          solo node start --deployment "${SOLO_DEPLOYMENT}"
+          solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+
+      # Perform JSON-RPC Relay regression tests
+      - name: Start json-rpc-relay-test-client
+        env:
+          CHAIN_ID: "0x12a"
+          MIRROR_NODE_URL: "http://127.0.0.1:8081"
+          HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
+          OPERATOR_ID_MAIN: 0.0.2
+          OPERATOR_KEY_MAIN: 302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
+          REDIS_ENABLED: false
+          USE_ASYNC_TX_PROCESSING: false
+        run: npm run build && npm run acceptancetest:xts
+        working-directory: regression-tests/json-rpc-relay
+
+      - name: JSON-RPC Relay Regression Test Report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: JSON-RPC Relay Regression Test Report
+          path: "**/regression-tests/platform-sdk/regression/mochawesome-report/mochawesome.*"
+          retention-days: 7
+
+      # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
+      - name: Collect run logs in a log file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.access-token }}
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job ${job_id}..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: Run Logs
+          path: run.log
+
+      # Stop the solo nodes
+      - name: Stop solo
+        if: ${{ always() }}
+        run: |
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+  report-json-rpc-relay-regression-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hiero-citr-linux-medium
+    needs: json-rpc-relay-regression
+    if: ${{ always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          COLOR="#FF0000"
+          if [[ "${{ needs.json-rpc-relay-regression.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.json-rpc-relay-regression.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":vertical_traffic_light: Hiero Consensus Node - JSON-RPC Relay Regression Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*JSON-RPC Relay Regression Panel was executed. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "JSON-RPC Relay Regression Panel Result"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.json-rpc-relay-regression.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report Status to Detailed Test Reports Channel
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

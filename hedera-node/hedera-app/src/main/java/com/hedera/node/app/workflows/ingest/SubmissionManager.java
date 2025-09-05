@@ -2,18 +2,20 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StatsConfig;
 import com.hedera.node.config.types.Profile;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -144,9 +146,7 @@ public class SubmissionManager {
             // before we got here. But if it ever does happen, for any reason, we want it to happen BEFORE we submit,
             // and BEFORE we record the transaction as a duplicate.
             final var txId = txBody.transactionIDOrThrow();
-            TxStatus txStatus = submittedTxns.getTxStatus(txId);
-            if (txStatus == TxStatus.SUBMITTED) {
-                // If the transaction is already submitted, we do not want to submit it again.
+            if (submittedTxns.contains(txId)) {
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
             }
 
@@ -157,6 +157,25 @@ public class SubmissionManager {
             final var success = transactionPool.submitApplicationTransaction(payload);
             if (success) {
                 submittedTxns.add(txId);
+
+                if (txBody.hasAtomicBatch()
+                        && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
+                    final var transactions = txBody.atomicBatchOrThrow().transactions();
+                    for (final Bytes buffer : transactions) {
+                        try {
+                            final var signedTransaction =
+                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
+                            final var body = TransactionBody.PROTOBUF.parseStrict(
+                                    signedTransaction.bodyBytes().toReadableSequentialData());
+                            final var innerTxnId = body.transactionIDOrThrow();
+                            submittedTxns.add(innerTxnId);
+                        } catch (ParseException e) {
+                            // This should never happen. All inner batch transactions should be validated by the
+                            // IngestChecker before they get submitted here.
+                            throw new PreCheckException(INVALID_TRANSACTION);
+                        }
+                    }
+                }
             } else {
                 platformTxnRejections.cycle();
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);

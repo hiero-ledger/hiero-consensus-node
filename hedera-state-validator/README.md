@@ -44,7 +44,7 @@ of a corrupted state.
 2. Run the following command to execute the introspection:
 
    ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} introspect {serviceName} {stateName} [{keyInfo}]
+   java -jar ./validator-<version>.jar {path-to-state-round} introspect {service_name} {state_key} [{key_info}]
    ```
 
    Here, the `serviceName` is the required name of the service to introspect, and `stateName` is the required name of the state to introspect.

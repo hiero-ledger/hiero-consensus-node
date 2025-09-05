@@ -46,7 +46,7 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
@@ -130,7 +130,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        state = new TestVirtualMapState(virtualMap) {
+        state = new TestHederaVirtualMapState(virtualMap) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {

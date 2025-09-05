@@ -1113,7 +1113,7 @@ public class RecordStreamBuilder
 
     @Override
     public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
-        throw new UnsupportedOperationException("Record stream uses verbose sidecars");
+        return this;
     }
 
     /**

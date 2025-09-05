@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -45,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicUpdateSuite\. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -321,6 +323,7 @@ public class AtomicTopicUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateSubmitKeyToDiffKey() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

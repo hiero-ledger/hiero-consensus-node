@@ -22,11 +22,27 @@ public interface ConsensusEngine {
     void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
 
     /**
-     * Add an event to the consensus engine. This event might not be added to the hashgraph immediately, but it will be
-     * processed and will be returned as part of the output if it's a pre-consensus event.
+     * Add an event to the consensus engine. One of the following will be done with the event:
+     * <ul>
+     *     <li>The event might be added to the hashgraph and returned as a pre-consensus event</li>
+     *     <li>The event might be ancient, in which case it is a future event</li>
+     *     <li>The event might be a future event, in which case it won't be added to the hashgraph immediately. It will
+     *     be added at some point in the future, when consensus advances by adding more events. Once its added, it will
+     *     be returned as a pre-consensus event</li>
+     * </ul>
+     * The {@link ConsensusEngineOutput} guarantees the following:
+     * <ul>
+     *     <li>Each event that is added to the hashgraph will be returned as a pre-consensus event</li>
+     *     <li>Each pre-consensus event must eventually reach consensus or become stale (the stale part will be
+     *     implemented soon)</li>
+     *     <li>Each event that reaches consensus or becomes stale, must have been previously returned as a pre-consensus
+     *     event</li>
+     * </ul>
+     *
+     * <b>NOTE: </b> The above stated guarantees are reset when {@link #outOfBandSnapshotUpdate(ConsensusSnapshot)}
      *
      * @param event an event to be added
-     * @return a list of rounds and a list of recent event waiting to reach consensus
+     * @return the consensus output
      */
     @NonNull
     @InputWireLabel("PlatformEvent")

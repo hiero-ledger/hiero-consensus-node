@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.2.Final"))
+    api(platform("io.netty:netty-bom:4.2.4.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -21,13 +21,13 @@ val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.72.0"
-val hederaCryptography = "0.2.3-SNAPSHOT"
+val hederaCryptography = "2.0.2"
 val helidon = "4.2.3"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.0"
 val mockito = "5.18.0"
-val pbj = "0.11.13" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
+val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
 val testContainers = "1.21.3"
 val tuweni = "2.4.2"
@@ -65,6 +65,10 @@ dependencies.constraints {
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
+    api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
+        because("com.hedera.pbj.grpc.client.helidon")
+    }
+    api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
     api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }

@@ -3,7 +3,6 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,8 +33,9 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -98,7 +99,6 @@ public class StartupStateUtilsTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registerMerkleStateRootClassIds();
     }
 
     @NonNull
@@ -124,11 +124,14 @@ public class StartupStateUtilsTests {
             @NonNull final Random random,
             @NonNull final PlatformContext platformContext,
             final long round,
+            @Nullable final Hash epoch,
             final boolean corrupted)
             throws IOException {
 
-        final SignedState signedState =
-                new RandomSignedStateGenerator(random).setRound(round).build();
+        final SignedState signedState = new RandomSignedStateGenerator(random)
+                .setRound(round)
+                .setEpoch(epoch)
+                .build();
 
         // make the state immutable
         signedState.getState().copy().release();
@@ -171,7 +174,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -192,7 +195,7 @@ public class StartupStateUtilsTests {
         SignedState latestState = null;
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
-            latestState = writeState(random, platformContext, latestRound, false);
+            latestState = writeState(random, platformContext, latestRound, null, false);
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
@@ -201,7 +204,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -227,7 +230,7 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = i == stateCount - 1;
-            writeState(random, platformContext, latestRound, corrupted);
+            writeState(random, platformContext, latestRound, null, corrupted);
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
@@ -236,7 +239,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -270,7 +273,7 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = (stateCount - i) <= invalidStateCount;
-            final SignedState state = writeState(random, platformContext, latestRound, corrupted);
+            final SignedState state = writeState(random, platformContext, latestRound, null, corrupted);
             if (!corrupted) {
                 latestUncorruptedState = state;
             }
@@ -282,7 +285,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        TestHederaVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

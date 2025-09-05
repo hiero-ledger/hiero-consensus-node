@@ -48,7 +48,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
@@ -67,8 +66,8 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -77,6 +76,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    /** The thread context key for the node ID. */
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
     private final Randotron randotron;
@@ -88,7 +88,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final TurtleMarkerFileObserver markerFileObserver;
-    private final AsyncNodeActions asyncNodeActions = new TurtleAsyncNodeActions();
 
     private PlatformContext platformContext;
 
@@ -145,46 +144,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void killImmediately() {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
-
-            doShutdownNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
-     */
-    @Override
-    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
-        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
-     */
-    @Override
-    public void stopSyntheticBottleneck() {
-        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void start() {
+    protected void doStart(@NonNull final Duration timeout) {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
@@ -192,19 +153,144 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(DESTROYED, "Node has already been destroyed.");
 
             // Start node from current state
-            doStartNode();
+            final Configuration currentConfiguration = nodeConfiguration.current();
+            final org.hiero.consensus.model.node.NodeId legacyNodeId =
+                    org.hiero.consensus.model.node.NodeId.of(selfId.id());
+
+            setupGlobalMetrics(currentConfiguration);
+
+            final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
+            final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
+            if (markerFilesDir != null) {
+                markerFileObserver.startObserving(markerFilesDir);
+            }
+
+            final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
+            final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
+            final RecycleBin recycleBin = RecycleBin.create(
+                    metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
+
+            platformContext = TestPlatformContextBuilder.create()
+                    .withTime(time)
+                    .withConfiguration(currentConfiguration)
+                    .withFileSystemManager(fileSystemManager)
+                    .withMetrics(metrics)
+                    .withRecycleBin(recycleBin)
+                    .build();
+
+            model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                    .withDeterministicModeEnabled(true)
+                    .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                    .build();
+
+            final HashedReservedSignedState reservedState = loadInitialState(
+                    recycleBin,
+                    version,
+                    () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
+                    OtterApp.APP_NAME,
+                    OtterApp.SWIRLD_NAME,
+                    legacyNodeId,
+                    platformStateFacade,
+                    platformContext,
+                    OtterAppState::new);
+            final ReservedSignedState initialState = reservedState.state();
+
+            final State state = initialState.get().getState();
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final String eventStreamLoc = selfId.toString();
+
+            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+
+            final PlatformBuilder platformBuilder = PlatformBuilder.create(
+                            OtterApp.APP_NAME,
+                            OtterApp.SWIRLD_NAME,
+                            version,
+                            initialState,
+                            OtterApp.INSTANCE,
+                            legacyNodeId,
+                            eventStreamLoc,
+                            rosterHistory,
+                            platformStateFacade,
+                            OtterAppState::new)
+                    .withPlatformContext(platformContext)
+                    .withConfiguration(currentConfiguration)
+                    .withKeysAndCerts(keysAndCerts)
+                    .withExecutionLayer(executionLayer)
+                    .withModel(model)
+                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
+
+            final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
+            final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
+
+            final SimulatedGossip gossip = network.getGossipInstance(legacyNodeId);
+            gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
+
+            platformComponentBuilder
+                    .withMetricsDocumentationEnabled(false)
+                    .withGossip(network.getGossipInstance(legacyNodeId));
+
+            platformWiring = platformBuildingBlocks.platformWiring();
+
+            platformWiring
+                    .getConsensusEngineOutputWire()
+                    .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+
+            platformWiring
+                    .getStatusStateMachineOutputWire()
+                    .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
+
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+            });
+
+            platform = platformComponentBuilder.build();
+            platformStatus = PlatformStatus.STARTING_UP;
+            platform.start();
+
+            lifeCycle = RUNNING;
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
-        return asyncNodeActions;
+    protected void doKillImmediately(@NonNull final Duration timeout) {
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
+
+            if (lifeCycle == RUNNING) {
+                markerFileObserver.stopObserving();
+                assert platform != null; // platform must be initialized if lifeCycle is STARTED
+                try {
+                    platform.destroy();
+                } catch (final InterruptedException e) {
+                    throw new AssertionError("Unexpected interruption during platform shutdown", e);
+                }
+                platformStatus = null;
+                platform = null;
+                platformWiring = null;
+                model = null;
+            }
+            lifeCycle = SHUTDOWN;
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
+    }
+
+    @Override
+    protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
+        throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
+    }
+
+    @Override
+    protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
+        throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
     }
 
     /**
@@ -279,7 +365,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    @NonNull
+    public SingleNodeReconnectResult newReconnectResult() {
         throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 
@@ -313,15 +400,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
+        killImmediately();
+
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             resultsCollector.destroy();
-            doShutdownNode();
             lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);
@@ -331,166 +417,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
-    private void doShutdownNode() {
-        if (lifeCycle == RUNNING) {
-            markerFileObserver.stopObserving();
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            try {
-                platform.destroy();
-            } catch (final InterruptedException e) {
-                throw new AssertionError("Unexpected interruption during platform shutdown", e);
-            }
-            platformStatus = null;
-            platform = null;
-            platformWiring = null;
-            model = null;
-        }
-        lifeCycle = SHUTDOWN;
-    }
-
-    private void doStartNode() {
-
-        final Configuration currentConfiguration = nodeConfiguration.current();
-        final org.hiero.consensus.model.node.NodeId legacyNodeId =
-                org.hiero.consensus.model.node.NodeId.of(selfId.id());
-
-        setupGlobalMetrics(currentConfiguration);
-
-        final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
-        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
-        if (markerFilesDir != null) {
-            markerFileObserver.startObserving(markerFilesDir);
-        }
-
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
-        final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-        final RecycleBin recycleBin = RecycleBin.create(
-                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
-
-        platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(currentConfiguration)
-                .withFileSystemManager(fileSystemManager)
-                .withMetrics(metrics)
-                .withRecycleBin(recycleBin)
-                .build();
-
-        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
-                .withDeterministicModeEnabled(true)
-                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
-                .build();
-
-        final HashedReservedSignedState reservedState = loadInitialState(
-                recycleBin,
-                version,
-                () -> OtterAppState.createGenesisState(roster, metrics, version),
-                OtterApp.APP_NAME,
-                OtterApp.SWIRLD_NAME,
-                legacyNodeId,
-                platformStateFacade,
-                platformContext,
-                OtterAppState::new);
-        final ReservedSignedState initialState = reservedState.state();
-
-        final State state = initialState.get().getState();
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        final String eventStreamLoc = selfId.toString();
-
-        this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
-
-        final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                        OtterApp.APP_NAME,
-                        OtterApp.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        OtterApp.INSTANCE,
-                        legacyNodeId,
-                        eventStreamLoc,
-                        rosterHistory,
-                        platformStateFacade,
-                        OtterAppState::new)
-                .withPlatformContext(platformContext)
-                .withConfiguration(currentConfiguration)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionLayer)
-                .withModel(model)
-                .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
-
-        final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
-        final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
-
-        final SimulatedGossip gossip = network.getGossipInstance(legacyNodeId);
-        gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
-
-        platformComponentBuilder
-                .withMetricsDocumentationEnabled(false)
-                .withGossip(network.getGossipInstance(legacyNodeId));
-
-        platformWiring = platformBuildingBlocks.platformWiring();
-
-        platformWiring
-                .getConsensusEngineOutputWire()
-                .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
-
-        platformWiring
-                .getStatusStateMachineOutputWire()
-                .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            if (Objects.equals(logEntry.nodeId(), selfId)) {
-                resultsCollector.addLogEntry(logEntry);
-            }
-            return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-        });
-
-        platform = platformComponentBuilder.build();
-        platformStatus = PlatformStatus.STARTING_UP;
-        platform.start();
-
-        lifeCycle = RUNNING;
-    }
-
     private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = requireNonNull(platformStatus);
         resultsCollector.addPlatformStatus(platformStatus);
-    }
-
-    /**
-     * Turtle-specific implementation of {@link AsyncNodeActions}.
-     */
-    private class TurtleAsyncNodeActions implements AsyncNodeActions {
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void killImmediately() {
-            TurtleNode.this.killImmediately();
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-            throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void stopSyntheticBottleneck() {
-            throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void start() {
-            TurtleNode.this.start();
-        }
     }
 }

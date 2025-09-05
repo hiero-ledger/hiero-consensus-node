@@ -10,6 +10,13 @@ import java.time.Duration;
 public interface AsyncNodeActions {
 
     /**
+     * Start the node with the configured timeout.
+     *
+     * @see Node#start()
+     */
+    void start();
+
+    /**
      * Kill the node without prior cleanup with the configured timeout.
      *
      * @see Node#killImmediately()
@@ -30,11 +37,4 @@ public interface AsyncNodeActions {
      * {@link #startSyntheticBottleneck(Duration)}.
      */
     void stopSyntheticBottleneck();
-
-    /**
-     * Start the node with the configured timeout.
-     *
-     * @see Node#start()
-     */
-    void start();
 }

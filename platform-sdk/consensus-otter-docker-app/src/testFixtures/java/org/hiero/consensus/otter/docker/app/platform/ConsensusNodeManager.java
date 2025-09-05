@@ -117,7 +117,7 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,

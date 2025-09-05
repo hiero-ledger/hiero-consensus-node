@@ -54,7 +54,8 @@ public final class LogConfigHelper {
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT);
 
     /** Ignoring marker used from threads without correct ThreadContext */
-    private static final Set<LogMarker> IGNORED_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
+    private static final Set<LogMarker> IGNORED_MARKERS =
+            Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS, STATE_HASH, STATE_TO_DISK, PLATFORM_STATUS);
 
     /** Default pattern for text-based appenders. */
     public static final String DEFAULT_PATTERN =
@@ -90,7 +91,9 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createNodeOnlyFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", Long.toString(nodeId.id()));
+        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
+        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
                 .addComponent(keyValuePair);
@@ -108,7 +111,9 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createExcludeNodeFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", Long.toString(nodeId.id()));
+        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
+        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
                 .addComponent(keyValuePair);

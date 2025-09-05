@@ -2,9 +2,7 @@
 package com.hedera.node.app.state;
 
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl.TxStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * A cache for de-duplicating transactions. This cache is <strong>NOT</strong> stored in state. It contains only the
@@ -33,22 +31,6 @@ public interface DeduplicationCache {
      * @return {@code true} if the transaction ID is in the cache
      */
     boolean contains(@NonNull TransactionID transactionID);
-
-    /**
-     * Marks the given TransactionID as having been observed in a stale event. This information is kept
-     * in-memory only and ages out with the same policy as {@link #add(TransactionID)}.
-     * @param transactionID the transaction ID to mark as stale
-     */
-    void markStale(@NonNull TransactionID transactionID);
-
-    /**
-     * Get the status of a transaction in the cache. If the transaction is not in the cache, or if it has
-     * aged out, then this will return null.
-     * @param transactionID the transaction ID to get the status for
-     * @return the status of the transaction, or null if it is not in the cache or has aged out
-     */
-    @Nullable
-    TxStatus getTxStatus(@NonNull TransactionID transactionID);
 
     /** Clear everything from the cache. Used during reconnect */
     void clear();

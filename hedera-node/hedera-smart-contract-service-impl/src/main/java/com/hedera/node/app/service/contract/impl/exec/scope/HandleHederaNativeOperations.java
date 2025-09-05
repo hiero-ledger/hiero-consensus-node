@@ -17,6 +17,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
+import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -26,6 +27,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -118,8 +120,10 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
+        final boolean unlimitedAutoAssociations =
+                context.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress))
+                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociations))
                 .build();
 
         try {
@@ -147,6 +151,16 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                 requireNonNull(accountStore.getAccountIDByAlias(config.shard(), config.realm(), evmAddress));
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
         tokenServiceApi.finalizeHollowAccountAsContract(hollowAccountId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean canScheduleContractCall(final long expiry, final long gasLimit, @NonNull final AccountID payerId) {
+        requireNonNull(payerId);
+        final var scheduleServiceApi = context.storeFactory().serviceApi(ScheduleServiceApi.class);
+        return scheduleServiceApi.hasContractCallCapacity(expiry, context.consensusNow(), gasLimit, payerId);
     }
 
     /**

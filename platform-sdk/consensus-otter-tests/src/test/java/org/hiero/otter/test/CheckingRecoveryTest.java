@@ -39,7 +39,8 @@ public class CheckingRecoveryTest {
         // Setup simulation
 
         // Add more than 3 nodes with balanced weights so that one node can be lost without halting consensus
-        network.addNodes(4, WeightGenerators.BALANCED);
+        network.setWeightGenerator(WeightGenerators.BALANCED);
+        network.addNodes(4);
 
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();

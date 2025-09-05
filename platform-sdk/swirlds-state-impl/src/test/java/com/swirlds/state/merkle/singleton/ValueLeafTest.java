@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.singleton.ValueLeaf;
 import org.junit.jupiter.api.Test;
 
 @Deprecated

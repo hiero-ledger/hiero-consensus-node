@@ -83,6 +83,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
         for (int round = 0; round < count; round++) {
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
+                    .setCalculateHash(true)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();

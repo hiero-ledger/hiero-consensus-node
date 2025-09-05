@@ -75,7 +75,7 @@ import org.json.JSONObject;
  */
 public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
 
-    public static final String VM_LABEL = "state";
+    static final String VM_LABEL = "state";
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
@@ -125,7 +125,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         dsBuilder = new MerkleDbDataSourceBuilder(
-                configuration, merkleDbConfig.maxNumOfKeys(), merkleDbConfig.hashesRamToDiskThreshold());
+                configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
 
         this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.files;
 
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
-
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SysFileDownloadSuite;
@@ -48,9 +46,9 @@ public class SysFileDownloadCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - downloaded all requested system files");
+            config.output().info("SUCCESS - downloaded all requested system files");
         } else {
-            COMMON_MESSAGES.warn("FAILED downloading requested system files");
+            config.output().warn("FAILED downloading requested system files");
             return 1;
         }
 

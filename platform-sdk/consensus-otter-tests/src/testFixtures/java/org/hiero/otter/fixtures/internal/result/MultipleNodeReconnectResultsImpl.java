@@ -17,7 +17,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeReconnectResults}
@@ -65,7 +64,8 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      *
      */
     @Override
-    public @NotNull MultipleNodeReconnectResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    @NonNull
+    public MultipleNodeReconnectResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeReconnectResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
@@ -77,7 +77,7 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NotNull final ReconnectNotificationSubscriber subscriber) {
+    public void subscribe(@NonNull final ReconnectNotificationSubscriber subscriber) {
         reconnectSubscribers.add(subscriber);
     }
 
@@ -85,7 +85,7 @@ public class MultipleNodeReconnectResultsImpl implements MultipleNodeReconnectRe
      * {@inheritDoc}
      */
     @Override
-    @NotNull
+    @NonNull
     public List<SingleNodeReconnectResult> reconnectResults() {
         return results;
     }

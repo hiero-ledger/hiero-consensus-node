@@ -16,39 +16,24 @@ import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Comparator;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /** An implementation of {@link DeduplicationCache}. */
 @Singleton
 public final class DeduplicationCacheImpl implements DeduplicationCache {
-
     /**
-     * The status of a transaction in the deduplication cache.
-     */
-    public enum TxStatus {
-        /**
-         * The transaction has been submitted to the platform.
-         */
-        SUBMITTED,
-        /**
-         * The transaction has been marked as stale.
-         */
-        STALE
-    };
-
-    /**
-     * The {@link TransactionID}s and their corresponding {@link TxStatus} that this node has already submitted to the platform, sorted by transaction start
+     * The {@link TransactionID}s that this node has already submitted to the platform, sorted by transaction start
      * time, such that earlier start times come first.
      * <p>
      * Note that an ID with scheduled set is different from the same ID without scheduled set.
      * In fact, an ID with scheduled set will always match the ID of the ScheduleCreate transaction that created
      * the schedule, except scheduled is set.
      */
-    private final ConcurrentNavigableMap<TransactionID, TxStatus> submittedTxns =
-            new ConcurrentSkipListMap<>(Comparator.<TransactionID, Timestamp>comparing(
+    private final Set<TransactionID> submittedTxns =
+            new ConcurrentSkipListSet<>(Comparator.<TransactionID, Timestamp>comparing(
                             txnId -> txnId.transactionValidStartOrElse(Timestamp.DEFAULT), TIMESTAMP_COMPARATOR)
                     .thenComparing(txnId -> txnId.accountIDOrElse(AccountID.DEFAULT), ACCOUNT_ID_COMPARATOR)
                     .thenComparing(TransactionID::scheduled)
@@ -81,7 +66,7 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
 
         // If the transaction is within the max transaction duration window, then add it to the set.
         if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
-            submittedTxns.put(transactionID, TxStatus.SUBMITTED);
+            submittedTxns.add(transactionID);
         }
     }
 
@@ -92,22 +77,7 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
         // if the transactionID is still valid
         final var epochSeconds = approxEarliestValidStartSecond();
         removeTransactionsOlderThan(epochSeconds);
-        return submittedTxns.containsKey(transactionID);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void markStale(@NonNull TransactionID transactionID) {
-        submittedTxns.computeIfPresent(transactionID, (key, value) -> TxStatus.STALE);
-    }
-
-    @Override
-    public TxStatus getTxStatus(@NonNull TransactionID transactionID) {
-        // We will prune the set here as well. By pruning before looking up, we are sure that we only return true
-        // if the transactionID is still valid
-        final var epochSeconds = approxEarliestValidStartSecond();
-        removeTransactionsOlderThan(epochSeconds);
-        return submittedTxns.get(transactionID);
+        return submittedTxns.contains(transactionID);
     }
 
     /** {@inheritDoc} */
@@ -135,7 +105,7 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
      * @param earliestEpochSecond The earliest epoch second that should be kept in the cache.
      */
     private void removeTransactionsOlderThan(final long earliestEpochSecond) {
-        final var itr = submittedTxns.keySet().iterator();
+        final var itr = submittedTxns.iterator();
         while (itr.hasNext()) {
             final var txId = itr.next();
             if (txId.transactionValidStartOrThrow().seconds() < earliestEpochSecond) {

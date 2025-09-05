@@ -29,6 +29,7 @@ public interface Gossip {
      * @param systemHealthInput   used to tell gossip the health of the system, carries the duration that the system has
      *                            been in an unhealthy state
      * @param platformStatusInput used to tell gossip the status of the platform
+     * @param syncLagOutput       used to report how many rounds we are behind other peers on average
      */
     void bind(
             @NonNull WiringModel model,
@@ -39,5 +40,6 @@ public interface Gossip {
             @NonNull BindableInputWire<NoInput, Void> stopInput,
             @NonNull BindableInputWire<NoInput, Void> clearInput,
             @NonNull BindableInputWire<Duration, Void> systemHealthInput,
-            @NonNull BindableInputWire<PlatformStatus, Void> platformStatusInput);
+            @NonNull BindableInputWire<PlatformStatus, Void> platformStatusInput,
+            @NonNull StandardOutputWire<Double> syncLagOutput);
 }
