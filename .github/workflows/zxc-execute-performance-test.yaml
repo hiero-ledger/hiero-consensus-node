@@ -49,6 +49,11 @@ on:
         default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
         type: string
         description: "Kubernetes cluster to run"
+      gharef:
+        description: "Version of GHA workflows (vs ref of CN version)"
+        required: true
+        type: string
+        default: ""
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
@@ -89,7 +94,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.gharef }}
 
       - name: Validate Input Parameters
         run: |
