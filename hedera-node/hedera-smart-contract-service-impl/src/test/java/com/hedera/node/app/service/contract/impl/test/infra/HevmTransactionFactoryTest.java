@@ -170,7 +170,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false))
+        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
                 .willReturn(22_000L);
         assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(21_999L));
     }

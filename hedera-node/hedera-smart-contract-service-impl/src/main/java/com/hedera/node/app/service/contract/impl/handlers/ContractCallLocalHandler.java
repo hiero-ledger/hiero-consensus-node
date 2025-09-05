@@ -95,7 +95,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false);
+                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
         validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
 
         final var contractID = op.contractID();
