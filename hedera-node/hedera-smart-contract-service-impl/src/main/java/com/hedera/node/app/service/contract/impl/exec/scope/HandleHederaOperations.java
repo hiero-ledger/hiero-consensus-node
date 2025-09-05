@@ -73,7 +73,7 @@ public class HandleHederaOperations implements HederaOperations {
     private static final CryptoCreateTransactionBody.Builder CREATE_TXN_BODY_BUILDER =
             CryptoCreateTransactionBody.newBuilder()
                     .initialBalance(0)
-                    .maxAutomaticTokenAssociations(0)
+                    .maxAutomaticTokenAssociations(-1)
                     .autoRenewPeriod(Duration.newBuilder().seconds(THREE_MONTHS_IN_SECONDS))
                     .key(IMMUTABILITY_SENTINEL_KEY);
 
