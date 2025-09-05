@@ -34,6 +34,16 @@ on:
         type: boolean
         default: true
         description: "Run Mirror Node Regression Panel"
+      enable-rpc-relay-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run JSON-RPC Relay Regression Panel"
+      enable-block-node-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Block Node Regression Panel"
 
 permissions:
   id-token: write
@@ -58,6 +68,7 @@ jobs:
       enable-time-consuming-tests: true
       enable-hammer-tests: true
       enable-hapi-tests-time-consuming: true
+      enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
@@ -132,6 +143,26 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "Mirror Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    if: ${{ inputs.enable-rpc-relay-regression-panel == true }}
+    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
+      custom-job-name: "JSON-RPC Relay Regression"
+
+  block-node-regression-panel:
+    name: Block Node Regression Panel
+    if: ${{ inputs.enable-block-node-regression-panel == true }}
+    uses: ./.github/workflows/zxc-block-node-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
+      custom-job-name: "Dry Run: Block Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}

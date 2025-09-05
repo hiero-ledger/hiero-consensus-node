@@ -5,13 +5,15 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "AdHoc7"
-        description: "Performance test on machine: AdHoc5, 6, 7"
+        default: "AdHocSD8"
+        description: "Performance test on machine: AdHoc5, 6, 7, AdHocSD8, 9"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
       ref:
         required: true
         default: "main"
@@ -136,6 +138,7 @@ jobs:
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdpt-result:
     name: Tag SDPT Result

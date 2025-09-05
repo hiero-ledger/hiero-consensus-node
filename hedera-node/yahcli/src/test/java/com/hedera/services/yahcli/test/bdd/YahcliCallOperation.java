@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.test.bdd;
 
-import static com.hedera.services.yahcli.test.YahcliVerbs.prepend;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.prepend;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;

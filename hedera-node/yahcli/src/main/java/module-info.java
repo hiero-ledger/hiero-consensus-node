@@ -28,6 +28,7 @@ module com.hedera.node.yahcli {
     requires com.hedera.node.app;
     requires com.hedera.node.hapi;
     requires com.hedera.node.test.clients;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires com.github.spotbugs.annotations;
     requires com.google.common;

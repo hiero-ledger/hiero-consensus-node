@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7 or SDLT2)"
+        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
         type: string
       ref:
         required: true
@@ -57,6 +57,9 @@ on:
       perf_ghp:
         required: true
         description: "Algorithmic analysis GHP"
+      rootly-api-token:
+        required: true
+        description: "Rootly API Token for creating alerts/incidents"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -125,6 +128,15 @@ jobs:
         run: |
           git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
 
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -140,15 +152,15 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
+          token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-performance-engineering-svcs-bot
-          kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -197,7 +209,6 @@ jobs:
           cd "${HOME}"
           tar xfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
 
-
       - name: OS check procedure
         id: setup
         shell: bash
@@ -222,7 +233,9 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT|SDLT|MDLT)(\d+)$/')"
+
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
+
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
@@ -328,6 +341,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -370,8 +384,8 @@ jobs:
 
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-longevity-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
-            NETWORK_OWNER="multi-day-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
@@ -585,8 +599,8 @@ jobs:
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDLT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-longevity-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
-            NETWORK_OWNER="multi-day-longevity-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
+            NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
@@ -899,7 +913,7 @@ jobs:
         id: check-test-asset
         run: |
           ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc[0-9]$ ]]; then
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             ADHOC="true"
           fi
           echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
@@ -944,7 +958,7 @@ jobs:
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.rootly-api-token }}
           summary: ${{ steps.rootly-summary.outputs.title }}
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
@@ -959,7 +973,7 @@ jobs:
         if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
         uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.rootly-api-token }}
           title: ${{ steps.rootly-summary.outputs.title }}
           kind: "normal"
           create_public_incident: "false"
