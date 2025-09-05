@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
+
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
@@ -10,9 +14,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
-import static java.util.Objects.requireNonNull;
-
 public class HookDispatchHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
@@ -23,7 +24,9 @@ public class HookDispatchHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
         final var op = context.body().hookDispatchOrThrow();
-        validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+        validateTruePreCheck(
+                op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(),
+                ResponseCodeEnum.INVALID_TRANSACTION_BODY);
     }
 
     @Override

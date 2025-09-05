@@ -51,6 +51,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
@@ -60,6 +61,7 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
@@ -123,6 +125,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock
+    private FakeEntityIdFactoryImpl idFactory;
+
     private CryptoCreateHandler subject;
 
     private TransactionBody txn;
@@ -145,7 +150,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null, idFactory);
     }
 
     @Test

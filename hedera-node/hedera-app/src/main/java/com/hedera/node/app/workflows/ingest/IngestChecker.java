@@ -352,7 +352,8 @@ public final class IngestChecker {
     private void assertThrottlingPreconditions(
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
-            @NonNull final HooksConfig hooksConfig) throws PreCheckException {
+            @NonNull final HooksConfig hooksConfig)
+            throws PreCheckException {
         final var function = txInfo.functionality();
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {
             throw new PreCheckException(NOT_SUPPORTED);

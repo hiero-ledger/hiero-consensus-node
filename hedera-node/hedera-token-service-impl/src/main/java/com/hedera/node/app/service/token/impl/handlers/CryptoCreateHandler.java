@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -71,6 +70,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -87,7 +87,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
@@ -111,6 +110,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
+    private final EntityIdFactory entityIdFactory;
+
     /**
      * Constructs a {@link CryptoCreateHandler} with the given {@link CryptoCreateValidator} and {@link StakingValidator}.
      *
@@ -119,10 +120,12 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     @Inject
     public CryptoCreateHandler(
             @NonNull final CryptoCreateValidator cryptoCreateValidator,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.cryptoCreateValidator =
                 requireNonNull(cryptoCreateValidator, "The supplied argument 'cryptoCreateValidator' must not be null");
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -276,31 +279,34 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // Dispatch hook creation to contract service if there are any hooks to be created
-        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
-        final var tobeCreatedAccount = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(context.entityNumGenerator().peekAtNewEntityNum())
-                .build();
+        final var owner =
+                entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
         final var hookSummary = cryptoCreateValidator.summarizeHooks(op.hookCreationDetails());
-        if (!op.hookCreationDetails().isEmpty()) {
-            final var hookDetails = op.hookCreationDetails();
-            for (int i = 0; i < hookDetails.size(); i++) {
+        final var hookDetails = op.hookCreationDetails();
+        if (!hookDetails.isEmpty()) {
+            // last element has no next
+            Long nextId = null;
+            for (int i = hookDetails.size() - 1; i >= 0; i--) {
+                final var detail = hookDetails.get(i);
                 final var creation = HookCreation.newBuilder()
-                        .entityId(HookEntityId.newBuilder().accountId(tobeCreatedAccount).build())
-                        .nextHookId(hookSummary.creationHookIds().get(i + 1)) // nextHookId of last hook should not be set?
-                        .details(hookDetails.get(i)).build();
+                        .entityId(HookEntityId.newBuilder().accountId(owner).build())
+                        .details(hookDetails.get(i));
+                if (nextId != null) {
+                    creation.nextHookId(nextId);
+                }
                 final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                        .creation(creation)
+                        .creation(creation.build())
                         .build();
                 final var streamBuilder = context.dispatch(setupDispatch(
                         context.payer(),
                         TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                        StreamBuilder.class, // which stream builder this should be ?
+                        StreamBuilder.class,
                         context.dispatchMetadata()
                                 .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
                                 .orElse(null)));
-                validateTrue(streamBuilder.status() == SUCCESS, INVALID_HOOK_ID);
+                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+                // This one becomes "next" for the previous node in the loop
+                nextId = detail.hookId();
             }
         }
 
@@ -525,7 +531,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var fee = feeCalculator
                 .addBytesPerTransaction(baseSize + (2 * LONG_SIZE) + BOOL_SIZE)
                 .addRamByteSeconds((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime)
-                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
+                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs())
+                .addStorageBytesSeconds(op.hookCreationDetails().size());
         if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
             fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
         }
@@ -540,7 +547,5 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 
-    public record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {
-
-    }
+    public record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {}
 }

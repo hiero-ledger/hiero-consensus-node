@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_HOOK_REQUEST;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_EXTENSION_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
@@ -25,13 +31,11 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /**
  * Provides validation for token fields like token type,  token supply type, token symbol etc.,
@@ -39,6 +43,8 @@ import java.util.List;
  */
 @Singleton
 public class CryptoCreateValidator {
+    private static final long MAX_UPDATE_BYTES_LEN = 32L;
+
     /**
      * Default constructor for injection.
      */
@@ -106,7 +112,7 @@ public class CryptoCreateValidator {
         return (entitiesConfig.limitTokenAssociations() && numAssociations > tokensConfig.maxPerAccount())
                 || numAssociations > ledgerConfig.maxAutoAssociations()
                 || (numAssociations < UNLIMITED_AUTOMATIC_ASSOCIATIONS
-                && entitiesConfig.unlimitedAutoAssociationsEnabled())
+                        && entitiesConfig.unlimitedAutoAssociationsEnabled())
                 || (numAssociations < 0 && !entitiesConfig.unlimitedAutoAssociationsEnabled());
     }
 
@@ -114,69 +120,35 @@ public class CryptoCreateValidator {
         final var hookIdsSeen = new HashSet<Long>();
         for (final var hook : op.hookCreationDetails()) {
             validateTruePreCheck(hook.hookId() != 0L, INVALID_HOOK_ID);
-            //No duplicate hook ids inside one txn
+            // No duplicate hook ids are allowed inside one txn
             validateTruePreCheck(hookIdsSeen.add(hook.hookId()), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            validateTruePreCheck(hook.extensionPoint() != null, HOOK_EXTENSION_EMPTY);
+            validateTruePreCheck(hook.hasLambdaEvmHook(), HOOK_IS_NOT_A_LAMBDA);
 
-            validateTruePreCheck(hook.extensionPoint() != null, BAD_HOOK_REQUEST);
-            validateTruePreCheck(hook.hasLambdaEvmHook(), BAD_HOOK_REQUEST);
             final var lambda = hook.lambdaEvmHookOrThrow();
-
-            validateTruePreCheck(lambda.hasSpec(), BAD_HOOK_REQUEST);
-            final var spec = lambda.specOrThrow();
-            validateTruePreCheck(spec.hasContractId(), BAD_HOOK_REQUEST);
+            validateTruePreCheck(lambda.hasSpec() && lambda.specOrThrow().hasContractId(), INVALID_HOOK_CREATION_SPEC);
 
             for (final var storage : lambda.storageUpdates()) {
-                validateTruePreCheck(storage.hasStorageSlot() || storage.hasMappingEntries(), BAD_HOOK_REQUEST);
+                validateTruePreCheck(
+                        storage.hasStorageSlot() || storage.hasMappingEntries(), EMPTY_LAMBDA_STORAGE_UPDATE);
 
                 if (storage.hasStorageSlot()) {
                     final var s = storage.storageSlotOrThrow();
-
-                    validateTruePreCheck(isLengthBetween1And32(s.key()), BAD_HOOK_REQUEST);
-                    // value should be between 0..32 bytes (0 length means remove)
-                    validateTruePreCheck(hasNonEmptyMax32(s.value()), BAD_HOOK_REQUEST);
-                    if (s.value().length() > 0) {
-                        validateTruePreCheck(max32(s.value()), BAD_HOOK_REQUEST);
-                    }
+                    // The key for a storage slot can be empty. If present, it should have minimal encoding and maximum
+                    // 32 bytes
+                    validateWord(s.key());
+                    validateWord(s.value());
                 } else if (storage.hasMappingEntries()) {
                     final var mapping = storage.mappingEntriesOrThrow();
-                    validateTruePreCheck(isLengthBetween1And32(mapping.mappingSlot()), BAD_HOOK_REQUEST);
-                    validateTruePreCheck(max32(mapping.mappingSlot()), BAD_HOOK_REQUEST);
                     for (final var e : mapping.entries()) {
-                        // entry must choose exactly one key variant
-                        final var hasKey = e.hasKey();
-                        final var hasPreimage = e.hasPreimage();
-                        validateTruePreCheck(hasKey ^ hasPreimage, BAD_HOOK_REQUEST);
-                        if (hasKey) {
-                            // key: 1..32 bytes, minimal
-                            validateTruePreCheck(isLengthBetween1And32(e.key()), BAD_HOOK_REQUEST);
-                            validateTruePreCheck(max32(e.key()), BAD_HOOK_REQUEST);
-                        }
-
-                        // value: 0..32 bytes, minimal if present (0 length means "remove")
-                        validateTruePreCheck(hasNonEmptyMax32(e.value()), BAD_HOOK_REQUEST);
-                        if (e.value().length() > 0) {
-                            validateTruePreCheck(max32(e.value()), BAD_HOOK_REQUEST);
+                        validateTruePreCheck(e.hasKey() || e.hasPreimage(), EMPTY_LAMBDA_STORAGE_UPDATE);
+                        if (e.hasKey()) {
+                            validateWord(e.keyOrThrow());
                         }
                     }
                 }
             }
         }
-    }
-
-    private static boolean isLengthBetween1And32(final Bytes b) {
-        return b != null && b.length() >= 1 && b.length() <= 32;
-    }
-
-    private static boolean hasNonEmptyMax32(final Bytes b) {
-        return b != null && b.length() >= 0 && b.length() <= 32;
-    }
-
-    private static boolean max32(final Bytes b) {
-        // No leading zeros except the single-byte 0x00 case
-        final var n = b.length();
-        if (n == 0) return false;
-        if (n == 1) return true;
-        return b.toByteArray()[0] != 0;
     }
 
     public HookSummary summarizeHooks(final List<HookCreationDetails> details) {
@@ -191,7 +163,8 @@ public class CryptoCreateValidator {
                 // count only non-empty values as consuming a slot
                 for (final var u : detail.lambdaEvmHookOrThrow().storageUpdates()) {
                     if (u.hasStorageSlot()) {
-                        if (u.storageSlotOrThrow().value() != null && u.storageSlotOrThrow().value().length() > 0) {
+                        if (u.storageSlotOrThrow().value() != null
+                                && u.storageSlotOrThrow().value().length() > 0) {
                             slots++;
                         }
                     } else {
@@ -204,6 +177,13 @@ public class CryptoCreateValidator {
                 }
             }
         }
-        return new HookSummary(slots, details.stream().map(HookCreationDetails::hookId).toList());
+        return new HookSummary(
+                slots, details.stream().map(HookCreationDetails::hookId).toList());
+    }
+
+    private void validateWord(@NonNull final Bytes bytes) throws PreCheckException {
+        validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, HOOK_CREATION_BYTES_TOO_LONG);
+        final var minimalBytes = minimalRepresentationOf(bytes);
+        validateTruePreCheck(bytes == minimalBytes, HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
     }
 }

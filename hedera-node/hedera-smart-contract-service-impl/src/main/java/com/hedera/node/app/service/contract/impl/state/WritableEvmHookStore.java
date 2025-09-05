@@ -7,14 +7,14 @@ import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.PURE;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_KEY;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_KEY;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.INSERTION;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.REMOVAL;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.UPDATE;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.ZERO_INTO_EMPTY_SLOT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.leftPad32;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
