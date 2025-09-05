@@ -1,0 +1,220 @@
+/**
+ * # Fee Schedule
+ * Defines a schedule of fees for every type of transaction, as specified by
+ * HIP-1261. Fee values are always positive integers and specified
+ * as tinycents (10<sup>-10</sup> of USD).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.support.fees;
+
+option java_package = "org.hiero.hapi.support.fees.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.support.fees">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Fee schedule definition.<br/>
+ * This message defines how fees are charged for transactions.
+ */
+message FeeSchedule {
+
+  /**
+    * Defines how to compute the <i>node fee component</i>.
+    *
+    * <p>The node **fee component describes the fee to be paid to the node that
+    * submitted the transaction to the network. This fee exists to compensate
+    * the node for the work it performed to pre-check the transaction before
+    * submitting it, and incentivizes the node to open ports to the world to
+    * accept new transactions from users.
+    *
+    * <p>This fee is calculated in a consistent manner for *all* transactions.
+    *
+    * <p>The node fee schedule MUST be specified.
+    */
+  NodeFee node = 1;
+
+  /**
+   * Defines the method by which the <i>network fee component</i> is computed.
+   *
+   * <p>The network fee component covers the cost of gossip, consensus, signature
+   * verifications, fee payment, and blockchain storage. This component is
+   * typically combined with the service fee to determine the total fee paid into
+   * the network’s Fee Collection Account.
+   *
+   * <p>The network fee schedule MUST be specified.
+   */
+  NetworkFee network = 2;
+
+  /**
+    * This fee is charged to the node that submitted the transaction when a
+    * transaction's bytes cannot be parsed. The fee is deposited into the
+    * network's Fee Collection Account.
+    *
+    * <p>This configuration SHOULD be specified.
+    */
+  UnreadableTransactionFee unreadable = 3;
+
+  /**
+   * Every "extra" that can be assigned to a given fee is defined in this list.
+   *
+   * <p>The list of extras are optional. The list MUST NOT contain extras with
+   * duplicate names.
+   */
+  repeated ExtraFeeDefinition extras = 4;
+
+  /**
+   * Fees for each service available in the network are included in this list.
+   *
+   * <p>The list of services are optional, but in practice, every existing
+   * service in the network MUST have a corresponding definition. The list
+   * MUST NOT contain services with duplicate names.
+   */
+  repeated ServiceFeeSchedule services = 5;
+}
+
+/** Defines all possible *extra* fees.
+ */
+enum Extra {
+    SIGNATURES=0;
+    BYTES=1;
+    KEYS=2;
+    TOKEN_TYPES=3;
+    NFT_SERIALS=4;
+    ACCOUNTS=5;
+    STANDARD_FUNGIBLE_TOKENS=6;
+    STANDARD_NON_FUNGIBLE_TOKENS=7;
+    CUSTOM_FEE_FUNGIBLE_TOKENS=8;
+    CUSTOM_FEE_NON_FUNGIBLE_TOKENS=9;
+    CREATED_AUTO_ASSOCIATIONS=10;
+    CREATED_ACCOUNTS=11;
+    CUSTOM_FEE=12;
+    GAS=13;
+    ALLOWANCES=14;
+    AIRDROPS=15;
+}
+
+/**
+ * Defines an "extra" fee. Each fee has a name and a fee amount defined in tinycents (10^8 per cent).
+ */
+message ExtraFeeDefinition {
+  /**
+   * The name of this "extra". The name MUST be unique within the complete FeeSchedule
+   * and MUST be specified. A valid name MUST match `[A-Za-z].*[A-Za-z0-9]*`.
+   */
+  Extra name = 1;
+  /**
+   * The fee price, in tinycents. There are 10^8 tinycents per cent USD. The fee MUST be specified
+   * (a value of 0 is not permitted).
+   */
+  uint64 fee = 2;
+}
+
+
+/**
+ * The configuration for node fees. Applied to all transactions equally.
+ */
+message NodeFee {
+  /**
+   * The base fee price, in tinycents. There are 10^8 tinycents per cent USD.
+   * The base fee, plus the extras, determine the node fee. The base_fee is
+   * optional. If omitted, the value is 0.
+   */
+  uint64 base_fee = 1;
+  /**
+   * References to each extra that should be used when computing the node fee.
+   * This list is optional, however, there SHOULD either be a base_fee or
+   * a list of extras, or both. This list MUST NOT contain more than one reference
+   * to the same extra.
+   */
+  repeated ExtraFeeReference extras = 2;
+}
+
+/**
+ * The configuration for computing the network fee component.
+ */
+message NetworkFee {
+  /**
+   * Multiplied by the node fee to determine the network fee. This value MUST be
+   * specified and MUST be at least 1.
+   */
+  uint32 multiplier = 1;
+}
+
+/**
+ * The configuration for all transactions and queries within a single network service.
+ */
+message ServiceFeeSchedule {
+  /**
+   * The name of the service. This name MUST be specified and MUST match a name
+   * expected by the network service it configures (this is expected to match it
+   * exactly). The name must match `[A-Za-z].*[A-Za-z0-9]*`.
+   */
+  string name = 1;
+
+  /**
+   * The list of transaction and query fee configurations. This list MUST NOT be empty.
+   * The list MUST NOT contain entries with duplicate names.
+   */
+  repeated ServiceFeeDefinition schedule = 2;
+}
+
+/**
+ * The definition of the fee for a transaction or query within a service.
+ */
+message ServiceFeeDefinition {
+  /**
+   * The name of the transaction or query. The name MUST be specified and MUST match a name
+   * defined by the specification for the service. Each name is unique within the file the
+   * context of a specific service. The name must match `[A-Za-z].*[A-Za-z0-9]*`.
+   */
+  proto.HederaFunctionality name = 1;
+  /**
+   * The base fee price, in tinycents. There are 10^8 tinycents per cent USD.
+   * The base fee, plus the extras, determine the service fee. The base_fee is
+   * optional. If omitted, the value is 0.
+   */
+  uint64 base_fee = 2;
+  /**
+   * References to each extra that should be used when computing the node fee.
+   * This list is optional, however, there SHOULD either be a base_fee or
+   * a list of extras, or both. Or the `free` field should be set to true.
+   * This list MUST NOT contain more than one reference to the same extra.
+   */
+  repeated ExtraFeeReference extras = 3;
+  /**
+   * If true, then `base_fee` and `extras` are ignored, and the transaction or query
+   * will be free.
+   */
+  bool free = 4;
+}
+
+/**
+ * A reference to an "extra" defined within the `FeeSchedule`.
+ */
+message ExtraFeeReference {
+  /**
+   * The name of the referenced "extra". This name MUST match the name of an extra
+   * defined within the `FeeSchedule`.
+   */
+  Extra name = 1;
+  /**
+   * The count of this "extra" that is included for free. For example, 256 "Bytes"
+   * may be included for free. Each byte above 256 would be charged the fee defined
+   * on the "Bytes" extra.
+   */
+  uint32 included_count = 2;
+}
+
+/**
+ * Defines the fee to levy a node that sends bytes that cannot be parsed into a Transaction.
+ */
+message UnreadableTransactionFee {
+  /**
+   * The punitive fee, in tinycents. There are 10^8 tinycents per cent USD. This value
+   * is optional and may be zero.
+   */
+  uint64 fee = 1;
+}
+
