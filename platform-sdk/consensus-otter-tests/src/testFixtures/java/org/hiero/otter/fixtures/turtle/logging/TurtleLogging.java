@@ -3,11 +3,11 @@ package org.hiero.otter.fixtures.turtle.logging;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides logging configurations and functionality for the Turtle framework.
