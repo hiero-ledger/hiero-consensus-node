@@ -16,14 +16,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,22 +75,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final Duration streamResetPeriod;
     /**
-     * Configuration property: threshold in milliseconds above which a block acknowledgement is considered high latency.
+     * Deprecated: High latency tracking is now managed by BlockNodeConnectionManager and BlockNodeStats.
+     * Left intentionally removed to avoid duplication of state.
      */
-    private final long highLatencyThresholdMs;
-    /**
-     * Configuration property: number of consecutive high latency events before considering switching nodes.
-     */
-    private final int highLatencyEventsBeforeSwitching;
-    /**
-     * Map for tracking the timestamps when blocks are sent to the block node.
-     * The key is the block number and the value is the timestamp when the block was sent.
-     */
-    private final ConcurrentMap<Long, Instant> blockSendTimestamps = new ConcurrentHashMap<>();
-    /**
-     * Counter for tracking consecutive high latency events.
-     */
-    private final AtomicInteger consecutiveHighLatencyEvents = new AtomicInteger(0);
     /**
      * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
      */
@@ -173,8 +157,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
-        this.highLatencyThresholdMs = blockNodeConnectionConfig.highLatencyThresholdMs();
-        this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
     }
 
     /**
@@ -317,34 +299,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
 
-        // Calculate latency if we have a send timestamp
-        final Instant sendTime = blockSendTimestamps.remove(acknowledgedBlockNumber);
-        if (sendTime != null) {
-            final Duration latency = Duration.between(sendTime, Instant.now());
-            final long latencyMs = latency.toMillis();
-
-            final String nodeAddress = blockNodeConfig.address() + ":" + blockNodeConfig.port();
-            blockStreamMetrics.recordAcknowledgementLatency(nodeAddress, latencyMs);
-
-            if (latencyMs > highLatencyThresholdMs) {
-                blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
-                final int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
-                if (highLatencyCount >= highLatencyEventsBeforeSwitching
-                        && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
-                    logger.info(
-                            "[{}] Block node has exceeded high latency threshold {} times consecutively. "
-                                    + "Latest latency: {}ms. Switching to a different node.",
-                            this,
-                            highLatencyCount,
-                            latencyMs);
-
-                    consecutiveHighLatencyEvents.set(0);
-
-                    endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
-                }
-            } else {
-                consecutiveHighLatencyEvents.set(0);
-            }
+        // Evaluate latency and high-latency QoS via the connection manager
+        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
+                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
+            logger.info(
+                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
+                    this,
+                    result.consecutiveHighLatencyEvents());
+            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
         }
 
         if (maybeJumpToBlock
@@ -387,7 +350,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig)) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
             logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
@@ -546,7 +509,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // Find the first block item with a block proof to get the block number
                 for (final BlockItem item : request.blockItems().blockItems()) {
                     if (item.hasBlockProof()) {
-                        blockSendTimestamps.put(item.blockProof().block(), Instant.now());
+                        blockNodeConnectionManager.recordBlockSent(
+                                blockNodeConfig, item.blockProof().block(), Instant.now());
                         break;
                     }
                 }
@@ -576,8 +540,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             logger.debug("[{}] Connection successfully closed", this);
         } catch (final RuntimeException e) {
             logger.warn("[{}] Error occurred while attempting to close connection", this);
-        } finally {
-            blockSendTimestamps.clear();
         }
     }
 

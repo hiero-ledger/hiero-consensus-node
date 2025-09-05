@@ -283,7 +283,7 @@ public class BlockStreamMetrics {
     }
 
     /**
-     * Records a high latency event for a specific block node.
+     * Records a high-latency event for a specific block node.
      *
      * @param nodeAddress the block node address
      */
@@ -293,10 +293,10 @@ public class BlockStreamMetrics {
         // Get or create a counter for this specific block node
         final long localNodeId = selfNodeInfo.nodeId();
         final String metricName = "highLatencyEvents_" + nodeAddress + "_node" + localNodeId;
-        final Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(nodeAddress, address -> {
-            return metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
-                    .withDescription("Count of high latency events from block node " + address));
-        });
+        final Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(
+                nodeAddress,
+                address -> metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
+                        .withDescription("Count of high latency events from block node " + address)));
 
         // Increment the counter
         highLatencyCounter.increment();
