@@ -8,8 +8,8 @@ import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 /**
  * Utility verbs for interacting with block node simulators.
  */
-public class BlockNodeSimulatorVerbs {
-    private BlockNodeSimulatorVerbs() {
+public class BlockNodeVerbs {
+    private BlockNodeVerbs() {
         // Utility class
     }
 
@@ -20,8 +20,8 @@ public class BlockNodeSimulatorVerbs {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation targeting the specified simulator
      */
-    public static BlockNodeSimulatorBuilder blockNodeSimulator(int nodeIndex) {
-        return new BlockNodeSimulatorBuilder(nodeIndex);
+    public static BlockNodeBuilder blockNode(long nodeIndex) {
+        return new BlockNodeBuilder(nodeIndex);
     }
 
     /**
@@ -29,22 +29,22 @@ public class BlockNodeSimulatorVerbs {
      *
      * @return a builder for operations affecting all simulators
      */
-    public static AllBlockNodeSimulatorBuilder allBlockNodeSimulators() {
-        return new AllBlockNodeSimulatorBuilder();
+    public static AllBlockNodeBuilder allBlockNodeSimulators() {
+        return new AllBlockNodeBuilder();
     }
 
     /**
      * Builder for block node simulator operations targeting a specific simulator.
      */
-    public static class BlockNodeSimulatorBuilder {
-        private final int nodeIndex;
+    public static class BlockNodeBuilder {
+        private final long nodeIndex;
 
         /**
          * Creates a new builder for the specified simulator index.
          *
          * @param nodeIndex the index of the block node simulator (0-based)
          */
-        public BlockNodeSimulatorBuilder(int nodeIndex) {
+        public BlockNodeBuilder(long nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -54,8 +54,8 @@ public class BlockNodeSimulatorVerbs {
          * @param responseCode the response code to send
          * @return a builder for configuring the operation
          */
-        public BlockNodeSimulatorOp.SendEndOfStreamBuilder sendEndOfStreamImmediately(EndOfStream.Code responseCode) {
-            return BlockNodeSimulatorOp.sendEndOfStreamImmediately(nodeIndex, responseCode);
+        public BlockNodeOp.SendEndOfStreamBuilder sendEndOfStreamImmediately(EndOfStream.Code responseCode) {
+            return BlockNodeOp.sendEndOfStreamImmediately(nodeIndex, responseCode);
         }
 
         /**
@@ -64,9 +64,8 @@ public class BlockNodeSimulatorVerbs {
          * @param blockNumber the block number to skip
          * @return the operation
          */
-        public BlockNodeSimulatorOp sendSkipBlockImmediately(long blockNumber) {
-            return BlockNodeSimulatorOp.sendSkipBlockImmediately(nodeIndex, blockNumber)
-                    .build();
+        public BlockNodeOp sendSkipBlockImmediately(long blockNumber) {
+            return BlockNodeOp.sendSkipBlockImmediately(nodeIndex, blockNumber).build();
         }
 
         /**
@@ -75,8 +74,8 @@ public class BlockNodeSimulatorVerbs {
          * @param blockNumber the block number to resend
          * @return the operation
          */
-        public BlockNodeSimulatorOp sendResendBlockImmediately(long blockNumber) {
-            return BlockNodeSimulatorOp.sendResendBlockImmediately(nodeIndex, blockNumber)
+        public BlockNodeOp sendResendBlockImmediately(long blockNumber) {
+            return BlockNodeOp.sendResendBlockImmediately(nodeIndex, blockNumber)
                     .build();
         }
 
@@ -85,8 +84,8 @@ public class BlockNodeSimulatorVerbs {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp shutDownImmediately() {
-            return BlockNodeSimulatorOp.shutdownImmediately(nodeIndex).build();
+        public BlockNodeOp.ShutdownBuilder shutDownImmediately() {
+            return BlockNodeOp.shutdownImmediately(nodeIndex);
         }
 
         /**
@@ -94,8 +93,8 @@ public class BlockNodeSimulatorVerbs {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp startImmediately() {
-            return BlockNodeSimulatorOp.startImmediately(nodeIndex).build();
+        public BlockNodeOp startImmediately() {
+            return BlockNodeOp.startImmediately(nodeIndex).build();
         }
 
         /**
@@ -104,9 +103,8 @@ public class BlockNodeSimulatorVerbs {
          * @param blockNumber the block number to check
          * @return the operation
          */
-        public BlockNodeSimulatorOp assertBlockReceived(long blockNumber) {
-            return BlockNodeSimulatorOp.assertBlockReceived(nodeIndex, blockNumber)
-                    .build();
+        public BlockNodeOp assertBlockReceived(long blockNumber) {
+            return BlockNodeOp.assertBlockReceived(nodeIndex, blockNumber).build();
         }
 
         /**
@@ -114,8 +112,8 @@ public class BlockNodeSimulatorVerbs {
          *
          * @return a builder for configuring the operation
          */
-        public BlockNodeSimulatorOp.GetLastVerifiedBlockBuilder getLastVerifiedBlock() {
-            return BlockNodeSimulatorOp.getLastVerifiedBlock(nodeIndex);
+        public BlockNodeOp.GetLastVerifiedBlockBuilder getLastVerifiedBlock() {
+            return BlockNodeOp.getLastVerifiedBlock(nodeIndex);
         }
 
         /**
@@ -125,8 +123,8 @@ public class BlockNodeSimulatorVerbs {
          * @param blockNumber the block number to include in the response
          * @return the operation
          */
-        public BlockNodeSimulatorOp sendEndOfStreamWithBlock(EndOfStream.Code responseCode, long blockNumber) {
-            return BlockNodeSimulatorOp.sendEndOfStreamImmediately(nodeIndex, responseCode)
+        public BlockNodeOp sendEndOfStreamWithBlock(EndOfStream.Code responseCode, long blockNumber) {
+            return BlockNodeOp.sendEndOfStreamImmediately(nodeIndex, responseCode)
                     .withBlockNumber(blockNumber)
                     .build();
         }
@@ -140,9 +138,9 @@ public class BlockNodeSimulatorVerbs {
          * @param lastVerifiedBlockNumber the AtomicLong to store the last verified block number
          * @return the operation
          */
-        public BlockNodeSimulatorOp sendEndOfStreamWithBlock(
+        public BlockNodeOp sendEndOfStreamWithBlock(
                 EndOfStream.Code responseCode, long blockNumber, AtomicLong lastVerifiedBlockNumber) {
-            return BlockNodeSimulatorOp.sendEndOfStreamImmediately(nodeIndex, responseCode)
+            return BlockNodeOp.sendEndOfStreamImmediately(nodeIndex, responseCode)
                     .withBlockNumber(blockNumber)
                     .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber)
                     .build();
@@ -154,8 +152,8 @@ public class BlockNodeSimulatorVerbs {
          * @param lastVerifiedBlockNumber the AtomicLong to store the last verified block number
          * @return the operation
          */
-        public BlockNodeSimulatorOp getLastVerifiedBlockExposing(AtomicLong lastVerifiedBlockNumber) {
-            return BlockNodeSimulatorOp.getLastVerifiedBlock(nodeIndex)
+        public BlockNodeOp getLastVerifiedBlockExposing(AtomicLong lastVerifiedBlockNumber) {
+            return BlockNodeOp.getLastVerifiedBlock(nodeIndex)
                     .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber)
                     .build();
         }
@@ -166,8 +164,8 @@ public class BlockNodeSimulatorVerbs {
          * @param lastVerifiedBlockConsumer the consumer to receive the last verified block number
          * @return the operation
          */
-        public BlockNodeSimulatorOp getLastVerifiedBlockExposing(Consumer<Long> lastVerifiedBlockConsumer) {
-            return BlockNodeSimulatorOp.getLastVerifiedBlock(nodeIndex)
+        public BlockNodeOp getLastVerifiedBlockExposing(Consumer<Long> lastVerifiedBlockConsumer) {
+            return BlockNodeOp.getLastVerifiedBlock(nodeIndex)
                     .exposingLastVerifiedBlockNumber(lastVerifiedBlockConsumer)
                     .build();
         }
@@ -178,8 +176,8 @@ public class BlockNodeSimulatorVerbs {
          * @param sendBlockAcknowledgementsEnabled true if acknowledgements should be sent, else they will not be sent
          * @return the operation
          */
-        public BlockNodeSimulatorOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
-            return BlockNodeSimulatorOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
+        public BlockNodeOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
+            return BlockNodeOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
                     .build();
         }
     }
@@ -187,14 +185,14 @@ public class BlockNodeSimulatorVerbs {
     /**
      * Builder for operations that affect all block node simulators.
      */
-    public static class AllBlockNodeSimulatorBuilder {
+    public static class AllBlockNodeBuilder {
         /**
          * Shuts down all block node simulators immediately.
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp shutDownAll() {
-            return BlockNodeSimulatorOp.shutdownAll().build();
+        public BlockNodeOp shutDownAll() {
+            return BlockNodeOp.shutdownAll().build();
         }
 
         /**
@@ -202,8 +200,8 @@ public class BlockNodeSimulatorVerbs {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp startAll() {
-            return BlockNodeSimulatorOp.startAll().build();
+        public BlockNodeOp startAll() {
+            return BlockNodeOp.startAll().build();
         }
     }
 }

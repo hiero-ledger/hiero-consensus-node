@@ -37,7 +37,7 @@ public class AddNodeOp extends UtilOp {
                     .findFirst()
                     .get()
                     .getValue();
-            blockNodeNetwork.addSimulatorNode(nodeId, blockNode0::getLastVerifiedBlockNumber);
+            blockNodeNetwork.startSimulatorNode(nodeId, blockNode0::getLastVerifiedBlockNumber);
             SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
         }
 
