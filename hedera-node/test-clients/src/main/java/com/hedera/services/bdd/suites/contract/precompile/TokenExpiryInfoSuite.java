@@ -67,12 +67,16 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestMethodOrder;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @DisplayName("updateTokenExpiryInfo")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
@@ -98,6 +102,7 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @DisplayName("cannot update a missing token's expiry info")
+    @Order(1)
     final Stream<DynamicTest> cannotUpdateMissingToken() {
         return hapiTest(
                 // This function takes four arguments---a token address, an expiry second, an auto-renew account
@@ -110,6 +115,7 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @DisplayName("cannot update expiry metadata without authorization")
+    @Order(2)
     final Stream<DynamicTest> cannotUpdateWithoutAuthorization() {
         return hapiTest(
                 // This function takes four arguments---a token address, an expiry second, an auto-renew account
@@ -122,6 +128,7 @@ public class TokenExpiryInfoSuite {
 
     @Nested
     @DisplayName("when authorized")
+    @Order(3)
     class WhenAuthorized {
         @BeforeAll
         static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -198,6 +205,7 @@ public class TokenExpiryInfoSuite {
     }
 
     @HapiTest
+    @Order(4)
     @SuppressWarnings("java:S1192") // "use already defined const instead of copying its value here" - not this time
     final Stream<DynamicTest> updateExpiryInfoForTokenAndReadLatestInfo() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
@@ -261,6 +269,7 @@ public class TokenExpiryInfoSuite {
     }
 
     @HapiTest
+    @Order(5)
     final Stream<DynamicTest> getExpiryInfoForToken() {
 
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
