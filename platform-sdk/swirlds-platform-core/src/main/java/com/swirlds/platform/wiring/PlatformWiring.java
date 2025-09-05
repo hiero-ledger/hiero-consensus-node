@@ -320,6 +320,10 @@ public class PlatformWiring {
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
+        gossipWiring
+                .getSyncLagOutput()
+                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportSyncRoundLag));
+
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));

@@ -24,6 +24,8 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * A test environment for the Turtle framework.
@@ -32,6 +34,12 @@ import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
  * network, time manager, etc. for tests running on the Turtle framework.
  */
 public class TurtleTestEnvironment implements TestEnvironment {
+
+    static {
+        // Set custom clock property BEFORE any Log4j2 initialization
+        // This ensures the TurtleClock is used for all log timestamps
+        System.setProperty("log4j.Clock", TurtleLogClock.class.getName());
+    }
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
@@ -57,11 +65,14 @@ public class TurtleTestEnvironment implements TestEnvironment {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
-        final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
-
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
+
+        // Set the fake time for turtle nodes BEFORE configuring logging
+        TurtleLogClock.setFakeTime(time);
+
+        final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
 
         RuntimeObjectRegistry.reset();
         RuntimeObjectRegistry.initialize(time);
