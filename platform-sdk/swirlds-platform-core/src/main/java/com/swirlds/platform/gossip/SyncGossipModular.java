@@ -88,6 +88,7 @@ public class SyncGossipModular implements Gossip {
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
+    private Consumer<Double> syncLagHandler;
     private ReconnectController reconnectController;
 
     /**
@@ -165,7 +166,8 @@ public class SyncGossipModular implements Gossip {
                     event -> receivedEventHandler.accept(event),
                     syncManager,
                     intakeEventCounter,
-                    selfId);
+                    selfId,
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = rpcSynchronizer;
 
@@ -189,7 +191,8 @@ public class SyncGossipModular implements Gossip {
                     event -> receivedEventHandler.accept(event),
                     syncManager,
                     intakeEventCounter,
-                    new CachedPoolParallelExecutor(threadManager, "node-sync"));
+                    new CachedPoolParallelExecutor(threadManager, "node-sync"),
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = shadowgraphSynchronizer;
 
@@ -352,7 +355,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
-            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput) {
+            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
+            @NonNull final StandardOutputWire<Double> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
             syncProtocol.start();
@@ -374,5 +378,6 @@ public class SyncGossipModular implements Gossip {
         });
 
         this.receivedEventHandler = eventOutput::forward;
+        this.syncLagHandler = syncLagOutput::forward;
     }
 }

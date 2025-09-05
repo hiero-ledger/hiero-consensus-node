@@ -352,9 +352,16 @@ receive and process events fast enough, it may start to "fall behind" the other 
 can no longer get old events from her neighbors. From the perspective of the neighbor, the events Alice says she needs
 may have expired, and Bob may no longer be holding those events.
 
-If this happens, then Alice has "fallen behind" and must reconnect. There is no longer any chance that she can get the
-events she needs through gossip alone. Gossip will detect this situation and make a call through the Consensus module
-interface to notify Execution that the node is behind. Execution will then initiate reconnect.
+If this happens against multiple peers (exact ratio is configurable), then Alice has "fallen behind" and must reconnect.
+There is no longer any chance that she can get the events she needs through gossip alone. Gossip will detect this
+situation and make a call through the Consensus module interface to notify Execution that the node is behind. Execution
+will then initiate reconnect.
+
+Before this happens, Alice might want to reduce the amount of events and transactions it needs to process, to try to
+catch up with the processing she has to do locally. Before she decides that she has "fallen behind", there will be a
+configurable level of "lagging behind", based on delay of current Alice's consensus round compared to median consensus
+round of the network. If that level is breached, Alice will stop generating events (and accepting transactions from
+clients).
 
 #### Roster Changes
 

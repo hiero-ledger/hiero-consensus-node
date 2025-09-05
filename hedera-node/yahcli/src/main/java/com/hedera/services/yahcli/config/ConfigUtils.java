@@ -15,7 +15,6 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
 import com.hedera.services.bdd.suites.meta.VersionInfoSpec;
 import com.hedera.services.yahcli.Yahcli;
-import com.hedera.services.yahcli.commands.ivy.suites.IvyCryptoSuite;
 import com.hedera.services.yahcli.suites.BalanceSuite;
 import com.hedera.services.yahcli.suites.CostOfEveryThingSuite;
 import com.hedera.services.yahcli.suites.CreateNodeSuite;
@@ -40,15 +39,6 @@ import java.util.Optional;
 public class ConfigUtils {
     private ConfigUtils() {
         throw new UnsupportedOperationException("Utility Class");
-    }
-
-    public static String asId(String entity) {
-        try {
-            int number = Integer.parseInt(entity);
-            return "0.0." + number;
-        } catch (NumberFormatException ignore) {
-        }
-        return entity;
     }
 
     public static Optional<File> keyFileFor(String keysLoc, String typedNum) {
@@ -109,6 +99,5 @@ public class ConfigUtils {
             ConfigProviderBase.class,
             CreateNodeSuite.class,
             UpdateNodeSuite.class,
-            DeleteNodeSuite.class,
-            IvyCryptoSuite.class);
+            DeleteNodeSuite.class);
 }
