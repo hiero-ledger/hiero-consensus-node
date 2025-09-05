@@ -251,12 +251,12 @@
       <AppenderRef ref="RollingFile"/>
     </Logger>
     <!-- Specific loggers for BlockNodeConnection classes with thread info -->
-    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="INFO" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" additivity="false">
       <AppenderRef ref="BlockNodeConnectionConsole"/>
       <AppenderRef ref="BlockNodeConnectionRollingFile"/>
     </Logger>
     
-    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="INFO" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" additivity="false">
       <AppenderRef ref="BlockNodeConnectionConsole"/>
       <AppenderRef ref="BlockNodeConnectionRollingFile"/>
     </Logger>
