@@ -2,6 +2,7 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -24,14 +25,14 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.creator.ConsensusEventCreator.TransactionSupplier;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -48,7 +49,7 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
-    private final EventTransactionSupplier transactionSupplier;
+    private final TransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
     /**
@@ -106,7 +107,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
@@ -173,7 +174,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }

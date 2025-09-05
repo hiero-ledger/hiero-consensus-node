@@ -12,6 +12,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -23,11 +24,11 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig_;
+import org.hiero.consensus.event.creator.test.fixtures.DummyTransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -112,8 +113,7 @@ class EventCreationRulesTests {
     void blockedByFreeze() {
         final Supplier<PlatformStatus> platformStatusSupplier = () -> FREEZING;
 
-        final AtomicInteger numSignatureTransactions = new AtomicInteger(0);
-        final SignatureTransactionCheck signatureTransactionCheck = () -> numSignatureTransactions.get() > 0;
+        final DummyTransactionSupplier transactionSupplier = new DummyTransactionSupplier();
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
@@ -122,10 +122,10 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(platformStatusSupplier, signatureTransactionCheck);
+        final EventCreationRule rule = new PlatformStatusRule(platformStatusSupplier, transactionSupplier);
 
         assertFalse(rule.isEventCreationPermitted());
-        numSignatureTransactions.set(1);
+        transactionSupplier.setTransactions(List.of(Bytes.EMPTY));
         assertTrue(rule.isEventCreationPermitted());
     }
 
@@ -140,7 +140,7 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(status::get, () -> false);
+        final EventCreationRule rule = new PlatformStatusRule(status::get, new DummyTransactionSupplier());
 
         for (final PlatformStatus platformStatus : PlatformStatus.values()) {
             if (platformStatus == FREEZING) {

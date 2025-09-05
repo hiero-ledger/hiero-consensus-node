@@ -25,7 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -40,13 +40,14 @@ public class PlatformCoordinator {
      */
     private final Runnable flushTheEventHasher;
 
+    private final ConsensusEventCreator consensusEventCreator;
+
     private final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring;
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final GossipWiring gossipWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
-    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
@@ -61,13 +62,13 @@ public class PlatformCoordinator {
      * Constructor
      *
      * @param flushTheEventHasher                    a lambda that flushes the event hasher
+     * @param consensusEventCreator                  the consensus event creator
      * @param internalEventValidatorWiring           the internal event validator wiring
      * @param eventDeduplicatorWiring                the event deduplicator wiring
      * @param eventSignatureValidatorWiring          the event signature validator wiring
      * @param orphanBufferWiring                     the orphan buffer wiring
      * @param gossipWiring                           gossip wiring
      * @param consensusEngineWiring                  the consensus engine wiring
-     * @param eventCreationManagerWiring             the event creation manager wiring
      * @param applicationTransactionPrehandlerWiring the application transaction prehandler wiring
      * @param stateSignatureCollectorWiring          the system transaction prehandler wiring
      * @param transactionHandlerWiring               the transaction handler wiring
@@ -79,13 +80,13 @@ public class PlatformCoordinator {
      */
     public PlatformCoordinator(
             @NonNull final Runnable flushTheEventHasher,
+            @NonNull final ConsensusEventCreator consensusEventCreator,
             @NonNull final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
             @NonNull final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
             @NonNull final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
             @NonNull final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
             @NonNull final GossipWiring gossipWiring,
             @NonNull final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring,
-            @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
             @NonNull
                     final ComponentWiring<
                                     TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
@@ -101,13 +102,13 @@ public class PlatformCoordinator {
             @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring) {
 
         this.flushTheEventHasher = Objects.requireNonNull(flushTheEventHasher);
+        this.consensusEventCreator = Objects.requireNonNull(consensusEventCreator);
         this.internalEventValidatorWiring = Objects.requireNonNull(internalEventValidatorWiring);
         this.eventDeduplicatorWiring = Objects.requireNonNull(eventDeduplicatorWiring);
         this.eventSignatureValidatorWiring = Objects.requireNonNull(eventSignatureValidatorWiring);
         this.orphanBufferWiring = Objects.requireNonNull(orphanBufferWiring);
         this.gossipWiring = Objects.requireNonNull(gossipWiring);
         this.consensusEngineWiring = Objects.requireNonNull(consensusEngineWiring);
-        this.eventCreationManagerWiring = Objects.requireNonNull(eventCreationManagerWiring);
         this.applicationTransactionPrehandlerWiring = Objects.requireNonNull(applicationTransactionPrehandlerWiring);
         this.stateSignatureCollectorWiring = Objects.requireNonNull(stateSignatureCollectorWiring);
         this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
@@ -140,7 +141,7 @@ public class PlatformCoordinator {
         gossipWiring.flush();
         consensusEngineWiring.flush();
         applicationTransactionPrehandlerWiring.flush();
-        eventCreationManagerWiring.flush();
+        consensusEventCreator.flush();
         branchDetectorWiring.flush();
     }
 
@@ -163,8 +164,8 @@ public class PlatformCoordinator {
         // squelch is activated.
         consensusEngineWiring.startSquelching();
         consensusEngineWiring.flush();
-        eventCreationManagerWiring.startSquelching();
-        eventCreationManagerWiring.flush();
+        consensusEventCreator.startSquelching();
+        consensusEventCreator.flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
@@ -184,7 +185,7 @@ public class PlatformCoordinator {
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         consensusEngineWiring.stopSquelching();
-        eventCreationManagerWiring.stopSquelching();
+        consensusEventCreator.stopSquelching();
         transactionHandlerWiring.stopSquelching();
 
         // Phase 4: clear
@@ -195,7 +196,7 @@ public class PlatformCoordinator {
         stateSignatureCollectorWiring
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
-        eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
+        consensusEventCreator.getClearEventCreationMangerInputWire().inject(NoInput.getInstance());
         branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         branchReporterWiring.getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }

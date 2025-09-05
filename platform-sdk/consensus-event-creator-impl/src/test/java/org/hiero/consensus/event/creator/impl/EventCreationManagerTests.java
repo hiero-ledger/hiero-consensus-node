@@ -17,6 +17,8 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.event.creator.ConsensusEventCreator.TransactionSupplier;
+import org.hiero.consensus.event.creator.test.fixtures.DummyTransactionSupplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
@@ -42,8 +44,9 @@ class EventCreationManagerTests {
                 .withValue("event.creation.eventCreationRate", 1)
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
+        final TransactionSupplier transactionSupplier = new DummyTransactionSupplier();
 
-        manager = new DefaultEventCreationManager(configuration, metrics, time, () -> false, creator);
+        manager = new DefaultEventCreationManager(configuration, metrics, time, transactionSupplier, creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

@@ -32,7 +32,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -58,6 +59,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 CryptoConfig.class,
                 EventConfig.class,
                 EventCreationConfig.class,
+                EventCreationWiringConfig.class,
                 MerkleDbConfig.class,
                 MetricsConfig.class,
                 OSHealthCheckConfig.class,

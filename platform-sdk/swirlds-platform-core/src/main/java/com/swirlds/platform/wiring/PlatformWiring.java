@@ -69,8 +69,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -90,6 +89,8 @@ public class PlatformWiring {
     private final PlatformContext platformContext;
     private final PlatformSchedulersConfig config;
 
+    private final ConsensusEventCreator consensusEventCreator;
+
     private final ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring;
     private final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring;
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
@@ -99,7 +100,6 @@ public class PlatformWiring {
     /** Output from the {@link #consensusEngineWiring} where only the consensus rounds are returned */
     private final OutputWire<List<ConsensusRound>> consensusRoundsOutputWire;
 
-    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final PcesReplayerWiring pcesReplayerWiring;
@@ -142,16 +142,19 @@ public class PlatformWiring {
      * @param applicationCallbacks the application callbacks (some wires are only created if the application wants a
      *                             callback for something)
      * @param execution            the execution layer instance
+     * @param consensusEventCreator the consensus event creator
      */
     public PlatformWiring(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final ApplicationCallbacks applicationCallbacks,
-            @NonNull final ExecutionLayer execution) {
+            @NonNull final ExecutionLayer execution,
+            @NonNull final ConsensusEventCreator consensusEventCreator) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.model = Objects.requireNonNull(model);
         this.execution = Objects.requireNonNull(execution);
+        this.consensusEventCreator = Objects.requireNonNull(consensusEventCreator);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
@@ -168,9 +171,6 @@ public class PlatformWiring {
         consensusRoundsOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("ConsensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds);
-
-        eventCreationManagerWiring =
-                new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
 
         applicationTransactionPrehandlerWiring =
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler());
@@ -244,13 +244,13 @@ public class PlatformWiring {
 
         platformCoordinator = new PlatformCoordinator(
                 eventHasherWiring::flush,
+                consensusEventCreator,
                 internalEventValidatorWiring,
                 eventDeduplicatorWiring,
                 eventSignatureValidatorWiring,
                 orphanBufferWiring,
                 gossipWiring,
                 consensusEngineWiring,
-                eventCreationManagerWiring,
                 applicationTransactionPrehandlerWiring,
                 stateSignatureCollectorWiring,
                 transactionHandlerWiring,
@@ -286,8 +286,7 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(gossipWiring.getEventWindowInput(), INJECT);
         eventWindowOutputWire.solderTo(
                 pcesInlineWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
-        eventWindowOutputWire.solderTo(
-                eventCreationManagerWiring.getInputWire(EventCreationManager::setEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(consensusEventCreator.getEventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow));
         eventWindowOutputWire.solderTo(branchDetectorWiring.getInputWire(BranchDetector::updateEventWindow), INJECT);
@@ -320,9 +319,7 @@ public class PlatformWiring {
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
-        gossipWiring
-                .getSyncLagOutput()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportSyncRoundLag));
+        gossipWiring.getSyncLagOutput().solderTo(consensusEventCreator.getSyncRoundLagInputWire());
 
         eventHasherWiring
                 .getOutputWire()
@@ -351,32 +348,23 @@ public class PlatformWiring {
         pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
 
         // Avoid using events as parents before they are persisted
-        pcesInlineWriterWiring
-                .getOutputWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
+        pcesInlineWriterWiring.getOutputWire().solderTo(consensusEventCreator.getOrderedEventsInputWire());
 
-        model.getHealthMonitorWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
+        model.getHealthMonitorWire().solderTo(consensusEventCreator.getHealthStatusInputWire());
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
 
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
 
-        final double eventCreationHeartbeatFrequency = platformContext
-                .getConfiguration()
-                .getConfigData(EventCreationConfig.class)
-                .creationAttemptRate();
-        model.buildHeartbeatWire(eventCreationHeartbeatFrequency)
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
         model.buildHeartbeatWire(platformContext
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
                 .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::heartbeat), OFFER);
 
-        eventCreationManagerWiring
-                .getOutputWire()
+        consensusEventCreator
+                .getMaybeCreatedEventOutputWire()
                 .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent), INJECT);
 
         if (publishStaleEvents) {
@@ -555,9 +543,7 @@ public class PlatformWiring {
         completeReservedSignedStatesWire.solderTo(latestCompleteStateNotifierWiring.getInputWire(
                 LatestCompleteStateNotifier::latestCompleteStateHandler));
 
-        statusStateMachineWiring
-                .getOutputWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus));
+        statusStateMachineWiring.getOutputWire().solderTo(consensusEventCreator.getPlatformStatusInputWire());
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
@@ -587,7 +573,6 @@ public class PlatformWiring {
         if (publishSnapshotOverrides) {
             platformPublisherWiring.getInputWire(PlatformPublisher::publishSnapshotOverride);
         }
-        eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
         notifierWiring.getInputWire(AppNotifier::sendReconnectCompleteNotification);
         notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
@@ -641,7 +626,6 @@ public class PlatformWiring {
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreationManager);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
