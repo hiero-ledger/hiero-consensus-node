@@ -750,17 +750,17 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
 
         @Override
         public void commit() {
-            for (final ReadableKVState kv : kvInstances.values()) {
-                ((WritableKVStateBase) kv).commit();
-            }
+            // Ensure all commits always happen in lexicographic order by state ID
+            kvInstances.keySet().stream().sorted().forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId))
+                    .commit());
             if (startupMode) {
-                for (final ReadableSingletonState s : singletonInstances.values()) {
-                    ((WritableSingletonStateBase) s).commit();
-                }
+                singletonInstances.keySet().stream()
+                        .sorted()
+                        .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());
             }
-            for (final ReadableQueueState q : queueInstances.values()) {
-                ((WritableQueueStateBase) q).commit();
-            }
+            queueInstances.keySet().stream()
+                    .sorted()
+                    .forEach(stateId -> ((WritableQueueStateBase) queueInstances.get(stateId)).commit());
             readableStatesMap.remove(serviceName);
         }
 
