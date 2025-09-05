@@ -34,6 +34,7 @@ public class BlockNodeNetwork {
     private final Map<Long, BlockNodeMode> blockNodeModeById = new HashMap<>();
     private final Map<Long, SimulatedBlockNodeServer> simulatedBlockNodeById = new HashMap<>();
     private final Map<Long, BlockNodeContainer> blockNodeContainerById = new HashMap<>();
+    private final Map<Long, Boolean> blockNodeHighLatencyById = new HashMap<>();
 
     // SubProcessNode configuration for Block Nodes (just priorities for now)
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
@@ -128,7 +129,9 @@ public class BlockNodeNetwork {
     public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
         // Find an available port
         int port = findAvailablePort();
-        final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
+        boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
+        final SimulatedBlockNodeServer server =
+                new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
         try {
             server.start();
         } catch (Exception e) {
@@ -197,5 +200,9 @@ public class BlockNodeNetwork {
 
     public BlockNodeSimulatorController getBlockNodeSimulatorController() {
         return blockNodeSimulatorController;
+    }
+
+    public Map<Long, Boolean> getBlockNodeHighLatencyById() {
+        return blockNodeHighLatencyById;
     }
 }

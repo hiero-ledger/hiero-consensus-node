@@ -450,7 +450,7 @@ public class BlockNodeSimulatorSuite {
                             BLOCK_PERIOD_SECONDS + "s"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
@@ -506,5 +506,39 @@ public class BlockNodeSimulatorSuite {
                 // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(9)
+    final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                }),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(15, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node has exceeded high latency threshold 5 times consecutively.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Rescheduling connection for reconnect attempt",
+                                portNumbers.getFirst()),
+                        "No block nodes found for attempted streaming")));
     }
 }

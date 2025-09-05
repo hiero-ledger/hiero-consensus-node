@@ -3,8 +3,10 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -12,6 +14,7 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -71,6 +74,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * The reset period for the stream. This is used to periodically reset the stream to ensure increased stability and reliability.
      */
     private final Duration streamResetPeriod;
+    /**
+     * Deprecated: High latency tracking is now managed by BlockNodeConnectionManager and BlockNodeStats.
+     * Left intentionally removed to avoid duplication of state.
+     */
     /**
      * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
      */
@@ -291,6 +298,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
+
+        // Evaluate latency and high-latency QoS via the connection manager
+        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
+                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
+            logger.info(
+                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
+                    this,
+                    result.consecutiveHighLatencyEvents());
+            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
+        }
+
         if (maybeJumpToBlock
                 && (acknowledgedBlockNumber > currentBlockProducing
                         || acknowledgedBlockNumber > currentBlockStreaming)) {
@@ -331,7 +350,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig)) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
             logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
@@ -484,6 +503,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(request, "request must not be null");
 
         if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
+            // Record the timestamp when the block is sent
+            if (request.blockItems() != null
+                    && !request.blockItems().blockItems().isEmpty()) {
+                // Find the first block item with a block proof to get the block number
+                for (final BlockItem item : request.blockItems().blockItems()) {
+                    if (item.hasBlockProof()) {
+                        blockNodeConnectionManager.recordBlockSent(
+                                blockNodeConfig, item.blockProof().block(), Instant.now());
+                        break;
+                    }
+                }
+            }
             requestPipeline.onNext(request);
         }
     }
