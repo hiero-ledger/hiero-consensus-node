@@ -36,7 +36,7 @@ jobs:
 
       - name: Read Trigger Time
         id: time
-        uses: mikefarah/yq@c59fa8de59f1f5a16fdbfd1e2a6e97a1b42a64b9 # v4.45.2
+        uses: mikefarah/yq@f03c9dc599c37bfcaf533427211d05e51e6fee64 # v4.47.1
         with:
           cmd: yq '.release.branching.execution.time' '${{ env.WORKFLOW_CONFIG_FILE }}'
 
