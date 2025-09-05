@@ -553,9 +553,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(-1L);
         assertThat(jumpTargetBlock).hasValue(-1L);
 
+        verify(metrics).recordNoActiveConnection();
         verifyNoInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -867,11 +868,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -890,11 +891,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -924,14 +925,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
         verify(connection).getNodeConfig();
         verify(connection).close(true);
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
