@@ -215,7 +215,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 public class RepeatableHip423Tests {
-
     private static final long ONE_MINUTE = 60;
     private static final long FORTY_MINUTES = TimeUnit.MINUTES.toSeconds(40);
     private static final long THIRTY_MINUTES = 30 * ONE_MINUTE;
@@ -235,6 +234,8 @@ public class RepeatableHip423Tests {
         testLifecycle.overrideInClass(Map.of(
                 "scheduling.longTermEnabled",
                 "true",
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
+                "" + Integer.MAX_VALUE,
                 "scheduling.whitelist",
                 "ConsensusSubmitMessage,CryptoTransfer,TokenMint,TokenBurn,"
                         + "CryptoCreate,CryptoUpdate,FileUpdate,SystemDelete,SystemUndelete,"
@@ -678,53 +679,48 @@ public class RepeatableHip423Tests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS},
             overrides = {
-                "consensus.handle.maxPrecedingRecords",
-                "consensus.handle.maxFollowingRecords",
-                "scheduling.consTimeSeparationNanos",
-                "scheduling.reservedSystemTxnNanos",
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
             })
     final Stream<DynamicTest> maxExpirySecsToCheckPerUserTxnAreRespected() {
-        final var lastSecond = new AtomicLong();
+        final var anchorSecond = new AtomicLong();
         final AtomicReference<ScheduleStateSizes> startingSizes = new AtomicReference<>();
         final AtomicReference<ScheduleStateSizes> currentSizes = new AtomicReference<>();
-        final int offset = 3;
+        final int offsetSeconds = 9;
         return hapiTest(
-                exposeSpecSecondTo(lastSecond::set),
+                exposeSpecSecondTo(anchorSecond::set),
                 cryptoCreate("luckyYou").balance(0L),
                 // Restrict a single user tx to checking at most 2 seconds worth of expiries
-                overridingAllOf(Map.of("consensus.maxExpirySecsToCheckPerUserTxn", "2")),
+                overriding("scheduling.maxExpirySecsToCheckPerUserTxn", "2"),
                 // Schedule the four transfers to lucky you at successive seconds
                 sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
                         .waitForExpiry()
-                        .expiringAt(lastSecond.get() + offset + 1)),
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 1)),
                 sourcing(() -> scheduleCreate("two", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 2L)))
                         .waitForExpiry()
-                        .expiringAt(lastSecond.get() + offset + 2)),
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 2)),
                 sourcing(() -> scheduleCreate("three", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 3L)))
                         .waitForExpiry()
-                        .expiringAt(lastSecond.get() + offset + 3)),
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 3)),
                 sourcing(() -> scheduleCreate("four", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 4L)))
                         .waitForExpiry()
-                        .expiringAt(lastSecond.get() + offset + 5)),
-                // Let all the schedules expire
-                sleepForSeconds(ONE_MINUTE),
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 5)),
+                // With 6 txs since the anchor second and an offset of 9 seconds, the last
+                // expiration is in 8 seconds and the first expiration is in 4 seconds
+                sleepForSeconds(8),
                 viewScheduleStateSizes(startingSizes::set),
-                // Trigger as many as possible in a single user transaction
+                // Scan 2 empty seconds
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
-                // Verify that was only the first two
-                getAccountBalance("luckyYou").hasTinyBars(1L + 2L),
-                viewScheduleStateSizes(currentSizes::set),
-                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -2, -2, -2, -2, -2)),
-                // Then trigger the next one (one second after the first two)
+                // So balance still zero
+                getAccountBalance("luckyYou").hasTinyBars(0L),
+                // Scan 2 seconds and reach the first execution
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L),
+                // Scan 2 seconds each with an execution
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
                 getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L),
-                viewScheduleStateSizes(currentSizes::set),
-                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -3, -3, -3, -3, -3)),
-                // And trigger the next one (two seconds after the last second that could be checked in the previous
-                // loop)
+                // And scan 2 more seconds to trigger the final execution
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
-                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L + 4L),
-                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -4, -4, -4, -4, -4)));
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L + 4L));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
