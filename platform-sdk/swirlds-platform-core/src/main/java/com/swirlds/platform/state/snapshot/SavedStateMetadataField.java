@@ -34,12 +34,6 @@ public enum SavedStateMetadataField {
      */
     LEGACY_RUNNING_EVENT_HASH_MNEMONIC,
     /**
-     * The minimum generation of non-ancient events after this state reached consensus. This field is used as an alias
-     * for reading old state metadata files that were created prior to birth round migration.
-     */
-    @Deprecated(forRemoval = true)
-    MINIMUM_GENERATION_NON_ANCIENT,
-    /**
      * The minimum birthround of non-ancient events after this state reached consensus.
      */
     MINIMUM_BIRTH_ROUND_NON_ANCIENT,
@@ -66,5 +60,7 @@ public enum SavedStateMetadataField {
     /**
      * The total weight of all nodes in the network.
      */
-    TOTAL_WEIGHT
+    TOTAL_WEIGHT,
+    /** True if this state is a freeze state. */
+    FREEZE_STATE;
 }
