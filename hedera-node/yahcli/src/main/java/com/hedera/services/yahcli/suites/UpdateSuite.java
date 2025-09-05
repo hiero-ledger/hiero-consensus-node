@@ -4,12 +4,16 @@ package com.hedera.services.yahcli.suites;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.config.ConfigManager;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import com.hederahashgraph.api.proto.java.*;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,23 +22,26 @@ import org.junit.jupiter.api.DynamicTest;
 public class UpdateSuite extends HapiSuite {
     private static final Logger log = LogManager.getLogger(UpdateSuite.class);
 
-    private final Map<String, String> specConfig;
+    private final ConfigManager configManager;
     private final String memo;
     private final List<Key> keys;
     private final boolean schedule;
     private final String targetAccount;
+    private final SpecStateObserver stateObserver;
 
     public UpdateSuite(
-            final Map<String, String> specConfig,
+            final ConfigManager configManager,
             final String memo,
             final List<Key> keys,
             final String targetAccount,
-            final boolean schedule) {
+            final boolean schedule,
+            final SpecStateObserver stateObserver) {
         this.memo = memo;
-        this.specConfig = specConfig;
+        this.configManager = configManager;
         this.keys = keys;
         this.targetAccount = targetAccount;
         this.schedule = schedule;
+        this.stateObserver = stateObserver;
     }
 
     @Override
@@ -46,7 +53,7 @@ public class UpdateSuite extends HapiSuite {
         Key newList = Key.newBuilder()
                 .setKeyList(KeyList.newBuilder().addAllKeys(keys))
                 .build();
-        HapiTxnOp<?> update = new HapiCryptoUpdate(HapiSuite.DEFAULT_SHARD_REALM + targetAccount)
+        HapiTxnOp<?> update = new HapiCryptoUpdate(targetAccount)
                 .signedBy(HapiSuite.DEFAULT_PAYER)
                 .protoKey(newList)
                 .blankMemo()
@@ -57,11 +64,12 @@ public class UpdateSuite extends HapiSuite {
             update = scheduleCreate("update", update).logged();
         }
 
-        return HapiSpec.customHapiSpec("DoUpdate")
-                .withProperties(specConfig)
-                .given()
-                .when()
-                .then(update);
+        final var spec = new HapiSpec(
+                "DoUpdate", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {update});
+        if (stateObserver != null) {
+            spec.setSpecStateObserver(stateObserver);
+        }
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     @Override

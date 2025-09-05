@@ -88,7 +88,8 @@ public class SendCommand implements Callable<Integer> {
                 effectiveMemo,
                 denomination,
                 accountsCommand.getYahcli().isScheduled(),
-                insideBatch);
+                insideBatch,
+                accountsCommand.getYahcli().getStateObserver());
         delegate.runSuiteSync();
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();
