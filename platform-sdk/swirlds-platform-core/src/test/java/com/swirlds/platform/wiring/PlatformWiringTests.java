@@ -98,7 +98,7 @@ class PlatformWiringTests {
                 .withEventCreationManager(mock(EventCreationManager.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
-                .withStatusStateMachine(mock(PlatformMonitor.class))
+                .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))

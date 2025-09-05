@@ -33,8 +33,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * A state machine that processes {@link PlatformStatusAction}s
  */
-public class DefaultStatusStateMachine {
-    private static final Logger logger = LogManager.getLogger(DefaultStatusStateMachine.class);
+public class StatusStateMachine {
+    private static final Logger logger = LogManager.getLogger(StatusStateMachine.class);
 
     /**
      * A source of time
@@ -58,7 +58,7 @@ public class DefaultStatusStateMachine {
      *
      * @param platformContext the platform context
      */
-    public DefaultStatusStateMachine(@NonNull final PlatformContext platformContext) {
+    public StatusStateMachine(@NonNull final PlatformContext platformContext) {
         this.time = platformContext.getTime();
         this.currentStatusLogic =
                 new StartingUpStatusLogic(platformContext.getConfiguration().getConfigData(PlatformStatusConfig.class));

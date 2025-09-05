@@ -12,6 +12,9 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 
+/**
+ * Monitors the platform and updates the platform's status state machine.
+ */
 public interface PlatformMonitor {
     /**
      * Inform the state machine that time has elapsed
@@ -23,16 +26,24 @@ public interface PlatformMonitor {
     @InputWireLabel("evaluate status")
     PlatformStatus heartbeat(@NonNull Instant time);
 
+    /**
+     * Inform the monitor that a state has been written to disk
+     *
+     * @return the new status after processing this information, or null if the status did not change
+     */
+    @Nullable
+    @InputWireLabel("state saving result")
     PlatformStatus stateWrittenToDisk(@NonNull StateSavingResult result);
 
     /**
-     * Given an ISS notification, produce the appropriate status action.
+     * Inform the monitor of ISS notifications
      *
      * @param notifications a list of ISS notifications
-     * @return the status action, or null if no action is needed
+     * @return the new status after processing this information, or null if the status did not change
      */
     @Nullable
-    PlatformStatus issNotification(List<IssNotification> notifications);
+    @InputWireLabel("ISS notifications")
+    PlatformStatus issNotification(@NonNull List<IssNotification> notifications);
 
     /**
      * Submit a status action
@@ -44,5 +55,12 @@ public interface PlatformMonitor {
     @InputWireLabel("PlatformStatusAction")
     PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action);
 
+    /**
+     * Inform the monitor that a round has reached consensus
+     *
+     * @return the new status after processing this information, or null if the status did not change
+     */
+    @Nullable
+    @InputWireLabel("ConsensusRound")
     PlatformStatus consensusRound(@NonNull final ConsensusRound round);
 }

@@ -571,7 +571,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStatusStateMachine(@NonNull final PlatformMonitor platformMonitor) {
+    public PlatformComponentBuilder withPlatformMonitor(@NonNull final PlatformMonitor platformMonitor) {
         throwIfAlreadyUsed();
         if (this.platformMonitor != null) {
             throw new IllegalStateException("Status state machine has already been set");
@@ -582,7 +582,7 @@ public class PlatformComponentBuilder {
 
     /**
      * Build the platform monitor if it has not yet been built. If one has been provided via
-     * {@link #withStatusStateMachine(PlatformMonitor)}, that platform monitor will be used. If this method is called
+     * {@link #withPlatformMonitor(PlatformMonitor)}, that platform monitor will be used. If this method is called
      * more than once, only the first call will build the platform monitor. Otherwise, the default platform monitor
      * will be created and returned.
      *

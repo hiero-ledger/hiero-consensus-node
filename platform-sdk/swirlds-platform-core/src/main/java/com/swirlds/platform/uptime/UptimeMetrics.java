@@ -75,7 +75,7 @@ class UptimeMetrics {
      */
     public void addMetricsForNode(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
-        roundsSinceLastConsensusEvent.put(nodeId, createMetricForNode(nodeId));
+        roundsSinceLastConsensusEvent.put(nodeId, createRoundsSinceLastConsensusMetric(nodeId));
 
         // Temporarily disabled until we properly detect judges in a round
         //        final RunningAverageMetric.Config roundsSinceLastJudgeConfig = new RunningAverageMetric.Config(
@@ -86,7 +86,13 @@ class UptimeMetrics {
         //        roundsSinceLastJudge.put(nodeId, metrics.getOrCreate(roundsSinceLastJudgeConfig));
     }
 
-    private RunningAverageMetric createMetricForNode(@NonNull final NodeId nodeId) {
+    /**
+     * Create the metric that tracks the number of rounds since the last consensus event was observed from a node.
+     *
+     * @param nodeId the id of the node
+     * @return the metric
+     */
+    private RunningAverageMetric createRoundsSinceLastConsensusMetric(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
 
         final RunningAverageMetric.Config roundsSinceLastConensusEventConfig = new RunningAverageMetric.Config(
@@ -123,7 +129,7 @@ class UptimeMetrics {
     public @NonNull RunningAverageMetric getRoundsSinceLastConsensusEventMetric(@NonNull final NodeId id) {
         Objects.requireNonNull(id, "id must not be null");
         final RunningAverageMetric metric =
-                roundsSinceLastConsensusEvent.computeIfAbsent(id, this::createMetricForNode);
+                roundsSinceLastConsensusEvent.computeIfAbsent(id, this::createRoundsSinceLastConsensusMetric);
         return metric;
     }
 

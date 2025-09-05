@@ -3,7 +3,7 @@ package com.swirlds.platform.system;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.system.status.DefaultStatusStateMachine;
+import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
@@ -22,14 +22,29 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 
+/**
+ * The default implementation of the {@link PlatformMonitor}.
+ */
 public class DefaultPlatformMonitor implements PlatformMonitor {
+    /** The types of ISSs that should trigger a catastrophic failure */
+    private static final Set<IssType> CATASTROPHIC_ISS_TYPES = Set.of(IssType.SELF_ISS, IssType.CATASTROPHIC_ISS);
+
+    /** Time source for the platform monitor */
     private final Time time;
-    private final DefaultStatusStateMachine statusStateMachine;
+    /** The state machine that manages the platform status */
+    private final StatusStateMachine statusStateMachine;
+    /** Tracks the node's uptime based on consensus events */
     private final UptimeTracker uptimeTracker;
 
+    /**
+     * Create a new platform monitor.
+     *
+     * @param platformContext the platform context
+     * @param selfId          the ID of this node
+     */
     public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
         time = platformContext.getTime();
-        statusStateMachine = new DefaultStatusStateMachine(platformContext);
+        statusStateMachine = new StatusStateMachine(platformContext);
         uptimeTracker = new UptimeTracker(platformContext, selfId);
     }
 
@@ -62,9 +77,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
 
     @Nullable
     @Override
-    public PlatformStatus issNotification(final List<IssNotification> notifications) {
-        final Set<IssType> issTypes = Set.of(IssType.SELF_ISS, IssType.CATASTROPHIC_ISS);
-        if (notifications.stream().map(IssNotification::getIssType).anyMatch(issTypes::contains)) {
+    public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
+        if (notifications.stream().map(IssNotification::getIssType).anyMatch(CATASTROPHIC_ISS_TYPES::contains)) {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
         }
         // don't change status for other types of ISSs
