@@ -870,7 +870,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
                         final JSONObject singletonJson = new JSONObject();
-                        singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
+                        if (hash != null) {
+                            singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
+                        }
                         singletonJson.put("path", leafBytes.path());
                         singletons.put(computeLabel(serviceName, stateKey), singletonJson);
                     }
