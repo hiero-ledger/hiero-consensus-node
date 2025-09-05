@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
 
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
 import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
@@ -21,6 +22,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.FileService;
@@ -35,7 +37,6 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.virtualmap.VirtualMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
@@ -55,13 +56,11 @@ public class EntityIdUniqueness {
             throws InterruptedException, ExecutionException {
         final MerkleNodeState servicesState =
                 deserializedState.reservedSignedState().get().getState();
-        final VirtualMap vm = (VirtualMap) servicesState.getRoot();
+        final ReadableSingletonState<EntityNumber> entityIdSingleton =
+                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
 
-        ReadableSingletonState<EntityNumber> entityIdSingleton =
-                servicesState.getReadableStates("EntityIdService").getSingleton("ENTITY_ID");
-
-        long lastEntityIdNumber = entityIdSingleton.get().number();
-        AtomicInteger issuesFound = new AtomicInteger(0);
+        final long lastEntityIdNumber = entityIdSingleton.get().number();
+        final AtomicInteger issuesFound = new AtomicInteger(0);
 
         final ReadableKVState<TokenID, Token> tokensState =
                 servicesState.getReadableStates(TokenService.NAME).get(TOKENS_KEY);
