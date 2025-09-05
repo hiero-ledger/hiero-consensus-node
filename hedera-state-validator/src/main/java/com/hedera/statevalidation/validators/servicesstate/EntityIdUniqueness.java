@@ -79,38 +79,38 @@ public class EntityIdUniqueness {
                     int counter = 0;
                     // try {
 
-                    Token token = tokensState.get(new TokenID(0, 0, number));
+                    final Token token = tokensState.get(new TokenID(0, 0, number));
                     if (token != null) {
                         counter++;
                     }
 
-                    Account account = accountState.get(
+                    final Account account = accountState.get(
                             AccountID.newBuilder().accountNum(number).build());
                     if (account != null) {
                         counter++;
                     }
 
-                    Bytecode contract = smartContractState.get(
+                    final Bytecode contract = smartContractState.get(
                             ContractID.newBuilder().contractNum(number).build());
 
                     if (contract != null) {
                         counter++;
                     }
 
-                    Topic topic =
+                    final Topic topic =
                             topicState.get(TopicID.newBuilder().topicNum(number).build());
 
                     if (topic != null) {
                         counter++;
                     }
 
-                    File file =
+                    final File file =
                             fileState.get(FileID.newBuilder().fileNum(number).build());
                     if (file != null) {
                         counter++;
                     }
 
-                    Schedule schedule = scheduleState.get(new ScheduleID(0, 0, number));
+                    final Schedule schedule = scheduleState.get(new ScheduleID(0, 0, number));
                     if (schedule != null) {
                         counter++;
                     }
