@@ -181,7 +181,8 @@ public class BlockNodeSimulatorSuite {
                     portNumbers.add(spec.getBlockNodePortById(2));
                     portNumbers.add(spec.getBlockNodePortById(3));
                 }),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(0).shutDownImmediately(), // Pri 0
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -197,7 +198,8 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -211,7 +213,8 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(2)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -225,7 +228,8 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(3)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNodeSimulator(1).startImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
