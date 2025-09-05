@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -44,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicHip17UnhappyAccountsSuite {
 
     private static final String MEMO_1 = "memo1";

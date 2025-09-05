@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip993;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Tag;
  * </ol>
  */
 @Tag(TOKEN)
+@Tag(MATS)
 public class ThrottleOnDispatchTest {
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
