@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
  */
 class PlatformStatusStateMachineTests {
     private FakeTime time;
-    private DefaultStatusStateMachine stateMachine;
+    private StatusStateMachine stateMachine;
 
     @BeforeEach
     void setup() {
@@ -54,7 +54,7 @@ class PlatformStatusStateMachineTests {
                 .withConfiguration(configuration)
                 .build();
 
-        stateMachine = new DefaultStatusStateMachine(platformContextBuilder);
+        stateMachine = new StatusStateMachine(platformContextBuilder);
     }
 
     @Test
