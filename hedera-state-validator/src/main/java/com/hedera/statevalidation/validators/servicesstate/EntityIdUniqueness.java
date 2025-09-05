@@ -22,12 +22,15 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.reporting.Report;
@@ -37,6 +40,11 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +58,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class EntityIdUniqueness {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniqueness.class);
+
+    private final Map<Long, Object> entityIds = new ConcurrentHashMap();
+    private final AtomicInteger counter = new AtomicInteger();
 
     @Test
     void validate(DeserializedSignedState deserializedState, Report report)
@@ -140,5 +151,99 @@ public class EntityIdUniqueness {
                 .get();
 
         log.info("Entity ID uniqueness validation completed. Issues found: " + issuesFound.get());
+    }
+
+    @Test
+    void validateByPath(DeserializedSignedState deserializedState, Report report)
+            throws InterruptedException, ExecutionException {
+        final MerkleNodeState servicesState =
+                deserializedState.reservedSignedState().get().getState();
+
+        final VirtualMap vm = (VirtualMap) servicesState.getRoot();
+
+        final VirtualMapMetadata metadata = vm.getMetadata();
+
+        ParallelProcessingUtil.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
+                    VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(number);
+                    try {
+                        StateKey key = StateKey.PROTOBUF.parse(leafRecord.keyBytes());
+                        if (key.hasTokenServiceITokens()) {
+                            long tokenNum = key.tokenServiceITokens().tokenNum();
+                            validateEntry(
+                                    tokenNum,
+                                    StateValue.PROTOBUF
+                                            .parse(leafRecord.valueBytes())
+                                            .tokenServiceITokens());
+                        }
+
+                        if (key.hasTokenServiceIAccounts()) {
+                            long accountNum = key.tokenServiceIAccounts().accountNum();
+                            validateEntry(
+                                    accountNum,
+                                    StateValue.PROTOBUF
+                                            .parse((leafRecord.valueBytes()))
+                                            .tokenServiceIAccounts());
+                        }
+
+                        if (key.hasContractServiceIBytecode()) {
+                            long contractNum = key.contractServiceIBytecode().contractNum();
+                            validateEntry(
+                                    contractNum,
+                                    StateValue.PROTOBUF
+                                            .parse(leafRecord.valueBytes())
+                                            .contractServiceIBytecode());
+                        }
+
+                        if (key.hasConsensusServiceITopics()) {
+                            long topicNum = key.consensusServiceITopics().topicNum();
+                            validateEntry(
+                                    topicNum,
+                                    StateValue.PROTOBUF
+                                            .parse(leafRecord.valueBytes())
+                                            .consensusServiceITopics());
+                        }
+
+                        if (key.hasFileServiceIFiles()) {
+                            long fileNum = key.fileServiceIFiles().fileNum();
+                            validateEntry(
+                                    fileNum,
+                                    StateValue.PROTOBUF
+                                            .parse(leafRecord.valueBytes())
+                                            .fileServiceIFiles());
+                        }
+
+                        if (key.hasScheduleServiceISchedulesById()) {
+                            long scheduleNum =
+                                    key.scheduleServiceISchedulesById().scheduleNum();
+                            validateEntry(
+                                    scheduleNum,
+                                    StateValue.PROTOBUF
+                                            .parse(leafRecord.valueBytes())
+                                            .scheduleServiceISchedulesById());
+                        }
+
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .get();
+
+        log.info("Entity ID uniqueness validation completed. Issues found: " + counter.get());
+    }
+
+    void validateEntry(long keyNumber, Object currentValue) {
+        Object previousValue = entityIds.putIfAbsent(keyNumber, currentValue);
+        if (previousValue != null) {
+            final String errorMessage = String.format(
+                    """
+                    Entity ID %d is not unique, found:
+                    %s
+                    %s
+
+                    """,
+                    keyNumber, previousValue, currentValue);
+            log.info(errorMessage);
+            counter.incrementAndGet();
+        }
     }
 }
