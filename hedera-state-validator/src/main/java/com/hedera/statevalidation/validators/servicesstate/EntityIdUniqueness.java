@@ -65,8 +65,8 @@ public class EntityIdUniqueness {
     private final Map<Long, Object> entityIds = new ConcurrentHashMap();
     private final AtomicInteger counter = new AtomicInteger();
 
-    // @Test
-    void validate(DeserializedSignedState deserializedState, Report report)
+    @Test
+    void validateEntityIds(DeserializedSignedState deserializedState, Report report)
             throws InterruptedException, ExecutionException {
         final MerkleNodeState servicesState =
                 deserializedState.reservedSignedState().get().getState();
@@ -157,7 +157,7 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCount(DeserializedSignedState deserializedState, Report report)
+    void validateIdCounts(DeserializedSignedState deserializedState, Report report)
             throws InterruptedException, ExecutionException {
 
         final MerkleNodeState servicesState =
