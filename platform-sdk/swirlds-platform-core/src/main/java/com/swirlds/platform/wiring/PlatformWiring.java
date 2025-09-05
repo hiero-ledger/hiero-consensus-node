@@ -237,7 +237,7 @@ public class PlatformWiring {
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, config.statusStateMachine());
+        platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
 
         branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
         branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
@@ -833,12 +833,12 @@ public class PlatformWiring {
     }
 
     /**
-     * Get the output wire for the status state machine.
+     * Get the output wire for the platform status.
      *
-     * @return the output wire for the status state machine
+     * @return the output wire for the platform status
      */
     @NonNull
-    public OutputWire<PlatformStatus> getStatusStateMachineOutputWire() {
+    public OutputWire<PlatformStatus> getPlatformStatusOutputWire() {
         return platformMonitorWiring.getOutputWire();
     }
 

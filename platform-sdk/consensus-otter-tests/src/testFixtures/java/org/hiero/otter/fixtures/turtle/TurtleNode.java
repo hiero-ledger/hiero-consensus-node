@@ -238,7 +238,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
             platformWiring
-                    .getStatusStateMachineOutputWire()
+                    .getPlatformStatusOutputWire()
                     .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
