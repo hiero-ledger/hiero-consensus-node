@@ -54,6 +54,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param selfId               id of current node
+     * @param syncLagHandler       callback for reporting median sync lag
      */
     public RpcShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -62,7 +63,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final Consumer<Double> syncLagHandler) {
 
         super(
                 platformContext,
@@ -71,7 +73,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 syncMetrics,
                 receivedEventHandler,
                 fallenBehindManager,
-                intakeEventCounter);
+                intakeEventCounter,
+                syncLagHandler);
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         this.selfId = selfId;

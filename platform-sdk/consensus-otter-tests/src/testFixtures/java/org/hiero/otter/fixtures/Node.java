@@ -28,6 +28,14 @@ public interface Node {
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
+     * Start the node.
+     *
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     */
+    void start();
+
+    /**
      * Kill the node without prior cleanup.
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
@@ -73,14 +81,6 @@ public interface Node {
      * @see #startSyntheticBottleneck()
      */
     void stopSyntheticBottleneck();
-
-    /**
-     * Start the node.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void start();
 
     /**
      * Allows to override the default timeout for node operations.
