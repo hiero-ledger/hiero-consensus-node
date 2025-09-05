@@ -3,14 +3,11 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.blocks.BlockStreamService;
-import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.metrics.StoreMetricsImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -33,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BoundaryStateChangeListenerTest {
+
     private static final int STATE_ID = 1;
     private static final int STATE_ID_ENTITY_COUNTS = 41;
     public static final ProtoString PROTO_STRING = new ProtoString("test");
@@ -65,13 +63,6 @@ class BoundaryStateChangeListenerTest {
     @Test
     void targetTypeIsSingleton() {
         assertEquals(Set.of(SINGLETON), listener.stateTypes());
-    }
-
-    @Test
-    void understandsStateIds() {
-        final var service = BlockStreamService.NAME;
-        final var stateKey = V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
-        assertEquals(stateIdFor(service, stateKey), listener.stateIdFor(service, stateKey));
     }
 
     @Test

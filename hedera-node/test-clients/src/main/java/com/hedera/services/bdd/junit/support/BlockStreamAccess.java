@@ -15,9 +15,11 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -99,8 +101,7 @@ public enum BlockStreamAccess {
                 updateChange -> Map.entry(
                         updateChange.keyOrThrow().entityNumberKeyOrThrow(),
                         updateChange.valueOrThrow().nodeValueOrThrow()),
-                "AddressBookService",
-                "NODES");
+                V053AddressBookSchema.NODES_STATE_ID);
         return nodesById.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(Map.Entry::getValue)
@@ -121,8 +122,7 @@ public enum BlockStreamAccess {
                 updateChange -> Map.entry(
                         updateChange.keyOrThrow().entityNumberKeyOrThrow(),
                         updateChange.valueOrThrow().stakingNodeInfoValueOrThrow()),
-                "TokenService",
-                "STAKING_INFOS");
+                V0490TokenSchema.STAKING_INFOS_STATE_ID);
         return infosById.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(Map.Entry::getValue)
@@ -136,7 +136,9 @@ public enum BlockStreamAccess {
      */
     public static PlatformState lastPlatformStateFrom(@NonNull final List<Block> blocks) {
         return computeSingletonValueFromUpdates(
-                blocks, SingletonUpdateChange::platformStateValueOrThrow, "PlatformStateService", "PLATFORM_STATE");
+                blocks,
+                SingletonUpdateChange::platformStateValueOrThrow,
+                V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
     }
 
     /**
@@ -146,18 +148,15 @@ public enum BlockStreamAccess {
      * @param <V> the value type
      * @param blocks the list of blocks
      * @param extractFn the function to apply to a {@link SingletonUpdateChange} to get the value
-     * @param serviceName the name of the service
-     * @param stateKey the key of the state
+     * @param stateId the ID of the state
      * @return the last singleton value
      */
     @Nullable
     public static <V> V computeSingletonValueFromUpdates(
             @NonNull final List<Block> blocks,
             @NonNull final Function<SingletonUpdateChange, V> extractFn,
-            @NonNull final String serviceName,
-            @NonNull final String stateKey) {
+            final int stateId) {
         final AtomicReference<V> lastValue = new AtomicReference<>();
-        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         stateChangesForState(blocks, stateId)
                 .filter(StateChange::hasSingletonUpdate)
                 .map(StateChange::singletonUpdateOrThrow)
@@ -174,18 +173,15 @@ public enum BlockStreamAccess {
      * @param blocks the list of blocks
      * @param deleteFn the function to apply to a {@link MapDeleteChange} to get the key to remove
      * @param updateFn the function to apply to a {@link MapUpdateChange} to get the key-value pair to update
-     * @param serviceName the name of the service
-     * @param stateKey the key of the state
+     * @param stateId the ID of the state
      * @return the map of key-value pairs
      */
     public static <K, V> Map<K, V> computeMapFromUpdates(
             @NonNull final List<Block> blocks,
             @NonNull final Function<MapChangeKey, K> deleteFn,
             @NonNull final Function<MapUpdateChange, Map.Entry<K, V>> updateFn,
-            @NonNull final String serviceName,
-            @NonNull final String stateKey) {
+            final int stateId) {
         final Map<K, V> upToDate = new HashMap<>();
-        final var stateId = StateUtils.stateIdFor(serviceName, stateKey);
         blocks.forEach(block -> block.items().stream()
                 .filter(BlockItem::hasStateChanges)
                 .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())

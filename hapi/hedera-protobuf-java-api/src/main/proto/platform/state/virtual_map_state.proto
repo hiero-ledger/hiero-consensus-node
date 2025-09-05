@@ -267,7 +267,7 @@ message StateKey {
     /**
      * Queue index for the round receipts queue.
      */
-    uint64 RecordCache_I_TransactionReceiptQueue = 126;
+    uint64 RecordCache_I_TRANSACTION_RECEIPTS = 126;
     
     /**
      * Queue index for the `150` upgrade file data.
@@ -599,7 +599,7 @@ message StateValue {
     /**
      * Metadata of the round receipts queue.
      */
-    proto.TransactionReceiptEntries RecordCacheTransactionReceiptQueue = 126;
+    proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
 
     /**
      * Metadata of the queue state.<br/>
@@ -738,12 +738,12 @@ enum SingletonType {
   /**
    * A state identifier for the active hinTS construction. Singleton state.
    */
-  HintsService_I_ACTIVE_HINT_CONSTRUCTION = 38;
+  HintsService_I_ACTIVE_HINTS_CONSTRUCTION = 38;
   
   /**
    * A state identifier for the next hinTS construction. Singleton state.
    */
-  HintsService_I_NEXT_HINT_CONSTRUCTION = 39;
+  HintsService_I_NEXT_HINTS_CONSTRUCTION = 39;
 
   /**
    * A state identifier for the entity counts. Singleton state.
@@ -780,7 +780,7 @@ enum SingletonType {
   /**
    * Metadata of the round receipts queue.
    */
-  RecordCacheTransactionReceiptQueue = 126;
+  RecordCache_I_TRANSACTION_RECEIPTS = 126;
   
   /**
    * Metadata of the `150` upgrade file data queue.

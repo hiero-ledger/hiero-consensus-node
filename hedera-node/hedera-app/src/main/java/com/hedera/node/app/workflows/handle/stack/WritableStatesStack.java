@@ -60,30 +60,30 @@ public class WritableStatesStack implements WritableStates {
 
     @Override
     @NonNull
-    public <K, V> WritableKVState<K, V> get(@NonNull final String stateKey) {
-        return new WritableKVStateStack<>(this, statesName, stateKey);
+    public <K, V> WritableKVState<K, V> get(final int stateId) {
+        return new WritableKVStateStack<>(this, stateId);
     }
 
     @Override
     @NonNull
-    public <T> WritableSingletonState<T> getSingleton(@NonNull final String stateKey) {
-        return new WritableSingletonStateStack<>(this, statesName, stateKey);
+    public <T> WritableSingletonState<T> getSingleton(final int stateId) {
+        return new WritableSingletonStateStack<>(this, stateId);
     }
 
     @NonNull
     @Override
-    public <E> WritableQueueState<E> getQueue(@NonNull String stateKey) {
-        return new WritableQueueStateStack<>(this, statesName, stateKey);
+    public <E> WritableQueueState<E> getQueue(final int stateId) {
+        return new WritableQueueStateStack<>(this, stateId);
     }
 
     @Override
-    public boolean contains(@NonNull final String stateKey) {
-        return getCurrent().contains(stateKey);
+    public boolean contains(final int stateId) {
+        return getCurrent().contains(stateId);
     }
 
     @Override
     @NonNull
-    public Set<String> stateKeys() {
-        return getCurrent().stateKeys();
+    public Set<Integer> stateIds() {
+        return getCurrent().stateIds();
     }
 }

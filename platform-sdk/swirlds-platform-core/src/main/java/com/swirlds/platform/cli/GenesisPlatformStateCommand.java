@@ -80,7 +80,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             {
                 System.out.printf("Resetting the RosterService state %n");
                 final State state = reservedSignedState.get().getState();
-                final WritableStates writableStates = state.getWritableStates(RosterStateId.NAME);
+                final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
                 final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
                 writableRosterStore.resetRosters();
                 ((CommittableWritableStates) writableStates).commit();

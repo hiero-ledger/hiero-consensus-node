@@ -13,6 +13,5 @@ module com.swirlds.state.api {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

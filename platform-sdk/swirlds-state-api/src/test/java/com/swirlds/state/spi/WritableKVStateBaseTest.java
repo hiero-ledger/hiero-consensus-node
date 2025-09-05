@@ -3,7 +3,6 @@ package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 
@@ -39,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * series of tests that will replace the values for A, B, or remove them, or add new values.
  */
 public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
+
     private static final String NUM_ITERATIONS_ARG = "WritableKVStateBaseTest.DeterministicUpdates.numIterations";
     private WritableKVStateBase<ProtoBytes, ProtoBytes> state;
 
@@ -62,7 +62,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
     protected WritableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(
             @NonNull final Map<ProtoBytes, ProtoBytes> map) {
-        this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, map));
+        this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, map));
         return state;
     }
 
@@ -673,7 +673,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             final var latch = new CountDownLatch(numThreads);
             final var mutationOrders = new ArrayList<List<Integer>>();
             for (int t = 0; t < numThreads; t++) {
-                final var state = new MapWritableKVState<Integer, String>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY) {
+                final var state = new MapWritableKVState<Integer, String>(FRUIT_STATE_ID, FRUIT_STATE_LABEL) {
                     private final List<Integer> keys = new ArrayList<>();
 
                     @Override

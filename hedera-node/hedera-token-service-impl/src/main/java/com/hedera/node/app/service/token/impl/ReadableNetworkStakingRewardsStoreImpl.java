@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
@@ -24,7 +24,7 @@ public class ReadableNetworkStakingRewardsStoreImpl implements ReadableNetworkSt
      * @param states The state to use.
      */
     public ReadableNetworkStakingRewardsStoreImpl(@NonNull final ReadableStates states) {
-        this.stakingRewardsState = requireNonNull(states).getSingleton(STAKING_NETWORK_REWARDS_KEY);
+        this.stakingRewardsState = requireNonNull(states).getSingleton(STAKING_NETWORK_REWARDS_STATE_ID);
     }
 
     /** {@inheritDoc} */

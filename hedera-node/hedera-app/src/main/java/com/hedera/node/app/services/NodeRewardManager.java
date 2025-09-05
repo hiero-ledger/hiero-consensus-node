@@ -4,9 +4,9 @@ package com.hedera.node.app.services;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
-import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toMap;
@@ -58,6 +58,7 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
  */
 @Singleton
 public class NodeRewardManager {
+
     private static final Logger log = LogManager.getLogger(NodeRewardManager.class);
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
@@ -278,7 +279,7 @@ public class NodeRewardManager {
      */
     private @NonNull NodeRewards nodeRewardInfoFrom(@NonNull final State state) {
         final var nodeRewardInfoState =
-                state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_KEY);
+                state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
         return requireNonNull(nodeRewardInfoState.get());
     }
 
@@ -293,7 +294,7 @@ public class NodeRewardManager {
      */
     private void updateNodeRewardState(@NonNull final State state, final long nodeFeesCollected) {
         final var writableTokenState = state.getWritableStates(TokenService.NAME);
-        final var nodeRewardsState = writableTokenState.<NodeRewards>getSingleton(NODE_REWARDS_KEY);
+        final var nodeRewardsState = writableTokenState.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
         final var nodeActivities = missedJudgeCounts.entrySet().stream()
                 .map(entry -> NodeActivity.newBuilder()
                         .nodeId(entry.getKey())
@@ -318,7 +319,7 @@ public class NodeRewardManager {
      */
     private List<Long> missingJudgesInLastRoundOf(@NonNull final State state) {
         final var readablePlatformState =
-                state.getReadableStates(PlatformStateService.NAME).<PlatformState>getSingleton(PLATFORM_STATE_KEY);
+                state.getReadableStates(PlatformStateService.NAME).<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
         final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
         final var judges = requireNonNull(readablePlatformState.get()).consensusSnapshot().judgeIds().stream()
                 .map(JudgeId::creatorId)

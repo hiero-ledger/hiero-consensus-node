@@ -6,7 +6,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema;
-import com.hedera.node.app.state.recordcache.schemas.V0540RecordCacheSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
@@ -31,15 +30,11 @@ final class RecordCacheServiceTest {
     void schema(@Mock final SchemaRegistry registry) {
         final var svc = new RecordCacheService();
         svc.registerSchemas(registry);
-        verify(registry, times(2)).register(captor.capture());
+        verify(registry, times(1)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertThat(schemas.get(0)).isInstanceOf(V0490RecordCacheSchema.class);
-        assertThat(schemas.get(1)).isInstanceOf(V0540RecordCacheSchema.class);
 
         assertThat(schemas.get(0).statesToCreate()).hasSize(1);
         assertThat(schemas.get(0).statesToRemove()).hasSize(0);
-
-        assertThat(schemas.get(1).statesToCreate()).hasSize(1);
-        assertThat(schemas.get(1).statesToRemove()).hasSize(1);
     }
 }

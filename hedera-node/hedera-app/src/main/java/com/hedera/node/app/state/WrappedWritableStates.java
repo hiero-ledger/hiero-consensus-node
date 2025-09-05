@@ -23,9 +23,10 @@ import java.util.Set;
 public class WrappedWritableStates implements WritableStates {
 
     private final WritableStates delegate;
-    private final Map<String, WrappedWritableKVState<?, ?>> writableKVStateMap = new HashMap<>();
-    private final Map<String, WrappedWritableSingletonState<?>> writableSingletonStateMap = new HashMap<>();
-    private final Map<String, WrappedWritableQueueState<?>> writableQueueStateMap = new HashMap<>();
+
+    private final Map<Integer, WrappedWritableKVState<?, ?>> writableKVStateMap = new HashMap<>();
+    private final Map<Integer, WrappedWritableSingletonState<?>> writableSingletonStateMap = new HashMap<>();
+    private final Map<Integer, WrappedWritableQueueState<?>> writableQueueStateMap = new HashMap<>();
 
     /**
      * Constructs a {@link WrappedWritableStates} that wraps the given {@link WritableStates}.
@@ -38,38 +39,38 @@ public class WrappedWritableStates implements WritableStates {
     }
 
     @Override
-    public boolean contains(@NonNull String stateKey) {
-        return delegate.contains(stateKey);
+    public boolean contains(final int stateId) {
+        return delegate.contains(stateId);
     }
 
     @Override
     @NonNull
-    public Set<String> stateKeys() {
-        return delegate.stateKeys();
+    public Set<Integer> stateIds() {
+        return delegate.stateIds();
     }
 
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <K, V> WritableKVState<K, V> get(@NonNull String stateKey) {
+    public <K, V> WritableKVState<K, V> get(final int stateId) {
         return (WritableKVState<K, V>)
-                writableKVStateMap.computeIfAbsent(stateKey, s -> new WrappedWritableKVState<>(delegate.get(stateKey)));
+                writableKVStateMap.computeIfAbsent(stateId, s -> new WrappedWritableKVState<>(delegate.get(stateId)));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <T> WritableSingletonState<T> getSingleton(@NonNull String stateKey) {
+    public <T> WritableSingletonState<T> getSingleton(final int stateId) {
         return (WritableSingletonState<T>) writableSingletonStateMap.computeIfAbsent(
-                stateKey, s -> new WrappedWritableSingletonState<>(delegate.getSingleton(stateKey)));
+                stateId, s -> new WrappedWritableSingletonState<>(delegate.getSingleton(stateId)));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <E> WritableQueueState<E> getQueue(@NonNull String stateKey) {
+    public <E> WritableQueueState<E> getQueue(final int stateId) {
         return (WritableQueueState<E>) writableQueueStateMap.computeIfAbsent(
-                stateKey, s -> new WrappedWritableQueueState<>(delegate.getQueue(stateKey)));
+                stateId, s -> new WrappedWritableQueueState<>(delegate.getQueue(stateId)));
     }
 
     /**
@@ -102,16 +103,14 @@ public class WrappedWritableStates implements WritableStates {
      * @param commitSingletons if {@code true} commits singleton states.
      */
     public void commit(boolean commitSingletons) {
-        for (WrappedWritableKVState<?, ?> kvState : writableKVStateMap.values()) {
-            kvState.commit();
-        }
-        for (WrappedWritableQueueState<?> queueState : writableQueueStateMap.values()) {
-            queueState.commit();
-        }
+        // Ensure all commits always happen in lexicographic order by state ID
+        writableKVStateMap.keySet().stream().sorted().forEach(stateId -> (writableKVStateMap.get(stateId)).commit());
+        writableQueueStateMap.keySet().stream().sorted().forEach(stateId -> (writableQueueStateMap.get(stateId))
+                .commit());
         if (commitSingletons) {
-            for (WrappedWritableSingletonState<?> singletonState : writableSingletonStateMap.values()) {
-                singletonState.commit();
-            }
+            writableSingletonStateMap.keySet().stream()
+                    .sorted()
+                    .forEach(stateId -> (writableSingletonStateMap.get(stateId)).commit());
         }
 
         if (delegate instanceof CommittableWritableStates terminalStates) {

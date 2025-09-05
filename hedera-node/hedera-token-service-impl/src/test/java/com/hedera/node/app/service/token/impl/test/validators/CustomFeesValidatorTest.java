@@ -8,8 +8,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_ROYALTY_FEE_ONLY
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -46,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
+
     private final CustomFeesValidator subject = new CustomFeesValidator();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -155,7 +156,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     @DisplayName("royalty fee for NFTs will fail if the denominating token is missing on fee schedule update")
     void royaltyFeeFailsWithMissingTokenOnFeeScheduleUpdate() {
         writableTokenState = emptyWritableTokenState();
-        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
@@ -201,7 +202,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void missingTokenAssociationForRoyaltyFeeFailsOnFeeScheduleUpdate() {
         refreshWritableStores();
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
-        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRelState);
+        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_STATE_ID))
+                .willReturn(readableTokenRelState);
         readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
@@ -255,7 +257,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
             "fails if there is no token relation between token and fee collector in fixed fee on fee schedule update")
     void failsIfTokenRelationIsMissingInFixedFeeOnFeeScheduleUpdate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
-        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRelState);
+        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_STATE_ID))
+                .willReturn(readableTokenRelState);
         readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
@@ -274,7 +277,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
             "fails if there is no token relation between token and fee collector in fractional fee on fee schedule update")
     void failsIfTokenRelationIsMissingForFractionalFeeOnFeeScheduleUpdate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
-        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRelState);
+        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_STATE_ID))
+                .willReturn(readableTokenRelState);
         readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
@@ -603,7 +607,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     @DisplayName("royalty fee for NFTs will fail if the denominating token is missing")
     void royaltyFeeFailsWithMissingTokenOnTokenCreate() {
         writableTokenState = emptyWritableTokenState();
-        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
@@ -648,7 +652,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void missingTokenAssociationForRoyaltyFeeFailsOnTokenCreate() {
         refreshWritableStores();
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
-        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRelState);
+        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_STATE_ID))
+                .willReturn(readableTokenRelState);
         readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForCreation(
@@ -701,7 +706,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     @DisplayName("fails if there is no token relation between token and fee collector in fixed fee")
     void failsIfTokenRelationIsMissingInFixedFeeOnTokenCreate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
-        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRelState);
+        given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS_STATE_ID))
+                .willReturn(readableTokenRelState);
         readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForCreation(

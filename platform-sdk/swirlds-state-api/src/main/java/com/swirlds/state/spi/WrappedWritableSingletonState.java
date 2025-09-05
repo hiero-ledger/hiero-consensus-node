@@ -24,7 +24,7 @@ public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase
      * @throws NullPointerException if {@code delegate} is {@code null}
      */
     public WrappedWritableSingletonState(@NonNull final WritableSingletonState<T> delegate) {
-        super(delegate.getServiceName(), delegate.getStateKey());
+        super(delegate.getStateId(), null);
         this.delegate = delegate;
     }
 

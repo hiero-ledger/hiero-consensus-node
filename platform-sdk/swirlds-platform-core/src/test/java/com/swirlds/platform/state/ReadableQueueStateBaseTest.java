@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -11,18 +12,23 @@ import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 
 class ReadableQueueStateBaseTest extends StateTestBase {
+
+    public static final String FAKE_SERVICE = "FAKE_SERVICE";
+    public static final int FAKE_STATE_ID = Integer.MAX_VALUE / 3;
+    public static final String FAKE_KEY = "FAKE_KEY";
+
+    public static final String LABEL = computeLabel(FAKE_SERVICE, FAKE_KEY);
+
     @Test
     void stateKey() {
-        final var subject =
-                ListWritableQueueState.builder("FAKE_NAME", "FAKE_KEY").build();
-        assertThat(subject.getStateKey()).isEqualTo("FAKE_KEY");
+        final var subject = ListWritableQueueState.builder(FAKE_STATE_ID, LABEL).build();
+        assertThat(subject.getStateId()).isEqualTo(FAKE_STATE_ID);
     }
 
     @Test
     void peekIsNullWhenEmpty() {
         // Given an empty queue
-        final var subject =
-                ListReadableQueueState.builder("FAKE_NAME", "FAKE_STATE").build();
+        final var subject = ListReadableQueueState.builder(FAKE_STATE_ID, LABEL).build();
 
         // When we peek
         final var element = subject.peek();

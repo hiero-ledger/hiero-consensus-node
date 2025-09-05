@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.schemas;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

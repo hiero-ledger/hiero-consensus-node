@@ -3,8 +3,8 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.orderedRecordFilesFrom;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
@@ -98,7 +98,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                     // Check the entity counts singleton is decremented to match
                     final var singleton = spec.embeddedStateOrThrow()
                             .getReadableStates(EntityIdService.NAME)
-                            .<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
+                            .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID);
                     final var expectedAccounts = map.getBackingStore().size();
                     final var actualCounts = requireNonNull(singleton.get()).numAccounts();
                     assertEquals(expectedAccounts, actualCounts, "Singleton count mismatch after upgrade");
@@ -166,7 +166,8 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
     @Override
     public void accept(@NonNull final FakeState fakeState) {
         final var tokenStates = (MapWritableStates) fakeState.getWritableStates(TokenService.NAME);
-        final var accounts = (MapWritableKVState<AccountID, Account>) tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
+        final var accounts =
+                (MapWritableKVState<AccountID, Account>) tokenStates.<AccountID, Account>get(ACCOUNTS_STATE_ID);
         final var sampleId = accounts.getBackingStore().keySet().iterator().next();
         final var idFactory = getIdFactoryFor(sampleId);
         final var treasuryId = idFactory.apply(2L);
@@ -193,7 +194,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
         tokenStates.commit();
 
         final var entityStates = (MapWritableStates) fakeState.getWritableStates(EntityIdService.NAME);
-        final var countsSingleton = entityStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
+        final var countsSingleton = entityStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID);
         final var oldCounts = requireNonNull(countsSingleton.get());
         final var newCounts = oldCounts
                 .copyBuilder()

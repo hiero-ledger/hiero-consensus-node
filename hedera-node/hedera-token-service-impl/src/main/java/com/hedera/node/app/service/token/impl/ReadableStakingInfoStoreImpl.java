@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -41,7 +41,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     public ReadableStakingInfoStoreImpl(
             @NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
         this.entityCounters = requireNonNull(entityCounters);
-        this.stakingInfoState = states.get(STAKING_INFO_KEY);
+        this.stakingInfoState = states.get(STAKING_INFOS_STATE_ID);
     }
 
     @Nullable
