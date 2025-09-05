@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.util.LoggingUtilities.threadInfo;
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.WARN;
@@ -25,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
@@ -124,10 +124,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Helper method to format current thread and instance information for logging.
+     * Helper method to add current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        logger.atLevel(level).log(threadInfo() + " [" + this + "] " + message, args);
+        if (level == DEBUG) {
+            ThreadContext.put("connectionInfo", this.toString());
+        }
+        logger.atLevel(level).log(message, args);
     }
 
     /**

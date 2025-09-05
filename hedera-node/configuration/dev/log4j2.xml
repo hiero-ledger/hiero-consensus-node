@@ -92,6 +92,22 @@
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
+    <!-- Dedicated appenders for BlockNodeConnection with object info -->
+    <Console name="BlockNodeConnectionConsole" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} -%equals{%level}{DEBUG}{ [%t-%T]%notEmpty{ [%X{connectionInfo}]}} %m{nolookups}%n"/>
+    </Console>
+    
+    <RollingFile name="BlockNodeConnectionRollingFile" fileName="output/hgcaa.log"
+      filePattern="output/hgcaa-%i.log">
+      <PatternLayout>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} -%equals{%level}{DEBUG}{ [%t-%T]%notEmpty{ [%X{connectionInfo}]}} %m{nolookups}%n</pattern>
+      </PatternLayout>
+      <Policies>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
   </Appenders>
   <Loggers>
     <Root level="FATAL">
@@ -234,6 +250,18 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
+    <!-- Specific loggers for BlockNodeConnection classes with thread info -->
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="INFO" additivity="false">
+      <AppenderRef ref="BlockNodeConnectionConsole"/>
+      <AppenderRef ref="BlockNodeConnectionRollingFile"/>
+    </Logger>
+    
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="INFO" additivity="false">
+      <AppenderRef ref="BlockNodeConnectionConsole"/>
+      <AppenderRef ref="BlockNodeConnectionRollingFile"/>
+    </Logger>
+    
+    <!-- General streaming logger for other classes in the package -->
     <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>

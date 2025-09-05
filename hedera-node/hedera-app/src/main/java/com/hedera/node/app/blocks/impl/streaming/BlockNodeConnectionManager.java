@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.LONGER_RETRY_DELAY;
-import static com.hedera.node.app.util.LoggingUtilities.threadInfo;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
@@ -57,6 +56,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 
@@ -180,17 +180,23 @@ public class BlockNodeConnectionManager {
     private final Duration endOfStreamScheduleDelay;
 
     /**
-     * Helper method to format current thread information for logging.
+     * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        logger.atLevel(level).log(threadInfo() + " " + message, args);
+        if (level == DEBUG) {
+            ThreadContext.put("connectionInfo", null);
+        }
+        logger.atLevel(level).log(message, args);
     }
 
     /**
-     * Helper method to format current thread and connection information for logging.
+     * Helper method to add current connection information for debug logging.
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        logger.atLevel(level).log(threadInfo() + " [" + connection + "] " + message, args);
+        if (level == DEBUG) {
+            ThreadContext.put("connectionInfo", connection.toString());
+        }
+        logger.atLevel(level).log(message, args);
     }
 
     /**
@@ -854,10 +860,13 @@ public class BlockNodeConnectionManager {
         private final boolean force;
 
         /**
-         * Helper method to format current thread and connection information for logging.
+         * Helper method to add current connection information for debug logging.
          */
         private void logWithContext(Level level, String message, Object... args) {
-            logger.atLevel(level).log(threadInfo() + " [" + connection + "] " + message, args);
+            if (level == DEBUG) {
+                ThreadContext.put("connectionInfo", connection.toString());
+            }
+            logger.atLevel(level).log(message, args);
         }
 
         BlockNodeConnectionTask(
