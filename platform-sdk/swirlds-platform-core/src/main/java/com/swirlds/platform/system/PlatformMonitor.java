@@ -32,7 +32,7 @@ public interface PlatformMonitor {
      * @return the new status after processing this information, or null if the status did not change
      */
     @Nullable
-    @InputWireLabel("state saving result")
+    @InputWireLabel("state saving monitoring")
     PlatformStatus stateWrittenToDisk(@NonNull StateSavingResult result);
 
     /**
@@ -42,7 +42,7 @@ public interface PlatformMonitor {
      * @return the new status after processing this information, or null if the status did not change
      */
     @Nullable
-    @InputWireLabel("ISS notifications")
+    @InputWireLabel("ISS notification monitoring")
     PlatformStatus issNotification(@NonNull List<IssNotification> notifications);
 
     /**
@@ -61,6 +61,6 @@ public interface PlatformMonitor {
      * @return the new status after processing this information, or null if the status did not change
      */
     @Nullable
-    @InputWireLabel("ConsensusRound")
+    @InputWireLabel("monitor consensus round")
     PlatformStatus consensusRound(@NonNull final ConsensusRound round);
 }
