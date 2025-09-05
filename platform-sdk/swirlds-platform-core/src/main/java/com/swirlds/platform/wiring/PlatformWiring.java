@@ -602,6 +602,7 @@ public class PlatformWiring {
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
         branchDetectorWiring.getInputWire(BranchDetector::clear);
         branchReporterWiring.getInputWire(BranchReporter::clear);
+        platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
     }
 
     /**
