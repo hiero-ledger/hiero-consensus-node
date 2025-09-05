@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 public class ExtCodeSizeOperationSuite {
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistence() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
@@ -92,6 +94,7 @@ public class ExtCodeSizeOperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> testExtCodeSizeWithSystemAccounts() {
         final var contract = "ExtCodeOperationsChecker";
         final var sizeOf = "sizeOf";

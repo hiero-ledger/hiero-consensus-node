@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.fees;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -67,6 +68,7 @@ public class SmartContractServiceFeesTest {
     @HapiTest
     @DisplayName("Create a smart contract and assure proper fee charged")
     @Order(0)
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateBaseUSDFee() {
         final var creation = "creation";
         return hapiTest(
@@ -119,6 +121,7 @@ public class SmartContractServiceFeesTest {
     @EmbeddedHapiTest(value = NEEDS_STATE_ACCESS)
     @DisplayName("Call a local smart contract local and assure proper fee charged")
     @Order(3)
+    @Tag(MATS)
     final Stream<DynamicTest> contractLocalCallBaseUSDFee() {
         final var contractLocalCall = "contractLocalCall";
         return customizedHapiTest(

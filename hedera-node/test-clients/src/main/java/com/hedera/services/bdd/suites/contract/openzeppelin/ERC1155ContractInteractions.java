@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.openzeppelin;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -35,6 +36,7 @@ public class ERC1155ContractInteractions {
     private static final String CONTRACT = "GameItems";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> erc1155() {
         return hapiTest(
                 newKeyNamed("ec").shape(SECP_256K1_SHAPE),
