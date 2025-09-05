@@ -463,6 +463,8 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
 
+        consensusRoundOutputWire.solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::consensusRound));
+
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 transactionHandlerSysTxnsOutputWire = transactionHandlerWiring

@@ -1,5 +1,6 @@
 package com.swirlds.platform.system;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.status.DefaultStatusStateMachine;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
@@ -21,10 +22,12 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 public class DefaultPlatformMonitor implements PlatformMonitor {
+    private final Time time;
     private final DefaultStatusStateMachine statusStateMachine;
     private final UptimeTracker uptimeTracker;
 
     public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
+        time = platformContext.getTime();
         statusStateMachine = new DefaultStatusStateMachine(platformContext);
         uptimeTracker = new UptimeTracker(
                 platformContext,
@@ -44,11 +47,12 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
 
     @Override
     public PlatformStatus consensusRound(@NonNull final ConsensusRound round) {
-        final SelfEventReachedConsensusAction statusAction = uptimeTracker.handleRound(round);
-        if (statusAction == null) {
+        final boolean selfEventReachedConsensus = uptimeTracker.trackRound(round);
+        if (!selfEventReachedConsensus) {
             return null;
         }
-        return statusStateMachine.submitStatusAction(statusAction);
+        // the action receives the wall clock time, NOT the consensus timestamp
+        return statusStateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
     }
 
     @Override
