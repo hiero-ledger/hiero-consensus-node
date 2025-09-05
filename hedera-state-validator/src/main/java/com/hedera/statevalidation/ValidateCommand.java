@@ -37,7 +37,7 @@ public class ValidateCommand implements Callable<Integer> {
     @CommandLine.Parameters(
             arity = "1..*",
             description =
-                    "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, compaction, entityIdUniqueness]")
+                    "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, compaction, entityIds]")
     private String[] tags = {
         "stateAnalyzer",
         "internal",
