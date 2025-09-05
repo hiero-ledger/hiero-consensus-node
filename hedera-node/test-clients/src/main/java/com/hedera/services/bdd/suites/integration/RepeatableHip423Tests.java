@@ -667,6 +667,66 @@ public class RepeatableHip423Tests {
                 doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -4, -2, -2, -4, -4)));
     }
 
+    /**
+     * Tests that execution of scheduled transactions purges the associated state as expected when multiple
+     * user transactions are required due to running out of consensus times. The test uses four scheduled
+     * transactions, two of them in one second and two of them a few seconds later. After sleeping past
+     * the expiration time of all four transactions, executes them via two triggering transactions, the first
+     * of which has available consensus times for three transactions and the second of which has available
+     * consensus times for the fourth transaction.
+     */
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS},
+            overrides = {
+                "consensus.handle.maxPrecedingRecords",
+                "consensus.handle.maxFollowingRecords",
+                "scheduling.consTimeSeparationNanos",
+                "scheduling.reservedSystemTxnNanos",
+            })
+    final Stream<DynamicTest> maxExpirySecsToCheckPerUserTxnAreRespected() {
+        final var lastSecond = new AtomicLong();
+        final AtomicReference<ScheduleStateSizes> startingSizes = new AtomicReference<>();
+        final AtomicReference<ScheduleStateSizes> currentSizes = new AtomicReference<>();
+        final int offset = 3;
+        return hapiTest(
+                exposeSpecSecondTo(lastSecond::set),
+                cryptoCreate("luckyYou").balance(0L),
+                // Restrict a single user tx to checking at most 2 seconds worth of expiries
+                overridingAllOf(Map.of("consensus.maxExpirySecsToCheckPerUserTxn", "2")),
+                // Schedule the four transfers to lucky you at successive seconds
+                sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
+                        .waitForExpiry()
+                        .expiringAt(lastSecond.get() + offset + 1)),
+                sourcing(() -> scheduleCreate("two", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 2L)))
+                        .waitForExpiry()
+                        .expiringAt(lastSecond.get() + offset + 2)),
+                sourcing(() -> scheduleCreate("three", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 3L)))
+                        .waitForExpiry()
+                        .expiringAt(lastSecond.get() + offset + 3)),
+                sourcing(() -> scheduleCreate("four", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 4L)))
+                        .waitForExpiry()
+                        .expiringAt(lastSecond.get() + offset + 5)),
+                // Let all the schedules expire
+                sleepForSeconds(ONE_MINUTE),
+                viewScheduleStateSizes(startingSizes::set),
+                // Trigger as many as possible in a single user transaction
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                // Verify that was only the first two
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L),
+                viewScheduleStateSizes(currentSizes::set),
+                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -2, -2, -2, -2, -2)),
+                // Then trigger the next one (one second after the first two)
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L),
+                viewScheduleStateSizes(currentSizes::set),
+                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -3, -3, -3, -3, -3)),
+                // And trigger the next one (two seconds after the last second that could be checked in the previous
+                // loop)
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L + 4L),
+                doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -4, -4, -4, -4, -4)));
+    }
+
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> executionResultsAreStreamedAsExpected() {
         return hapiTest(
