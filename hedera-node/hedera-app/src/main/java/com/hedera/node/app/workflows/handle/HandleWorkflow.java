@@ -630,10 +630,19 @@ public class HandleWorkflow {
             var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
-            // Now we construct the iterator and start executing transactions in this interval
+            // Now we construct the iterator and start executing transactions in the longest permitted
+            // interval; this is constrained by `scheduling.maxExpirySecsToCheckPerUserTxn` so that in
+            // test environments where we restart from a state with last consensus time T and begin
+            // submitting txs again at wall clock time N, handle() doesn't block so painfully long
+            // looking for expired schedules in [T, N] that the network goes into CHECKING
+            final int maxSecsToCheck = schedulingConfig.maxExpirySecsToCheckPerUserTxn();
+            final long lastCheckableSecond = executionStart.getEpochSecond() + maxSecsToCheck - 1;
+            final var iteratorEnd = lastCheckableSecond >= consensusNow.getEpochSecond()
+                    ? consensusNow
+                    : executionStart.plusSeconds(maxSecsToCheck);
             final var iter = scheduleService.executableTxns(
                     executionStart,
-                    consensusNow,
+                    iteratorEnd,
                     StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
@@ -675,9 +684,10 @@ public class HandleWorkflow {
             if (iter.hasNext()) {
                 lastExecutedSecond = executionEnd.getEpochSecond() - 1;
             } else {
-                // We exhausted the iterator, so jump back ahead to the interval right endpoint
-                executionEnd = consensusNow;
-                lastExecutedSecond = consensusNow.getEpochSecond();
+                // We exhausted the iterator, so jump back to the interval right endpoint
+                // no matter the last executed transaction
+                executionEnd = iteratorEnd;
+                lastExecutedSecond = executionEnd.getEpochSecond();
             }
         }
         // Update our last-processed time with where we ended
