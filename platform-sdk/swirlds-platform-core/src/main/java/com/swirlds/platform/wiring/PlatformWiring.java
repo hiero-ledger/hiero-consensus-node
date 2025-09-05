@@ -537,9 +537,9 @@ public class PlatformWiring {
                         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
 
-        stateSnapshotManagerWiring.getOutputWire().solderTo(
-                platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk)
-        );
+        stateSnapshotManagerWiring
+                .getOutputWire()
+                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk));
 
         runningEventHashOverrideWiring
                 .runningHashUpdateOutput()
@@ -550,10 +550,9 @@ public class PlatformWiring {
 
         final OutputWire<IssNotification> splitIssDetectorOutput = issDetectorWiring.getSplitOutput();
         splitIssDetectorOutput.solderTo(issHandlerWiring.getInputWire(IssHandler::issObserved));
-        issDetectorWiring.getOutputWire().solderTo(
-                platformMonitorWiring.getInputWire(PlatformMonitor::issNotification)
-        );
-
+        issDetectorWiring
+                .getOutputWire()
+                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::issNotification));
 
         completeReservedSignedStatesWire.solderTo(latestCompleteStateNotifierWiring.getInputWire(
                 LatestCompleteStateNotifier::latestCompleteStateHandler));

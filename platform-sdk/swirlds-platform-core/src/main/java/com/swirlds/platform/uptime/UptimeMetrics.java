@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -53,8 +52,7 @@ class UptimeMetrics {
      * @param metrics     the metrics for this node
      * @param isDegraded  a supplier that returns true if this node is degraded, false otherwise
      */
-    public UptimeMetrics(
-            @NonNull final Metrics metrics, @NonNull final Supplier<Boolean> isDegraded) {
+    public UptimeMetrics(@NonNull final Metrics metrics, @NonNull final Supplier<Boolean> isDegraded) {
 
         this.metrics = Objects.requireNonNull(metrics);
         Objects.requireNonNull(isDegraded);
@@ -92,7 +90,7 @@ class UptimeMetrics {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
 
         final RunningAverageMetric.Config roundsSinceLastConensusEventConfig = new RunningAverageMetric.Config(
-                CATEGORY, ROUNDS_SINCE_LAST_CONSENSUS_EVENT + nodeId)
+                        CATEGORY, ROUNDS_SINCE_LAST_CONSENSUS_EVENT + nodeId)
                 .withUnit("rounds")
                 .withDescription(
                         "The number of rounds since the last consensus event created by this node was observed");
@@ -124,8 +122,8 @@ class UptimeMetrics {
      */
     public @NonNull RunningAverageMetric getRoundsSinceLastConsensusEventMetric(@NonNull final NodeId id) {
         Objects.requireNonNull(id, "id must not be null");
-        final RunningAverageMetric metric = roundsSinceLastConsensusEvent.computeIfAbsent(id,
-                this::createMetricForNode);
+        final RunningAverageMetric metric =
+                roundsSinceLastConsensusEvent.computeIfAbsent(id, this::createMetricForNode);
         return metric;
     }
 

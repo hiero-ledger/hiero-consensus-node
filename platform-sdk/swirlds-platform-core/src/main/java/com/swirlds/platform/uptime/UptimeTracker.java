@@ -51,9 +51,7 @@ public class UptimeTracker {
      * @param platformContext       the platform context
      * @param selfId                the ID of this node
      */
-    public UptimeTracker(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final NodeId selfId) {
+    public UptimeTracker(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
 
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         this.time = Objects.requireNonNull(platformContext).getTime();
@@ -82,11 +80,7 @@ public class UptimeTracker {
         addAndRemoveNodes(uptimeData, round.getConsensusRoster());
         final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator = new HashMap<>();
         final boolean newSelfEvent = scanRound(round, lastEventsInRoundByCreator);
-        updateUptimeData(
-                round.getConsensusRoster(),
-                uptimeData,
-                lastEventsInRoundByCreator,
-                round.getRoundNum());
+        updateUptimeData(round.getConsensusRoster(), uptimeData, lastEventsInRoundByCreator, round.getRoundNum());
         reportUptime(round.getConsensusRoster(), uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
 
         final Instant end = time.now();
@@ -150,8 +144,7 @@ public class UptimeTracker {
      * @return true if a new self event was found in this round
      */
     private boolean scanRound(
-            @NonNull final Round round,
-            @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator) {
+            @NonNull final Round round, @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator) {
 
         // capture previous self event consensus timestamp, so we can tell if the current round contains a
         // new self event

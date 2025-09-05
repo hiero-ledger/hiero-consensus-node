@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system;
 
 import com.swirlds.base.time.Time;
@@ -29,9 +30,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
         time = platformContext.getTime();
         statusStateMachine = new DefaultStatusStateMachine(platformContext);
-        uptimeTracker = new UptimeTracker(
-                platformContext,
-                selfId);
+        uptimeTracker = new UptimeTracker(platformContext, selfId);
     }
 
     @Nullable
@@ -58,8 +57,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     @Override
     public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result) {
         return statusStateMachine.submitStatusAction(
-                new StateWrittenToDiskAction(result.round(), result.freezeState())
-        );
+                new StateWrittenToDiskAction(result.round(), result.freezeState()));
     }
 
     @Nullable

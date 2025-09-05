@@ -3,8 +3,6 @@ package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.state.StateSavingResult;
