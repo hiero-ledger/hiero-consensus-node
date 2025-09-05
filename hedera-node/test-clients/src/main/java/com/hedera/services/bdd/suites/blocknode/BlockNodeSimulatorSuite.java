@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * This suite is for testing with the block node simulator.
+ * NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
  */
 @Tag(BLOCK_NODE_SIMULATOR)
 @OrderedInIsolation
@@ -145,7 +146,7 @@ public class BlockNodeSimulatorSuite {
                                 "[localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "[localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
+                                "[localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND).",
                                 portNumbers.getFirst()))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())));
@@ -189,13 +190,15 @@ public class BlockNodeSimulatorSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
-                        "onError invoked",
-                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
+                        "OnError invoked",
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms (force=false).",
                                 portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -206,10 +209,10 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
                                 portNumbers.get(2)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -220,7 +223,7 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
                                 portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
@@ -234,14 +237,14 @@ public class BlockNodeSimulatorSuite {
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
                         String.format(
-                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
                                 portNumbers.get(1)),
                         String.format(
-                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
-                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
+                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED.",
                                 portNumbers.get(3)))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
@@ -296,7 +299,6 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(5)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
-        // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 doingContextual(
@@ -403,7 +405,7 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(30, SECONDS),
                         Duration.of(15, SECONDS),
                         String.format(
-                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT10S",
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT10S.",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(6).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -413,17 +415,17 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(15, SECONDS),
                         // Verify that the periodic reset is performed after the period and the connection is closed
                         String.format(
-                                "[localhost:%s/ACTIVE] Performing scheduled stream reset", portNumbers.getFirst()),
+                                "[localhost:%s/ACTIVE] Performing scheduled stream reset...", portNumbers.getFirst()),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.getFirst()),
                         String.format(
-                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED",
+                                "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED.",
                                 portNumbers.getFirst()),
-                        String.format("[localhost:%s/CLOSED] Connection successfully closed", portNumbers.getFirst()),
+                        String.format("[localhost:%s/CLOSED] Connection successfully closed.", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
-                        "Selected block node",
+                        "Scheduling reconnection for node in 0 ms (force=false).",
                         "Running connection task...",
-                        "Connection state transitioned from UNINITIALIZED to PENDING",
-                        "Connection state transitioned from PENDING to ACTIVE")),
+                        "Connection state transitioned from UNINITIALIZED to PENDING.",
+                        "Connection state transitioned from PENDING to ACTIVE.")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
