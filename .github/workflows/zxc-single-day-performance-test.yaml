@@ -34,13 +34,6 @@ on:
         default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
-      # For Adhoc runs, we use Chicago:                 k8s.pft.chi.lat.ope.eng.hashgraph.io
-      # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
-      kubernetes-cluster:
-        required: true
-        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
-        type: string
-        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
@@ -105,6 +98,7 @@ jobs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
+      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -115,6 +109,16 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -139,7 +143,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 168h
 
       - name: Authenticate to Google Cloud
@@ -249,7 +253,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          CONTEXT: hashgraph.teleport.sh-${{ inputs.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -678,7 +682,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -861,7 +865,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud

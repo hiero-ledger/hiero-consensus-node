@@ -67,6 +67,7 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**

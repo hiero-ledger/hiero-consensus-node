@@ -27,7 +27,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
     -s 'LatestCompleteStateNotifier:complete state notification:💢' \
     -s 'RunningEventHashOverride:hash override:💨' \
-    -s 'StaleEventDetectorRouter:publishStaleEvent:⚰️' \
     -s 'StateSnapshotManager:state saving monitoring:💾' \
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \

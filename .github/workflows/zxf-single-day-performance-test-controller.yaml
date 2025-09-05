@@ -74,7 +74,6 @@ jobs:
       nlg-accounts: "100000000"
       nlg-time: "330"
       add-app-props: ""
-      kubernetes-cluster: "k8s.pft.dal.lat.ope.eng.hashgraph.io"
       add-settings: ""
       crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
       crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
