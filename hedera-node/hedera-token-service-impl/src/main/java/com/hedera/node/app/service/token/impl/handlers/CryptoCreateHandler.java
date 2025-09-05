@@ -5,9 +5,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -18,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
@@ -39,6 +42,8 @@ import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.U
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NO_STAKE_PERIOD_START;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -48,8 +53,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -60,6 +68,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -72,11 +81,14 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -101,6 +113,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Constructs a {@link CryptoCreateHandler} with the given {@link CryptoCreateValidator} and {@link StakingValidator}.
+     *
      * @param cryptoCreateValidator the validator for the crypto create transaction
      */
     @Inject
@@ -159,6 +172,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
+        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
+        if (!op.hookCreationDetails().isEmpty()) {
+            cryptoCreateValidator.validateHookPureChecks(op);
+        }
     }
 
     @Override
@@ -224,9 +241,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      * the transaction fee.
      *
      * @throws NullPointerException if one of the arguments is {@code null}
-     * @throws HandleException      if the transaction is not successful due to payer account being deleted or has
-     *                              insufficient balance or the account is not created due to the usage of a price
-     *                              regime
+     * @throws HandleException if the transaction is not successful due to payer account being deleted or has
+     * insufficient balance or the account is not created due to the usage of a price
+     * regime
      */
     @Override
     public void handle(@NonNull final HandleContext context) {
@@ -258,9 +275,38 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             accountStore.put(modifiedPayer);
         }
 
+        // Dispatch hook creation to contract service if there are any hooks to be created
+        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
+        final var tobeCreatedAccount = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(context.entityNumGenerator().peekAtNewEntityNum())
+                .build();
+        final var hookSummary = cryptoCreateValidator.summarizeHooks(op.hookCreationDetails());
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var hookDetails = op.hookCreationDetails();
+            for (int i = 0; i < hookDetails.size(); i++) {
+                final var creation = HookCreation.newBuilder()
+                        .entityId(HookEntityId.newBuilder().accountId(tobeCreatedAccount).build())
+                        .nextHookId(hookSummary.creationHookIds().get(i + 1)) // nextHookId of last hook should not be set?
+                        .details(hookDetails.get(i)).build();
+                final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                        .creation(creation)
+                        .build();
+                final var streamBuilder = context.dispatch(setupDispatch(
+                        context.payer(),
+                        TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                        StreamBuilder.class, // which stream builder this should be ?
+                        context.dispatchMetadata()
+                                .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                                .orElse(null)));
+                validateTrue(streamBuilder.status() == SUCCESS, INVALID_HOOK_ID);
+            }
+        }
+
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
-        final var accountCreated = buildAccount(op, context);
+        final var accountCreated = buildAccount(op, context, hookSummary);
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
@@ -315,6 +361,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
+        final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
         final var alias = op.alias();
 
         // Don't allow creation of accounts that don't match the configured shard and realm
@@ -384,6 +431,14 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     accountStore,
                     context.networkInfo());
         }
+        if (!op.hookCreationDetails().isEmpty()) {
+            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
+            for (final var detail : op.hookCreationDetails()) {
+                if (detail.hasAdminKey()) {
+                    context.attributeValidator().validateKey(detail.adminKey());
+                }
+            }
+        }
     }
 
     /**
@@ -412,7 +467,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext) {
+    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, HookSummary hookSummary) {
+        requireNonNull(op);
+        requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
@@ -427,6 +484,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
+                .firstHookId(hookSummary.creationHookIds().getFirst())
+                .numberHooksInUse(hookSummary.creationHookIds().size())
                 .alias(op.alias());
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
@@ -479,5 +538,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
     private boolean isSystemFile(final long entityNum) {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
+    }
+
+    public record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {
+
     }
 }
