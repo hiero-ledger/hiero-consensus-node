@@ -93,6 +93,7 @@ import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
@@ -1083,6 +1084,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     public BlockStreamManager blockStreamManager() {
         return daggerApp.blockStreamManager();
+    }
+
+    public RecordCache recordCache() {
+        return daggerApp.recordCache();
     }
 
     public ThrottleDefinitions activeThrottleDefinitions() {

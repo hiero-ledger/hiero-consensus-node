@@ -372,6 +372,10 @@ public interface HapiPropertySource {
         return asEntityString(account.getShardNum(), account.getRealmNum(), account.getAccountNum());
     }
 
+    static String asAccountLiteralIn(@NonNull final HapiSpec spec, final long num) {
+        return asAccountString(spec.accountIdFactory().apply(num));
+    }
+
     static String asAliasableAccountString(final AccountID account) {
         if (account.getAlias().isEmpty()) {
             return asAccountString(account);

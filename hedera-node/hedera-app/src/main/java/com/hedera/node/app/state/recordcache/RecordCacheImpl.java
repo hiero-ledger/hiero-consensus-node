@@ -149,7 +149,7 @@ public class RecordCacheImpl implements HederaRecordCache {
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
      * @param recordSources The sources of records for the relevant base {@link TransactionID}
      */
-    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
+    public record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
             implements ReceiptSource {
         public HistorySource() {
             this(new HashSet<>(), new ArrayList<>());
@@ -211,7 +211,7 @@ public class RecordCacheImpl implements HederaRecordCache {
          * @param userTxnId the user {@link TransactionID} to summarize records for
          * @return the canonical history
          */
-        History historyOf(@NonNull final TransactionID userTxnId) {
+        public History historyOf(@NonNull final TransactionID userTxnId) {
             final List<TransactionRecord> duplicateRecords = new ArrayList<>();
             final List<TransactionRecord> childRecords = new ArrayList<>();
             for (final var recordSource : recordSources) {

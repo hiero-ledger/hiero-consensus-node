@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountLiteralIn;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -584,6 +585,11 @@ public class UtilVerbs {
 
     public static ContextualSourcedOp sourcingContextual(Function<HapiSpec, SpecOperation> source) {
         return new ContextualSourcedOp(source);
+    }
+
+    public static SpecOperation sourcingFromAccountIdLiteral(
+            final long num, @NonNull final Function<String, SpecOperation> source) {
+        return sourcingContextual(spec -> source.apply(asAccountLiteralIn(spec, num)));
     }
 
     public static ContextualActionOp doingContextual(Consumer<HapiSpec> action) {

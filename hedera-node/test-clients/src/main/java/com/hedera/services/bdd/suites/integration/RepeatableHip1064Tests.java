@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.integration;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
@@ -14,6 +15,7 @@ import static com.hedera.services.bdd.junit.support.BlockStreamAccess.blockFrom;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -28,6 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -47,11 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.state.recordcache.RecordCacheImpl;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -67,6 +73,7 @@ import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -75,7 +82,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -219,6 +228,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+        final AtomicReference<TransactionID> rewardPaymentTxId = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -290,7 +300,65 @@ public class RepeatableHip1064Tests {
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
                 cryptoCreate("nobody").payingWith(GENESIS),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                exposeLastRewardsPaymentTxId(rewardPaymentTxId::set),
+                sourcing(() -> getReceipt(
+                                rewardPaymentTxId.get().toBuilder().clearNonce().build())
+                        .logged()));
+    }
+
+    private static SpecOperation exposeLastRewardsPaymentTxId(@NonNull final Consumer<TransactionID> cb) {
+        return doingContextual(spec -> {
+            try {
+                final RecordCacheImpl cache = (RecordCacheImpl)
+                        spec.repeatableEmbeddedHederaOrThrow().hedera().recordCache();
+                final var payerTxnIds = getPayerTxnIds(cache)
+                        .get(CommonPbjConverters.toPbj(spec.accountIdFactory()
+                                .apply(spec.startupProperties().getLong("accounts.systemAdmin"))));
+                requireNonNull(payerTxnIds);
+                final var historySources = getHistorySources(cache);
+                final var rewardPaymentsRecord = payerTxnIds.stream()
+                        .map(txId -> {
+                            final var userTxId = txId.copyBuilder().nonce(0).build();
+                            final var history = historySources.get(userTxId);
+                            if (history == null) {
+                                return null;
+                            } else {
+                                final var txHistory = history.historyOf(userTxId);
+                                final var paymentRecord = txHistory.childRecords().stream()
+                                        .filter(r -> r.memo().equals("Synthetic node rewards"))
+                                        .findAny();
+                                return paymentRecord.orElse(null);
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .max(comparing(r -> asInstant(r.consensusTimestampOrThrow())))
+                        .orElseThrow();
+                cb.accept(pbjToProto(
+                        rewardPaymentsRecord.transactionIDOrThrow(),
+                        com.hedera.hapi.node.base.TransactionID.class,
+                        TransactionID.class));
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to expose last rewards payment tx", e);
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<AccountID, Set<com.hedera.hapi.node.base.TransactionID>> getPayerTxnIds(
+            @NonNull final RecordCacheImpl cache) throws NoSuchFieldException, IllegalAccessException {
+        final var payerTxnIdsField = RecordCacheImpl.class.getDeclaredField("payerTxnIds");
+        payerTxnIdsField.setAccessible(true);
+        return (Map<AccountID, Set<com.hedera.hapi.node.base.TransactionID>>) payerTxnIdsField.get(cache);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<com.hedera.hapi.node.base.TransactionID, RecordCacheImpl.HistorySource> getHistorySources(
+            @NonNull final RecordCacheImpl cache) throws NoSuchFieldException, IllegalAccessException {
+        final var historySourcesField = RecordCacheImpl.class.getDeclaredField("historySources");
+        historySourcesField.setAccessible(true);
+        return (Map<com.hedera.hapi.node.base.TransactionID, RecordCacheImpl.HistorySource>)
+                historySourcesField.get(cache);
     }
 
     /**
