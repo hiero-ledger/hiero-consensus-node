@@ -136,8 +136,7 @@ public final class OnDiskQueueHelper<V> {
     public QueueState getState() {
         final Bytes queueStateKey = getStateKeyForSingleton(stateId);
         final StateValue<QueueState> queueStateValue = virtualMap.get(queueStateKey, queueStateValueCodec);
-        // FUTURE WORK: find out why this copy() call is needed
-        return queueStateValue != null ? queueStateValue.value().copy() : null;
+        return queueStateValue != null ? queueStateValue.value() : null;
     }
 
     /**
