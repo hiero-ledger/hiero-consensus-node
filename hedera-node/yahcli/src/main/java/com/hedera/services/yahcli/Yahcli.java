@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli;
 
-import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.yahcli.commands.accounts.AccountsCommand;
 import com.hedera.services.yahcli.commands.accounts.SetupStakeCommand;
 import com.hedera.services.yahcli.commands.fees.FeesCommand;
@@ -18,7 +18,6 @@ import com.hedera.services.yahcli.commands.system.TelemetryUpgradeCommand;
 import com.hedera.services.yahcli.commands.system.VersionInfoCommand;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Callable;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -52,7 +51,7 @@ public class Yahcli implements Callable<Integer> {
     public static final long NO_FIXED_FEE = Long.MIN_VALUE;
     public static final String DEFAULT_LOG_LEVEL = "WARN";
 
-    Consumer<HapiSpecRegistry> registryCallback;
+    SpecStateObserver stateObserver;
 
     @Spec
     CommandSpec spec;
@@ -173,10 +172,10 @@ public class Yahcli implements Callable<Integer> {
      * The sub command and corresponding suite should accept the callback and set it to corresponding spec.
      * This allows for extracting registry data after operations complete.
      *
-     * @param registryCb the callback function to invoke with the registry after operation completion
+     * @param observer the callback function to invoke with the registry after operation completion
      */
-    public void setRegistryCb(Consumer<HapiSpecRegistry> registryCb) {
-        this.registryCallback = registryCb;
+    public void setStateObserver(final SpecStateObserver observer) {
+        this.stateObserver = observer;
     }
 
     /**
@@ -186,7 +185,7 @@ public class Yahcli implements Callable<Integer> {
      *
      * @return the registry callback function, may be null if not set
      */
-    public Consumer<HapiSpecRegistry> getRegistryCallback() {
-        return registryCallback;
+    public SpecStateObserver getStateObserver() {
+        return stateObserver;
     }
 }

@@ -21,6 +21,7 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliScheduleSign
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.io.IOException;
@@ -32,11 +33,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(REGRESSION)
+@OrderedInIsolation
 public class ScheduleCommandsTest {
 
+    @Order(0)
     @HapiTest
     final Stream<DynamicTest> readmeScheduleCreateExample() {
         final var newAccountNum = new AtomicLong();
@@ -60,8 +64,11 @@ public class ScheduleCommandsTest {
                                         "\"Never gonna give you up\"",
                                         String.valueOf(5))
                                 .schedule()
-                                .exposingCommandSpecRegistry(registry -> {
-                                    var num = registry.getScheduleId("original").getScheduleNum();
+                                .observing(specState -> {
+                                    var num = specState
+                                            .registry()
+                                            .getScheduleId("original")
+                                            .getScheduleNum();
                                     newScheduleNum.set(num);
                                 }))),
                 doingContextual(spec -> allRunFor(
@@ -70,6 +77,7 @@ public class ScheduleCommandsTest {
                                 asScheduleString(spec.scheduleIdFactory().apply(newScheduleNum.get()))))));
     }
 
+    @Order(1)
     @HapiTest
     final Stream<DynamicTest> readmeSchedulingKeyListUpdateExample() {
         // account num
@@ -91,9 +99,13 @@ public class ScheduleCommandsTest {
 
         return hapiTest(
                 // create 3 accounts
-                yahcliAccounts("create", "-S").exposingOutputTo(newAccountCapturer(accountNumR::set)),
-                yahcliAccounts("create", "-S").exposingOutputTo(newAccountCapturer(accountNumT::set)),
-                yahcliAccounts("create", "-S").exposingOutputTo(newAccountCapturer(accountNumS::set)),
+                yahcliAccounts("create", "-S", "-d", "hbar", "-a", "1")
+                        .exposingOutputTo(newAccountCapturer(accountNumR::set)),
+                yahcliAccounts("create", "-S", "-d", "hbar", "-a", "1")
+                        .exposingOutputTo(newAccountCapturer(accountNumT::set)),
+                yahcliAccounts("create", "-S", "-d", "hbar", "-a", "1")
+                        .exposingOutputTo(newAccountCapturer(accountNumS::set)),
+
                 // save public key vales of R and T accounts
                 doingContextual(spec -> allRunFor(
                         spec,
@@ -114,9 +126,11 @@ public class ScheduleCommandsTest {
                                             "--targetAccount",
                                             String.valueOf(accountNumS.get()))
                                     .schedule()
-                                    .exposingCommandSpecRegistry(registry -> {
-                                        var num =
-                                                registry.getScheduleId("update").getScheduleNum();
+                                    .observing(specState -> {
+                                        var num = specState
+                                                .registry()
+                                                .getScheduleId("update")
+                                                .getScheduleNum();
                                         scheduleNum.set(num);
                                     }));
                 }),
@@ -125,26 +139,14 @@ public class ScheduleCommandsTest {
                 doingContextual(spec -> allRunFor(
                         spec,
                         // sign with account R key
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get()),
-                                "-k",
-                                accountKeyPath(String.valueOf(accountNumR.get()))),
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                                .payingWith(String.valueOf(accountNumR.get())),
                         // sign with account T key
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get()),
-                                "-k",
-                                accountKeyPath(String.valueOf(accountNumT.get()))),
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                                .payingWith(String.valueOf(accountNumT.get())),
                         // sign with account S
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get()),
-                                "-k",
-                                accountKeyPath(String.valueOf(accountNumS.get()))))),
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                                .payingWith(String.valueOf(accountNumS.get())))),
                 // Query all account keys
                 doingContextual(spec -> allRunFor(
                         spec,
@@ -167,7 +169,7 @@ public class ScheduleCommandsTest {
 
     // Helpers
     private String combinePublicKeys(String... publicKeys) {
-        final var path = newKeyFilePath("combinedPublicKey.txt");
+        final var path = keyFilePath("combinedPublicKey.txt");
         try {
             Files.createFile(Path.of(path));
             final var keys = Arrays.stream(publicKeys).toList();
@@ -181,11 +183,11 @@ public class ScheduleCommandsTest {
     }
 
     private String accountKeyPath(String accountNum) {
-        return newKeyFilePath(String.format("account%s.pem", accountNum));
+        return keyFilePath(String.format("account%s.pem", accountNum));
     }
 
-    private String newKeyFilePath(String fileName) {
-        return Path.of(DEFAULT_WORKING_DIR.get(), TEST_NETWORK, String.format("keys/%s", fileName))
+    private String keyFilePath(String fileName) {
+        return Path.of(DEFAULT_WORKING_DIR.get(), TEST_NETWORK, "keys", fileName)
                 .toAbsolutePath()
                 .toString();
     }

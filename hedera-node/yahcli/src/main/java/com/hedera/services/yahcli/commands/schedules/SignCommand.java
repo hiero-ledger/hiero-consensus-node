@@ -27,19 +27,13 @@ public class SignCommand implements Callable<Integer> {
             description = "schedule Id to sign")
     String scheduleId;
 
-    @CommandLine.Option(
-            names = {"-k", "--key"},
-            paramLabel = "path to the key file",
-            defaultValue = "<N/A>")
-    String keyLoc;
-
     @Override
     public Integer call() throws Exception {
         var config = configFrom(scheduleCommand.getYahcli());
 
         final var normalizedScheduleId = normalizePossibleIdLiteral(config, scheduleId);
         final var effectiveScheduleId = normalizedScheduleId != null ? normalizedScheduleId : "";
-        var delegate = new ScheduleSuite(config, effectiveScheduleId, keyLoc);
+        var delegate = new ScheduleSuite(config, effectiveScheduleId);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

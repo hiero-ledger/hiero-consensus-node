@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.Yahcli;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,14 +22,15 @@ import picocli.CommandLine;
  * Executes a Yahcli command with the provided arguments against
  * the {@link SubProcessNetwork} targeted by the containing spec.
  */
-public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOperation> {
+public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOperation> implements SpecStateObserver {
     private final String[] args;
 
     @Nullable
     private Consumer<String> outputCb;
 
-    @Nullable
-    private Consumer<HapiSpecRegistry> registryCb;
+    private SpecStateObserver observer;
+
+    private String payer;
 
     private boolean schedule = false;
 
@@ -42,8 +43,18 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         return this;
     }
 
-    public YahcliCallOperation exposingCommandSpecRegistry(@NonNull final Consumer<HapiSpecRegistry> registryCb) {
-        this.registryCb = registryCb;
+    @Override
+    public void observe(@NonNull SpecState specState) {
+        observer.observe(specState);
+    }
+
+    public YahcliCallOperation observing(@NonNull final SpecStateObserver observer) {
+        this.observer = observer;
+        return this;
+    }
+
+    public YahcliCallOperation payingWith(String payer) {
+        this.payer = payer;
         return this;
     }
 
@@ -61,8 +72,8 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     public Optional<Throwable> execFor(@NonNull final HapiSpec spec) {
         requireNonNull(spec);
         final var yahcli = new Yahcli();
-        if (registryCb != null) {
-            yahcli.setRegistryCb(registryCb);
+        if (observer != null) {
+            yahcli.setStateObserver(observer);
         }
         final var commandLine = new CommandLine(yahcli);
         var finalizedArgs = args;
@@ -76,6 +87,9 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         }
         if (schedule) {
             finalizedArgs = prepend(finalizedArgs, "--schedule");
+        }
+        if (payer != null) {
+            finalizedArgs = prepend(finalizedArgs, "-p", payer);
         }
         try {
             Path outputPath = null;
@@ -94,6 +108,9 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
                 outputCb.accept(output);
                 Files.deleteIfExists(outputPath);
             }
+            //            if (observer != null) {
+            //                observer.observe(new SpecState(spec.registry(), spec.keys()));
+            //            }
         } catch (Throwable t) {
             return Optional.of(t);
         }

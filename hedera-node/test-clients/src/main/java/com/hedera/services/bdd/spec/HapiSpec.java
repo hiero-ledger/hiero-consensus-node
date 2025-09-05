@@ -128,7 +128,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
@@ -288,12 +287,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private SpecStateObserver specStateObserver;
-    /**
-     * If non-null, a callback function that will be invoked with this spec's registry after test execution.
-     * Used to extract or process registry information after the spec has completed.
-     */
-    @Nullable
-    private Consumer<HapiSpecRegistry> registryCb;
 
     /**
      * If non-null, a list of shared states to include in this spec's initial state.
@@ -397,16 +390,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public void setSpecStateObserver(@NonNull final SpecStateObserver specStateObserver) {
         this.specStateObserver = specStateObserver;
-    }
-
-    /**
-     * Sets a callback function that will be invoked with this spec's registry after test execution.
-     * The callback can be used to extract or process test information stored in the registry.
-     *
-     * @param registryCb the callback function
-     */
-    public void setRegistryCb(@Nullable final Consumer<HapiSpecRegistry> registryCb) {
-        this.registryCb = registryCb;
     }
 
     public void setSidecarWatcher(@NonNull final SidecarWatcher watcher) {
@@ -842,10 +825,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
         if (specStateObserver != null) {
             specStateObserver.observe(new SpecStateObserver.SpecState(hapiRegistry, keyFactory));
-        }
-
-        if (registryCb != null) {
-            registryCb.accept(hapiRegistry);
         }
         nullOutInfrastructure();
     }

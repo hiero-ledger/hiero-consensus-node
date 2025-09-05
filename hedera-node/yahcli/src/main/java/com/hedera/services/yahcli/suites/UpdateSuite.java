@@ -5,7 +5,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
@@ -13,9 +13,7 @@ import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
 import com.hederahashgraph.api.proto.java.*;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +27,7 @@ public class UpdateSuite extends HapiSuite {
     private final List<Key> keys;
     private final boolean schedule;
     private final String targetAccount;
-    private final Consumer<HapiSpecRegistry> registryCb;
+    private final SpecStateObserver stateObserver;
 
     public UpdateSuite(
             final ConfigManager configManager,
@@ -37,13 +35,13 @@ public class UpdateSuite extends HapiSuite {
             final List<Key> keys,
             final String targetAccount,
             final boolean schedule,
-            @Nullable Consumer<HapiSpecRegistry> registryCb) {
+            final SpecStateObserver stateObserver) {
         this.memo = memo;
         this.configManager = configManager;
         this.keys = keys;
         this.targetAccount = targetAccount;
         this.schedule = schedule;
-        this.registryCb = registryCb;
+        this.stateObserver = stateObserver;
     }
 
     @Override
@@ -68,9 +66,8 @@ public class UpdateSuite extends HapiSuite {
 
         final var spec = new HapiSpec(
                 "DoUpdate", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {update});
-
-        if (registryCb != null) {
-            spec.setRegistryCb(registryCb);
+        if (stateObserver != null) {
+            spec.setSpecStateObserver(stateObserver);
         }
         return HapiSpecUtils.targeted(spec, configManager);
     }

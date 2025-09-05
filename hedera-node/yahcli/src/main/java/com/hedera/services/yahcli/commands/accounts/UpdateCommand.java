@@ -69,7 +69,7 @@ public class UpdateCommand implements Callable<Integer> {
                 effectivePublicKeys,
                 effectiveTargetAccount,
                 accountsCommand.getYahcli().isScheduled(),
-                accountsCommand.getYahcli().getRegistryCallback());
+                accountsCommand.getYahcli().getStateObserver());
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
