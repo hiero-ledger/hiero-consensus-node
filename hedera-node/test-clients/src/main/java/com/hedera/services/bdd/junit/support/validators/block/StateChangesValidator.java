@@ -127,11 +127,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Hash genesisStateHash;
     private final Path pathToNode0SwirldsLog;
     private final Bytes expectedRootHash;
-    private final Set<String> servicesWritten = new HashSet<>();
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
-    private final long shard;
-    private final long realm;
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
@@ -257,8 +254,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
         this.hintsThresholdDenominator = hintsThresholdDenominator;
-        this.shard = shard;
-        this.realm = realm;
 
         System.setProperty(
                 "hedera.app.properties.path",
@@ -336,7 +331,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 if (firstBlockRound == -1 && item.hasRoundHeader()) {
                     firstBlockRound = item.roundHeaderOrThrow().roundNumber();
                 }
-                servicesWritten.clear();
                 if (shouldVerifyProof) {
                     hashSubTrees(
                             item,
@@ -374,7 +368,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                         }
                     }
                 }
-                servicesWritten.forEach(name -> ((CommittableWritableStates) state.getWritableStates(name)).commit());
             }
             if (i <= lastVerifiableIndex) {
                 final var lastBlockItem = block.items().getLast();
@@ -594,7 +587,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             final var serviceName = stateName.substring(0, delimIndex);
             final var writableStates = state.getWritableStates(serviceName);
-            servicesWritten.add(serviceName);
             final var stateId = stateChange.stateId();
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");
