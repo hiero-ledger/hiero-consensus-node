@@ -10,11 +10,8 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -25,6 +22,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * and a few other params like whether to prefer disk based indexes or not. These table
  * configs are stored in virtual database metadata and persisted across JVM runs.
  */
+@Deprecated
 public final class MerkleDbTableConfig implements SelfSerializable {
 
     private static final long CLASS_ID = 0xbb41e7eb9fcad23cL;
@@ -74,34 +72,6 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * Hash type. Only SHA_384 is supported yet.
      */
     private DigestType hashType;
-
-    /**
-     * Key serializer.
-     *
-     * <p>This field is only used to migrate MerkleDb to work with bytes rather than with strictly
-     * typed objects. Previously, key and value serializers were the part of MerkleDbTableConfig.
-     * The config objects were stored in MerkleDb metadata. Now these serializers are moved to the
-     * VirtualMap level, but in the existing state snapshots they are still a part of MerkleDb.
-     * This is why the serializers are still read in {@link SelfSerializable#deserialize(SerializableDataInputStream, int)}
-     * and later queried by VirtualMap / VirtualRootNode. When this object is serialized again, the
-     * serializers are ignored, assuming they are saved at the VirtualMap level.
-     */
-    @Deprecated
-    private KeySerializer keySerializer;
-
-    /**
-     * Value serializer.
-     *
-     * <p>This field is only used to migrate MerkleDb to work with bytes rather than with strictly
-     * typed objects. Previously, key and value serializers were the part of MerkleDbTableConfig.
-     * The config objects were stored in MerkleDb metadata. Now these serializers are moved to the
-     * VirtualMap level, but in the existing state snapshots they are still a part of MerkleDb.
-     * This is why the serializers are still read in {@link SelfSerializable#deserialize(SerializableDataInputStream, int)}
-     * and later queried by VirtualMap / VirtualRootNode. When this object is serialized again, the
-     * serializers are ignored, assuming they are saved at the VirtualMap level.
-     */
-    @Deprecated
-    private ValueSerializer valueSerializer;
 
     /**
      * Max number of keys that can be stored in a table.
@@ -181,13 +151,14 @@ public final class MerkleDbTableConfig implements SelfSerializable {
                 in.readVarInt(false);
             } else if (fieldNum == FIELD_TABLECONFIG_KEYSERIALIZERCLSID.number()) {
                 final long classId = in.readVarLong(false);
-                keySerializer = ConstructableRegistry.getInstance().createObject(classId);
+                throw new UnsupportedOperationException("Cannot deserialize MerkleDb table config with key serializer");
             } else if (fieldNum == FIELD_TABLECONFIG_VALUEVERSION.number()) {
                 // Skip value version
                 in.readVarInt(false);
             } else if (fieldNum == FIELD_TABLECONFIG_VALUESERIALIZERCLSID.number()) {
                 final long classId = in.readVarLong(false);
-                valueSerializer = ConstructableRegistry.getInstance().createObject(classId);
+                throw new UnsupportedOperationException(
+                        "Cannot deserialize MerkleDb table config with value serializer");
             } else if (fieldNum == FIELD_TABLECONFIG_PREFERDISKINDICES.number()) {
                 // Skip preferDiskIndices
                 in.readVarInt(false);
@@ -262,28 +233,6 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     public DigestType getHashType() {
         return hashType;
-    }
-
-    /**
-     * Key serializer.
-     *
-     * @return
-     *      Key serializer
-     */
-    @Deprecated
-    public KeySerializer getKeySerializer() {
-        return keySerializer;
-    }
-
-    /**
-     * Value serializer
-     *
-     * @return
-     *      Value serializer
-     */
-    @Deprecated
-    public ValueSerializer getValueSerializer() {
-        return valueSerializer;
     }
 
     /**

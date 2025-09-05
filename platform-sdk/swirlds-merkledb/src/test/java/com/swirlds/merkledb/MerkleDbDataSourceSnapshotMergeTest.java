@@ -21,12 +21,10 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -104,7 +102,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             exec.submit(() -> {
                 // do a good snapshot
                 try {
-                    dataSource.getDatabase().snapshot(snapshotDir, dataSource);
+                    dataSource.snapshot(snapshotDir);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -116,7 +114,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 try {
                     assertThrows(
                             IllegalStateException.class,
-                            () -> dataSource.getDatabase().snapshot(snapshotDir, dataSource),
+                            () -> dataSource.snapshot(snapshotDir),
                             "Snapshot while doing a snapshot should throw a IllegalStateException");
                 } finally {
                     countDownLatch.countDown();
@@ -283,23 +281,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
             dataSource.close();
             deleteDirectoryAndContents(storeDir);
             exec.shutdown();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void removeCachedDatasource(Path snapshotDir) {
-        Class<?> merkleDbClass = MerkleDb.class;
-
-        try {
-            Field instancesField = merkleDbClass.getDeclaredField("instances");
-            instancesField.setAccessible(true);
-            ConcurrentHashMap<Path, MerkleDb> instancesMap =
-                    (ConcurrentHashMap<Path, MerkleDb>) instancesField.get(null);
-
-            // Remove the entry by key
-            instancesMap.remove(snapshotDir);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
         }
     }
 

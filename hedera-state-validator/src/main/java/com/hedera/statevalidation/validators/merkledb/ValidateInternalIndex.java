@@ -63,7 +63,7 @@ public class ValidateInternalIndex {
 
         final ForkJoinTask<?> inMemoryTask;
         if (pathToHashRam != null) {
-            inMemoryHashThreshold = dataSource.getTableConfig().getHashesRamToDiskThreshold();
+            inMemoryHashThreshold = dataSource.getHashesRamToDiskThreshold();
             assertTrue(
                     pathToHashRam.size() <= inMemoryHashThreshold,
                     "The size of the pathToHashRam should be less than or equal to the in memory hash threshold");

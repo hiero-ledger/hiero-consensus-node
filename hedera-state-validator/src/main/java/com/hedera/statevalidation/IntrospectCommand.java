@@ -8,7 +8,6 @@ import com.hedera.statevalidation.introspectors.SingletonIntrospector;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.State;
-import java.io.IOException;
 import picocli.CommandLine.ParentCommand;
 
 @Command(name = "introspect", description = "Introspects the state")
@@ -34,7 +33,7 @@ public class IntrospectCommand implements Runnable {
         try {
             DeserializedSignedState deserializedSignedState = StateResolver.initState();
             state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 

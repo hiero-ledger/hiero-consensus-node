@@ -80,6 +80,7 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
@@ -230,7 +231,8 @@ public class InitUtils {
     /**
      * This method initializes the State API
      */
-    static void initServiceMigrator(State state, Configuration configuration, ServicesRegistry servicesRegistry) {
+    static void initServiceMigrator(State state, PlatformContext platformContext, ServicesRegistry servicesRegistry) {
+        final var configuration = platformContext.getConfiguration();
         final var serviceMigrator = new OrderedServiceMigrator();
         final var platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         final var version = platformFacade.creationSoftwareVersionOf(state);
