@@ -40,8 +40,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * Read/write access to the EVM hook states.
  */
-public class WritableEvmHookStore extends ReadableEvmHookStore {
-    private static final Logger log = LogManager.getLogger(WritableEvmHookStore.class);
+public class WritableEvmHookStoreImpl extends ReadableEvmHookStoreImpl {
+    private static final Logger log = LogManager.getLogger(WritableEvmHookStoreImpl.class);
 
     /**
      * We require all inputs to use minimal byte representations; but we still need to be able to distinguish
@@ -54,7 +54,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
     private final WritableKVState<HookId, EvmHookState> hookStates;
     private final WritableKVState<LambdaSlotKey, SlotValue> storage;
 
-    public WritableEvmHookStore(
+    public WritableEvmHookStoreImpl(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states);
         this.entityCounters = requireNonNull(entityCounters);
@@ -131,7 +131,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
     }
 
     /**
-     * Marks the given hook as deleted.
+     * Marks the given hook as deleted. We mark the hook as deleted, but do not remove it from state,
+     * if there are several storage slots.
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
@@ -139,6 +140,12 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
         hookStates.put(hookId, state.copyBuilder().deleted(true).build());
+    }
+
+    public void deleteHook(@NonNull final HookId hookId) {
+        final var state = hookStates.get(hookId);
+        validateTrue(state != null, HOOK_NOT_FOUND);
+        hookStates.remove(hookId);
     }
 
     /**

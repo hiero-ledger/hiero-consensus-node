@@ -39,8 +39,8 @@ import com.hedera.hapi.node.hooks.PureEvmHook;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
-import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStoreImpl;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -273,7 +273,7 @@ public class RepeatableLambdaSStoreTests {
             final long hookId, final List<Pair<Bytes, Bytes>> slots) {
         return doingContextual(spec -> {
             final var store =
-                    new ReadableEvmHookStore(spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
+                    new ReadableEvmHookStoreImpl(spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
             final var registry = spec.registry();
             final var hookEntityId =
                     new HookEntityId(new OneOf<>(ACCOUNT_ID, toPbj(registry.getAccountID(HOOK_OWNER.name()))));
@@ -384,7 +384,7 @@ public class RepeatableLambdaSStoreTests {
                     .details(builder.build())
                     .nextHookId(null)
                     .build();
-            final var store = new WritableEvmHookStore(states, counters);
+            final var store = new WritableEvmHookStoreImpl(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
                 store.markDeleted(

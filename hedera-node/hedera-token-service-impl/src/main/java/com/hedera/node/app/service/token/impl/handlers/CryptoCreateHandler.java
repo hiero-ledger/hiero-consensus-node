@@ -177,7 +177,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         if (!op.hookCreationDetails().isEmpty()) {
-            cryptoCreateValidator.validateHookPureChecks(op);
+            validateHookPureChecks(op.hookCreationDetails());
         }
     }
 
@@ -281,34 +281,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // Dispatch hook creation to contract service if there are any hooks to be created
         final var owner =
                 entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-        final var hookSummary = cryptoCreateValidator.summarizeHooks(op.hookCreationDetails());
-        final var hookDetails = op.hookCreationDetails();
-        if (!hookDetails.isEmpty()) {
-            // last element has no next
-            Long nextId = null;
-            for (int i = hookDetails.size() - 1; i >= 0; i--) {
-                final var detail = hookDetails.get(i);
-                final var creation = HookCreation.newBuilder()
-                        .entityId(HookEntityId.newBuilder().accountId(owner).build())
-                        .details(hookDetails.get(i));
-                if (nextId != null) {
-                    creation.nextHookId(nextId);
-                }
-                final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                        .creation(creation.build())
-                        .build();
-                final var streamBuilder = context.dispatch(setupDispatch(
-                        context.payer(),
-                        TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                        StreamBuilder.class,
-                        context.dispatchMetadata()
-                                .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
-                                .orElse(null)));
-                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-                // This one becomes "next" for the previous node in the loop
-                nextId = detail.hookId();
-            }
-        }
+        final var hookSummary = summarizeHooks(op.hookCreationDetails());
+        dispatchHookCreations(context, op, owner);
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
@@ -342,6 +316,26 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     recordBuilder.evmAddress(evmAddress);
                 }
                 accountStore.putAndIncrementCountAlias(alias, createdAccountID);
+            }
+        }
+    }
+
+    private void dispatchHookCreations(final @NonNull HandleContext context, final CryptoCreateTransactionBody op, final AccountID owner) {
+        final var hookDetails = op.hookCreationDetails();
+        if (!hookDetails.isEmpty()) {
+            // last element has no next
+            Long nextId = null;
+            for (int i = hookDetails.size() - 1; i >= 0; i--) {
+                final var detail = hookDetails.get(i);
+                final var creation = HookCreation.newBuilder()
+                        .entityId(HookEntityId.newBuilder().accountId(owner).build())
+                        .details(hookDetails.get(i));
+                if (nextId != null) {
+                    creation.nextHookId(nextId);
+                }
+                dispatchCreation(context, creation.build());
+                // This one becomes "next" for the previous node in the loop
+                nextId = detail.hookId();
             }
         }
     }
@@ -546,6 +540,4 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     private boolean isSystemFile(final long entityNum) {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
-
-    public record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {}
 }

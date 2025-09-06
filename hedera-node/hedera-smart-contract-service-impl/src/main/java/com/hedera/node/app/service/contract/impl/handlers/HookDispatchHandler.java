@@ -5,7 +5,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStoreImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -31,7 +31,7 @@ public class HookDispatchHandler implements TransactionHandler {
 
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
-        final var writableEvmStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
+        final var writableEvmStore = context.storeFactory().writableStore(WritableEvmHookStoreImpl.class);
         final var op = context.body().hookDispatchOrThrow();
         if (op.hasCreation()) {
             writableEvmStore.createEvmHook(op.creationOrThrow());
@@ -39,7 +39,7 @@ public class HookDispatchHandler implements TransactionHandler {
             throw new UnsupportedOperationException("EVM hook execution not implemented yet");
         } else if (op.hasHookIdToDelete()) {
             final var hookId = op.hookIdToDeleteOrThrow();
-            writableEvmStore.markDeleted(hookId);
+            writableEvmStore.deleteHook(hookId);
         }
     }
 }

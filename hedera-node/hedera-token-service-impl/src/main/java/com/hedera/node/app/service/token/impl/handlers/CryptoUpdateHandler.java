@@ -5,11 +5,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.fees.pricing.BaseOperationUsage.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
@@ -22,6 +28,8 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -30,14 +38,19 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -45,6 +58,7 @@ import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
@@ -54,13 +68,16 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -74,6 +91,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Default constructor for injection.
+     *
      * @param waivers the {@link CryptoSignatureWaivers} to use for checking signature waivers
      */
     @Inject
@@ -90,6 +108,12 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        if (!op.hookCreationDetails().isEmpty()) {
+            validateHookPureChecks(op.hookCreationDetails());
+            for (final var hookId : op.hookIdsToDelete()) {
+                validateTruePreCheck(hookId != 0L, INVALID_HOOK_ID);
+            }
+        }
     }
 
     @Override
@@ -122,6 +146,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * This method is called during the handle workflow. It executes the actual transaction.
+     *
      * @param context the {@link HandleContext} which collects all information
      * @throws HandleException if any of the checks fail
      * @throws NullPointerException if any of the arguments are null
@@ -151,6 +176,14 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             builder.expiredAndPendingRemoval(false);
         }
 
+        // Dispatch all the hooks to delete
+        if(!op.hookIdsToDelete().isEmpty()){
+            dispatchHookDeletions(context, op);
+        }
+        if(!op.hookCreationDetails().isEmpty()){
+            dispatchHookCreations(context, op, targetAccount);
+        }
+
         // Add account to the modifications in state
         accountStore.put(builder.build());
         context.savepointStack()
@@ -158,8 +191,49 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 .accountID(targetAccount.accountIdOrThrow());
     }
 
+    private void dispatchHookCreations(final HandleContext context,
+                                       final CryptoUpdateTransactionBody op,
+                                       final Account targetAccount) {
+        final var ownerId = HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
+
+        // Build new block A → B → C → existingHead
+        Long nextId = targetAccount.firstHookId() == 0 ? null : targetAccount.firstHookId();
+        final var creations = op.hookCreationDetails();
+        for (int i = creations.size() - 1; i >= 0; i--) {
+            final var d = creations.get(i);
+            final var creation = HookCreation.newBuilder()
+                    .entityId(ownerId)
+                    .details(d);
+            if (nextId != null) {
+                creation.nextHookId(nextId);
+            }
+            dispatchCreation(context, creation.build());
+            nextId = d.hookId();
+        }
+    }
+
+    private void dispatchHookDeletions(final @NonNull HandleContext context, final CryptoUpdateTransactionBody op) {
+        final var hooksToDelete = op.hookIdsToDelete();
+            for (final var hookId : hooksToDelete) {
+                final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                        .hookIdToDelete(new HookId(HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build(),
+                                hookId))
+                        .build();
+                final var streamBuilder = context.dispatch(setupDispatch(
+                        context.payer(),
+                        TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                        StreamBuilder.class,
+                        context.dispatchMetadata()
+                                .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                                .orElse(null)));
+                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+            }
+    }
+
+
     /**
      * Add a builder from {@link CryptoUpdateTransactionBody} to create {@link Account.Builder} object.
+     *
      * @param op Crypto update transaction body
      * @return builder
      */
@@ -207,12 +281,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 builder.stakedNodeId(op.stakedNodeId());
             }
         }
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var currentHooks = currentAccount.numberHooksInUse();
+            builder.numberHooksInUse(currentHooks - op.hookIdsToDelete().size() + op.hookCreationDetails().size());
+        }
         return builder;
     }
 
     /**
      * Validate semantics of the transaction. This method is called during the handle workflow.
      * It validates any fields of the transaction that involves state or config.
+     *
      * @param context handle context
      * @param updateAccount account to be updated
      * @param op crypto update transaction body
@@ -235,6 +314,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
+        final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
 
         // validate expiry metadata
         final var currentMetadata = new ExpiryMeta(
@@ -273,10 +353,28 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
         // validate if account is not deleted
         validateFalse(updateAccount.deleted(), ACCOUNT_DELETED);
+        // hook related validations
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            final var readableEvmStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
+            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
+            for (final var detail : op.hookCreationDetails()) {
+                if (detail.hasAdminKey()) {
+                    context.attributeValidator().validateKey(detail.adminKey());
+                }
+                final var hook = readableEvmStore.getEvmHook(HookId.newBuilder().hookId(detail.hookId()).build());
+                validateTrue(hook == null || hook.deleted() || op.hookIdsToDelete().contains(hook.hookId().hookId()), HOOK_ID_IN_USE);
+            }
+            for (final var hookId : op.hookIdsToDelete()) {
+                final var hook = readableEvmStore.getEvmHook(HookId.newBuilder().hookId(hookId).build());
+                validateTrue(hook != null, HOOK_NOT_FOUND);
+                validateTrue(!hook.deleted(), HOOK_DELETED);
+            }
+        }
     }
 
     /**
      * Validate basic fields of the transaction that involves state or config.
+     *
      * @param op crypto update transaction body
      * @param context handle context
      * @param accountStore account store
@@ -310,6 +408,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * Currently, it just duplicates all the logic from mono-service
+     *
      * @param feeContext the {@link FeeContext} with all information needed for the calculation
      * @return the calculated fees
      */
@@ -330,6 +429,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the base size of the cryptoUpdate transaction.
      * This is the duplicated code as in mono-service
+     *
      * @param txBody the {@link CryptoUpdateTransactionBody}
      * @param keySize the size of the key
      * @return the calculated base size
@@ -347,6 +447,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction auto-renew information.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
@@ -363,6 +464,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction related to memo and keys.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
@@ -380,6 +482,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * This can also be used for lazy account creation logic in AutoAccountCreator class in future PRs
+     *
      * @param body the {@link TransactionBody}
      * @param feeCalculator the {@link FeeCalculator}
      * @param accountStore the {@link ReadableAccountStore}
@@ -408,8 +511,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 : account.memo().getBytes(StandardCharsets.UTF_8).length;
         final long newVariableBytes = (newMemoSize != 0L ? newMemoSize : accountMemoSize)
                 + (keySize == 0L && account != null
-                        ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
-                        : keySize);
+                ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
+                : keySize);
 
         final long tokenRelBytes =
                 (account == null ? 0 : account.numberAssociations()) * CRYPTO_ENTITY_SIZES.bytesInTokenAssocRepr();
