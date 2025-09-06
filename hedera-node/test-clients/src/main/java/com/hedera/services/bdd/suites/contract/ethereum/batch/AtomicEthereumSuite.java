@@ -74,7 +74,6 @@ import static com.hedera.services.bdd.suites.contract.ethereum.HelloWorldEthereu
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.DEPOSIT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.TOKEN_NAME;
-import static com.hedera.services.bdd.suites.contract.precompile.token.GasCalculationIntegrityTest.constantGasAssertion;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
@@ -99,7 +98,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -298,24 +296,24 @@ public class AtomicEthereumSuite {
         final long noPayment = 0L;
         final long thirdOfFee = GAS_PRICE / 3;
         final long thirdOfPayment = thirdOfFee * chargedGasLimit;
+        final long thirdOfLimit = thirdOfFee * GAS_LIMIT;
         final long fullAllowance = GAS_PRICE * chargedGasLimit * 5 / 4;
+        final long fullPayment = GAS_PRICE * chargedGasLimit;
         final long ninetyPercentFee = GAS_PRICE * 9 / 10;
-        final boolean charged = true;
-        final boolean notCharged = false;
 
         return Stream.of(
-                        new Object[] {false, noPayment, noPayment, notCharged},
-                        new Object[] {false, noPayment, thirdOfPayment, notCharged},
-                        new Object[] {true, noPayment, fullAllowance, notCharged},
-                        new Object[] {false, thirdOfFee, noPayment, notCharged},
-                        new Object[] {false, thirdOfFee, thirdOfPayment, notCharged},
-                        new Object[] {true, thirdOfFee, fullAllowance, charged},
-                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, charged},
-                        new Object[] {false, ninetyPercentFee, noPayment, notCharged},
-                        new Object[] {true, ninetyPercentFee, thirdOfPayment, charged},
-                        new Object[] {true, GAS_PRICE, noPayment, charged},
-                        new Object[] {true, GAS_PRICE, thirdOfPayment, charged},
-                        new Object[] {true, GAS_PRICE, fullAllowance, charged})
+                        new Object[] {false, noPayment, noPayment, noPayment},
+                        new Object[] {false, noPayment, thirdOfPayment, noPayment},
+                        new Object[] {true, noPayment, fullAllowance, noPayment},
+                        new Object[] {false, thirdOfFee, noPayment, noPayment},
+                        new Object[] {false, thirdOfFee, thirdOfPayment, noPayment},
+                        new Object[] {true, thirdOfFee, fullAllowance, thirdOfLimit},
+                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, thirdOfLimit},
+                        new Object[] {false, ninetyPercentFee, noPayment, noPayment},
+                        new Object[] {true, ninetyPercentFee, thirdOfPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, noPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, thirdOfPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, fullAllowance, fullPayment})
                 .map(params ->
                         // [0] - success
                         // [1] - sender gas price
@@ -324,7 +322,7 @@ public class AtomicEthereumSuite {
                         // relayer charged amount can easily be calculated via
                         // wholeTransactionFee - senderChargedAmount
                         matrixedPayerRelayerTest(
-                                (boolean) params[0], (long) params[1], (long) params[2], (boolean) params[3]))
+                                (boolean) params[0], (long) params[1], (long) params[2], (long) params[3]))
                 .toList();
     }
 
@@ -389,7 +387,7 @@ public class AtomicEthereumSuite {
     }
 
     final Stream<DynamicTest> matrixedPayerRelayerTest(
-            final boolean success, final long senderGasPrice, final long relayerOffered, final boolean senderCharged) {
+            final boolean success, final long senderGasPrice, final long relayerOffered, final long senderCharged) {
         return Stream.of(namedHapiTest(
                 "feePaymentMatrix " + (success ? "Success/" : "Failure/") + senderGasPrice + "/" + relayerOffered,
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -407,19 +405,22 @@ public class AtomicEthereumSuite {
                     final var subop1 = balanceSnapshot(senderBalance, SECP_256K1_SOURCE_KEY)
                             .accountIsAlias();
                     final var subop2 = balanceSnapshot(payerBalance, RELAYER);
-                    final var subop3 = ethereumCall(
-                                    PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .via(PAY_TXN)
-                            .nonce(0)
-                            .maxGasAllowance(relayerOffered)
-                            .maxFeePerGas(senderGasPrice)
-                            .gasLimit(GAS_LIMIT)
-                            .sending(DEPOSIT_AMOUNT)
-                            .hasKnownStatus(success ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.INSUFFICIENT_TX_FEE)
-                            .exposingGasTo(constantGasAssertion(gasUsed));
+                    final var subop3 = atomicBatch(ethereumCall(
+                                            PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
+                                    .type(EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .via(PAY_TXN)
+                                    .nonce(0)
+                                    .maxGasAllowance(relayerOffered)
+                                    .maxFeePerGas(senderGasPrice)
+                                    .gasLimit(GAS_LIMIT)
+                                    .sending(DEPOSIT_AMOUNT)
+                                    .hasKnownStatus(
+                                            success ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.INSUFFICIENT_TX_FEE)
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR)
+                            .hasKnownStatus(success ? ResponseCodeEnum.SUCCESS : INNER_TRANSACTION_FAILED);
 
                     final HapiGetTxnRecord hapiGetTxnRecord =
                             getTxnRecord(PAY_TXN).logged();
@@ -427,15 +428,14 @@ public class AtomicEthereumSuite {
 
                     final long wholeTransactionFee =
                             hapiGetTxnRecord.getResponseRecord().getTransactionFee();
-                    final var senderGasCharged = senderCharged ? (gasUsed.get() * GAS_PRICE) : 0;
                     final var subop4 = getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
-                            .hasTinyBars(changeFromSnapshot(
-                                    senderBalance, success ? (-DEPOSIT_AMOUNT - senderGasCharged) : 0));
+                            .hasTinyBars(
+                                    changeFromSnapshot(senderBalance, success ? (-DEPOSIT_AMOUNT - senderCharged) : 0));
                     // The relayer is not charged with Hapi fee unless the relayed transaction failed
                     final var subop5 = getAccountBalance(RELAYER)
                             .hasTinyBars(changeFromSnapshot(
                                     payerBalance,
-                                    success ? -(wholeTransactionFee - senderGasCharged) : -wholeTransactionFee));
+                                    success ? -(wholeTransactionFee - senderCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
     }
