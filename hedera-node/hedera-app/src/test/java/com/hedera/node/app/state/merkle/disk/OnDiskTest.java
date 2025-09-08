@@ -4,16 +4,30 @@ package com.hedera.node.app.state.merkle.disk;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_LABEL;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
+import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -24,10 +38,13 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
+import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
@@ -175,6 +192,73 @@ class OnDiskTest extends MerkleTestBase {
             assertThat(acct.memo()).isEqualTo("Account " + i);
             assertThat(acct.tinybarBalance()).isEqualTo(i);
         }
+    }
+
+    @Test
+    void populateAndReadBack() throws ParseException {
+        // set up writable states
+        final var singletonWs = new OnDiskWritableSingletonState<>(
+                PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, PlatformState.PROTOBUF, virtualMap);
+        final var queueWs = new OnDiskWritableQueueState<>(
+                TRANSACTION_RECEIPTS_STATE_ID,
+                TRANSACTION_RECEIPTS_STATE_LABEL,
+                TransactionReceiptEntries.PROTOBUF,
+                virtualMap);
+        final var kvWs = new OnDiskWritableKVState<>(
+                ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+
+        // populate and commit
+
+        // singleton
+        final var singletonOriginalValue = UNINITIALIZED_PLATFORM_STATE;
+        singletonWs.put(singletonOriginalValue);
+        singletonWs.commit();
+
+        // queue
+        final var queueOriginalValue = TransactionReceiptEntries.newBuilder()
+                .entries(TransactionReceiptEntry.newBuilder().nodeId(0).build())
+                .build();
+        queueWs.add(queueOriginalValue);
+        queueWs.commit();
+
+        // kv
+        final var kvOriginalKey = AccountID.newBuilder().accountNum(0).build();
+        final var kvOriginalValue = Account.newBuilder()
+                .accountId(kvOriginalKey)
+                .memo("Account 0")
+                .tinybarBalance(0)
+                .build();
+        kvWs.put(kvOriginalKey, kvOriginalValue);
+        kvWs.commit();
+
+        // verify via raw key/value bytes
+
+        // singleton
+        final var singletonBytesKey = StateKey.PROTOBUF.toBytes(new StateKey(new OneOf<>(
+                StateKey.KeyOneOfType.SINGLETON, SingletonType.fromProtobufOrdinal(PLATFORM_STATE_STATE_ID))));
+        final var singletonValueBytes = virtualMap.getBytes(singletonBytesKey);
+        Objects.requireNonNull(singletonValueBytes);
+        final PlatformState singletonExtractedValue =
+                StateValue.PROTOBUF.parse(singletonValueBytes).value().as();
+        assertEquals(singletonOriginalValue, singletonExtractedValue);
+
+        // queue
+        final var queueBytesKey = StateKey.PROTOBUF.toBytes(new StateKey(
+                new OneOf<>(StateKey.KeyOneOfType.fromProtobufOrdinal(TRANSACTION_RECEIPTS_STATE_ID), 1L)));
+        final var queueValueBytes = virtualMap.getBytes(queueBytesKey);
+        Objects.requireNonNull(queueValueBytes);
+        final TransactionReceiptEntries queueExtractedValue =
+                StateValue.PROTOBUF.parse(queueValueBytes).value().as();
+        assertEquals(queueOriginalValue, queueExtractedValue);
+
+        // kv
+        final var kvBytesKey = StateKey.PROTOBUF.toBytes(
+                new StateKey(new OneOf<>(StateKey.KeyOneOfType.fromProtobufOrdinal(ACCOUNTS_STATE_ID), kvOriginalKey)));
+        final var kvValueBytes = virtualMap.getBytes(kvBytesKey);
+        Objects.requireNonNull(kvValueBytes);
+        final Account kvExtractedValue =
+                StateValue.PROTOBUF.parse(kvValueBytes).value().as();
+        assertEquals(kvOriginalValue, kvExtractedValue);
     }
 
     @AfterEach
