@@ -167,11 +167,11 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap -> {
+        return (virtualMap) -> {
             final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
             TestingAppStateInitializer.DEFAULT.initStates(state);
             return state;
-        });
+        };
     }
 
     @Override
