@@ -65,11 +65,11 @@ public abstract class AbstractTimeManager implements TimeManager {
 
         Instant now = start;
         while (!condition.getAsBoolean() && now.isBefore(end)) {
-            advanceTime(granularity);
-            now = now();
             for (final TimeTickReceiver receiver : timeTickReceivers) {
                 receiver.tick(now);
             }
+            advanceTime(granularity);
+            now = now();
         }
 
         return condition.getAsBoolean();
@@ -87,9 +87,9 @@ public abstract class AbstractTimeManager implements TimeManager {
     /**
      * A receiver of time ticks.
      *
-     * <p>A receiver of time ticks is notified when the time manager advances time by the granularity specified in
-     * {@link #granularity}. It is expected to perform any necessary actions that happened
-     * between this call and the previous call.
+     * <p>A receiver of time ticks is regularly notified while the time manager advances time. The notification
+     * frequency is specified in {@link #granularity}. A {@code TimeTickReceiver} is expected to perform any necessary
+     * actions that happened between this call and the previous call.
      */
     public interface TimeTickReceiver {
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -125,6 +126,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class ScheduleExecutionTest {
 
@@ -204,6 +206,7 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> scheduledUniqueBurnExecutesProperly() {
         return hapiTest(
                 cryptoCreate(TREASURY),
@@ -701,6 +704,7 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> scheduledXferFailingWithNonKycedAccountTransferPaysServiceFeeButNoImpact() {
         String xToken = "XXX";
         String validSchedule = "withKycedToken";
