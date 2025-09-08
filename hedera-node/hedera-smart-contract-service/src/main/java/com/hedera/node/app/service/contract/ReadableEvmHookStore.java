@@ -16,5 +16,6 @@ public interface ReadableEvmHookStore {
      * @param hookId the HookId being looked up
      * @return the EvmHookState or null if not found
      */
-    @Nullable EvmHookState getEvmHook(@NonNull final HookId hookId);
+    @Nullable
+    EvmHookState getEvmHook(@NonNull final HookId hookId);
 }

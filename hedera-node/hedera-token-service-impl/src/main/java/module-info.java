@@ -6,8 +6,8 @@ module com.hedera.node.app.service.token.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.service.token;
     requires transitive com.hedera.node.config;
-    requires org.bouncycastle.provider;
     requires com.hedera.node.app.service.contract; // javax.annotation.processing.Generated
+    requires org.bouncycastle.provider;
 
     exports com.hedera.node.app.service.token.impl.handlers;
     exports com.hedera.node.app.service.token.impl;

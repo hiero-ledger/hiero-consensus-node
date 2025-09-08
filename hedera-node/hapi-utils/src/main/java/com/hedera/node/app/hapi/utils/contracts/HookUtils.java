@@ -14,8 +14,7 @@ public class HookUtils {
      * @param bytes the bytes to strip leading zeros from
      * @return the minimal representation of the bytes, or an empty bytes if all bytes were stripped
      */
-    public static Bytes minimalRepresentationOf(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+    public static Bytes minimalRepresentationOf(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
         int i = 0;
         int n = (int) bytes.length();
         while (i < n && bytes.getByte(i) == 0) {
@@ -55,8 +54,7 @@ public class HookUtils {
      * @param bytes the bytes to pad
      * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
      */
-    public static Bytes leftPad32(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+    public static Bytes leftPad32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
         requireNonNull(bytes);
         final int n = (int) bytes.length();
         if (n == 32) {

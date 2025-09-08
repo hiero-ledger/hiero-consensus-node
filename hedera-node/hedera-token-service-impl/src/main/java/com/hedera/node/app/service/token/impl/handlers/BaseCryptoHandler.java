@@ -1,26 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.hooks.HookCreation;
-import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
-import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
@@ -35,6 +15,26 @@ import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 
 /**
  * This class contains common functionality needed for crypto handlers.
@@ -82,6 +82,11 @@ public class BaseCryptoHandler {
                         || (accountID.hasAlias() && accountID.aliasOrThrow().length() > 0));
     }
 
+    /**
+     * Validates the hook creation details in a {@link CryptoCreateTransactionBody} and {@link CryptoUpdateTransactionBody}
+     * @param details the hook creation details to validate
+     * @throws PreCheckException if any validation fails
+     */
     protected void validateHookPureChecks(final List<HookCreationDetails> details) throws PreCheckException {
         final var hookIdsSeen = new HashSet<Long>();
         for (final var hook : details) {
@@ -117,6 +122,11 @@ public class BaseCryptoHandler {
         }
     }
 
+    /**
+     * Summarizes the hook creation details, counting the number of initial lambda storage slots used.
+     * @param details the hook creation details to summarize
+     * @return the summary of the hook creation details
+     */
     protected HookSummary summarizeHooks(final List<HookCreationDetails> details) {
         if (details.isEmpty()) {
             return new CryptoCreateHandler.HookSummary(0L, Collections.emptyList());
@@ -147,10 +157,14 @@ public class BaseCryptoHandler {
                 slots, details.stream().map(HookCreationDetails::hookId).toList());
     }
 
+    /**
+     * Dispatches the hook creation to the given context.
+     * @param context the handle context
+     * @param creation the hook creation to dispatch
+     */
     protected void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
-        final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                .creation(creation)
-                .build();
+        final var hookDispatch =
+                HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(setupDispatch(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
@@ -161,6 +175,13 @@ public class BaseCryptoHandler {
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 
+    /**
+     * Validates that the given bytes are a valid "word" (i.e. a 32-byte value) for use in a lambda storage update.
+     * Specifically, it checks that the length is at most 32 bytes, and that it is in its minimal representation
+     * (i.e. no leading zeros).
+     * @param bytes the bytes to validate
+     * @throws PreCheckException if the bytes are not a valid word
+     */
     private void validateWord(@NonNull final Bytes bytes) throws PreCheckException {
         validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, HOOK_CREATION_BYTES_TOO_LONG);
         final var minimalBytes = minimalRepresentationOf(bytes);
