@@ -2,12 +2,10 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.*;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 
@@ -26,10 +24,12 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -126,13 +126,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                         usePresetTxnId);
         final var gasRequirement =
                 dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
-        var status = recordBuilder.status();
-        if (status != SUCCESS) {
-            recordBuilder.status(status);
-            return completionWith(gasRequirement, recordBuilder, encodedRc(status));
-        } else {
-            return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
-        }
+        return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
     }
 
     /**
@@ -144,6 +138,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
      */
     public static ByteBuffer scheduleCreateResultEncode(@NonNull final ContractCallStreamBuilder recordBuilder) {
         return RC_AND_ADDRESS_ENCODER.encode(
-                Tuple.of((long) recordBuilder.status().protoOrdinal(), headlongAddressOf(recordBuilder.scheduleID())));
+                Tuple.of((long) recordBuilder.status()
+                        .protoOrdinal(), recordBuilder.scheduleID() != null ? headlongAddressOf(recordBuilder.scheduleID()) : ZERO_ADDRESS));
     }
 }

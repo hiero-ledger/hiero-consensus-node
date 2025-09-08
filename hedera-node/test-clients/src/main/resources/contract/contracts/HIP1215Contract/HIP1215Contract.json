@@ -89,7 +89,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "expiry",
+        "name": "expirySecond",
         "type": "uint256"
       },
       {
@@ -155,6 +155,35 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "expirySecond",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "scheduleCallWithDefaultCallData",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
     "type": "function"
   },
   {

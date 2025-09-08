@@ -13,17 +13,22 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.operations.transactions.CallContractOperation;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +45,9 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
 
+    private static final AtomicInteger EXPIRY_SHIFT = new AtomicInteger(30);
+    private static final BigInteger VALUE_MORE_THAN_LONG = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
+
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
 
@@ -54,28 +62,78 @@ public class HasScheduleCapacityTest {
         lifecycle.doAdhoc(UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"));
     }
 
-    @HapiTest
-    @DisplayName("call hasScheduleCapacity(uint256,uint256) success")
-    public Stream<DynamicTest> hasScheduleCapacityTest() {
-        return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
+    private CallContractOperation hasScheduleCapacity(final boolean result, @NonNull final String function, @NonNull final Object... parameters) {
+        return contract.call(function, parameters)
                 .gas(100_000)
                 .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
                         .resultThruAbi(
-                                getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
-                                ContractFnResultAsserts.isLiteralResult(new Object[] {true}))))
-                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+                                getABIFor(FUNCTION, function, contract.name()),
+                                ContractFnResultAsserts.isLiteralResult(new Object[]{result}))))
+                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS));
     }
 
-    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
-    // with
-    // 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return true")
+    public Stream<DynamicTest> hasScheduleCapacityTest() {
+        return hapiTest(hasScheduleCapacity(true, "hasScheduleCapacityExample", BigInteger.valueOf(EXPIRY_SHIFT.getAndIncrement())));
+    }
 
-    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(
-            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
-            fees = "scheduled-contract-fees.json")
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
+    public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
+        BigInteger expirySecond = BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
+        BigInteger testGasLimit = BigInteger.valueOf(2_000_000);
+        BigInteger closeToMaxGasLimit = BigInteger.valueOf(1_499_000_000);
+        return hapiTest(
+                hasScheduleCapacity(true, "hasScheduleCapacityProxy", expirySecond, testGasLimit),
+                contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
+                        .gas(2_000_000)
+                        .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
+                hasScheduleCapacity(false, "hasScheduleCapacityProxy", expirySecond, testGasLimit)
+        );
+    }
+
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by 0 expiry")
+    public Stream<DynamicTest> hasScheduleCapacity0ExpiryTest() {
+        return hapiTest(
+                hasScheduleCapacity(false, "hasScheduleCapacityProxy", BigInteger.ZERO, BigInteger.valueOf(2_000_000))
+        );
+    }
+
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by huge expiry")
+    public Stream<DynamicTest> hasScheduleCapacityHugeExpiryTest() {
+        return hapiTest(
+                hasScheduleCapacity(false, "hasScheduleCapacityProxy", VALUE_MORE_THAN_LONG, BigInteger.valueOf(2_000_000))
+        );
+    }
+
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by huge gasLimit")
+    public Stream<DynamicTest> hasScheduleCapacityHugeGasLimitTest() {
+        BigInteger expirySecond = BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
+        return hapiTest(
+                hasScheduleCapacity(false, "hasScheduleCapacityProxy", expirySecond, VALUE_MORE_THAN_LONG)
+        );
+    }
+
+    @HapiTest
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by max+1 gasLimit")
+    public Stream<DynamicTest> hasScheduleCapacityMaxGasLimitTest() {
+        BigInteger expirySecond = BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
+        return hapiTest(
+                // limit is controlled by 'contracts.maxGasPerSecBackend' property
+                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "15000000"),
+                hasScheduleCapacity(false, "hasScheduleCapacityProxy", expirySecond, BigInteger.valueOf(15_000_001)),
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"),
+                hasScheduleCapacity(true, "hasScheduleCapacityProxy", expirySecond, BigInteger.valueOf(15_000_001))
+        );
+    }
+
+    // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
+    // 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
+    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
