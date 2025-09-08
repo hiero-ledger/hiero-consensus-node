@@ -47,7 +47,6 @@ import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,7 +55,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.SplittableRandom;
@@ -103,7 +101,8 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                 sourcingContextual(
                         spec -> blockingOrder(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
                                 .mapToObj(n -> getAccountInfo(asAccountString(
-                                        spec.accountIdFactory().apply(n))).hasAnswerOnlyPrecheck(OK))
+                                                spec.accountIdFactory().apply(n)))
+                                        .hasAnswerOnlyPrecheck(OK))
                                 .toArray(SpecOperation[]::new))),
                 // Now send a burst of rounds through
                 blockingOrder(IntStream.range(0, 10)
@@ -113,7 +112,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
                 sourcingContextual(
                         spec -> blockingOrder(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
                                 .mapToObj(n -> getAccountInfo(asAccountString(
-                                        spec.accountIdFactory().apply(n)))
+                                                spec.accountIdFactory().apply(n)))
                                         .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID))
                                 .toArray(SpecOperation[]::new))),
                 // Finally, verify the embedded state and record stream
@@ -143,8 +142,7 @@ public class LegacySystemAccountCleanupTest implements SavedStateSpec {
 
                     // And validate the resulting record stream
                     assertRecordStreamsAsExpected(spec.recordStreamsLoc(NodeSelector.byNodeId(0L)));
-                })
-        );
+                }));
     }
 
     private void assertRecordStreamsAsExpected(@NonNull final Path path) {

@@ -29,7 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
-public class IvyConsensusScenarioSuite extends AbstractIvySuite {
+public class IvyConsensusScenarioSuite extends AbstractIvyScenariosSuite {
     private static final Logger log = LogManager.getLogger(IvyConsensusScenarioSuite.class);
 
     private final boolean novel;

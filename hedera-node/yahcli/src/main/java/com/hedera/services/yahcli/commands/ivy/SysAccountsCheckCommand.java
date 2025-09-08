@@ -1,12 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.ivy;
 
+import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
+
+import com.hedera.services.yahcli.commands.ivy.suites.IvySysAccountsCheckSuite;
 import com.hedera.services.yahcli.config.ConfigUtils;
-import picocli.CommandLine;
-
 import java.util.concurrent.Callable;
-
-import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
+import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "sys-accounts-check",
@@ -20,7 +20,9 @@ public class SysAccountsCheckCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = ivyCommand.getYahcli();
         final var config = ConfigUtils.configFrom(yahcli);
-        final var scenariosLoc = config.scenariosDirOrThrow();
         final var specConfig = config.asSpecConfig();
+        final var delegate = new IvySysAccountsCheckSuite(specConfig);
+        delegate.runSuiteSync();
+        return delegate.getFinalSpecs().getFirst().getStatus() == PASSED ? 0 : 1;
     }
 }

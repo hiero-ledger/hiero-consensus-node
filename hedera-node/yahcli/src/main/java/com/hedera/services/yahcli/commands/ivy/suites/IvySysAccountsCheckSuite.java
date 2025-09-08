@@ -3,7 +3,7 @@ package com.hedera.services.yahcli.commands.ivy.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static java.util.Objects.requireNonNull;
@@ -23,15 +23,15 @@ import org.junit.jupiter.api.DynamicTest;
 /**
  * Implements the {@link com.hedera.services.yahcli.commands.ivy.SysAccountsCheckCommand}.
  */
-public class SysAccountsCheckSuite extends HapiSuite {
+public class IvySysAccountsCheckSuite extends HapiSuite {
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
-    private static final Logger log = LogManager.getLogger(SysAccountsCheckSuite.class);
+    private static final Logger log = LogManager.getLogger(IvySysAccountsCheckSuite.class);
 
     private final Map<String, String> specConfig;
 
-    public SysAccountsCheckSuite(@NonNull final Map<String, String> specConfig) {
+    public IvySysAccountsCheckSuite(@NonNull final Map<String, String> specConfig) {
         this.specConfig = requireNonNull(specConfig);
     }
 
@@ -46,11 +46,12 @@ public class SysAccountsCheckSuite extends HapiSuite {
                 .given()
                 .when()
                 .then(sourcingContextual(
-                        spec -> blockingOrder(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
-                                .mapToObj(n -> getAccountInfo(asAccountString(
-                                                spec.accountIdFactory().apply(n)))
-                                        .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID))
-                                .toArray(SpecOperation[]::new))));
+                        spec -> inParallel(LongStream.range(FIRST_SYSTEM_FILE_ENTITY, FIRST_POST_SYSTEM_FILE_ENTITY)
+                                        .mapToObj(n -> getAccountInfo(asAccountString(
+                                                        spec.accountIdFactory().apply(n)))
+                                                .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID))
+                                        .toArray(SpecOperation[]::new))
+                                .failOnErrors()));
     }
 
     @Override
