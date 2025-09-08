@@ -46,10 +46,11 @@ public class CheckingRecoveryTest {
         // For this test to work, we need to lower the limit for the transaction handler component
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
-        nodes.stream().map(Node::configuration).forEach(
-                c->c.set(PlatformSchedulersConfig_.TRANSACTION_HANDLER,
-                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
-        );
+        nodes.stream()
+                .map(Node::configuration)
+                .forEach(c -> c.set(
+                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE"));
 
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();
