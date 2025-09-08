@@ -40,7 +40,7 @@ import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStoreImpl;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -384,7 +384,7 @@ public class RepeatableLambdaSStoreTests {
                     .details(builder.build())
                     .nextHookId(null)
                     .build();
-            final var store = new WritableEvmHookStoreImpl(states, counters);
+            final var store = new WritableEvmHookStore(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
                 store.markDeleted(

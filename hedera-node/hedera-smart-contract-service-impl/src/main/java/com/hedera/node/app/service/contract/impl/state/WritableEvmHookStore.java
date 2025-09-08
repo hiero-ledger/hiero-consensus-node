@@ -40,8 +40,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * Read/write access to the EVM hook states.
  */
-public class WritableEvmHookStoreImpl extends ReadableEvmHookStoreImpl {
-    private static final Logger log = LogManager.getLogger(WritableEvmHookStoreImpl.class);
+public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
+    private static final Logger log = LogManager.getLogger(WritableEvmHookStore.class);
 
     /**
      * We require all inputs to use minimal byte representations; but we still need to be able to distinguish
@@ -54,7 +54,7 @@ public class WritableEvmHookStoreImpl extends ReadableEvmHookStoreImpl {
     private final WritableKVState<HookId, EvmHookState> hookStates;
     private final WritableKVState<LambdaSlotKey, SlotValue> storage;
 
-    public WritableEvmHookStoreImpl(
+    public WritableEvmHookStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states);
         this.entityCounters = requireNonNull(entityCounters);

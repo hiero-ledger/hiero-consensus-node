@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class HookUtils {
@@ -13,7 +14,7 @@ public class HookUtils {
      * @param bytes the bytes to strip leading zeros from
      * @return the minimal representation of the bytes, or an empty bytes if all bytes were stripped
      */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes minimalRepresentationOf(
+    public static Bytes minimalRepresentationOf(
             @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
         int i = 0;
         int n = (int) bytes.length();
@@ -37,7 +38,7 @@ public class HookUtils {
      * @param entry the mapping entry
      * @return the slot key for the mapping entry
      */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes slotKeyOfMappingEntry(
+    public static Bytes slotKeyOfMappingEntry(
             @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
             @NonNull final LambdaMappingEntry entry) {
         final com.hedera.pbj.runtime.io.buffer.Bytes hK;
@@ -54,7 +55,7 @@ public class HookUtils {
      * @param bytes the bytes to pad
      * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
      */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
+    public static Bytes leftPad32(
             @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
         requireNonNull(bytes);
         final int n = (int) bytes.length();
