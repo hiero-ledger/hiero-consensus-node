@@ -17,11 +17,10 @@ tasks.withType<JavaCompile>().configureEach {
 
 dependencies {
     protobuf(platform(project(":hiero-dependency-versions")))
-    protobuf("org.hiero.block:block-node-protobuf-sources") }
-
-tasks.generatePbjSource {
-    dependsOn(tasks.extractProto)
+    protobuf("org.hiero.block:block-node-protobuf-sources")
 }
+
+tasks.generatePbjSource { dependsOn(tasks.extractProto) }
 
 sourceSets {
     val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
