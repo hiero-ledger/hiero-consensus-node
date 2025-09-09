@@ -507,4 +507,70 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
     }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                    @SubProcessNodeConfig(
+                            nodeId = 0,
+                            blockNodeIds = {0},
+                            blockNodePriorities = {0},
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BOTH",
+                                    "blockStream.writerMode", "FILE_AND_GRPC"
+                            })
+            })
+    @Order(8)
+    final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(20, SECONDS),
+                        Duration.of(20, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] BlockAcknowledgement received for block",
+                                portNumbers.getFirst()))),
+                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(20, SECONDS),
+                        Duration.of(20, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                portNumbers.getFirst()))),
+                blockNodeSimulator(0).sendSkipBlockImmediately(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(20, SECONDS),
+                        Duration.of(20, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are not streaming that block so it will be ignored",
+                                portNumbers.getFirst()))),
+                blockNodeSimulator(0).sendResendBlockImmediately(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(20, SECONDS),
+                        Duration.of(20, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Received ResendBlock response for block 9223372036854775807",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
+                                portNumbers.getFirst()))),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+    }
 }
