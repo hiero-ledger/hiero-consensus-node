@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -14,8 +13,10 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,8 +35,7 @@ public class SendSuite extends HapiSuite {
     private final boolean schedule;
     private final boolean batch;
     private final long unitsToSend;
-
-    private final SpecStateObserver stateObserver;
+    private final AtomicReference<ScheduleID> scheduleId = new AtomicReference<>();
 
     public SendSuite(
             final ConfigManager configManager,
@@ -44,8 +44,7 @@ public class SendSuite extends HapiSuite {
             final String memo,
             @Nullable final String denomination,
             final boolean schedule,
-            final boolean batch,
-            final SpecStateObserver stateObserver) {
+            final boolean batch) {
         this.memo = memo;
         this.configManager = configManager;
         this.beneficiary = beneficiary;
@@ -53,12 +52,15 @@ public class SendSuite extends HapiSuite {
         this.denomination = denomination;
         this.schedule = schedule;
         this.batch = batch;
-        this.stateObserver = stateObserver;
     }
 
     @Override
     public List<Stream<DynamicTest>> getSpecsInSuite() {
         return List.of(doSend());
+    }
+
+    public AtomicReference<ScheduleID> getScheduleId() {
+        return scheduleId;
     }
 
     final Stream<DynamicTest> doSend() {
@@ -79,7 +81,9 @@ public class SendSuite extends HapiSuite {
 
         // flag that transferred as parameter to schedule a transaction or to execute right away
         if (schedule) {
-            transfer = TxnVerbs.scheduleCreate("original", transfer).logged();
+            transfer = TxnVerbs.scheduleCreate("original", transfer)
+                    .exposingCreatedIdTo(scheduleId::set)
+                    .logged();
         }
         if (batch) {
             transfer = atomicBatch(transfer.batchKey(DEFAULT_PAYER));
@@ -87,9 +91,6 @@ public class SendSuite extends HapiSuite {
 
         final var spec = new HapiSpec(
                 "DoSend", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {transfer});
-        if (stateObserver != null) {
-            spec.setSpecStateObserver(stateObserver);
-        }
         return HapiSpecUtils.targeted(spec, configManager);
     }
 

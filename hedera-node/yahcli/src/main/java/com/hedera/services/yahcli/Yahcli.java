@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli;
 
-import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.yahcli.commands.accounts.AccountsCommand;
 import com.hedera.services.yahcli.commands.accounts.SetupStakeCommand;
 import com.hedera.services.yahcli.commands.fees.FeesCommand;
@@ -50,8 +49,6 @@ import picocli.CommandLine.Spec;
 public class Yahcli implements Callable<Integer> {
     public static final long NO_FIXED_FEE = Long.MIN_VALUE;
     public static final String DEFAULT_LOG_LEVEL = "WARN";
-
-    SpecStateObserver stateObserver;
 
     @Spec
     CommandSpec spec;
@@ -165,27 +162,5 @@ public class Yahcli implements Callable<Integer> {
 
     public String getNodeIpv4Addr() {
         return nodeIpv4Addr;
-    }
-
-    /**
-     * Sets a callback function that will be invoked with the HapiSpecRegistry after command execution.
-     * The sub command and corresponding suite should accept the callback and set it to corresponding spec.
-     * This allows for extracting registry data after operations complete.
-     *
-     * @param observer the callback function to invoke with the registry after operation completion
-     */
-    public void setStateObserver(final SpecStateObserver observer) {
-        this.stateObserver = observer;
-    }
-
-    /**
-     * Returns the callback function that will be invoked with the HapiSpecRegistry after command execution.
-     * This callback can be used by subcommands to extract registry information by setting the callback
-     * to the corresponding spec.
-     *
-     * @return the registry callback function, may be null if not set
-     */
-    public SpecStateObserver getStateObserver() {
-        return stateObserver;
     }
 }

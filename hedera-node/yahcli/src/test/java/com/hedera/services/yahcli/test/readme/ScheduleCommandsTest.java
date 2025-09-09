@@ -15,6 +15,7 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.DEFAULT_WORKING_DI
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.TEST_NETWORK;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.publicKeyCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.scheduleIdCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliKey;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliScheduleSign;
@@ -64,13 +65,7 @@ public class ScheduleCommandsTest {
                                         "\"Never gonna give you up\"",
                                         String.valueOf(5))
                                 .schedule()
-                                .observing(specState -> {
-                                    var num = specState
-                                            .registry()
-                                            .getScheduleId("original")
-                                            .getScheduleNum();
-                                    newScheduleNum.set(num);
-                                }))),
+                                .exposingOutputTo(scheduleIdCapturer(newScheduleNum::set)))),
                 doingContextual(spec -> allRunFor(
                         spec,
                         getScheduleInfo(
@@ -126,33 +121,20 @@ public class ScheduleCommandsTest {
                                             "--targetAccount",
                                             String.valueOf(accountNumS.get()))
                                     .schedule()
-                                    .observing(specState -> {
-                                        var num = specState.registry().getScheduleId("update").getScheduleNum();
-                                        scheduleNum.set(num);
-                                    }));
+                                    .exposingOutputTo(scheduleIdCapturer(scheduleNum::set)));
                 }),
 
                 // Sign the schedule with all keys
                 doingContextual(spec -> allRunFor(
                         spec,
                         // sign with account R key
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
                                 .payingWith(String.valueOf(accountNumR.get())),
                         // sign with account T key
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get())
-                                )
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
                                 .payingWith(String.valueOf(accountNumT.get())),
                         // sign with account S
-                        yahcliScheduleSign(
-                                "sign",
-                                "--scheduleId",
-                                String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
                                 .payingWith(String.valueOf(accountNumS.get())))),
                 // Query all account keys
                 doingContextual(spec -> allRunFor(

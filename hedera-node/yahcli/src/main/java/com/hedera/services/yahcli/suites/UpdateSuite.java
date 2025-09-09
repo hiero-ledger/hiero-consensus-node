@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
@@ -14,6 +13,7 @@ import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
 import com.hederahashgraph.api.proto.java.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,21 +27,23 @@ public class UpdateSuite extends HapiSuite {
     private final List<Key> keys;
     private final boolean schedule;
     private final String targetAccount;
-    private final SpecStateObserver stateObserver;
+    private final AtomicReference<ScheduleID> scheduleId = new AtomicReference<>();
 
     public UpdateSuite(
             final ConfigManager configManager,
             final String memo,
             final List<Key> keys,
             final String targetAccount,
-            final boolean schedule,
-            final SpecStateObserver stateObserver) {
+            final boolean schedule) {
         this.memo = memo;
         this.configManager = configManager;
         this.keys = keys;
         this.targetAccount = targetAccount;
         this.schedule = schedule;
-        this.stateObserver = stateObserver;
+    }
+
+    public AtomicReference<ScheduleID> getScheduleId() {
+        return scheduleId;
     }
 
     @Override
@@ -61,14 +63,13 @@ public class UpdateSuite extends HapiSuite {
 
         // flag that transferred as parameter to schedule a key change or to execute right away
         if (schedule) {
-            update = scheduleCreate("update", update).logged();
+            update = scheduleCreate("update", update)
+                    .exposingCreatedIdTo(scheduleId::set)
+                    .logged();
         }
 
         final var spec = new HapiSpec(
                 "DoUpdate", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {update});
-        if (stateObserver != null) {
-            spec.setSpecStateObserver(stateObserver);
-        }
         return HapiSpecUtils.targeted(spec, configManager);
     }
 
