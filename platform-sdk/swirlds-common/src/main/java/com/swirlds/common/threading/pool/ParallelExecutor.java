@@ -11,55 +11,34 @@ import org.hiero.base.concurrent.ThrowingRunnable;
  * Used for executing tasks in parallel
  */
 public interface ParallelExecutor extends Mutable, Startable {
-    /**
-     * Run two tasks in parallel
-     *
-     * @param foregroundTask a task to execute in parallel, utilizing caller thread
-     * @param backgroundTask a task to execute in parallel, using pool thread
-     * @throws MutabilityException        if executed prior to object being started
-     * @throws ParallelExecutionException if anything goes wrong
-     */
-    <T> T doParallel(Callable<T> foregroundTask, Callable<Void> backgroundTask) throws ParallelExecutionException;
 
     /**
-     * Run number of backgroundTasks in parallel. See {@link #doParallel(Callable, Callable, Runnable)} for details of behaviour
+     * Run multiple tasks in parallel, the first one in the current thread, and the others in background threads.
      *
+     * <p>
+     * This method returns only after all tasks have finished.
+     * </p>
+     *
+     * @param errorHandler    a cleanup code to be executed if an exception gets thrown
      * @param foregroundTask  a task to execute in parallel, utilizing caller thread
-     * @param backgroundTasks number of backgroundTasks to execute in parallel, using pool threads
+     * @param backgroundTasks the tasks to execute in parallel, using pool thread
+     * @return result of executing foregroundTask callable
      * @throws MutabilityException        if executed prior to object being started
-     * @throws ParallelExecutionException if anything goes wrong
+     * @throws ParallelExecutionException if any of the invoked tasks throws an exception. if more throw an exception,
+     *                                    then the foregroundTask exception will be the cause and the backgroundTask
+     *                                    exception will be the suppressed exception (or first of background task
+     *                                    exceptions will be used as a base)
      */
-    void doParallel(final Runnable onThrow, ThrowingRunnable foregroundTask, ThrowingRunnable... backgroundTasks)
+    <T> T doParallelWithHandler(
+            final Runnable errorHandler, Callable<T> foregroundTask, ThrowingRunnable... backgroundTasks)
             throws ParallelExecutionException;
 
     /**
-     * Same as {@link #doParallel(Callable, Callable, Runnable)} but without a return type
+     * More concise version of {@link #doParallelWithHandler(Runnable, Callable, ThrowingRunnable...)}, which assumes
+     * no-op handler of errors (so exception will be thrown, but no special code will get executed explicitly)
      */
-    default void doParallel(
-            final ThrowingRunnable foregroundTask, final ThrowingRunnable backgroundTask, final Runnable onThrow)
+    default <T> T doParallel(final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks)
             throws ParallelExecutionException {
-        doParallel(foregroundTask, (Callable<Void>) backgroundTask, onThrow);
-    }
-
-    /**
-     * Run two tasks in parallel, the first one in the current thread, and the second in a background thread.
-     *
-     * <p>
-     * This method returns only after both have finished.
-     * </p>
-     *
-     * @param foregroundTask a task to execute in parallel, utilizing caller thread
-     * @param backgroundTask a task to execute in parallel, using pool thread
-     * @param onThrow        a cleanup task to be executed if an exception gets thrown. if the foreground task throws an
-     *                       exception, this could be used to stop the background task, but not vice versa
-     * @throws MutabilityException        if executed prior to object being started
-     * @throws ParallelExecutionException if either of the invoked tasks throws an exception. if both throw an
-     *                                    exception, then the foregroundTask exception will be the cause and the
-     *                                    backgroundTask exception will be the suppressed exception
-     */
-    default <T> T doParallel(
-            final Callable<T> foregroundTask, final Callable<Void> backgroundTask, final Runnable onThrow)
-            throws ParallelExecutionException {
-        throw new UnsupportedOperationException("not implemented");
+        return doParallelWithHandler(() -> {}, foregroundTask, backgroundTasks);
     }
 }

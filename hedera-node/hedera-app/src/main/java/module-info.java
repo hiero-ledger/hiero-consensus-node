@@ -33,7 +33,6 @@ module com.hedera.node.app {
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
     requires transitive io.helidon.grpc.core;
-    requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -45,6 +44,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.util;
+    requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
@@ -53,6 +53,7 @@ module com.hedera.node.app {
     requires io.grpc.netty;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
+    requires io.helidon.webclient.grpc;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;

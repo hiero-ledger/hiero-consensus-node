@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
@@ -20,6 +19,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,12 +45,13 @@ public class HasScheduleCapacityTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
+        lifecycle.doAdhoc(
+                UtilVerbs.overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "true"));
     }
 
     @AfterAll
     public static void shutdown(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(overriding("contracts.systemContract.scheduleService.scheduleCall.enabled", "false"));
+        lifecycle.doAdhoc(UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"));
     }
 
     @HapiTest
@@ -58,13 +59,10 @@ public class HasScheduleCapacityTest {
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
-                .andAssert(txn -> txn.hasResults(
-                        ContractFnResultAsserts.resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
-                                        ContractFnResultAsserts.isLiteralResult(new Object[] {true})),
-                        // for child record asserting, because hasScheduleCapacity is a view function
-                        ContractFnResultAsserts.anyResult()))
+                .andAssert(txn -> txn.hasResults(ContractFnResultAsserts.resultWith()
+                        .resultThruAbi(
+                                getABIFor(FUNCTION, "hasScheduleCapacityExample", contract.name()),
+                                ContractFnResultAsserts.isLiteralResult(new Object[] {true}))))
                 .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
     }
 

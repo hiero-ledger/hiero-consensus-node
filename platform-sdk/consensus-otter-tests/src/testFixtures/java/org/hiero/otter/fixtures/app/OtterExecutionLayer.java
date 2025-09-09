@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -54,5 +55,10 @@ public class OtterExecutionLayer implements ExecutionLayer {
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         transactionPool.updatePlatformStatus(platformStatus);
+    }
+
+    @Override
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
+        transactionPool.reportUnhealthyDuration(duration);
     }
 }

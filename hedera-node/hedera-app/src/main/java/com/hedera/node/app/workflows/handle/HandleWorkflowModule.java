@@ -15,6 +15,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkAdminHandlers;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.token.impl.handlers.TokenHandlers;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
@@ -52,6 +53,12 @@ public interface HandleWorkflowModule {
     @Singleton
     static Supplier<ContractHandlers> provideContractHandlers(@NonNull final ContractServiceImpl contractService) {
         return contractService::handlers;
+    }
+
+    @Provides
+    @Singleton
+    static ScheduleHandlers provideScheduleHandlers(@NonNull final ScheduleServiceImpl scheduleService) {
+        return scheduleService.handlers();
     }
 
     @Provides

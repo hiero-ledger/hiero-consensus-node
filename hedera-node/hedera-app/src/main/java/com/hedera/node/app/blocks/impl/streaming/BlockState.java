@@ -233,6 +233,10 @@ public class BlockState {
         }
     }
 
+    public void closeBlock(final Instant timestamp) {
+        closedTimestamp.set(timestamp);
+    }
+
     /**
      * Get the completion time of the block.
      *
@@ -243,13 +247,22 @@ public class BlockState {
     }
 
     /**
+     * Retrieves whether this block has been marked closed.
+     *
+     * @return true if the block has been closed, else false
+     */
+    public boolean isClosed() {
+        return closedTimestamp.get() != null;
+    }
+
+    /**
      * Processes any pending items associated with this block and assigns them to one or more requests that can be sent
      * to a block node.
      *
      * @param batchSize the maximum number of items to include in the request; if this value is less than 1 then the
      *                  batch size is set to 1
      */
-    public void processPendingItems(final int batchSize) {
+    public synchronized void processPendingItems(final int batchSize) {
         if (pendingItems.isEmpty()) {
             return; // nothing to do
         }
@@ -325,6 +338,7 @@ public class BlockState {
                 BlockItemSet.newBuilder().blockItems(blockItems).build();
         final PublishStreamRequest psr =
                 PublishStreamRequest.newBuilder().blockItems(bis).build();
+
         final RequestWrapper rs = new RequestWrapper(index, psr, new AtomicBoolean(false));
         requestsByIndex.put(index, rs);
 

@@ -25,6 +25,7 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
+import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -63,6 +64,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
     private final FutureEventBuffer futureEventBuffer;
 
     /**
+     * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     */
+    private double syncRoundLag;
+
+    /**
      * Constructor.
      *
      * @param configuration             provides the configuration for the event creator
@@ -86,6 +92,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
+        rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -173,6 +180,11 @@ public class DefaultEventCreationManager implements EventCreationManager {
         unhealthyDuration = Objects.requireNonNull(duration);
     }
 
+    @Override
+    public void reportSyncRoundLag(@NonNull final Double lag) {
+        syncRoundLag = Objects.requireNonNull(lag);
+    }
+
     /**
      * Get the current platform status.
      *
@@ -190,5 +202,13 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration getUnhealthyDuration() {
         return unhealthyDuration;
+    }
+
+    /**
+     * Get the lag behind the median of the network latest consensus round
+     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     */
+    public double getSyncRoundLag() {
+        return syncRoundLag;
     }
 }

@@ -64,8 +64,8 @@ public class SimulatedNetwork {
     /**
      * Constructor.
      *
-     * @param random                 the random number generator to use for simulating network delays
-     * @param roster                 the roster of the network
+     * @param random the random number generator to use for simulating network delays
+     * @param roster the roster of the network
      */
     public SimulatedNetwork(@NonNull final Random random, @NonNull final Roster roster) {
         this(
@@ -79,8 +79,8 @@ public class SimulatedNetwork {
     /**
      * Constructor.
      *
-     * @param random                 the random number generator to use for simulating network delays
-     * @param addressBook            the address book of the network
+     * @param random the random number generator to use for simulating network delays
+     * @param addressBook the address book of the network
      */
     public SimulatedNetwork(@NonNull final Random random, @NonNull final AddressBook addressBook) {
         this(random, addressBook.getNodeIdSet().stream().sorted().toList());
@@ -124,7 +124,7 @@ public class SimulatedNetwork {
      * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
      *
      * @param submitterId the id of the node submitting the event
-     * @param event       the event to gossip
+     * @param event the event to gossip
      */
     public void submitEvent(@NonNull final NodeId submitterId, @NonNull final PlatformEvent event) {
         newlySubmittedEvents.get(submitterId).add(event);
@@ -153,6 +153,14 @@ public class SimulatedNetwork {
             final Iterator<EventInTransit> iterator = events.iterator();
             while (iterator.hasNext()) {
                 final EventInTransit event = iterator.next();
+
+                final GossipConnectionKey connectionKey = new GossipConnectionKey(event.sender(), nodeId);
+                final ConnectionData connectionData = connections.get(connectionKey);
+                if (connectionData == null || !connectionData.connected()) {
+                    // No connection between sender and receiver, so skip delivery of this event
+                    continue;
+                }
+
                 if (event.arrivalTime().isAfter(now)) {
                     // no more events to deliver
                     break;
@@ -189,15 +197,19 @@ public class SimulatedNetwork {
                     final GossipConnectionKey connectionKey = new GossipConnectionKey(sender, receiver);
                     final ConnectionData connectionData = connections.get(connectionKey);
 
-                    if (connectionData == null || !connectionData.connected()) {
-                        // No connection between sender and receiver, so skip this event
-                        continue;
+                    Instant deliveryTime;
+                    if (connectionData == null) {
+                        // No connection between sender and receiver. We must still enqueue the event in case the
+                        // nodes become connected later.
+                        deliveryTime = lastDeliveryTimestamps
+                                .getOrDefault(connectionKey, Instant.MIN)
+                                .plusNanos(1);
+                    } else {
+                        // Simulate network latency and jitter using truncated Gaussian distribution
+                        final double sigma = connectionData.latency().toNanos() * connectionData.jitter().value / 100.0;
+                        final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
+                        deliveryTime = now.plus(connectionData.latency()).plusNanos((long) jitter);
                     }
-
-                    // Simulate network latency and jitter using truncated Gaussian distribution
-                    final double sigma = connectionData.latency().toNanos() * connectionData.jitter().value / 100.0;
-                    final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-                    Instant deliveryTime = now.plus(connectionData.latency()).plusNanos((long) jitter);
 
                     // Ensure delivery time is always incremental
                     final Instant lastDeliveryTime = lastDeliveryTimestamps.getOrDefault(connectionKey, Instant.MIN);

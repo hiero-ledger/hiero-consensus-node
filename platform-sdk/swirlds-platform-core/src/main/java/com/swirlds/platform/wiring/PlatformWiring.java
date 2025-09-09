@@ -320,6 +320,10 @@ public class PlatformWiring {
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
+        gossipWiring
+                .getSyncLagOutput()
+                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportSyncRoundLag));
+
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
@@ -355,6 +359,8 @@ public class PlatformWiring {
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
+        model.getHealthMonitorWire()
+                .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));

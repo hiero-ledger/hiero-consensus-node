@@ -604,6 +604,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
+    public void reportUnhealthyDuration(@NonNull final java.time.Duration duration) {
+        transactionPool.reportUnhealthyDuration(duration);
+    }
+
+    @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
@@ -1173,6 +1178,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
             if (blockStreamEnabled) {
                 notifications.unregister(StateHashedListener.class, daggerApp.blockStreamManager());
+                daggerApp.blockBufferService().shutdown();
             }
         }
         if (trigger == RECONNECT) {
@@ -1247,6 +1253,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                                             .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
+            initializeBlockNodeConnections();
         }
     }
 
