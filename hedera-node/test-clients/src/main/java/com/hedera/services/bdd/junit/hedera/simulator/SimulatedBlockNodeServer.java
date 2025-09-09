@@ -106,7 +106,7 @@ public class SimulatedBlockNodeServer {
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
-     * @param highLatency whether to simulate high latency responses
+     * @param highLatency whether to simulate high-latency responses
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
@@ -486,8 +486,7 @@ public class SimulatedBlockNodeServer {
                                     for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
                                         if (highLatency) {
                                             // If the simulator is set to be with high latency, delay acknowledgements
-                                            // with
-                                            // 1500 ms (assuming CN considers 1000 ms delays as high latency)
+                                            // with 1500 ms (assuming CN considers 1000 ms delays as high latency)
                                             Thread.sleep(1500);
                                         }
 

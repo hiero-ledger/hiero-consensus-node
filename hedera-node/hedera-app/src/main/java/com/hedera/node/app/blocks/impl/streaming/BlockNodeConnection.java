@@ -75,10 +75,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final Duration streamResetPeriod;
     /**
-     * Deprecated: High latency tracking is now managed by BlockNodeConnectionManager and BlockNodeStats.
-     * Left intentionally removed to avoid duplication of state.
-     */
-    /**
      * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
      */
     private final AtomicBoolean streamShutdownInProgress = new AtomicBoolean(false);
@@ -286,6 +282,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logger.debug("[{}] BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
 
         acknowledgeBlocks(acknowledgedBlockNumber, true);
+
+        // Evaluate latency and high-latency QoS via the connection manager
+        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
+                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
+            logger.info(
+                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
+                    this,
+                    result.consecutiveHighLatencyEvents());
+            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
+        }
     }
 
     /**
@@ -298,18 +305,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
-
-        // Evaluate latency and high-latency QoS via the connection manager
-        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
-                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
-        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
-            logger.info(
-                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
-                    this,
-                    result.consecutiveHighLatencyEvents());
-            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
-        }
-
         if (maybeJumpToBlock
                 && (acknowledgedBlockNumber > currentBlockProducing
                         || acknowledgedBlockNumber > currentBlockStreaming)) {

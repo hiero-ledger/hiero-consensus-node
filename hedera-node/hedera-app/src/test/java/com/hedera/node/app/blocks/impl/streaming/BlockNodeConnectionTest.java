@@ -2,9 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -15,9 +13,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -28,9 +23,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +38,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,15 +45,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle isStreamingEnabledHandle;
     private static final String LOCALHOST_8080 = "localhost:8080";
-    private static final VarHandle BLOCK_SEND_TIMESTAMPS_HANDLE;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
-            BLOCK_SEND_TIMESTAMPS_HANDLE = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "blockSendTimestamps", ConcurrentMap.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -77,6 +65,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private Pipeline<? super PublishStreamRequest> requestPipeline;
     private ScheduledExecutorService executorService;
+    private BlockNodeStats.HighLatencyResult latencyResult;
 
     @BeforeEach
     void beforeEach() {
@@ -88,6 +77,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         metrics = mock(BlockStreamMetrics.class);
         requestPipeline = mock(Pipeline.class);
         executorService = mock(ScheduledExecutorService.class);
+        latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
         connection = new BlockNodeConnection(
                 configProvider,
@@ -173,6 +163,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(10L);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(10L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -190,6 +183,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(8L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -212,6 +208,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(11L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -231,6 +230,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(12L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(11L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -507,57 +509,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSendRequest_withBlockProof() {
-        openConnectionAndResetMocks();
-
-        final BlockProof blockProof = BlockProof.newBuilder().block(1L).build();
-        final BlockItem item = BlockItem.newBuilder().blockProof(blockProof).build();
-        final PublishStreamRequest request = createRequest(item);
-
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        connection.sendRequest(request);
-
-        verify(requestPipeline).onNext(request);
-
-        final Map<Long, Instant> blockSendTimestamps =
-                (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
-        assertThat(blockSendTimestamps).containsKey(1L);
-        assertThat(blockSendTimestamps.get(1L)).isNotNull();
-
-        verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(bufferService);
-    }
-
-    @Test
-    void testSendRequest_withMultipleBlockItems() {
-        openConnectionAndResetMocks();
-
-        final BlockProof blockProof = BlockProof.newBuilder().block(1L).build();
-        final BlockHeader blockHeader = BlockHeader.newBuilder().number(2L).build();
-        final BlockItem item1 = BlockItem.newBuilder().blockProof(blockProof).build();
-        final BlockItem item2 = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item1, item2);
-
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        connection.sendRequest(request);
-
-        verify(requestPipeline).onNext(request);
-
-        final Map<Long, Instant> blockSendTimestamps =
-                (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
-        assertThat(blockSendTimestamps).containsKey(1L);
-        assertThat(blockSendTimestamps).doesNotContainKey(2L);
-        assertThat(blockSendTimestamps.get(1L)).isNotNull();
-
-        verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(bufferService);
-    }
-
-    @Test
     void testClose() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -656,89 +607,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
-    }
-
-    @Test
-    void testHandleAcknowledgement_withLatencyTracking() {
-        openConnectionAndResetMocks();
-
-        final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
-        final Instant sendTime = Instant.now().minus(Duration.ofMillis(100));
-        blockSendTimestamps.put(1L, sendTime);
-
-        final PublishStreamResponse response = createBlockAckResponse(1L);
-
-        connection.onNext(response);
-
-        verify(metrics).incrementAcknowledgedBlockCount();
-        verify(metrics).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
-        verifyNoMoreInteractions(metrics);
-
-        assertThat(blockSendTimestamps).doesNotContainKey(1L);
-    }
-
-    @Test
-    void testHandleAcknowledgement_withHighLatency() {
-        openConnectionAndResetMocks();
-
-        final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
-        final Instant sendTime = Instant.now().minus(Duration.ofMillis(1000));
-        blockSendTimestamps.put(1L, sendTime);
-
-        final PublishStreamResponse response = createBlockAckResponse(1L);
-
-        connection.onNext(response);
-
-        verify(metrics).incrementAcknowledgedBlockCount();
-        verify(metrics).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
-        verify(metrics).recordHighLatencyEvent(eq(LOCALHOST_8080));
-        verifyNoMoreInteractions(metrics);
-
-        assertThat(blockSendTimestamps).doesNotContainKey(1L);
-    }
-
-    @Test
-    void testHandleAcknowledgement_withConsecutiveHighLatency() {
-        openConnectionAndResetMocks();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-
-        final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
-        final Instant sendTime = Instant.now().minus(Duration.ofMillis(1000));
-        blockSendTimestamps.put(1L, sendTime);
-        blockSendTimestamps.put(2L, sendTime);
-        blockSendTimestamps.put(3L, sendTime);
-
-        connection.onNext(createBlockAckResponse(1L));
-        connection.onNext(createBlockAckResponse(2L));
-        connection.onNext(createBlockAckResponse(3L));
-
-        verify(metrics, times(3)).incrementAcknowledgedBlockCount();
-        verify(metrics, times(3)).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
-        verify(metrics, times(3)).recordHighLatencyEvent(eq(LOCALHOST_8080));
-
-        verify(connectionManager).rescheduleConnection(eq(connection), eq(BlockNodeConnection.LONGER_RETRY_DELAY));
-        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
-        verify(requestPipeline).onNext(requestCaptor.capture());
-        assertEquals(
-                PublishStreamRequest.EndStream.Code.TIMEOUT,
-                requestCaptor.getValue().endStream().endCode());
-
-        verify(requestPipeline).onComplete();
-
-        assertThat(blockSendTimestamps).isEmpty();
-    }
-
-    @Test
-    void testHandleAcknowledgement_withNoTimestamp() {
-        openConnectionAndResetMocks();
-
-        connection.onNext(createBlockAckResponse(1L));
-
-        verify(metrics).incrementAcknowledgedBlockCount();
-        verifyNoMoreInteractions(metrics);
     }
 
     // Utilities

@@ -511,12 +511,19 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true)},
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, highLatency = true)
+            },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0})
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(9)
     final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
@@ -531,13 +538,13 @@ public class BlockNodeSimulatorSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
-                        Duration.of(15, SECONDS),
+                        Duration.of(30, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format(
                                 "[localhost:%s/ACTIVE] Block node has exceeded high latency threshold 5 times consecutively.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "[localhost:%s/UNINITIALIZED] Rescheduling connection for reconnect attempt",
+                                "[localhost:%s/CLOSED] Closing and rescheduling connection for reconnect attempt",
                                 portNumbers.getFirst()),
                         "No block nodes found for attempted streaming")));
     }

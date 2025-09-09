@@ -1027,6 +1027,7 @@ public class BlockNodeConnectionManager {
      *
      * @param blockNodeConfig the target block node configuration
      * @param blockNumber the block number sent
+     * @param timestamp the timestamp when the block was sent
      */
     public void recordBlockSent(
             @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
@@ -1045,6 +1046,7 @@ public class BlockNodeConnectionManager {
      *
      * @param blockNodeConfig the block node configuration that acknowledged the block
      * @param blockNumber the acknowledged block number
+     * @param timestamp the timestamp of the block acknowledgement
      * @return the evaluation result including latency and switching decision
      */
     public BlockNodeStats.HighLatencyResult recordBlockAckAndCheckLatency(
