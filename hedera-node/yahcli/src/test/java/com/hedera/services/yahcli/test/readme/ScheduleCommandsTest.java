@@ -127,10 +127,7 @@ public class ScheduleCommandsTest {
                                             String.valueOf(accountNumS.get()))
                                     .schedule()
                                     .observing(specState -> {
-                                        var num = specState
-                                                .registry()
-                                                .getScheduleId("update")
-                                                .getScheduleNum();
+                                        var num = specState.registry().getScheduleId("update").getScheduleNum();
                                         scheduleNum.set(num);
                                     }));
                 }),
@@ -139,13 +136,23 @@ public class ScheduleCommandsTest {
                 doingContextual(spec -> allRunFor(
                         spec,
                         // sign with account R key
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign(
+                                "sign",
+                                "--scheduleId",
+                                String.valueOf(scheduleNum.get()))
                                 .payingWith(String.valueOf(accountNumR.get())),
                         // sign with account T key
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign(
+                                "sign",
+                                "--scheduleId",
+                                String.valueOf(scheduleNum.get())
+                                )
                                 .payingWith(String.valueOf(accountNumT.get())),
                         // sign with account S
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign(
+                                "sign",
+                                "--scheduleId",
+                                String.valueOf(scheduleNum.get()))
                                 .payingWith(String.valueOf(accountNumS.get())))),
                 // Query all account keys
                 doingContextual(spec -> allRunFor(
