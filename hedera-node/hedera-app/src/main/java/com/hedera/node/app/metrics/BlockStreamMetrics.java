@@ -151,7 +151,9 @@ public class BlockStreamMetrics {
      * @param numBlocksPruned the number of blocks that were pruned
      */
     public void recordNumberOfBlocksPruned(final int numBlocksPruned) {
-        buffer_numBlocksPrunedCounter.add(numBlocksPruned);
+        if (numBlocksPruned > 0) {
+            buffer_numBlocksPrunedCounter.add(numBlocksPruned);
+        }
     }
 
     /**

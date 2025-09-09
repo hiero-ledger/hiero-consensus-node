@@ -469,6 +469,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(requestPipeline).onNext(request);
         verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordBlockItemsSent(1);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);

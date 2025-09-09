@@ -503,6 +503,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(4)).recordBlockOpened();
         verify(blockStreamMetrics, times(4)).recordBlockClosed();
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         assertThat(buffer).hasSize(4);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
@@ -521,6 +522,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(100.0); // the buffer is 100% saturated
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -538,6 +540,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBlockOpened();
         verify(blockStreamMetrics).recordBlockClosed();
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
 
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -869,6 +872,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(10)).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(100.0D);
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
 
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1006,6 +1010,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(8)).recordBlockClosed();
         verify(blockStreamMetrics, atLeastOnce()).recordBackPressureActive();
         verify(blockStreamMetrics, atLeastOnce()).recordBufferSaturation(100.0D);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1041,6 +1046,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(5)).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(pruneResult.saturationPercent);
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1076,6 +1082,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(40.0D);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1116,6 +1123,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(3)).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(100.0D);
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1149,6 +1157,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(80.0D);
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1178,6 +1187,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(5L);
         verify(blockStreamMetrics).recordBufferSaturation(20.0D);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1204,6 +1214,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics).recordBufferSaturation(100.0D);
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1235,6 +1246,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(4L);
         verify(blockStreamMetrics).recordBufferSaturation(60.0D);
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1266,6 +1278,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(10L);
         verify(blockStreamMetrics).recordBufferSaturation(0.0D);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1292,6 +1305,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBackPressureActive();
         verify(blockStreamMetrics, times(2)).recordBufferSaturation(100.0D);
         verify(connectionManager, times(1)).selectNewBlockNodeForStreaming(true);
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -1332,6 +1346,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferSaturation(100.0D);
         verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1357,6 +1372,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(1L);
         verify(blockStreamMetrics).recordBufferSaturation(80.0D);
         verify(blockStreamMetrics).recordBackPressureRecovering();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1377,6 +1393,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(2L);
         verify(blockStreamMetrics).recordBufferSaturation(70.0D);
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1397,6 +1414,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockAcked(10L);
         verify(blockStreamMetrics).recordBufferSaturation(0.0D);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
