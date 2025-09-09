@@ -95,7 +95,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.swirlds.state.spi.WritableKVState;
@@ -287,7 +286,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private SpecStateObserver specStateObserver;
-
     /**
      * If non-null, a list of shared states to include in this spec's initial state.
      */
@@ -497,20 +495,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .setShardNum(shard())
                 .setRealmNum(realm())
                 .setContractNum(num)
-                .build();
-    }
-
-    /**
-     * Returns a function mapping an entity number to a {@link ScheduleID} for the target network.
-     * The function uses this spec's shard and realm numbers when constructing the schedule IDs.
-     *
-     * @return the schedule ID factory function
-     */
-    public LongFunction<ScheduleID> scheduleIdFactory() {
-        return num -> ScheduleID.newBuilder()
-                .setShardNum(shard())
-                .setRealmNum(realm())
-                .setScheduleNum(num)
                 .build();
     }
 

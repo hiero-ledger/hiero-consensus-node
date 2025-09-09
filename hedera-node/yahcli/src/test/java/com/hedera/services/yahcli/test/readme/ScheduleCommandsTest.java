@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.test.readme;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asScheduleString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -45,7 +44,7 @@ public class ScheduleCommandsTest {
     @HapiTest
     final Stream<DynamicTest> readmeScheduleCreateExample() {
         final var newAccountNum = new AtomicLong();
-        final var newScheduleNum = new AtomicLong();
+        final var newScheduleId = new AtomicReference<String>();
         return hapiTest(
 
                 // Create an account with yahcli (fails if yahcli exits with a non-zero return code)
@@ -65,11 +64,8 @@ public class ScheduleCommandsTest {
                                         "\"Never gonna give you up\"",
                                         String.valueOf(5))
                                 .schedule()
-                                .exposingOutputTo(scheduleIdCapturer(newScheduleNum::set)))),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        getScheduleInfo(
-                                asScheduleString(spec.scheduleIdFactory().apply(newScheduleNum.get()))))));
+                                .exposingOutputTo(scheduleIdCapturer(newScheduleId::set)))),
+                doingContextual(spec -> allRunFor(spec, getScheduleInfo(newScheduleId.get()))));
     }
 
     @Order(1)
@@ -88,7 +84,7 @@ public class ScheduleCommandsTest {
         // schedule arg
         final var newKeyFilePath = new AtomicReference<String>();
         // schedule num
-        final var scheduleNum = new AtomicLong();
+        final var scheduleId = new AtomicReference<String>();
         // account S new key
         final var actualKeyS = new AtomicReference<Key>();
 
@@ -121,20 +117,20 @@ public class ScheduleCommandsTest {
                                             "--targetAccount",
                                             String.valueOf(accountNumS.get()))
                                     .schedule()
-                                    .exposingOutputTo(scheduleIdCapturer(scheduleNum::set)));
+                                    .exposingOutputTo(scheduleIdCapturer(scheduleId::set)));
                 }),
 
                 // Sign the schedule with all keys
                 doingContextual(spec -> allRunFor(
                         spec,
                         // sign with account R key
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign("sign", "--scheduleId", scheduleId.get())
                                 .payingWith(String.valueOf(accountNumR.get())),
                         // sign with account T key
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign("sign", "--scheduleId", scheduleId.get())
                                 .payingWith(String.valueOf(accountNumT.get())),
                         // sign with account S
-                        yahcliScheduleSign("sign", "--scheduleId", String.valueOf(scheduleNum.get()))
+                        yahcliScheduleSign("sign", "--scheduleId", scheduleId.get())
                                 .payingWith(String.valueOf(accountNumS.get())))),
                 // Query all account keys
                 doingContextual(spec -> allRunFor(
