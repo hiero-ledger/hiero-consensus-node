@@ -40,11 +40,24 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         return this;
     }
 
+    /**
+     * Configures the Yahcli command to use the specified account as the payer.
+     * This adds the "-p" option to the command with the provided account ID.
+     *
+     * @param payer the account ID to be used as the transaction payer
+     * @return this operation instance for method chaining
+     */
     public YahcliCallOperation payingWith(String payer) {
         this.payer = payer;
         return this;
     }
 
+    /**
+     * Configures the Yahcli command to be executed as a scheduled transaction.
+     * This adds the "--schedule" flag to the command.
+     *
+     * @return this operation instance for method chaining
+     */
     public YahcliCallOperation schedule() {
         this.schedule = true;
         return this;

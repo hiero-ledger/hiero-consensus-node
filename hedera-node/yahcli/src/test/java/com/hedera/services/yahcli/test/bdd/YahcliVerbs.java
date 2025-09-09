@@ -400,6 +400,14 @@ public class YahcliVerbs {
         };
     }
 
+    /**
+     * Returns a callback that extracts the schedule ID from command output.
+     * The callback looks for a pattern matching a schedule ID (format: N.N.N) in the output
+     * and passes the extracted ID to the provided consumer.
+     *
+     * @param cb the consumer that will receive the extracted schedule ID
+     * @return an output consumer that processes and extracts schedule IDs from command output
+     */
     public static Consumer<String> scheduleIdCapturer(@NonNull final Consumer<String> cb) {
         return output -> {
             final var m = SCHEDULE_ID_PATTERN.matcher(output);
