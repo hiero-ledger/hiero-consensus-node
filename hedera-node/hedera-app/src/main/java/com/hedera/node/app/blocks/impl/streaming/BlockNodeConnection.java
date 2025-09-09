@@ -543,18 +543,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Restarts a new stream at a specified block number.
-     * This method will establish a new stream and start processing from the specified block number.
-     *
-     * @param blockNumber the block number to restart at
-     */
-    private void restartStreamAtBlock(final long blockNumber) {
-        logger.debug("[{}] Scheduling stream restart at block {}", this, blockNumber);
-        blockNodeConnectionManager.scheduleConnectionAttempt(
-                this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY, blockNumber);
-    }
-
-    /**
      * Restarts the worker thread at a specific block number without ending the stream.
      * This method will interrupt the current worker thread if it exists,
      * set the new block number and request index, and start a new worker thread.
