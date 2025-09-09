@@ -75,7 +75,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.2
+  NLG_VERSION: 0.6.3
   BlockNode_version: 0.17.0
   NUM_OF_BLOCK_NODES: 7
 
@@ -124,9 +124,12 @@ jobs:
           git checkout fixes_Jul25
           cd "${{ github.workspace }}"
 
-      - name: Checkout Perf Analysis
+      - name: Checkout PBJ and Besu
         run: |
           git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
+          git clone https://github.com/hyperledger/besu.git besu
+
+
 
       - name: Check Test Asset
         id: set-k8s-cluster
@@ -273,7 +276,9 @@ jobs:
             echo "Instrumenting CN ..."
             cd "${{ github.workspace }}"/target_consensus_node/hedera-node
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
-            `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/base-*.jar data/lib/hedera*.jar data/lib/hapi*.jar data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
+            `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/base-*.jar data/lib/hedera*.jar data/lib/hapi*.jar \
+             data/lib/besu*.jar data/lib/evm*.jar \
+             data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
             cp sources_init.txt "${{ github.workspace }}"/report/
             head sources_init.txt
             echo "..."
@@ -795,10 +800,10 @@ jobs:
 
           bash "${COBERTURA_HOME}"/cobertura-merge.sh --datafile ../final.ser *.ser > sources_merge.txt 2>&1
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination sources --format html \
-          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
+          `find .. ../../pbj ../../besu -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_report.txt 2>&1
           
           bash "${COBERTURA_HOME}"/cobertura-report.sh --datafile ../final.ser --destination reportsXML --format xml \
-          `find .. ../../pbj -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
+          `find .. ../../pbj ../../besu -type d \( -path '*src/main/java' -o -path '*source*/java/main' -o -path '*source*/main/java' \) -exec printf "%s" {}" " \;` > sources_reportXML.txt 2>&1
           
           sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/anchorHTML.sh sources
           perl "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/fixLambdasCobertura.pl reportsXML/coverage.xml > reportsXML/coverage2.xml
