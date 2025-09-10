@@ -91,7 +91,9 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createNodeOnlyFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", Long.toString(nodeId.id()));
+        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
+        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
                 .addComponent(keyValuePair);
@@ -109,7 +111,9 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createExcludeNodeFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", Long.toString(nodeId.id()));
+        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
+        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
                 .addComponent(keyValuePair);

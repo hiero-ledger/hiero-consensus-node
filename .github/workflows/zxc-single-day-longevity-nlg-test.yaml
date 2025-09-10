@@ -34,13 +34,6 @@ on:
         default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
-      # For Adhoc runs, we use Chicago:                 k8s.pft.chi.lat.ope.eng.hashgraph.io
-      # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
-      kubernetes-cluster:
-        required: true
-        type: string
-        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
-        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
@@ -94,6 +87,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -117,7 +119,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -227,7 +229,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          CONTEXT: hashgraph.teleport.sh-${{ inputs.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e

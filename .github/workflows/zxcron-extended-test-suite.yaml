@@ -259,6 +259,7 @@ jobs:
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   json-rpc-relay-regression-panel:
     name: JSON-RPC Relay Regression Panel
