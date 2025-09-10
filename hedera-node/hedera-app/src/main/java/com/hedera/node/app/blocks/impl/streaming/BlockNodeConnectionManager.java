@@ -50,10 +50,11 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.protoc.BlockNodeServiceGrpc;
-import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 
 /**
  * Manages connections to block nodes in a Hedera network, handling connection lifecycle, node selection,
@@ -87,14 +88,6 @@ public class BlockNodeConnectionManager {
      * The maximum delay used for reties.
      */
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(10);
-    /**
-     * The gRPC endpoint used to establish communication between the consensus node and block node.
-     */
-    private final String grpcEndpoint;
-    /**
-     * The gRPC endpoint used to get the block node server status.
-     */
-    private final String blockNodeStatusEndpoint;
     /**
      * Tracks what the last verified block for each connection is. Note: The data maintained here is based on what the
      * block node has informed the consensus node of. If a block node is not actively connected, then this data may be
@@ -207,12 +200,6 @@ public class BlockNodeConnectionManager {
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
 
-        final String endpoint =
-                BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
-        grpcEndpoint = requireNonNull(endpoint, "gRPC endpoint is missing");
-        final String serverStatusEndpoint =
-                BlockNodeServiceGrpc.getServerStatusMethod().getBareMethodName();
-        blockNodeStatusEndpoint = requireNonNull(serverStatusEndpoint, "Block node server status endpoint is missing");
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -296,29 +283,50 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Creates a new gRPC client based on the specified configuration.
+     * Creates a new gRPC publish client based on the specified configuration.
      *
      * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
+     * @return a gRPC publish client
      */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
+    private @NonNull BlockStreamPublishServiceClient createNewPublishClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+        final WebClient webClient = createNewWebClient(nodeConfig);
 
-        final WebClient webClient = WebClient.builder()
+        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+    }
+
+    /**
+     * Creates a new gRPC server status client based on the specified configuration.
+     *
+     * @param nodeConfig the configuration to use for a specific block node to connect to
+     * @return a gRPC server status client
+     */
+    private @NonNull BlockNodeServiceClient createNewServerStatusClient(@NonNull final BlockNodeConfig nodeConfig) {
+        requireNonNull(nodeConfig);
+
+        final Tls tls = Tls.builder().enabled(false).build();
+        final PbjGrpcClientConfig grpcConfig =
+                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+        final WebClient webClient = createNewWebClient(nodeConfig);
+
+        return new BlockNodeServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+    }
+
+    private @NonNull WebClient createNewWebClient(@NonNull final BlockNodeConfig nodeConfig) {
+        requireNonNull(nodeConfig);
+        return WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .tls(tls)
+                .tls(Tls.builder().enabled(false))
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
                         .pollWaitTime(Duration.ofSeconds(30))
                         .build()))
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
 
     /**
@@ -616,23 +624,21 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with fresh gRPC client
-        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+        // Create the connection object with fresh gRPC publish client
+        final BlockStreamPublishServiceClient grpcClient = createNewPublishClient(nodeConfig);
 
         // Call serverStatus endpoint before establishing the BlockNodeConnection
         try {
-            // Create a blocking stub for the BlockNodeService
-            BlockNodeServiceGrpc.BlockNodeServiceBlockingStub blockingStub =
-                    BlockNodeServiceGrpc.newBlockingStub(managedChannel);
+            final var serverStatusClient = createNewServerStatusClient(nodeConfig);
 
             // Build the request
-            org.hiero.block.api.protoc.ServerStatusRequest statusRequest =
-                    org.hiero.block.api.protoc.ServerStatusRequest.newBuilder().build();
+            final ServerStatusRequest statusRequest =
+                    ServerStatusRequest.newBuilder().build();
 
             // Make the unary call
-            org.hiero.block.api.protoc.ServerStatusResponse statusResponse = blockingStub.serverStatus(statusRequest);
+            ServerStatusResponse statusResponse = serverStatusClient.serverStatus(statusRequest);
 
-            final long lastAvailableBlockFromBlockNode = statusResponse.getLastAvailableBlock();
+            final long lastAvailableBlockFromBlockNode = statusResponse.lastAvailableBlock();
             final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
             final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
 
@@ -660,9 +666,8 @@ public class BlockNodeConnectionManager {
                         nodeConfig,
                         this,
                         blockBufferService,
-                        managedChannel,
+                        grpcClient,
                         blockStreamMetrics,
-                        grpcEndpoint,
                         sharedExecutorService);
                 connections.put(nodeConfig, connection);
                 scheduleConnectionAttempt(connection, Duration.ZERO, lastAvailableBlockFromBlockNode + 1);
@@ -674,8 +679,8 @@ public class BlockNodeConnectionManager {
                     "Server status for node {}:{}: firstAvailableBlock={}, lastAvailableBlock={}",
                     nodeConfig.address(),
                     nodeConfig.port(),
-                    statusResponse.getFirstAvailableBlock(),
-                    statusResponse.getLastAvailableBlock());
+                    statusResponse.firstAvailableBlock(),
+                    statusResponse.lastAvailableBlock());
         } catch (Exception e) {
             logger.error(
                     "Failed to get server status from block node {}:{}: {}",
