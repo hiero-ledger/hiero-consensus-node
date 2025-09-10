@@ -2,12 +2,6 @@
 name: "ZXF: [CITR] Single Day Performance Test Controller (SDPT)"
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        required: true
-        default: "main"
-        description: "Version of hiero-consensus-node: branch, tag, commit"
-        type: string
 
 defaults:
   run:
@@ -35,13 +29,13 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Verify Tag
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref }}"
+          CHECK_TAG: "${{ github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -69,7 +63,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       test-asset: "SDPT1"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
       nlg-time: "330"
@@ -98,7 +92,7 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -161,7 +155,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
-          COMMIT=$(git rev-list -n 1 "${{ inputs.ref }}")
+          COMMIT=$(git rev-list -n 1 "${{ github.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
@@ -215,7 +209,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDPT - Single Day Performance Test (${{ inputs.ref }}) Passed",
+                        "text": ":tada: SDPT - Single Day Performance Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -271,7 +265,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -330,7 +324,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -443,7 +437,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDPT - Single Day Performance Test (${{ inputs.ref }}) Failed",
+                      "text": ":grey_exclamation: SDPT - Single Day Performance Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -507,7 +501,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                       },
                       {
                         "type": "mrkdwn",
