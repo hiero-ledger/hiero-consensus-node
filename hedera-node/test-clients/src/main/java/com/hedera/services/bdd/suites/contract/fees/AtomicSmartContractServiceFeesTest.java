@@ -77,7 +77,7 @@ public class AtomicSmartContractServiceFeesTest {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.72, 5));
+                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.73, 5));
     }
 
     @HapiTest
@@ -94,7 +94,7 @@ public class AtomicSmartContractServiceFeesTest {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(contract, ATOMIC_BATCH, 0.00184, 1));
+                validateInnerTxnChargedUsd(contract, ATOMIC_BATCH, 0.0068, 1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
@@ -121,6 +121,6 @@ public class AtomicSmartContractServiceFeesTest {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateInnerTxnChargedUsd(ethCall, ATOMIC_BATCH, 0.00194, 1));
+                validateInnerTxnChargedUsd(ethCall, ATOMIC_BATCH, 0.0069, 1));
     }
 }
